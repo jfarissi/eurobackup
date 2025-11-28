@@ -1,0 +1,376 @@
+<div class="compare-container">
+  <div class="compare-header">
+    <h1>🔗 Association & Comparaison de Documents</h1>
+    <button mat-raised-button color="primary" (click)="navigateToUpload()">
+      📤 Page d'Upload
+    </button>
+  </div>
+
+  <!-- Suggestions pour BL uploadé -->
+  <div class="suggestion-card" *ngIf="blId && suggestedInvoices.length > 0">
+    <h2>💡 Factures suggérées pour BL #{{ blId }} ({{ blNumber }})</h2>
+    <div class="suggested-invoices">
+      <mat-card *ngFor="let inv of suggestedInvoices" class="invoice-card" (click)="selectInvoice(inv)">
+        <mat-card-header>
+          <mat-card-title>Facture #{{ inv.id }}</mat-card-title>
+          <mat-card-subtitle>{{ inv.numero || 'Sans numéro' }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p><strong>Client:</strong> {{ inv.client || '-' }}</p>
+          <p><strong>Fournisseur:</strong> {{ inv.supplier || '-' }}</p>
+          <p><strong>Date:</strong> {{ inv.dateDocument ? (inv.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+
+  <!-- Sélection actuelle pour association Facture-BL -->
+  <div class="selection-card" *ngIf="selectedInvoice || selectedDelivery">
+    <h2>📋 Sélection Actuelle (Association Facture-BL)</h2>
+    <div class="selection-items">
+      <div class="selected-item" *ngIf="selectedInvoice">
+        <mat-icon>receipt</mat-icon>
+        <div>
+          <strong>Facture #{{ selectedInvoice.id }}</strong>
+          <p>{{ selectedInvoice.numero || 'Sans numéro' }}</p>
+        </div>
+        <button mat-icon-button (click)="selectedInvoice = null">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="selected-item" *ngIf="selectedDelivery">
+        <mat-icon>local_shipping</mat-icon>
+        <div>
+          <strong>BL #{{ selectedDelivery.id }}</strong>
+          <p>{{ selectedDelivery.numero || 'Sans numéro' }}</p>
+        </div>
+        <button mat-icon-button (click)="selectedDelivery = null">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+    <button 
+      mat-raised-button 
+      color="primary" 
+      [disabled]="!selectedInvoice || !selectedDelivery"
+      (click)="linkSelected()"
+      class="link-button"
+    >
+      <mat-icon>link</mat-icon>
+      Associer
+    </button>
+  </div>
+
+  <!-- Sélection pour comparaison de prix entre factures -->
+  <div class="selection-card" *ngIf="selectedInvoice1 || selectedInvoice2">
+    <h2>💰 Comparaison de Prix entre Factures</h2>
+    <div class="selection-items">
+      <div class="selected-item" *ngIf="selectedInvoice1">
+        <mat-icon>receipt</mat-icon>
+        <div>
+          <strong>Facture 1 #{{ selectedInvoice1.id }}</strong>
+          <p>{{ selectedInvoice1.numero || 'Sans numéro' }}</p>
+        </div>
+        <button mat-icon-button (click)="selectedInvoice1 = null">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="selected-item" *ngIf="selectedInvoice2">
+        <mat-icon>receipt</mat-icon>
+        <div>
+          <strong>Facture 2 #{{ selectedInvoice2.id }}</strong>
+          <p>{{ selectedInvoice2.numero || 'Sans numéro' }}</p>
+        </div>
+        <button mat-icon-button (click)="selectedInvoice2 = null">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+    <button 
+      mat-raised-button 
+      color="accent" 
+      [disabled]="!selectedInvoice1 || !selectedInvoice2"
+      (click)="compareInvoices()"
+      class="link-button"
+    >
+      <mat-icon>compare_arrows</mat-icon>
+      Comparer les Prix
+    </button>
+  </div>
+
+  <!-- Recherche -->
+  <div class="search-card">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Recherche (texte, numéro, client)</mat-label>
+      <input matInput [(ngModel)]="query" (keyup.enter)="search()" />
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+    <button mat-raised-button (click)="search()">Rechercher</button>
+    <button mat-stroked-button (click)="load()">Tout</button>
+  </div>
+
+  <!-- Tableau des factures avec expansion -->
+  <div class="table-card">
+    <h2>📄 Factures</h2>
+    <div class="table-wrapper">
+      <div class="invoices-list">
+        <div *ngFor="let invoice of factures" class="invoice-item">
+          <div class="invoice-row-main" [class.has-association]="getAssociatedDelivery(invoice.id)">
+            <div class="expand-button">
+              <button 
+                mat-icon-button 
+                (click)="toggleExpand(invoice.id)"
+                [matTooltip]="getAssociatedDelivery(invoice.id) ? 'Afficher le BL associé' : 'Associer un BL'"
+              >
+                <mat-icon>{{ isExpanded(invoice.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+            </div>
+            <div class="invoice-info">
+              <div class="info-item"><strong>ID:</strong> {{ invoice.id }}</div>
+              <div class="info-item"><strong>Numéro:</strong> {{ invoice.numero || '-' }}</div>
+              <div class="info-item"><strong>Client:</strong> {{ invoice.client || '-' }}</div>
+              <div class="info-item"><strong>Fournisseur:</strong> {{ invoice.supplier || '-' }}</div>
+              <div class="info-item"><strong>Date:</strong> {{ invoice.dateDocument ? (invoice.dateDocument | date:'yyyy-MM-dd') : '-' }}</div>
+            </div>
+            <div class="invoice-status">
+              <mat-chip-set *ngIf="getAssociatedDelivery(invoice.id)">
+                <mat-chip class="linked-chip">Associé</mat-chip>
+              </mat-chip-set>
+              <span *ngIf="!getAssociatedDelivery(invoice.id)" class="not-linked">Non associé</span>
+            </div>
+            <div class="invoice-actions">
+              <button 
+                mat-icon-button 
+                (click)="selectedInvoice1 = invoice; selectedInvoice2 = null; invoicePriceComparisonResult = null" 
+                matTooltip="Sélectionner comme Facture 1"
+                [class.selected]="selectedInvoice1?.id === invoice.id"
+              >
+                <mat-icon>looks_one</mat-icon>
+              </button>
+              <button 
+                mat-icon-button 
+                (click)="selectedInvoice2 = invoice; invoicePriceComparisonResult = null" 
+                matTooltip="Sélectionner comme Facture 2"
+                [class.selected]="selectedInvoice2?.id === invoice.id"
+              >
+                <mat-icon>looks_two</mat-icon>
+              </button>
+              <button mat-icon-button (click)="download(invoice.id)" matTooltip="Télécharger">
+                <mat-icon>download</mat-icon>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Expansion : BL associé ou sélection de BL -->
+          <div class="expanded-content" *ngIf="isExpanded(invoice.id)">
+            <!-- Si la facture a déjà un BL associé -->
+            <div *ngIf="getAssociatedDelivery(invoice.id) as delivery" class="delivery-info">
+              <h4>🚚 Bon de Livraison Associé</h4>
+              <div class="delivery-details">
+                <div class="detail-item">
+                  <strong>ID:</strong> {{ delivery.id }}
+                </div>
+                <div class="detail-item">
+                  <strong>Numéro:</strong> {{ delivery.numero || '-' }}
+                </div>
+                <div class="detail-item">
+                  <strong>Client:</strong> {{ delivery.client || '-' }}
+                </div>
+                <div class="detail-item">
+                  <strong>Fournisseur:</strong> {{ delivery.supplier || '-' }}
+                </div>
+                <div class="detail-item">
+                  <strong>Date:</strong> {{ delivery.dateDocument ? (delivery.dateDocument | date:'yyyy-MM-dd') : '-' }}
+                </div>
+              </div>
+              <div class="delivery-actions">
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  (click)="compare(invoice.id, delivery.id)"
+                >
+                  <mat-icon>compare_arrows</mat-icon>
+                  Comparer
+                </button>
+                <button 
+                  mat-raised-button 
+                  color="accent" 
+                  (click)="compareAndStock(invoice.id, delivery.id)"
+                  style="margin-left: 8px;"
+                >
+                  <mat-icon>inventory</mat-icon>
+                  Comparer + Stock
+                </button>
+                <button 
+                  *ngIf="getRelationId(invoice.id, delivery.id)"
+                  mat-stroked-button 
+                  color="warn" 
+                  (click)="unlink(getRelationId(invoice.id, delivery.id)!)"
+                  style="margin-left: 8px;"
+                >
+                  <mat-icon>link_off</mat-icon>
+                  Dissocier
+                </button>
+              </div>
+            </div>
+            
+            <!-- Si la facture n'a pas de BL associé, afficher la liste des BL disponibles -->
+            <div *ngIf="!getAssociatedDelivery(invoice.id)" class="associate-delivery">
+              <h4>🔗 Associer un Bon de Livraison</h4>
+              <p>Sélectionnez un BL à associer à cette facture :</p>
+              <div class="delivery-list">
+                <mat-card 
+                  *ngFor="let bl of bonsLivraison" 
+                  class="delivery-card"
+                  [class.selected]="selectedDelivery?.id === bl.id"
+                  (click)="selectDelivery(bl)"
+                >
+                  <mat-card-content>
+                    <div class="delivery-card-content">
+                      <div>
+                        <strong>BL #{{ bl.id }}</strong>
+                        <p>Numéro: {{ bl.numero || '-' }}</p>
+                        <p>Client: {{ bl.client || '-' }}</p>
+                        <p>Fournisseur: {{ bl.supplier || '-' }}</p>
+                        <p>Date: {{ bl.dateDocument ? (bl.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
+                      </div>
+                      <button 
+                        mat-raised-button 
+                        color="primary"
+                        (click)="selectInvoice(invoice); selectDelivery(bl); linkSelected(); $event.stopPropagation()"
+                      >
+                        <mat-icon>link</mat-icon>
+                        Associer
+                      </button>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+              <p *ngIf="bonsLivraison.length === 0" class="no-deliveries">
+                Aucun bon de livraison disponible pour l'association.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Résultat de comparaison -->
+  <div class="comparison-result-card" *ngIf="comparaisonResult">
+    <h2>📊 Résultat de la Comparaison</h2>
+    <div class="table-wrapper">
+      <table mat-table [dataSource]="comparaisonResult.lines" class="comparison-table">
+        <ng-container matColumnDef="product">
+          <th mat-header-cell *matHeaderCellDef>Produit</th>
+          <td mat-cell *matCellDef="let l">{{ l.product }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="invoiceQty">
+          <th mat-header-cell *matHeaderCellDef>Qté Facture</th>
+          <td mat-cell *matCellDef="let l">{{ l.invoiceQty }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="deliveryQty">
+          <th mat-header-cell *matHeaderCellDef>Qté BL</th>
+          <td mat-cell *matCellDef="let l">{{ l.deliveryQty }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="diff">
+          <th mat-header-cell *matHeaderCellDef>Différence Qté</th>
+          <td mat-cell *matCellDef="let l">{{ l.diff }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="currentPrice">
+          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture Actuelle</th>
+          <td mat-cell *matCellDef="let l">
+            <span *ngIf="l.currentInvoiceUnitPrice > 0">{{ l.currentInvoiceUnitPrice | number:'1.2-2' }}</span>
+            <span *ngIf="l.currentInvoiceUnitPrice === 0" class="no-price">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="previousPrice">
+          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture Précédente</th>
+          <td mat-cell *matCellDef="let l">
+            <span *ngIf="l.previousInvoiceUnitPrice > 0">{{ l.previousInvoiceUnitPrice | number:'1.2-2' }}</span>
+            <span *ngIf="l.previousInvoiceUnitPrice === 0" class="no-price">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="priceDiff">
+          <th mat-header-cell *matHeaderCellDef>Différence Prix</th>
+          <td mat-cell *matCellDef="let l" 
+              [class.price-positive]="l.priceDiff > 0" 
+              [class.price-negative]="l.priceDiff < 0" 
+              [class.price-zero]="l.priceDiff === 0 && (l.currentInvoiceUnitPrice > 0 || l.previousInvoiceUnitPrice > 0)"
+              [class.no-price]="l.currentInvoiceUnitPrice === 0 && l.previousInvoiceUnitPrice === 0">
+            <span *ngIf="l.currentInvoiceUnitPrice > 0 || l.previousInvoiceUnitPrice > 0">{{ l.priceDiff | number:'1.2-2' }}</span>
+            <span *ngIf="l.currentInvoiceUnitPrice === 0 && l.previousInvoiceUnitPrice === 0">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let l">
+            <mat-chip-set>
+              <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">
+                {{ l.status }}
+              </mat-chip>
+            </mat-chip-set>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['product', 'invoiceQty', 'deliveryQty', 'diff', 'currentPrice', 'previousPrice', 'priceDiff', 'status']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['product', 'invoiceQty', 'deliveryQty', 'diff', 'currentPrice', 'previousPrice', 'priceDiff', 'status']"></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Résultat de comparaison de prix entre factures -->
+  <div class="comparison-result-card" *ngIf="invoicePriceComparisonResult">
+    <h2>💰 Comparaison de Prix entre Factures</h2>
+    <p><strong>Facture 1:</strong> #{{ invoicePriceComparisonResult.invoice1Id }} | 
+       <strong>Facture 2:</strong> #{{ invoicePriceComparisonResult.invoice2Id }}</p>
+    <div class="table-wrapper">
+      <table mat-table [dataSource]="invoicePriceComparisonResult.lines" class="comparison-table">
+        <ng-container matColumnDef="product">
+          <th mat-header-cell *matHeaderCellDef>Produit</th>
+          <td mat-cell *matCellDef="let l">{{ l.product }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="invoice1Price">
+          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture 1</th>
+          <td mat-cell *matCellDef="let l">
+            <span *ngIf="l.invoice1UnitPrice > 0">{{ l.invoice1UnitPrice | number:'1.2-2' }}</span>
+            <span *ngIf="l.invoice1UnitPrice === 0" class="no-price">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="invoice2Price">
+          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture 2</th>
+          <td mat-cell *matCellDef="let l">
+            <span *ngIf="l.invoice2UnitPrice > 0">{{ l.invoice2UnitPrice | number:'1.2-2' }}</span>
+            <span *ngIf="l.invoice2UnitPrice === 0" class="no-price">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="priceDiff">
+          <th mat-header-cell *matHeaderCellDef>Différence Prix</th>
+          <td mat-cell *matCellDef="let l" 
+              [class.price-positive]="l.priceDiff > 0" 
+              [class.price-negative]="l.priceDiff < 0" 
+              [class.price-zero]="l.priceDiff === 0 && (l.invoice1UnitPrice > 0 || l.invoice2UnitPrice > 0)"
+              [class.no-price]="l.invoice1UnitPrice === 0 && l.invoice2UnitPrice === 0">
+            <span *ngIf="l.invoice1UnitPrice > 0 || l.invoice2UnitPrice > 0">{{ l.priceDiff | number:'1.2-2' }}</span>
+            <span *ngIf="l.invoice1UnitPrice === 0 && l.invoice2UnitPrice === 0">-</span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['product', 'invoice1Price', 'invoice2Price', 'priceDiff']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['product', 'invoice1Price', 'invoice2Price', 'priceDiff']"></tr>
+      </table>
+    </div>
+  </div>
+</div>
+

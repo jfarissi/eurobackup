@@ -1,0 +1,137 @@
+﻿using Backup.Web.Api.Server.Authorization;
+using Backup.Web.Api.Server.Brokers.DateTimes;
+using Backup.Web.Api.Server.Brokers.Loggings;
+using Backup.Web.Api.Server.Brokers.RoleManagement;
+using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Brokers.UserManagement;
+using Backup.Web.Api.Server.Models.Rols;
+using Backup.Web.Api.Server.Models.Users;
+using Backup.Web.Api.Server.Services.Roles;
+using Backup.Web.Api.Server.Services.Users;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers();
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
+// App services and brokers
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.ITextExtractionService, Backup.Web.Api.Server.Services.TextExtractionService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.IPdfToTextService, Backup.Web.Api.Server.Services.PdfToTextService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Brokers.Storage.IStorageBroker, Backup.Web.Api.Server.Brokers.Storage.StorageBroker>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentService, Backup.Web.Api.Server.Services.Documents.DocumentService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Ocr.IOcrTextExtractionService, Backup.Web.Api.Server.Services.Ocr.OcrTextExtractionService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentComparisonService, Backup.Web.Api.Server.Services.Documents.DocumentComparisonService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentParserService, Backup.Web.Api.Server.Services.Documents.DocumentParserService>();
+// Parsing infrastructure
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.Documents.Parsing.DocumentParserConfig>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.LanguageDetector>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.IDocumentParser, Backup.Web.Api.Server.Services.Documents.Parsing.Suppliers.KnaufInvoiceParser>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.IDocumentParser, Backup.Web.Api.Server.Services.Documents.Parsing.Suppliers.KnaufFinalParser>();
+// Generic/simple parsers first by specificity
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.IDocumentParser, Backup.Web.Api.Server.Services.Documents.Parsing.SpanishDeliveryNoteParser>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.IDocumentParser, Backup.Web.Api.Server.Services.Documents.Parsing.InvoiceParser>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.IDocumentParser, Backup.Web.Api.Server.Services.Documents.Parsing.DeliveryNoteParser>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.DocumentProcessor>();
+// Ollama
+builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Ollama.OllamaOptions>(builder.Configuration.GetSection("Ollama"));
+builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Ollama.IOllamaParsingService, Backup.Web.Api.Server.Services.Documents.Ollama.OllamaParsingService>();
+// Python extractor (optional)
+builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorOptions>(builder.Configuration.GetSection("PythonExtractor"));
+builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient, Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorClient>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
+builder.Services.AddDbContext<StorageBroker>();
+builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
+builder.Services.AddScoped<IRoleManagementBroker, RoleManagementBroker>();
+builder.Services.AddTransient<IStorageBroker, StorageBroker>();
+builder.Services.AddTransient<ILogger, Logger<LoggingBroker>>();
+builder.Services.AddTransient<ILoggingBroker, LoggingBroker>();
+builder.Services.AddTransient<IDateTimeBroker, DateTimeBroker>();
+builder.Services.AddTransient<IRoleService, RoleService>();
+builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "TooGoodToGo API", Version = "v1" });
+    //c.SchemaFilter<IgnoreNavigationPropertiesFilter>();
+});
+
+
+
+builder.Services.AddTransient<IJwtUtils, JwtUtils>();
+builder.Services.AddIdentityCore<User>(options =>
+{
+    options.User.RequireUniqueEmail = false;
+    options.Password.RequireDigit = false;           // Pas de chiffre obligatoire
+    options.Password.RequireLowercase = false;       // Pas de minuscule obligatoire
+    options.Password.RequireUppercase = false;       // Pas de majuscule obligatoire
+    options.Password.RequireNonAlphanumeric = false; // Pas de caract�re sp�cial obligatoire
+    options.Password.RequiredLength = 6;             // Longueur minimale du mot de passe
+
+}).AddRoles<Role>()
+        .AddEntityFrameworkStores<StorageBroker>()
+        .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
+});
+builder.Services.AddAuthorization();
+// CORS for local dev (adjust as needed)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+});
+
+var app = builder.Build();
+
+app.UseDefaultFiles();
+app.MapStaticAssets();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+// Apply EF Core migrations at startup
+//using (var scope = app.Services.CreateScope())
+//{
+//    var broker = scope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Brokers.Storage.IStorageBroker>() as Backup.Web.Api.Server.Brokers.Storage.StorageBroker;
+//    if (broker != null)
+//    {
+//        broker.Database.Migrate();
+//    }
+//}
+
+app.UseHttpsRedirection();
+
+app.UseCors();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.MapFallbackToFile("/index.html");
+
+app.Run();

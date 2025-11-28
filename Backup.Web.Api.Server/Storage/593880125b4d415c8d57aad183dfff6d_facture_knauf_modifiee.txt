@@ -1,0 +1,183 @@
+Factuur             Datum             Blad            Euro Brico sprl
+Nummer              07.08.2025        1               Frans Baetenstraat 25-29
+713691441                                             B-2100 ANTWERPEN-DEURNE
+
+Uw klantnr.         Boekingsdatum     Boekh.document  Goederenontvanger
+10170600            07.08.2025        2600052063      Euro Brico sprl
+                                                      Frans Baetenstraat 25-29
+                                                      B-2100 ANTWERPEN-DEURNE
+
+__________________________________________________________________________________________________
+__
+
+Pos. Artikel                          Hoeveelheid     Brutopr-i-j-sKorting / Toeslag ---  Nettoprijs Pos. waarde EUR
+
+10 545753                                   12 ST     5,20 /1 ST   7,00-%                 4,84 /1 ST   58,08
+
+Flex-voegmortel beige 2kg (360)
+
+EAN-nr. : 5413503590100
+
+20 545751                                   10 ST     10,70 /1 ST  7,00-%                 9,95 /1 ST   99,50
+
+Flex voegmortel beige 5kg (164)
+
+EAN-nr. : 5413503590094
+
+30 545756                                   8 ST      5,20 /1 ST   7,00-%                 4,84 /1 ST   38,72
+
+Flex voegmortel antraciet 2kg (360)
+
+EAN-nr. : 5413503590124
+
+40 545760                                   11 ST     5,20 /1 ST   7,00-%                 4,84 /1 ST   53,24
+
+Flexvoegmortel zilvergrijs 2kg (360)
+
+EAN-nr. : 5413503590148
+
+50 545758                                   6 ST      10,70 /1 ST  7,00-%                 9,95 /1 ST   59,70
+
+Flexvoegmortel zilvergrijs 5kg (164)
+
+EAN-nr. : 5413503590131
+
+60 725585                                   8 ST      23,20 /1 ST  7,00-%                 21,58 /1 ST  172,64
+
+Afdichtingsemulsie 5 kg (100)
+
+EAN-nr. : 5413503613984
+
+70 5830                                     15 ST     5,39 /1 ST   7,00-%                 5,01 /1 ST   75,15
+
+Primer diepgrond 1 L (288)
+
+EAN-nr. : 4006379064717
+
+80 5834                                     6 ST      21,38 /1 ST  7,00-%                 19,88 /1 ST  119,28
+
+Primer diepgrond 5 L (60)
+
+EAN-nr. : 4006379064724
+
+90 136725                                   22 ST     2,15 /1 ST   7,00-%                 2,00 /1 ST   44,00
+
+Snelgips 2 kg (96)
+
+EAN-nr. : 5413503545070
+
+100 94639                                   14 ST     3,94 /1 ST   7,00-%                 3,66 /1 ST   51,24
+
+Snelgips 4 kg (80)
+
+EAN-nr. : 5413503530502
+110 6260                                                  12 ST  7,17 /1 ST    7,00-%   6,67 /1 ST     80,04
+                                                                                                       63,75
+Snelcement 5 kg (200)                                                                                  88,08
+                                                                                                       68,10
+EAN-nr. : 4006379012299                                                                                79,48
+                                                                                                      181,30
+120 67941                                                 5 ST   2,68 /1 KG    5,00-%   2,55 /1 KG    176,88
+                                                                                                      186,30
+F2F Filler to finish 5 kg (60)                                                                        126,12
+                                                                                                       41,85
+EAN-nr. : 4006379063017                                                                                68,64
+                                                                                                       89,70
+130 6264                                                  8 ST   11,84 /1 ST   7,00-%   11,01 /1 ST    76,30
+                                                                                                       33,50
+Snelcement 10 kg (98)
+
+EAN-nr. : 4006379017331
+
+140 24565                                                 10 ST  7,32 /1 ST    7,00-%   6,81 /1 ST
+
+Snelgips 10 kg (40)
+
+EAN-nr. : 5413503056224
+
+150 24553                                                 14 ST 630,80 /1 TO   10,00-% 567,72 /1 TO
+
+Perlfix 10 kg
+
+EAN-nr. : 5413503013005
+
+160 253630                                                14 ST  2,73 /1 KG    5,00-%   2,59 /1 KG
+
+Uniflott 5 kg
+
+EAN-nr. : 4003982245694
+
+170 502087                                                8 ST   26,64 /1 ST   17,00-%  22,11 /1 ST
+
+EgalMAX 25kg (42)
+
+EAN-nr. : 5413503582150
+
+180 5827                                                  10 ST  22,45 /1 ST   17,00-%  18,63 /1 ST
+
+Egalisatie universeel 20 kg (42)
+
+EAN-nr. : 4006379026067
+
+190 184100                                                12 PAK 11,30 /1 PAK  7,00-% 10,51 /1 PAK
+
+Directafhanger 200x60 mm voor CD 60/27 (20 st / Blister)
+
+EAN-nr. : 5413503555680
+
+200 111155                                                3 PAK 13,95 /1 PAK            13,95 /1 PAK
+
+Knauf Snelbouwschroeven 35x3,5 mm (1000)
+
+EAN-nr. : 5413503540686
+
+210 24575                                                 52 ST  1,32 /1 ST             1,32 /1 ST
+
+Wapeningsgaas voor gipsplaten 20 m (24/2160)
+
+EAN-nr. : 4006379043378
+
+220 24576                                                 26 ST  3,45 /1 ST             3,45 /1 ST
+
+Wapeningsgaas voor gipsplaten 90 m (24/720)
+
+EAN-nr. : 4006379043385
+
+230 3468                                                  14 ST  8,38 /1 ST    35,00-%  5,45 /1 ST
+
+Dichtingsband 30mx50mm
+
+EAN-nr. : 4003982032508
+
+240 3467                                                  10 ST  5,16 /1 ST    35,00-%  3,35 /1 ST
+
+Dichtingsband 30mx30mm
+          EAN-nr. : 4003982032485                             3 ST         13,12 /1 ST  7,00-%            12,20 /1 ST  36,60
+250 184092
+                                                              10 ST        13,07 /1 ST  7,00-%            12,16 /1 ST  121,60
+          Handslijper (1 st / Euroring)
+          EAN-nr. : 5413503555659                             6 ST         6,48 /1 ST   7,00-%            6,03 /1 ST   36,18
+260 682297
+          Schaar voor metalen profielen                       2 ST         16,50 /1 ST                    16,50 /1 ST  33,00
+          EAN-nr. : 5413503611041
+270 24985
+          Vuurvaste mortel 5 kg (100)
+          EAN-nr. : 4006379018000
+280 3225
+          Euro-palet
+          EAN-nr. : 4003982149725
+
+Totaal posities                                               op basis 2.248,87                                              2.248,87
+BTW 21,00 %                                                                                                                    472,26
+Totaal
+                                                                                                                             2.721,13
+Betalingsvoorwaarden: Tot 07.10.2025 zonder aftrek, Te betalen
+Leveringscondities: Geleverd op bestemming Place of Destination                                                        2.721,13
+
+Bank           Rekening                  IBAN                 BIC / SWIFT  N. et B. Knauf et Cie. SComm.  Tel : 04/273.83.11
+Deutsche Bank  826-0006796-23            BE92 8260 0067 9623  DEUTBEBE     Société en Commandite Simple   Fax : 04/273.83.30
+Brussels                                                                   Rue du Parc Industriel, 1
+                                                                           B 4480 Engis
+
+Algemene verkoopsvoorwaarden zijn van toepassing (www.knauf.com/nl-BE/algemene-verkoopsvoorwaarden)
+

@@ -1,0 +1,37 @@
+                                      Factura
+
+Proveedor : Constructa International
+
+Lista de productos:
+
+Producto                              Cantidad  Precio  Total
+Isolatieplaat 3cm                     9         11.90   107.10
+Flex voegmortel antraciet 2kg         14        4.40    61.60
+EgalMAX 25kg                          12        20.27   243.24
+Handslijper                           6         11.10   66.60
+Wapeningsgaas 20m                     7         1.20    8.40
+Schaar voor metalen profielen         23        11.05   254.15
+Knauf Snelbouwschroeven 35mm          11        12.68   139.48
+Snelgips 2 kg                         10        1.81    18.10
+Uniflott 5 kg                         8         2.36    18.88
+Afdichtingsemulsie 5kg                4         19.61   78.44
+Snelcement 5 kg                       12        6.06    72.72
+Directafhanger 200x60mm               1         9.55    9.55
+Primer diepgrond 1 L                  9         4.56    41.04
+Snelgips 10kg                         3         6.19    18.57
+Gipsplaat 120x60                      9         7.20    64.80
+Montagekit 310ml                      6         3.45    20.70
+Spatwaterdichte coating 2L            3         8.90    26.70
+Hoekprofiel aluminium 250cm           20        2.10    42.00
+Egalisatie universeel 20kg            14        17.08   239.12
+Flex-voegmortel beige 2kg             6         4.40    26.40
+Vuurvaste mortel 5kg                  1         5.48    5.48
+Perlfix 10kg                          13        516.08  6709.04
+Dichtingsband 30mx50mm                6         4.04    24.24
+Flexvoegmortel zilvergrijs 5kg        11        9.05    99.55
+Filler to finish 5kg                  2         2.32    4.64
+
+Total sin impuestos : 8400.54
+IVA 21% : 1764.11
+Total con impuestos : 10164.65
+

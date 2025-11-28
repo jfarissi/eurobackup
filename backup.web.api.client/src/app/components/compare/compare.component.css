@@ -1,0 +1,364 @@
+.compare-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+.compare-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  background: white;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.compare-header h1 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.suggestion-card,
+.selection-card,
+.search-card,
+.table-card,
+.relations-card,
+.comparison-result-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-card h2,
+.selection-card h2,
+.table-card h2,
+.relations-card h2,
+.comparison-result-card h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #34495e;
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 12px;
+}
+
+.suggested-invoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.invoice-card {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.invoice-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.selection-items {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.selected-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px solid #3498db;
+  flex: 1;
+}
+
+.selected-item mat-icon {
+  color: #3498db;
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.link-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.search-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.search-field {
+  flex: 1;
+}
+
+.invoices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invoice-item {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.invoice-row-main {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  gap: 16px;
+  transition: background-color 0.2s;
+}
+
+.invoice-row-main:hover {
+  background-color: #f5f5f5;
+}
+
+.invoice-row-main.has-association {
+  border-left: 4px solid #27ae60;
+}
+
+.expand-button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.expand-button mat-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+}
+
+.invoice-info {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.info-item {
+  font-size: 14px;
+}
+
+.invoice-status {
+  flex-shrink: 0;
+}
+
+.not-linked {
+  color: #999;
+  font-style: italic;
+}
+
+.invoice-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.invoice-actions mat-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+}
+
+.invoice-actions button.selected {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.expanded-content {
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-top: 1px solid #e0e0e0;
+  border-left: 4px solid #3498db;
+  margin-left: 0;
+}
+
+.associate-delivery h4 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #2c3e50;
+}
+
+.associate-delivery p {
+  margin-bottom: 16px;
+  color: #666;
+}
+
+.delivery-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.delivery-card {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin: 0;
+}
+
+.delivery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.delivery-card.selected {
+  border: 2px solid #3498db;
+  background-color: #e8f4f8;
+}
+
+.delivery-card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.delivery-card-content p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.no-deliveries {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 20px;
+}
+
+.delivery-info h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #2c3e50;
+}
+
+.delivery-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-item {
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+}
+
+.delivery-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.linked-chip {
+  background-color: #27ae60 !important;
+  color: white !important;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.documents-table,
+.comparison-table {
+  width: 100%;
+}
+
+.documents-table th,
+.comparison-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.documents-table td,
+.comparison-table td {
+  padding: 12px;
+}
+
+::ng-deep .mat-mdc-row:hover {
+  background-color: #f5f5f5;
+}
+
+.relations-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.relation-card {
+  margin: 0;
+}
+
+.relation-info {
+  margin-bottom: 12px;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.relation-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ok-chip {
+  background-color: #27ae60 !important;
+  color: white !important;
+}
+
+.diff-chip {
+  background-color: #e74c3c !important;
+  color: white !important;
+}
+
+.price-positive {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.price-negative {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.price-zero {
+  color: #7f8c8d;
+}
+
+.no-price {
+  color: #bdc3c7;
+  font-style: italic;
+}
+
+@media (max-width: 1024px) {
+  .tables-container {
+    grid-template-columns: 1fr;
+  }
+}
+

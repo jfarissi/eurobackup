@@ -1,0 +1,124 @@
+<div class="container" style="display:flex; gap:16px; align-items:flex-start;">
+  <div style="flex:1 1 auto;">
+    <h2>Archivage PDF — Upload & Recherche</h2>
+
+  <div>
+    <input type="file" (change)="onFileChange($event)" />
+    <select [(ngModel)]="typeDocument">
+      <option value="Facture">Facture</option>
+      <option value="BonLivraison">Bon de livraison</option>
+      <option value="Autre">Autre</option>
+    </select>
+    <input placeholder="Numéro" [(ngModel)]="numero" />
+    <input placeholder="Client" [(ngModel)]="client" />
+    <input placeholder="Fournisseur" [(ngModel)]="supplier" />
+    <input type="date" [(ngModel)]="dateDocument" />
+    <button (click)="upload()">Uploader</button>
+  </div>
+
+  <div style="margin-top:12px;">
+    <input placeholder="Recherche (texte, numéro, client)" [(ngModel)]="query" />
+    <button (click)="search()">Rechercher</button>
+    <button (click)="load()">Tout</button>
+  </div>
+
+  <table class="table" style="margin-top:12px; width:100%;" border="1" *ngIf="documents?.length">
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Type</th>
+        <th>Numéro</th>
+        <th>Client</th>
+        <th>Fournisseur</th>
+        <th>Date</th>
+        <th>Fichier</th>
+        <th>Lié à</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody cdkDropList id="tableList" [cdkDropListData]="documents" [cdkDropListConnectedTo]="['pairList']">
+      <tr *ngFor="let d of documents" cdkDrag [cdkDragData]="d">
+        <td>{{ d.id }}</td>
+        <td>{{ d.typeDocument }}</td>
+        <td>{{ d.numero }}</td>
+        <td>{{ d.client }}</td>
+        <td>{{ d.supplier }}</td>
+        <td>{{ d.dateDocument | date:'yyyy-MM-dd' }}</td>
+        <td>{{ d.originalFileName }}</td>
+        <td>
+          <ng-container *ngIf="relationMap[d.id]; else none">
+            {{ relationMap[d.id] }}
+          </ng-container>
+          <ng-template #none>—</ng-template>
+        </td>
+        <td>
+          <button (click)="download(d.id)">Télécharger</button>
+          <button *ngIf="d.typeDocument === 'BonLivraison'" style="margin-left:6px;" (click)="onReparseWithAiId(d.id)">Reparser (IA)</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div style="width:320px; position:sticky; top:12px;">
+    <h3>Associer (zone unique)</h3>
+    <p>Glissez deux documents ici: 1 Facture + 1 BL, puis cliquez Créer.</p>
+    <div cdkDropList id="pairList" [cdkDropListData]="pairItems" [cdkDropListConnectedTo]="['tableList']" (cdkDropListDropped)="onPairDrop($event)" style="border:2px dashed #3f51b5; border-radius:6px; padding:10px; min-height:140px;">
+      <div>
+        <b>Facture :</b>
+        <mat-chip-set>
+          <mat-chip *ngIf="selectedInvoice" (removed)="clearInvoice()">#{{ selectedInvoice.id }} {{ selectedInvoice.numero || '-' }}<button matChipRemove>x</button></mat-chip>
+        </mat-chip-set>
+      </div>
+      <div style="margin-top:8px;">
+        <b>BL :</b>
+        <mat-chip-set>
+          <mat-chip *ngIf="selectedDelivery" (removed)="clearDelivery()">#{{ selectedDelivery.id }} {{ selectedDelivery.numero || '-' }}<button matChipRemove>x</button></mat-chip>
+        </mat-chip-set>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button mat-raised-button color="primary" [disabled]="!selectedInvoice || !selectedDelivery" (click)="linkSelected()">Créer</button>
+        <button mat-stroked-button (click)="clearPair()">Vider</button>
+      </div>
+    </div>
+    <div style="margin-top:8px; font-size:12px; color:#666;">Astuce: faites glisser depuis le tableau.</div>
+    <div style="margin-top:12px;">
+      <h4>Relations</h4>
+      <div *ngFor="let r of relations" style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #eee;">
+        <span>Facture #{{ r.invoiceId }} ↔ BL #{{ r.deliveryId }}</span>
+        <span>
+          <button mat-raised-button color="primary" (click)="compare(r.invoiceId, r.deliveryId)">Comparer</button>
+          <button mat-raised-button color="accent" style="margin-left:6px;" (click)="compareAndStock(r.invoiceId, r.deliveryId)">Comparer + Stock</button>
+          <button mat-stroked-button color="warn" (click)="unlink(r.id)" style="margin-left:6px;">Dissocier</button>
+          <button mat-stroked-button style="margin-left:6px;" (click)="onReparseWithAiId(r.deliveryId)">Reparser BL (IA)</button>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="comparaisonResult" class="container" style="margin-top:16px;">
+  <h3>Résultat comparaison</h3>
+  <table border="1" style="width:100%;">
+    <thead>
+      <tr>
+        <th>Produit</th>
+        <th>Qté Facture</th>
+        <th>Qté BL</th>
+        <th>Diff</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let l of comparaisonResult.lines">
+        <td>{{ l.product }}</td>
+        <td>{{ l.invoiceQty }}</td>
+        <td>{{ l.deliveryQty }}</td>
+        <td>{{ l.diff }}</td>
+        <td>{{ l.status }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+

@@ -1,0 +1,156 @@
+<div class="upload-container">
+  <div class="upload-header">
+    <h1>📤 Upload de Documents</h1>
+    <button mat-raised-button color="primary" (click)="navigateToCompare()">
+      🔗 Page d'Association
+    </button>
+  </div>
+
+  <div class="upload-card">
+    <h2>Nouveau Document</h2>
+    
+    <div class="upload-form">
+      <div class="form-group file-upload-area" [class.dragover]="false">
+        <label for="fileInput" class="file-label">
+          <mat-icon>cloud_upload</mat-icon>
+          <span *ngIf="!file">Cliquez ou glissez un fichier PDF ici</span>
+          <span *ngIf="file" class="file-name">{{ file.name }}</span>
+        </label>
+        <input 
+          type="file" 
+          id="fileInput" 
+          accept=".pdf" 
+          (change)="onFileChange($event)"
+          class="file-input"
+        />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type de Document</label>
+          <mat-form-field appearance="outline">
+            <mat-select [(ngModel)]="typeDocument">
+              <mat-option value="Facture">Facture</mat-option>
+              <mat-option value="BonLivraison">Bon de Livraison</mat-option>
+              <mat-option value="Autre">Autre</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-group">
+          <label>Fournisseur</label>
+          <mat-form-field appearance="outline">
+            <mat-select [(ngModel)]="supplier" (selectionChange)="onSupplierChange()">
+              <mat-option value="">-- Sélectionner --</mat-option>
+              <mat-option *ngFor="let s of suppliers" [value]="s">{{ s }}</mat-option>
+            </mat-select>
+            <mat-hint *ngIf="suppliers.length === 0">Aucun fournisseur enregistré. Le fournisseur sera ajouté lors de l'inspection du fichier.</mat-hint>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Numéro</label>
+          <mat-form-field appearance="outline">
+            <input matInput [(ngModel)]="numero" placeholder="Numéro du document" />
+          </mat-form-field>
+        </div>
+
+        <div class="form-group">
+          <label>Client</label>
+          <mat-form-field appearance="outline">
+            <input matInput [(ngModel)]="client" placeholder="Nom du client" />
+          </mat-form-field>
+        </div>
+
+        <div class="form-group">
+          <label>Date</label>
+          <mat-form-field appearance="outline">
+            <input matInput type="date" [(ngModel)]="dateDocument" />
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button 
+          mat-raised-button 
+          color="primary" 
+          (click)="upload()"
+          [disabled]="!file || loading"
+        >
+          <mat-icon *ngIf="!loading">upload</mat-icon>
+          <mat-spinner *ngIf="loading" diameter="20" style="display: inline-block; margin-right: 8px;"></mat-spinner>
+          {{ loading ? 'Upload en cours...' : 'Uploader' }}
+        </button>
+        <button mat-stroked-button (click)="resetForm()" [disabled]="loading">
+          Réinitialiser
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="unlinked-documents-card" *ngIf="supplier">
+    <h2>📋 Documents Non Associés - {{ supplier }}</h2>
+    <div class="table-container">
+      <table mat-table [dataSource]="unlinkedDocumentsDataSource" class="documents-table">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef>ID</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.id }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let doc">
+            <mat-chip-set>
+              <mat-chip [class]="doc.typeDocument === 'Facture' ? 'invoice-chip' : 'delivery-chip'">
+                {{ doc.typeDocument }}
+              </mat-chip>
+            </mat-chip-set>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="numero">
+          <th mat-header-cell *matHeaderCellDef>Numéro</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.numero || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="client">
+          <th mat-header-cell *matHeaderCellDef>Client</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.client || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="supplier">
+          <th mat-header-cell *matHeaderCellDef>Fournisseur</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.supplier || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let doc">
+            {{ doc.dateDocument ? (doc.dateDocument | date:'yyyy-MM-dd') : '-' }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let doc">
+            <button mat-icon-button (click)="download(doc.id)">
+              <mat-icon>download</mat-icon>
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+
+        <tr class="mat-row" *matNoDataRow>
+          <td class="mat-cell" [attr.colspan]="7" style="text-align: center; padding: 20px;">
+            Aucun document non associé pour ce fournisseur
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
