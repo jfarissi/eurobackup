@@ -1,0 +1,439 @@
+<div class="container">
+  <h1>Test Service Python Extractor</h1>
+  <p class="subtitle">Test de la nouvelle structure auto_invoice_parser avec PyMuPDF</p>
+
+  <!-- Health Check -->
+  <div class="section">
+    <h2>1. Health Check</h2>
+    <button mat-raised-button color="primary" (click)="testHealth()" [disabled]="loading">
+      Tester la connexion au service Python
+    </button>
+  </div>
+
+  <!-- File Upload -->
+  <div class="section">
+    <h2>2. Sélectionner un PDF</h2>
+    <input 
+      type="file" 
+      accept=".pdf" 
+      (change)="onFileChange($event)"
+      #fileInput
+    />
+    <p *ngIf="file" class="file-info">Fichier sélectionné: {{ file.name }} ({{ (file.size / 1024).toFixed(2) }} KB)</p>
+    
+    <!-- Option pour forcer le type de document -->
+    <div style="margin-top: 16px;">
+      <mat-checkbox [(ngModel)]="forceCatalog" color="primary">
+        <strong>Forcer le parsing en tant que catalogue</strong>
+      </mat-checkbox>
+      <p style="font-size: 0.9em; color: #666; margin-top: 8px; margin-left: 32px;">
+        Si coché, le document sera traité comme un catalogue produit même si la détection automatique échoue.
+      </p>
+      
+      <mat-checkbox [(ngModel)]="returnSql" color="primary" style="margin-top: 12px;">
+        <strong>Retourner un script SQL d'insertion</strong>
+      </mat-checkbox>
+      <p style="font-size: 0.9em; color: #666; margin-top: 8px; margin-left: 32px;">
+        Si coché et que c'est un catalogue, le résultat sera un script SQL prêt à insérer dans la base de données.
+      </p>
+    </div>
+  </div>
+
+  <!-- Test Buttons -->
+  <div class="section" *ngIf="file">
+    <h2>3. Tester les endpoints</h2>
+    <div class="button-group">
+      <button 
+        mat-raised-button 
+        color="primary" 
+        (click)="testParse()" 
+        [disabled]="loading">
+        <mat-icon>play_arrow</mat-icon>
+        Test /parse (nouveau - items + metadata)
+      </button>
+      
+      <button 
+        mat-raised-button 
+        color="primary" 
+        (click)="testParseWithAi('openai')" 
+        [disabled]="loading">
+        <mat-icon>smart_toy</mat-icon>
+        Parse OpenAI
+      </button>
+      
+      <button 
+        mat-raised-button 
+        color="accent" 
+        (click)="testParseWithAi('gemini')" 
+        [disabled]="loading">
+        <mat-icon>smart_toy</mat-icon>
+        Parse Gemini
+      </button>
+
+      <button
+        mat-raised-button
+        style="background: #5c4d7c; color: #fff;"
+        (click)="testParseWithAi('ollama')"
+        [disabled]="loading"
+        matTooltip="Nécessite Ollama (ex. localhost:11434) et un modèle installé">
+        <mat-icon>psychology</mat-icon>
+        Parse Ollama
+      </button>
+    </div>
+
+    <div class="ollama-fields">
+      <h3 class="ollama-title">Paramètres Ollama (optionnels)</h3>
+      <p class="ollama-hint">
+        Laisser vides pour utiliser les valeurs par défaut du service Python (<code>OLLAMA_*</code> / profils).
+        Chaque champ est sur sa propre ligne ; modifiez l’hôte puis cliquez sur « Charger les modèles ».
+      </p>
+      <div class="ollama-stack">
+        <div class="ollama-field-block">
+          <div class="ollama-field-heading">Hôte</div>
+          <mat-form-field appearance="outline" class="ollama-mat-field" subscriptSizing="dynamic">
+            <mat-label>URL Ollama</mat-label>
+            <input matInput [(ngModel)]="ollamaHost" placeholder="http://localhost:11434" />
+          </mat-form-field>
+        </div>
+        <div class="ollama-field-block">
+          <div class="ollama-field-heading">Profil</div>
+          <mat-form-field appearance="outline" class="ollama-mat-field" subscriptSizing="dynamic">
+            <mat-label>Profil d’inférence</mat-label>
+            <mat-select [(ngModel)]="ollamaProfile">
+              <mat-option value="">(défaut serveur)</mat-option>
+              <mat-option value="primary">primary</mat-option>
+              <mat-option value="quality">quality</mat-option>
+              <mat-option value="fast">fast</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+        <div class="ollama-field-block">
+          <div class="ollama-field-heading ollama-model-heading-row">
+            <span>Modèle</span>
+            <button
+              type="button"
+              mat-stroked-button
+              color="primary"
+              (click)="loadOllamaModels(true)"
+              [disabled]="loading || loadingOllamaModels">
+              <mat-icon>refresh</mat-icon>
+              Charger les modèles
+            </button>
+          </div>
+          <mat-form-field appearance="outline" class="ollama-mat-field" subscriptSizing="dynamic">
+            <mat-label>Modèle installé sur Ollama</mat-label>
+            <mat-select [(ngModel)]="ollamaModel" [disabled]="loading">
+              <mat-option value="">(défaut serveur)</mat-option>
+              <mat-option *ngFor="let m of ollamaModels" [value]="m">{{ m }}</mat-option>
+            </mat-select>
+            <mat-hint *ngIf="!ollamaModels.length && !loadingOllamaModels">Aucun modèle listé — vérifiez Ollama puis rechargez.</mat-hint>
+            <mat-hint *ngIf="loadingOllamaModels">Interrogation d’Ollama…</mat-hint>
+          </mat-form-field>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-group" style="margin-top: 12px;">
+      <button 
+        mat-raised-button 
+        color="accent" 
+        (click)="testExtract()" 
+        [disabled]="loading">
+        <mat-icon>list</mat-icon>
+        Test /extract (produits uniquement)
+      </button>
+      
+      <button 
+        mat-raised-button 
+        color="accent" 
+        (click)="testInspect()" 
+        [disabled]="loading">
+        <mat-icon>info</mat-icon>
+        Test /inspect (métadonnées uniquement)
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading">
+    <mat-spinner diameter="40"></mat-spinner>
+    <p>Extraction en cours...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="error">
+    <mat-icon>error</mat-icon>
+    <p>{{ error }}</p>
+  </div>
+
+  <!-- Métadonnées -->
+  <div class="section" *ngIf="metadata">
+    <h2>Métadonnées extraites</h2>
+    <div class="metadata-grid">
+      <div class="metadata-item">
+        <strong>Type de document:</strong>
+        <span>{{ metadata.doc_type || '-' }}</span>
+      </div>
+      <div class="metadata-item">
+        <strong>Numéro:</strong>
+        <span>{{ metadata.number || '-' }}</span>
+      </div>
+      <div class="metadata-item">
+        <strong>Client:</strong>
+        <span>{{ metadata.client || '-' }}</span>
+      </div>
+      <div class="metadata-item">
+        <strong>Fournisseur:</strong>
+        <span>{{ metadata.supplier || '-' }}</span>
+      </div>
+      <div class="metadata-item">
+        <strong>Date:</strong>
+        <span>{{ metadata.date || '-' }}</span>
+      </div>
+      <div class="metadata-item">
+        <strong>Méthode:</strong>
+        <span>{{ metadata.method || '-' }}</span>
+      </div>
+      <div class="metadata-item" *ngIf="metadata.lines_total_excl_vat != null">
+        <strong>Somme lignes HT (parser):</strong>
+        <span>{{ formatCurrency(metadata.lines_total_excl_vat) }}</span>
+      </div>
+      <div class="metadata-item" *ngIf="metadata.invoice_total_excl_vat != null">
+        <strong>Subtotaal facture HT:</strong>
+        <span>{{ formatCurrency(metadata.invoice_total_excl_vat) }}</span>
+      </div>
+      <div class="metadata-item" *ngIf="metadata.total_discrepancy != null">
+        <strong>Écart parser:</strong>
+        <span [class.amount-warn]="Math.abs(metadata.total_discrepancy) >= 0.05">
+          {{ formatCurrency(metadata.total_discrepancy) }}
+        </span>
+      </div>
+    </div>
+    
+    <!-- Informations supplémentaires du fournisseur -->
+    <div class="section" style="margin-top: 16px;">
+      <h3>Informations du fournisseur</h3>
+      <div class="metadata-grid">
+        <div class="metadata-item">
+          <strong>Code fournisseur:</strong>
+          <span>{{ metadata.supplier_code || '-' }}</span>
+        </div>
+        <div class="metadata-item">
+          <strong>Adresse:</strong>
+          <span>{{ metadata.supplier_address || '-' }}</span>
+        </div>
+        <div class="metadata-item">
+          <strong>Téléphone:</strong>
+          <span>{{ metadata.supplier_phone || '-' }}</span>
+        </div>
+        <div class="metadata-item">
+          <strong>Email:</strong>
+          <span>{{ metadata.supplier_email || '-' }}</span>
+        </div>
+        <div class="metadata-item">
+          <strong>Contact:</strong>
+          <span>{{ metadata.supplier_contact || '-' }}</span>
+        </div>
+        <div class="metadata-item">
+          <strong>Conditions de paiement:</strong>
+          <span>{{ metadata.supplier_payment_terms || '-' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistiques -->
+  <div class="section" *ngIf="stats.totalItems > 0">
+    <h2>Statistiques</h2>
+
+    <div class="valeur-totale-hero">
+      <div class="valeur-totale-label">Valeur totale HT</div>
+      <div class="valeur-totale-amount">{{ formatCurrency(amountSummary.valeurTotale) }}</div>
+      <div class="valeur-totale-source">{{ amountSummary.valeurTotaleLabel }}</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-item">
+        <strong>Total items:</strong> {{ stats.totalItems }}
+      </div>
+      <div class="stat-item">
+        <strong>Avec SKU:</strong> {{ stats.itemsWithSku }}
+      </div>
+      <div class="stat-item">
+        <strong>Avec EAN / Barcode:</strong> {{ stats.itemsWithEan }}
+      </div>
+      <div class="stat-item">
+        <strong>Somme regelbedrag (tableau):</strong> {{ formatCurrency(stats.totalRegelbedrag) }}
+      </div>
+      <div class="stat-item" *ngIf="amountSummary.linesSumParser != null">
+        <strong>Somme lignes (parser):</strong> {{ formatCurrency(amountSummary.linesSumParser) }}
+      </div>
+      <div class="stat-item">
+        <strong>Somme qté × PU net:</strong> {{ formatCurrency(stats.totalFromQtyUnit) }}
+      </div>
+      <div class="stat-item" *ngIf="amountSummary.footerHt != null">
+        <strong>Subtotaal facture (PDF):</strong> {{ formatCurrency(amountSummary.footerHt) }}
+      </div>
+      <div class="stat-item" *ngIf="amountSummary.discrepancy != null">
+        <strong>Écart (facture − lignes):</strong>
+        <span [class.amount-warn]="Math.abs(amountSummary.discrepancy) >= 0.05">
+          {{ formatCurrency(amountSummary.discrepancy) }}
+        </span>
+      </div>
+      <div class="stat-item" *ngIf="stats.amountMismatchCount > 0">
+        <strong>Lignes regelbedrag ≠ qté×PU:</strong>
+        <span class="amount-warn">{{ stats.amountMismatchCount }}</span>
+      </div>
+    </div>
+    <p class="amount-hint" *ngIf="stats.amountMismatchCount > 0">
+      Ex. <code>1-5143-5080</code> : 4 × 13,51 = 54,04 € mais le PDF indique 54,05 € (regelbedrag).
+      La colonne <strong>Total</strong> doit reprendre le regelbedrag du parseur, pas qté×PU.
+    </p>
+  </div>
+
+  <!-- Table des items -->
+  <div class="section" *ngIf="itemsDataSource.data.length > 0">
+    <h2>Items extraits ({{ itemsDataSource.data.length }})</h2>
+    <div class="table-container">
+      <table mat-table [dataSource]="itemsDataSource" class="items-table">
+        <!-- SKU Column -->
+        <ng-container matColumnDef="sku">
+          <th mat-header-cell *matHeaderCellDef>SKU</th>
+          <td mat-cell *matCellDef="let item">{{ item.sku || '-' }}</td>
+        </ng-container>
+
+        <!-- EAN / Barcode Column -->
+        <ng-container matColumnDef="ean">
+          <th mat-header-cell *matHeaderCellDef>EAN / Barcode</th>
+          <td mat-cell *matCellDef="let item">{{ item.ean || item.barcode_raw || '-' }}</td>
+        </ng-container>
+
+        <!-- Description Column -->
+        <ng-container matColumnDef="description">
+          <th mat-header-cell *matHeaderCellDef>Description</th>
+          <td mat-cell *matCellDef="let item">{{ item.description || '-' }}</td>
+        </ng-container>
+
+        <!-- Quantity Column -->
+        <ng-container matColumnDef="qty">
+          <th mat-header-cell *matHeaderCellDef>Qté</th>
+          <td mat-cell *matCellDef="let item">{{ item.qty || '-' }}</td>
+        </ng-container>
+
+        <!-- Unit Column -->
+        <ng-container matColumnDef="unit">
+          <th mat-header-cell *matHeaderCellDef>Unité</th>
+          <td mat-cell *matCellDef="let item">{{ item.unit || '-' }}</td>
+        </ng-container>
+
+        <!-- Unit Price Column -->
+        <ng-container matColumnDef="unit_price">
+          <th mat-header-cell *matHeaderCellDef>Prix unitaire</th>
+          <td mat-cell *matCellDef="let item">{{ formatUnitPrice(item.unit_price) }}</td>
+        </ng-container>
+
+        <!-- Qté × PU (comparaison) -->
+        <ng-container matColumnDef="line_calc">
+          <th mat-header-cell *matHeaderCellDef>Qté×PU</th>
+          <td mat-cell *matCellDef="let item">{{ formatCurrency(qtyTimesUnit(item)) }}</td>
+        </ng-container>
+
+        <!-- Line Total Column (regelbedrag) -->
+        <ng-container matColumnDef="line_total">
+          <th mat-header-cell *matHeaderCellDef>Total ligne</th>
+          <td mat-cell *matCellDef="let item">
+            <span [class.amount-warn]="hasAmountMismatch(item)">
+              {{ formatCurrency(lineAmount(item)) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let row; columns: displayedColumns"
+          [class.amount-mismatch-row]="hasAmountMismatch(row)"></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Script SQL (si returnSql=true) -->
+  <div class="section" *ngIf="sqlScript">
+    <h2>Script SQL d'insertion</h2>
+    <div style="margin-bottom: 16px;">
+      <button mat-raised-button color="primary" (click)="downloadSqlScript()">
+        <mat-icon>download</mat-icon>
+        Télécharger le script SQL
+      </button>
+      <button mat-raised-button color="accent" (click)="copySqlScript()" style="margin-left: 8px;">
+        <mat-icon>content_copy</mat-icon>
+        Copier dans le presse-papier
+      </button>
+    </div>
+    <pre class="sql-output">{{ sqlScript }}</pre>
+  </div>
+
+  <!-- JSON Raw (pour debug) -->
+  <div class="section" *ngIf="parseResult && !sqlScript">
+    <h2>Résultat JSON complet (debug)</h2>
+    <pre class="json-output">{{ parseResult | json }}</pre>
+  </div>
+
+  <!-- Section Reparse IA des documents existants -->
+  <div class="section" style="margin-top: 32px;">
+    <h2>🔄 Reparse IA des Documents Existants</h2>
+    <p class="subtitle">Re-parser les documents déjà uploadés avec l'IA (pour corriger le parsing)</p>
+    
+    <div *ngIf="loadingDocuments" style="padding: 16px;">
+      <mat-spinner diameter="30"></mat-spinner>
+      <p>Chargement des documents...</p>
+    </div>
+
+    <div *ngIf="!loadingDocuments && documentsDataSource.data.length > 0" class="documents-list">
+      <table mat-table [dataSource]="documentsDataSource" class="documents-table">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef>ID</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.id }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.typeDocument }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="numero">
+          <th mat-header-cell *matHeaderCellDef>Numéro</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.numero || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="supplier">
+          <th mat-header-cell *matHeaderCellDef>Fournisseur</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.supplier || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let doc">
+            <button 
+              mat-raised-button 
+              color="accent" 
+              (click)="onReparseWithAi(doc.id)"
+              [disabled]="loading"
+            >
+              <mat-icon>smart_toy</mat-icon>
+              Reparser (IA)
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="documentsDisplayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: documentsDisplayedColumns;"></tr>
+      </table>
+    </div>
+
+    <div *ngIf="!loadingDocuments && documentsDataSource.data.length === 0" class="no-documents">
+      <p>Aucun document trouvé.</p>
+    </div>
+  </div>
+</div>
+

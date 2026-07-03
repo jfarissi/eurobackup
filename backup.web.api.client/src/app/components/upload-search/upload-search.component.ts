@@ -189,7 +189,7 @@ export class UploadSearchComponent implements OnInit {
   }
 
   compareAndStock(invoiceId: number, deliveryId: number) {
-    this.docs.compareAndStock(invoiceId, deliveryId).subscribe({
+    this.docs.compareAndStock(invoiceId, deliveryId, false).subscribe({
       next: (r) => {
         if (r.success) {
           this.snack.open('Stock mis à jour (quantités livrées)', 'OK', { duration: 2500 });
@@ -204,27 +204,21 @@ export class UploadSearchComponent implements OnInit {
     });
   }
 
-  onReparseWithAi(doc: Document) {
-    if (!doc?.id) return;
-    this.docs.reparseLines(doc.id, true).subscribe({
+  onReparse(documentId: number) {
+    if (!documentId) return;
+    this.docs.reparseLines(documentId, false).subscribe({
       next: r => {
-        this.snack.open(`Reparse (IA): ${r.success}`, 'OK', { duration: 2000 });
-        this.load();
+        if (r.success) {
+          this.snack.open('Document re-parsé avec succès', 'OK', { duration: 2000 });
+          this.load();
+        } else {
+          this.snack.open('Erreur lors du re-parsing', 'Fermer', { duration: 3000 });
+        }
       },
-      error: _ => this.snack.open('Erreur reparse IA', 'Fermer', { duration: 3000 })
+      error: _ => this.snack.open('Erreur reparse', 'Fermer', { duration: 3000 })
     });
   }
 
-  onReparseWithAiId(deliveryId: number) {
-    if (!deliveryId) return;
-    this.docs.reparseLines(deliveryId, true).subscribe({
-      next: r => {
-        this.snack.open(`Reparse BL (IA): ${r.success}`, 'OK', { duration: 2000 });
-        this.load();
-      },
-      error: _ => this.snack.open('Erreur reparse IA', 'Fermer', { duration: 3000 })
-    });
-  }
 }
 
 

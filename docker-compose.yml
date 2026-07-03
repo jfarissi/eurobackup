@@ -1,0 +1,74 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: backup-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-backup_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-backupcontent}
+      MYSQL_USER: ${MYSQL_USER:-backup}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-backup}
+    ports:
+      - "3306:3306"
+    volumes:
+      - backup-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  python-extractor:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: backup-python
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_OPENAI: ${USE_OPENAI:-false}
+      DOCUMENT_AI_USE_AI: ${DOCUMENT_AI_USE_AI:-false}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: Backup.Web.Api.Server/Dockerfile
+    container_name: backup-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      python-extractor:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ConnectionStrings__DefaultConnection: >-
+        Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-backupcontent};
+        User=${MYSQL_USER:-backup};Password=${MYSQL_PASSWORD:-backup};
+        Persist Security Info=False;Connect Timeout=300
+      PythonExtractor__Url: http://python-extractor:8000
+      PythonExtractor__Enabled: "true"
+      Ollama__Host: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      Ollama__Enabled: "false"
+      Database__ApplyMigrationsOnStartup: "true"
+      UseHttpsRedirection: "false"
+    ports:
+      - "8080:8080"
+    volumes:
+      - backup-storage:/app/Storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  backup-mysql-data:
+  backup-storage:

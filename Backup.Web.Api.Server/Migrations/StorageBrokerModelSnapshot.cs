@@ -22,6 +22,60 @@ namespace Backup.Web.Api.Server.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.DeliveryLineAdjustment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("ActualQuantity")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("DeliveryId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DeliveryQuantity")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int?>("DocumentLineId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsValidated")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime?>("ValidatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ValidatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryId");
+
+                    b.HasIndex("DeliveryId", "ProductKey");
+
+                    b.ToTable("DeliveryLineAdjustments");
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Document", b =>
                 {
                     b.Property<int>("Id")
@@ -140,6 +194,9 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("StockUpdatedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId", "DeliveryId")
@@ -183,6 +240,13 @@ namespace Backup.Web.Api.Server.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1024)
+                        .HasColumnType("varchar(1024)");
+
+                    b.Property<int?>("LastDeliveryId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("LastUpdated")
                         .HasColumnType("datetime(6)");
 
@@ -194,12 +258,57 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Property<decimal>("QuantityOnHand")
                         .HasColumnType("decimal(65,30)");
 
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductKey")
                         .IsUnique();
 
                     b.ToTable("Stock");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.StockUpdate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DeliveryId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<decimal>("QuantityAfter")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("QuantityDelta")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryId");
+
+                    b.HasIndex("ProductKey");
+
+                    b.ToTable("StockUpdates", (string)null);
                 });
 
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Users.User", b =>

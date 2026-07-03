@@ -13,5 +13,13 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<DocumentRelation> InsertRelationAsync(DocumentRelation relation);
         IQueryable<DocumentRelation> SelectAllRelations();
         ValueTask DeleteRelationAsync(int relationId);
+        ValueTask<DocumentRelation?> SelectRelationByInvoiceAndDeliveryAsync(int invoiceId, int deliveryId);
+        ValueTask UpdateRelationAsync(DocumentRelation relation);
+        
+        // Delivery Line Adjustments
+        ValueTask<DeliveryLineAdjustment> InsertAdjustmentAsync(DeliveryLineAdjustment adjustment);
+        ValueTask<DeliveryLineAdjustment> UpdateAdjustmentAsync(DeliveryLineAdjustment adjustment);
+        IQueryable<DeliveryLineAdjustment> SelectAdjustmentsByDeliveryId(int deliveryId);
+        ValueTask<DeliveryLineAdjustment?> SelectAdjustmentByDeliveryAndProductKeyAsync(int deliveryId, string productKey);
     }
 }

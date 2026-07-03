@@ -8,6 +8,7 @@ namespace Backup.Web.Api.Server.Services.Documents
     public interface IDocumentComparisonService
     {
         Task<ComparisonResult> CompareAsync(int invoiceId, int deliveryId, CancellationToken ct);
+        Task<ComparisonResult> CompareAllDeliveriesAsync(int invoiceId, CancellationToken ct);
         Task<InvoicePriceComparisonResult> CompareInvoicesAsync(int invoice1Id, int invoice2Id, CancellationToken ct);
     }
 
@@ -21,9 +22,17 @@ namespace Backup.Web.Api.Server.Services.Documents
     public class ComparisonLine
     {
         public string Product { get; set; } = string.Empty;
+        public string ProductKey { get; set; } = string.Empty; // Clé pour identifier le produit (ProductCode, EAN, ou nom normalisé)
+        public int? DocumentLineId { get; set; } // ID de la ligne du BL pour les ajustements
         public decimal InvoiceQty { get; set; }
         public decimal DeliveryQty { get; set; }
-        public decimal Diff => InvoiceQty - DeliveryQty;
+        public decimal? ActualQuantity { get; set; } // Quantité réelle saisie par le vérificateur
+        public bool IsValidated { get; set; } // Indique si l'ajustement a été validé
+        public bool StockUpdated { get; set; } // Indique si le stock a déjà été mis à jour pour ce BL
+        // Note: Diff est calculé côté serveur dans CompareUsingLines en utilisant seulement les ajustements validés
+        public decimal Diff { get; set; } // Différence basée sur la quantité réelle validée si disponible
+        public string Unit { get; set; } = string.Empty; // Unité (PC, SET, etc.)
+        public decimal InvoiceTotalValue { get; set; } // Valeur totale de la ligne facture
         public string Status => Diff == 0 ? "OK" : Diff > 0 ? "Manquant" : "Surplus";
         public decimal CurrentInvoiceUnitPrice { get; set; }
         public decimal PreviousInvoiceUnitPrice { get; set; }
@@ -34,6 +43,10 @@ namespace Backup.Web.Api.Server.Services.Documents
     {
         public int Invoice1Id { get; set; }
         public int Invoice2Id { get; set; }
+        public string? Invoice1Number { get; set; }
+        public string? Invoice2Number { get; set; }
+        public string? Invoice1Supplier { get; set; }
+        public string? Invoice2Supplier { get; set; }
         public List<InvoicePriceComparisonLine> Lines { get; set; } = new();
     }
 
@@ -59,19 +72,37 @@ namespace Backup.Web.Api.Server.Services.Documents
             var invoice = await storage.SelectDocumentByIdAsync(invoiceId) ?? throw new InvalidOperationException("Invoice not found");
             var delivery = await storage.SelectDocumentByIdAsync(deliveryId) ?? throw new InvalidOperationException("Delivery note not found");
 
+            // Vérifier si le stock a déjà été mis à jour pour ce BL
+            var relation = await storage.SelectRelationByInvoiceAndDeliveryAsync(invoiceId, deliveryId);
+            var stockUpdated = relation?.StockUpdatedAt.HasValue ?? false;
+
             // Prefer structured lines if present
             var invLines = storage.SelectLinesByDocumentId(invoiceId).ToList();
             var delLines = storage.SelectLinesByDocumentId(deliveryId).ToList();
             
+            // Charger les ajustements existants pour ce BL (même non validés, pour affichage)
+            var adjustments = storage.SelectAdjustmentsByDeliveryId(deliveryId).ToList();
+            // Pour l'affichage, on charge tous les ajustements avec actualQuantity
+            // Pour le calcul de Diff, on utilise seulement les validés
+            var adjustmentMapForDisplay = adjustments
+                .Where(a => a.ActualQuantity.HasValue)
+                .ToDictionary(
+                    a => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.Normalize(a.ProductKey), 
+                    a => a, 
+                    StringComparer.OrdinalIgnoreCase
+                );
+            // Pour le calcul de Diff, on utilise seulement les ajustements validés
+            var adjustmentMapForDiff = adjustments
+                .Where(a => a.IsValidated && a.ActualQuantity.HasValue)
+                .ToDictionary(
+                    a => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.Normalize(a.ProductKey), 
+                    a => a, 
+                    StringComparer.OrdinalIgnoreCase
+                );
+            
             // Find previous invoices from the same supplier for price comparison (same logic as price-diff endpoint)
-            // Use same Key function as price-diff to ensure matching
-            string Key(DocumentLine l)
-            {
-                if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode.Trim()}";
-                if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean.Trim()}";
-                var norm = Backup.Web.Api.Server.Services.Documents.Parsing.ProductTextNormalizer.Normalize(l.Product ?? string.Empty);
-                return $"N:{norm}";
-            }
+            // Use ProductKeyHelper to ensure matching
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
 
             var previousInvoiceIds = storage.SelectAllDocuments()
                 .Where(d => d.Id != invoiceId
@@ -127,7 +158,7 @@ namespace Backup.Web.Api.Server.Services.Documents
 
             if (invLines.Count > 0 && delLines.Count > 0)
             {
-                return CompareUsingLines(invoiceId, deliveryId, invLines, delLines, refPriceMap);
+                return CompareUsingLines(invoiceId, deliveryId, invLines, delLines, refPriceMap, adjustmentMapForDisplay, adjustmentMapForDiff, stockUpdated);
             }
 
             // Fallback to heuristic text parsing
@@ -141,41 +172,101 @@ namespace Backup.Web.Api.Server.Services.Documents
                 var product = kv.Key;
                 var invQty = kv.Value;
                 var delQty = deliveryMap.TryGetValue(product, out var q) ? q : 0m;
-                result.Lines.Add(new ComparisonLine { Product = product, InvoiceQty = invQty, DeliveryQty = delQty });
+                result.Lines.Add(new ComparisonLine { Product = product, InvoiceQty = invQty, DeliveryQty = delQty, StockUpdated = stockUpdated });
             }
 
             foreach (var kv in deliveryMap)
             {
                 if (!invoiceMap.ContainsKey(kv.Key))
                 {
-                    result.Lines.Add(new ComparisonLine { Product = kv.Key, InvoiceQty = 0m, DeliveryQty = kv.Value });
+                    result.Lines.Add(new ComparisonLine { Product = kv.Key, InvoiceQty = 0m, DeliveryQty = kv.Value, StockUpdated = stockUpdated });
                 }
             }
 
             return result;
         }
 
-        private static ComparisonResult CompareUsingLines(int invoiceId, int deliveryId, IList<DocumentLine> invLines, IList<DocumentLine> delLines, Dictionary<string, decimal> refPriceMap)
+        public async Task<ComparisonResult> CompareAllDeliveriesAsync(int invoiceId, CancellationToken ct)
+        {
+            var invoice = await storage.SelectDocumentByIdAsync(invoiceId) ?? throw new InvalidOperationException("Invoice not found");
+
+            var deliveryIds = storage.SelectAllRelations()
+                .Where(r => r.InvoiceId == invoiceId)
+                .Select(r => r.DeliveryId)
+                .Distinct()
+                .ToList();
+
+            if (deliveryIds.Count == 0)
+            {
+                return new ComparisonResult { InvoiceId = invoiceId, DeliveryId = 0 };
+            }
+
+            var invLines = storage.SelectLinesByDocumentId(invoiceId).ToList();
+            var allDeliveryLines = deliveryIds
+                .SelectMany(id => storage.SelectLinesByDocumentId(id).ToList())
+                .ToList();
+
+            var relationByDelivery = storage.SelectAllRelations()
+                .Where(r => r.InvoiceId == invoiceId && deliveryIds.Contains(r.DeliveryId))
+                .ToList();
+            var stockUpdatedForAll = relationByDelivery.Count > 0 && relationByDelivery.All(r => r.StockUpdatedAt.HasValue);
+
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
+            var previousInvoiceIds = storage.SelectAllDocuments()
+                .Where(d => d.Id != invoiceId
+                            && d.DateAdded < invoice.DateAdded
+                            && !string.IsNullOrWhiteSpace(d.Supplier)
+                            && d.Supplier == invoice.Supplier
+                            && (EF.Functions.Like(d.TypeDocument, "%facture%")
+                                || EF.Functions.Like(d.TypeDocument, "%invoice%")))
+                .OrderByDescending(d => d.DateAdded)
+                .Take(50)
+                .Select(d => d.Id)
+                .ToList();
+
+            var refPriceMap = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            var currentKeys = new HashSet<string>(invLines.Select(Key), StringComparer.OrdinalIgnoreCase);
+            foreach (var pid in previousInvoiceIds)
+            {
+                var lines = storage.SelectLinesByDocumentId(pid).ToList();
+                foreach (var l in lines)
+                {
+                    var k = Key(l);
+                    if (!currentKeys.Contains(k) || refPriceMap.ContainsKey(k) || l.UnitPrice <= 0) continue;
+                    refPriceMap[k] = l.UnitPrice;
+                }
+                if (refPriceMap.Count == currentKeys.Count) break;
+            }
+
+            return CompareUsingLines(
+                invoiceId,
+                0,
+                invLines,
+                allDeliveryLines,
+                refPriceMap,
+                new Dictionary<string, DeliveryLineAdjustment>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, DeliveryLineAdjustment>(StringComparer.OrdinalIgnoreCase),
+                stockUpdatedForAll);
+        }
+
+        private static ComparisonResult CompareUsingLines(int invoiceId, int deliveryId, IList<DocumentLine> invLines, IList<DocumentLine> delLines, Dictionary<string, decimal> refPriceMap, Dictionary<string, DeliveryLineAdjustment> adjustmentMapForDisplay, Dictionary<string, DeliveryLineAdjustment> adjustmentMapForDiff, bool stockUpdated)
         {
             var result = new ComparisonResult { InvoiceId = invoiceId, DeliveryId = deliveryId };
 
-            // Build maps keyed by a stable product key (ProductCode > extracted code > normalized name)
+            // Use ProductKeyHelper.GetProductKey consistently for all matching (same as price comparison)
+            // This ensures consistent product matching between invoice and delivery note
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
+
+            // Build maps keyed by ProductKey (ProductCode > EAN > normalized name)
             var invMapByExtractKey = invLines
-                .GroupBy(l => ExtractKey(l), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(l => Key(l), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity), StringComparer.OrdinalIgnoreCase);
 
             var delMap = delLines
-                .GroupBy(l => ExtractKey(l), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(l => Key(l), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity), StringComparer.OrdinalIgnoreCase);
 
             // Build price maps using Key function (same as price-diff endpoint)
-            string Key(DocumentLine l)
-            {
-                if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode.Trim()}";
-                if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean.Trim()}";
-                var norm = Backup.Web.Api.Server.Services.Documents.Parsing.ProductTextNormalizer.Normalize(l.Product ?? string.Empty);
-                return $"N:{norm}";
-            }
             
             // Build current price map using Key function (same format as price-diff)
             var currentInvPriceMap = invLines
@@ -189,13 +280,13 @@ namespace Backup.Web.Api.Server.Services.Documents
             System.Diagnostics.Debug.WriteLine($"[Compare] Current invoice price map has {currentInvPriceMap.Count} entries");
             System.Diagnostics.Debug.WriteLine($"[Compare] Previous invoice price map has {previousInvPriceMap.Count} entries");
 
-            // For label rendering: remember representative names
+            // For label rendering: remember representative names (use Key for consistency)
             var invName = invLines
-                .GroupBy(l => ExtractKey(l), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(l => Key(l), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => FirstNonEmpty(g.Select(x => x.Product)) ?? g.Key, StringComparer.OrdinalIgnoreCase);
 
             var delName = delLines
-                .GroupBy(l => ExtractKey(l), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(l => Key(l), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => FirstNonEmpty(g.Select(x => x.Product)) ?? g.Key, StringComparer.OrdinalIgnoreCase);
 
             var allKeys = new HashSet<string>(invMapByExtractKey.Keys, StringComparer.OrdinalIgnoreCase);
@@ -211,9 +302,26 @@ namespace Backup.Web.Api.Server.Services.Documents
                 var invQty = invMapByExtractKey.TryGetValue(key, out var iq) ? iq : 0m;
                 var delQty = delMap.TryGetValue(key, out var dq) ? dq : 0m;
                 
-                // Convert ExtractKey to Key format for price lookup
-                var sampleLine = invLines.FirstOrDefault(l => ExtractKey(l).Equals(key, StringComparison.OrdinalIgnoreCase));
-                var priceKey = sampleLine != null ? Key(sampleLine) : null;
+                // Use key directly (already using ProductKeyHelper format)
+                var priceKey = key;
+                
+                // Trouver la ligne du BL correspondante pour obtenir DocumentLineId
+                var deliveryLine = delLines.FirstOrDefault(l => Key(l).Equals(key, StringComparison.OrdinalIgnoreCase));
+                var documentLineId = deliveryLine?.Id;
+                
+                // Get sample line for unit and other properties
+                var sampleLine = invLines.FirstOrDefault(l => Key(l).Equals(key, StringComparison.OrdinalIgnoreCase)) 
+                    ?? deliveryLine;
+                
+                // Vérifier s'il existe un ajustement pour ce produit (pour affichage)
+                // Normaliser la clé pour correspondre aux ajustements qui sont normalisés
+                var normalizedKey = Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.Normalize(priceKey ?? key);
+                var adjustmentForDisplay = adjustmentMapForDisplay.TryGetValue(normalizedKey, out var adjDisplay) ? adjDisplay : null;
+                var actualQuantity = adjustmentForDisplay?.ActualQuantity;
+                var isValidated = adjustmentForDisplay?.IsValidated ?? false;
+                
+                // Pour le calcul de Diff, utiliser seulement les ajustements validés
+                var adjustmentForDiff = adjustmentMapForDiff.TryGetValue(normalizedKey, out var adjDiff) ? adjDiff : null;
                 
                 // Get current price from current invoice
                 var currentPrice = priceKey != null && currentInvPriceMap.TryGetValue(priceKey, out var cp) ? cp : 0m;
@@ -232,14 +340,36 @@ namespace Backup.Web.Api.Server.Services.Documents
                 var rawLabel = invName.TryGetValue(key, out var ln) ? ln : (delName.TryGetValue(key, out var dn) ? dn : key);
                 var label = CleanLabel(rawLabel);
                 if (string.IsNullOrWhiteSpace(label)) continue; // skip noise/palette lines
-                result.Lines.Add(new ComparisonLine
+                
+                // Calculer Diff en utilisant seulement les ajustements validés
+                var diffQty = adjustmentForDiff != null && adjustmentForDiff.ActualQuantity.HasValue
+                    ? invQty - adjustmentForDiff.ActualQuantity.Value
+                    : invQty - delQty;
+                
+                var line = new ComparisonLine
                 {
                     Product = label,
+                    ProductKey = normalizedKey, // Utiliser la clé normalisée pour la correspondance avec les ajustements
+                    DocumentLineId = documentLineId,
                     InvoiceQty = invQty,
                     DeliveryQty = delQty,
+                    ActualQuantity = actualQuantity, // Afficher la quantité réelle même si non validée
+                    IsValidated = isValidated,
+                    StockUpdated = stockUpdated, // Indiquer si le stock a été mis à jour
+                    Diff = diffQty, // Diff calculée avec seulement les ajustements validés
                     CurrentInvoiceUnitPrice = currentPrice,
-                    PreviousInvoiceUnitPrice = previousPrice
-                });
+                    PreviousInvoiceUnitPrice = previousPrice,
+                    Unit = sampleLine?.Unit ?? string.Empty,
+                    InvoiceTotalValue = invLines.Where(l => Key(l).Equals(key, StringComparison.OrdinalIgnoreCase)).Sum(l => l.TotalValue)
+                };
+                
+                // Debug log specific properties
+                if (result.Lines.Count == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CompareUsingLines] First Line Added: ProductKey='{line.ProductKey}', Unit='{line.Unit}', InvTotal={line.InvoiceTotalValue}, InvQty={line.InvoiceQty}");
+                }
+
+                result.Lines.Add(line);
             }
 
             return result;
@@ -250,17 +380,19 @@ namespace Backup.Web.Api.Server.Services.Documents
             var invoice1 = await storage.SelectDocumentByIdAsync(invoice1Id) ?? throw new InvalidOperationException("Invoice 1 not found");
             var invoice2 = await storage.SelectDocumentByIdAsync(invoice2Id) ?? throw new InvalidOperationException("Invoice 2 not found");
 
+            // Vérifier que les deux factures ont le même fournisseur
+            if (!string.IsNullOrWhiteSpace(invoice1.Supplier) && 
+                !string.IsNullOrWhiteSpace(invoice2.Supplier) &&
+                !invoice1.Supplier.Equals(invoice2.Supplier, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Impossible de comparer deux factures de fournisseurs différents: '{invoice1.Supplier}' et '{invoice2.Supplier}'");
+            }
+
             var inv1Lines = storage.SelectLinesByDocumentId(invoice1Id).ToList();
             var inv2Lines = storage.SelectLinesByDocumentId(invoice2Id).ToList();
 
             // Use same Key function as price comparison
-            string Key(DocumentLine l)
-            {
-                if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode.Trim()}";
-                if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean.Trim()}";
-                var norm = Backup.Web.Api.Server.Services.Documents.Parsing.ProductTextNormalizer.Normalize(l.Product ?? string.Empty);
-                return $"N:{norm}";
-            }
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
 
             // Build price maps for both invoices
             var inv1PriceMap = inv1Lines
@@ -289,7 +421,11 @@ namespace Backup.Web.Api.Server.Services.Documents
             var result = new InvoicePriceComparisonResult 
             { 
                 Invoice1Id = invoice1Id, 
-                Invoice2Id = invoice2Id 
+                Invoice2Id = invoice2Id,
+                Invoice1Number = invoice1.Numero,
+                Invoice2Number = invoice2.Numero,
+                Invoice1Supplier = invoice1.Supplier,
+                Invoice2Supplier = invoice2.Supplier
             };
 
             foreach (var key in allKeys)

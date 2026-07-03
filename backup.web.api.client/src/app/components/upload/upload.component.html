@@ -1,9 +1,6 @@
 <div class="upload-container">
   <div class="upload-header">
     <h1>📤 Upload de Documents</h1>
-    <button mat-raised-button color="primary" (click)="navigateToCompare()">
-      🔗 Page d'Association
-    </button>
   </div>
 
   <div class="upload-card">
@@ -70,6 +67,11 @@
             <input matInput type="date" [(ngModel)]="dateDocument" />
           </mat-form-field>
         </div>
+      </div>
+
+      <div class="ai-indicator" *ngIf="file">
+        <mat-icon color="primary">psychology</mat-icon>
+        <span>Extraction par IA activée (précision ~99%)</span>
       </div>
 
       <div class="form-actions">

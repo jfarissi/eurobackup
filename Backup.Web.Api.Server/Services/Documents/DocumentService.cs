@@ -245,12 +245,7 @@ namespace Backup.Web.Api.Server.Services.Documents
 			var result = new List<DocumentLine>(det);
 
 			// Build maps by strong keys
-			string Key(DocumentLine l)
-			{
-				if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode!.Trim()}";
-				if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean!.Trim()}";
-				return $"N:{ProductTextNormalizer.Normalize(l.Product ?? string.Empty)}";
-			}
+			string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
 
 			var aiMap = ai.GroupBy(Key, StringComparer.OrdinalIgnoreCase)
 				.ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Quantity).First(), StringComparer.OrdinalIgnoreCase);

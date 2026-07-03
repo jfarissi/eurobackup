@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pymupdf
+pydantic
+python-magic
+langdetect
+tqdm

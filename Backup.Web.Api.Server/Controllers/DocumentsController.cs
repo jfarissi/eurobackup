@@ -133,12 +133,27 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(result);
         }
 
+        [HttpPost("compare-all-deliveries")]
+        public async Task<IActionResult> CompareAllDeliveries([FromQuery] int invoiceId, CancellationToken ct)
+        {
+            if (invoiceId <= 0) return BadRequest("InvoiceId required");
+            var result = await this.comparisonService.CompareAllDeliveriesAsync(invoiceId, ct);
+            return Ok(result);
+        }
+
         [HttpPost("compare-invoices")]
         public async Task<IActionResult> CompareInvoices([FromQuery] int invoice1Id, [FromQuery] int invoice2Id, CancellationToken ct)
         {
             if (invoice1Id <= 0 || invoice2Id <= 0) return BadRequest("Invoice IDs required");
-            var result = await this.comparisonService.CompareInvoicesAsync(invoice1Id, invoice2Id, ct);
-            return Ok(result);
+            try
+            {
+                var result = await this.comparisonService.CompareInvoicesAsync(invoice1Id, invoice2Id, ct);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         public class LinkRequest
@@ -274,12 +289,7 @@ namespace Backup.Web.Api.Server.Controllers
         {
             if (det.Count == 0) return ai;
             var result = new List<DocumentLine>(det);
-            string Key(DocumentLine l)
-            {
-                if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode!.Trim()}";
-                if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean!.Trim()}";
-                return $"N:{Backup.Web.Api.Server.Services.Documents.Parsing.ProductTextNormalizer.Normalize(l.Product ?? string.Empty)}";
-            }
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
             var aiMap = ai.GroupBy(Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Quantity).First(), StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < result.Count; i++)
@@ -309,11 +319,100 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare-and-stock")]
-        public async Task<IActionResult> CompareAndStock([FromQuery] int invoiceId, [FromQuery] int deliveryId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct)
+        public async Task<IActionResult> CompareAndStock([FromQuery] int invoiceId, [FromQuery] int deliveryId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
         {
             if (invoiceId <= 0 || deliveryId <= 0) return BadRequest("Ids required");
-            var updated = await stockService.UpdateFromDeliveryIfMatchAsync(invoiceId, deliveryId, ct);
+            var updated = await stockService.UpdateFromDeliveryIfMatchAsync(invoiceId, deliveryId, ct, forceUpdate);
             return Ok(new { success = updated });
+        }
+
+        [HttpPost("compare-and-stock-all-deliveries")]
+        public async Task<IActionResult> CompareAndStockAllDeliveries([FromQuery] int invoiceId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
+        {
+            if (invoiceId <= 0) return BadRequest("InvoiceId required");
+            var result = await stockService.UpdateFromAllDeliveriesForInvoiceAsync(invoiceId, ct, forceUpdate);
+            return Ok(result);
+        }
+
+        public class SaveAdjustmentRequest
+        {
+            public int DeliveryId { get; set; }
+            public int InvoiceId { get; set; }
+            public int? DocumentLineId { get; set; }
+            public string ProductKey { get; set; } = string.Empty;
+            public decimal DeliveryQuantity { get; set; }
+            public decimal? ActualQuantity { get; set; }
+            public bool Validate { get; set; } // Si true, valide l'ajustement
+        }
+
+        [HttpPost("adjustments")]
+        public async Task<IActionResult> SaveAdjustment([FromBody] SaveAdjustmentRequest request, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage, CancellationToken ct)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Received request: DeliveryId={request.DeliveryId}, InvoiceId={request.InvoiceId}, ProductKey={request.ProductKey}, ActualQuantity={request.ActualQuantity}, Validate={request.Validate}");
+            
+            if (request.DeliveryId <= 0 || request.InvoiceId <= 0 || string.IsNullOrWhiteSpace(request.ProductKey))
+            {
+                System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] BadRequest: DeliveryId={request.DeliveryId}, InvoiceId={request.InvoiceId}, ProductKey={request.ProductKey}");
+                return BadRequest(new { message = "DeliveryId, InvoiceId, and ProductKey are required" });
+            }
+
+            // Chercher un ajustement existant
+            var productKeyForSearch = Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.Normalize(request.ProductKey);
+            var existing = await storage.SelectAdjustmentByDeliveryAndProductKeyAsync(request.DeliveryId, productKeyForSearch);
+            
+            if (request.DocumentLineId.HasValue && request.DocumentLineId.Value <= 0)
+                request.DocumentLineId = null;
+
+            Backup.Web.Api.Server.Models.DeliveryLineAdjustment adjustment;
+            if (existing != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Updating existing adjustment ID={existing.Id}, Current ActualQuantity={existing.ActualQuantity}, New ActualQuantity={request.ActualQuantity}, Validate={request.Validate}");
+                // Mettre à jour l'ajustement existant
+                existing.ActualQuantity = request.ActualQuantity;
+                if (request.Validate)
+                {
+                    existing.IsValidated = true;
+                    existing.ValidatedAt = DateTime.UtcNow;
+                    existing.ValidatedBy = "System"; // TODO: Récupérer l'utilisateur actuel
+                    System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Validating adjustment ID={existing.Id} with ActualQuantity={existing.ActualQuantity}");
+                }
+                else
+                {
+                    // Si on ne valide pas, on peut réinitialiser la validation si la quantité a changé
+                    if (existing.ActualQuantity != request.ActualQuantity)
+                    {
+                        existing.IsValidated = false;
+                        existing.ValidatedAt = null;
+                        existing.ValidatedBy = null;
+                        System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Quantity changed, resetting validation for adjustment ID={existing.Id}");
+                    }
+                }
+                adjustment = await storage.UpdateAdjustmentAsync(existing);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Creating new adjustment");
+                // Créer un nouvel ajustement
+                adjustment = new Backup.Web.Api.Server.Models.DeliveryLineAdjustment
+                {
+                    DeliveryId = request.DeliveryId,
+                    InvoiceId = request.InvoiceId,
+                    DocumentLineId = request.DocumentLineId,
+                    ProductKey = Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.Normalize(request.ProductKey),
+                    DeliveryQuantity = request.DeliveryQuantity,
+                    ActualQuantity = request.ActualQuantity,
+                    IsValidated = request.Validate,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = "System", // TODO: Récupérer l'utilisateur actuel
+                    ValidatedAt = request.Validate ? DateTime.UtcNow : null,
+                    ValidatedBy = request.Validate ? "System" : null
+                };
+                adjustment = await storage.InsertAdjustmentAsync(adjustment);
+                System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Created adjustment ID={adjustment.Id}, IsValidated={adjustment.IsValidated}");
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Returning adjustment: ID={adjustment.Id}, IsValidated={adjustment.IsValidated}, ActualQuantity={adjustment.ActualQuantity}");
+            return Ok(adjustment);
         }
 
         [HttpGet("{id:int}/lines")]
@@ -343,13 +442,7 @@ namespace Backup.Web.Api.Server.Controllers
             var invLines = storage.SelectLinesByDocumentId(invoiceId).ToList();
             if (invLines.Count == 0) return Ok(Array.Empty<PriceDiffLine>());
 
-            string Key(DocumentLine l)
-            {
-                if (!string.IsNullOrWhiteSpace(l.ProductCode)) return $"C:{l.ProductCode.Trim()}";
-                if (!string.IsNullOrWhiteSpace(l.Ean)) return $"E:{l.Ean.Trim()}";
-                var norm = Backup.Web.Api.Server.Services.Documents.Parsing.ProductTextNormalizer.Normalize(l.Product ?? string.Empty);
-                return $"N:{norm}";
-            }
+            string Key(DocumentLine l) => Backup.Web.Api.Server.Services.Documents.Parsing.ProductKeyHelper.GetProductKey(l);
 
             var thisKeys = new HashSet<string>(invLines.Select(Key), StringComparer.OrdinalIgnoreCase);
 

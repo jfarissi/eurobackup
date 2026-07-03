@@ -1,7 +1,16 @@
 fastapi
 uvicorn[standard]
-pdfplumber
+pymupdf
 pydantic
 python-multipart
 rapidfuzz
+openai>=1.0.0
+requests
+google-generativeai
+python-dotenv
 
+
+# OCR dependencies
+pytesseract
+pdf2image
+Pillow

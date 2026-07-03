@@ -53,7 +53,7 @@
         </td>
         <td>
           <button (click)="download(d.id)">Télécharger</button>
-          <button *ngIf="d.typeDocument === 'BonLivraison'" style="margin-left:6px;" (click)="onReparseWithAiId(d.id)">Reparser (IA)</button>
+          <button style="margin-left:6px;" (click)="onReparse(d.id)">Reparser</button>
         </td>
       </tr>
     </tbody>
@@ -90,7 +90,6 @@
           <button mat-raised-button color="primary" (click)="compare(r.invoiceId, r.deliveryId)">Comparer</button>
           <button mat-raised-button color="accent" style="margin-left:6px;" (click)="compareAndStock(r.invoiceId, r.deliveryId)">Comparer + Stock</button>
           <button mat-stroked-button color="warn" (click)="unlink(r.id)" style="margin-left:6px;">Dissocier</button>
-          <button mat-stroked-button style="margin-left:6px;" (click)="onReparseWithAiId(r.deliveryId)">Reparser BL (IA)</button>
         </span>
       </div>
     </div>

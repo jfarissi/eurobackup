@@ -1,0 +1,36 @@
+Orderbevestiging
+
+Orderbevestiging : VOR022346                 Billing address                                                                Verzendadres
+Documentdatum : 12 maart 2026                EURO BRICO                                                                     EURO BRICO
+Orderklantnr. : 004883                       ALI EL-ARFANI                                                                  ALI EL-ARFANI
+Uw referentie : Via VT                       FRANS BAETENSTRAAT 25-29                                                       FRANS BAETENSTRAAT 25-29
+Verkoper : Davy Pacolet - 0473/45.42.11      2100 DEURNE                                                                    2100 DEURNE
+                                             België                                                                         België
+Verzendwijze : Franco levering vanaf € 400   Ondernemingsnr. : BE0597.683.415
+Betalingsvoorwaarden : 30 dagen einde maand
+
+Nr.          Barcode        Omschrijving                             Omschrijving 2      Aantal      Eenheid  Verwachte       Bruto      Korting %       Netto     Regelbed   Btw %
+                                                                                                              leveringsdat  eenheids                eenheidsprijs  rag Excl.
+1-5922-5410                                                          380x250 mm,                              um            prijs excl.                            btw
+1-5922-5230                                                          blauw                                                                            excl. BTW
+1-5922-5411                                                          vr. 30 st                                                BTW                        EUR
+1-5906-30                                                                                                                      EUR
+
+             5060460471401  40 ULTRAGRIME MULTI-PURPOSE POMELO                                   6   Stk      13/03/26      13,28        50+10            5,98     35,86      21
+             5060460472545                                                                                                               50+10
+             5060460471531  20 ULTRAGRIME VOOR INTERIEUR AUTO                                    14  Stk      13/03/26      6,80         50+10            3,06     42,84      21
+
+             5410247312494  40 ULTRAGRIME MULTI-PURPOSE VEELZIJDIGE                              6   Stk      13/03/26      14,08        50+10            6,34     38,02      21
+                            DOEKJES
+                            VLOERDISPLAY vr 1-5900                                               1   Stk      13/03/26      0,00                                   0,00       21
+
+                                                                                                                                         Subtotaal EUR             116,72
+                                                                                                                                                 21% btw            24,02
+
+                                                                                                                                             Totaal EUR            140,74
+
+Pardaen NV                                                           +32 (0)2 251 13 85                                     BE 0400.695.221
+Haachtsesteenweg 672 bus 1                                           info@pardaen.be                                        KBC BE93 4347 1027 9167 KREDBEBB
+1910 KAMPENHOUT                                                      www.pardaen.be
+België                                                                                                                                                                                      1
+

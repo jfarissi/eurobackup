@@ -1,0 +1,27 @@
+Extracting PDF data from d:\GitHub\EuroBrico.Web.Api\coeck_assortimentsboek_bouw_2026_v01_web.pdf...
+Parsing...
+[DEBUG] --- parse_items STARTED ---
+[DEBUG] DEBUG Split name 'Betonmortel C20/25 25 kg - 102 Béton préparé C20/25 25 kg - 102' -> ['Betonmortel C20/25 25 kg', '102 Béton préparé C20/25 25 kg', '102']
+[DEBUG] DEBUG Split name 'Betonmortel C30/37 25 kg - 106 Béton préparé C30/37 25 kg - 106' -> ['Betonmortel C30/37 25 kg', '106 Béton préparé C30/37 25 kg', '106']
+[DEBUG] DEBUG Split name 'Stabilisé 25 kg - 201 Stabilisé 25 kg - 201' -> ['Stabilisé 25 kg', '201 Stabilisé 25 kg', '201']
+[DEBUG] DEBUG Split name 'Flex Tegellijm 25 kg - C2 TE - 302 Flex Colle pour carrelage' -> ['Flex Tegellijm 25 kg', 'C2 TE', '302 Flex Colle pour carrelage']
+Found 114 items.
+
+--- Item 1 ---
+SKU: 281765
+Name_NL: 'Betonmortel C20/25 25 kg'
+Name_FR: '102'
+TechCode: 'None'
+!!! ISSUE: Name_FR is '102' (likely a code) !!!
+
+--- Item 2 ---
+SKU: 281766
+Name_NL: 'Betonmortel C30/37 25 kg'
+Name_FR: '106'
+TechCode: 'None'
+
+--- Item 3 ---
+SKU: 281770
+Name_NL: 'Stabilisé 25 kg'
+Name_FR: '201'
+TechCode: 'None'

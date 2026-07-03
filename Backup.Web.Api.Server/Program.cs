@@ -18,7 +18,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -46,6 +51,10 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Ollama.I
 // Python extractor (optional)
 builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorOptions>(builder.Configuration.GetSection("PythonExtractor"));
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient, Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorClient>();
+builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonProxyController), client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(30);
+});
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
 builder.Services.AddDbContext<StorageBroker>();
 builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
@@ -106,6 +115,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapStaticAssets();
 
 // Configure the HTTP request pipeline.
@@ -114,17 +124,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-// Apply EF Core migrations at startup
-//using (var scope = app.Services.CreateScope())
-//{
-//    var broker = scope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Brokers.Storage.IStorageBroker>() as Backup.Web.Api.Server.Brokers.Storage.StorageBroker;
-//    if (broker != null)
-//    {
-//        broker.Database.Migrate();
-//    }
-//}
+if (builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", false))
+{
+    using var scope = app.Services.CreateScope();
+    if (scope.ServiceProvider.GetService<StorageBroker>() is { } broker)
+        broker.Database.Migrate();
+}
 
-app.UseHttpsRedirection();
+if (builder.Configuration.GetValue("UseHttpsRedirection", true))
+    app.UseHttpsRedirection();
 
 app.UseCors();
 

@@ -17,6 +17,11 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .compare-header h1 {
   margin: 0;
   color: #2c3e50;
@@ -91,6 +96,67 @@
   height: 32px;
 }
 
+.selected-item .small-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  color: #666;
+}
+
+.selected-item p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #666;
+  display: flex;
+  align-items: center;
+}
+
+.warning-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: #856404;
+}
+
+.warning-message mat-icon {
+  color: #ff9800;
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.warning-message strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.warning-message p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.warning-message .supplier-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(133, 100, 4, 0.2);
+}
+
+.warning-message .supplier-details span {
+  font-size: 13px;
+}
+
 .link-button {
   width: 100%;
   margin-top: 12px;
@@ -104,6 +170,18 @@
 
 .search-field {
   flex: 1;
+}
+
+.doc-count {
+  font-weight: 500;
+  font-size: 0.85em;
+  color: #7f8c8d;
+}
+
+.section-hint {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: #666;
 }
 
 .invoices-list {
@@ -171,8 +249,15 @@
 .invoice-actions {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+}
+
+.invoice-reparse-bar {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .invoice-actions mat-icon {
@@ -289,6 +374,107 @@
   width: 100%;
 }
 
+.actual-qty-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.qty-input {
+  width: 150px;
+  min-width: 150px;
+}
+
+.qty-input .mat-mdc-text-field-wrapper {
+  padding-bottom: 0;
+}
+
+.qty-input .mat-mdc-form-field-infix {
+  padding: 0 !important;
+  min-height: auto;
+  border: none !important;
+}
+
+.qty-input input {
+  font-size: 14px;
+  padding: 8px 12px !important;
+  border: none !important;
+  outline: none;
+  background: transparent;
+}
+
+.qty-input .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.qty-input .mat-mdc-text-field-input-control {
+  border: none !important;
+}
+
+.qty-input .mdc-text-field {
+  border: none !important;
+  background: transparent !important;
+}
+
+.qty-input .mdc-text-field__input {
+  border: none !important;
+  padding: 8px 12px !important;
+  background: transparent !important;
+}
+
+.qty-input .mdc-notched-outline {
+  border: none !important;
+}
+
+.qty-input .mdc-notched-outline__leading,
+.qty-input .mdc-notched-outline__notch,
+.qty-input .mdc-notched-outline__trailing {
+  border: none !important;
+}
+
+.actual-qty-cell button {
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+}
+
+.actual-diff-info {
+  font-size: 0.85em;
+  color: #666;
+  margin-left: 8px;
+}
+
+.no-diff {
+  color: #999;
+}
+
+.error-text {
+  font-size: 0.75em;
+  color: #d32f2f;
+  margin-left: 8px;
+}
+
+.stock-updated-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+  font-size: 0.85em;
+}
+
+.stock-updated-warning mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
 .documents-table th,
 .comparison-table th {
   background: #f8f9fa;
@@ -356,9 +542,57 @@
   font-style: italic;
 }
 
+.invoice-comparison-header {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.invoice-info-box {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.invoice-info-box strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.invoice-info-box span {
+  display: block;
+  color: #34495e;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.supplier-badge {
+  display: inline-block !important;
+  margin-left: 8px;
+  padding: 4px 8px;
+  background: #e8f4f8;
+  color: #2980b9;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 @media (max-width: 1024px) {
   .tables-container {
     grid-template-columns: 1fr;
+  }
+  
+  .invoice-comparison-header {
+    flex-direction: column;
   }
 }
 

@@ -5,7 +5,7 @@ import { DocumentService } from '../../services/document.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
 
 @Component({
@@ -13,7 +13,7 @@ import { MatTableDataSource } from '@angular/material/table';
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
 })
 export class UploadComponent implements OnInit {
   file: File | null = null;

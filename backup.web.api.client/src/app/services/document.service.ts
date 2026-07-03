@@ -5,7 +5,7 @@ import { environment } from '../../environments/environment';
 import { Document } from '../models/document';
 import { DocumentRelation } from '../models/relation';
 import { ComparisonResult, InvoicePriceComparisonResult } from '../models/comparison';
-import { CompareAndStockResponse } from '../models/stock';
+import { BatchCompareAndStockResponse, CompareAndStockResponse } from '../models/stock';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
@@ -53,12 +53,39 @@ export class DocumentService {
     return this.http.post<ComparisonResult>(`${this.baseUrl}/compare?invoiceId=${invoiceId}&deliveryId=${deliveryId}`, {});
   }
 
+  compareAllDeliveries(invoiceId: number): Observable<ComparisonResult> {
+    return this.http.post<ComparisonResult>(`${this.baseUrl}/compare-all-deliveries?invoiceId=${invoiceId}`, {});
+  }
+
   compareInvoices(invoice1Id: number, invoice2Id: number): Observable<InvoicePriceComparisonResult> {
     return this.http.post<InvoicePriceComparisonResult>(`${this.baseUrl}/compare-invoices?invoice1Id=${invoice1Id}&invoice2Id=${invoice2Id}`, {});
   }
 
-  compareAndStock(invoiceId: number, deliveryId: number): Observable<CompareAndStockResponse> {
-    return this.http.post<CompareAndStockResponse>(`${this.baseUrl}/compare-and-stock?invoiceId=${invoiceId}&deliveryId=${deliveryId}`, {});
+  compareAndStock(invoiceId: number, deliveryId: number, forceUpdate: boolean = false): Observable<CompareAndStockResponse> {
+    const params = new HttpParams()
+      .set('invoiceId', invoiceId.toString())
+      .set('deliveryId', deliveryId.toString())
+      .set('forceUpdate', forceUpdate.toString());
+    return this.http.post<CompareAndStockResponse>(`${this.baseUrl}/compare-and-stock`, {}, { params });
+  }
+
+  compareAndStockAllDeliveries(invoiceId: number, forceUpdate: boolean = false): Observable<BatchCompareAndStockResponse> {
+    const params = new HttpParams()
+      .set('invoiceId', invoiceId.toString())
+      .set('forceUpdate', forceUpdate.toString());
+    return this.http.post<BatchCompareAndStockResponse>(`${this.baseUrl}/compare-and-stock-all-deliveries`, {}, { params });
+  }
+
+  saveAdjustment(request: {
+    deliveryId: number;
+    invoiceId: number;
+    documentLineId?: number | null;
+    productKey: string;
+    deliveryQuantity: number;
+    actualQuantity?: number | null;
+    validate: boolean;
+  }): Observable<any> {
+    return this.http.post(`${this.baseUrl}/adjustments`, request);
   }
 
   reparseLines(id: number, useAiFallback = false): Observable<{ documentId: number; success: boolean }> {

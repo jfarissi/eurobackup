@@ -9,4 +9,13 @@ export interface CompareAndStockResponse {
   success: boolean;
 }
 
+export interface BatchCompareAndStockResponse {
+  invoiceId: number;
+  totalDeliveries: number;
+  updatedDeliveries: number;
+  skippedDeliveries: number;
+  updatedDeliveryIds: number[];
+  skippedDeliveryIds: number[];
+}
+
 

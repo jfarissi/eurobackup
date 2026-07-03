@@ -1,0 +1,52 @@
+[
+  {
+    "Id": 1,
+    "Reference": "REF001",
+    "Sku": "SKU001",
+    "Barcode": "5413503555628",
+    "Gtin": "5413503555628",
+    "Name_EN": "Nail plug 50 x 6 mm (20 pcs / Blister)",
+    "Name_FR": "Cheville à clou 50 x 6 mm (20 pcs / Blister)",
+    "Name_NL": "Spijkerplug 50 x 6 mm (20 st / Blister)",
+    "Description_EN": "Nail plug for fixing, 50mm length, 6mm diameter, 20 pieces per blister",
+    "Description_FR": "Cheville à clou pour fixation, longueur 50mm, diamètre 6mm, 20 pièces par blister",
+    "Description_NL": "Spijkerplug voor bevestiging, lengte 50mm, diameter 6mm, 20 stuks per blister",
+    "SellingPrice": 3.17,
+    "CostPrice": 2.50,
+    "StockQuantity": 150,
+    "WeightKg": 0.1,
+    "BrandId": 1,
+    "CategoryId": 5,
+    "IsActive": true,
+    "variants": [
+      {
+        "Id": 1,
+        "Sku": "SKU001-V1",
+        "Barcode": "5413503555629",
+        "PriceOverride": null,
+        "StockQuantity": 50
+      }
+    ]
+  },
+  {
+    "Id": 2,
+    "Reference": "REF002",
+    "Sku": "00184088",
+    "Barcode": "5413503555628",
+    "Gtin": "5413503555628",
+    "Name_EN": "Quick hanger for CD 60/27 (10 pcs / Blister)",
+    "Name_FR": "Accroche rapide pour CD 60/27 (10 pcs / Blister)",
+    "Name_NL": "Snelophanger voor CD 60/27 (10 st / Blister)",
+    "Description_EN": "Quick hanger for CD profiles 60/27, 10 pieces per blister",
+    "Description_FR": "Accroche rapide pour profils CD 60/27, 10 pièces par blister",
+    "Description_NL": "Snelophanger voor CD profielen 60/27, 10 stuks per blister",
+    "SellingPrice": 9.47,
+    "CostPrice": 7.50,
+    "StockQuantity": 80,
+    "WeightKg": 0.2,
+    "BrandId": 1,
+    "CategoryId": 5,
+    "IsActive": true,
+    "variants": []
+  }
+]

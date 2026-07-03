@@ -1,0 +1,642 @@
+Verzending
+
+Verzendnr. : VLE036347                       Verzendadres
+Documentdatum : 13 maart 2026                EURO BRICO
+Orderklantnr. : 004883                       ALI EL-ARFANI
+Ordernr. : VOR022357                         FRANS BAETENSTRAAT 25-29
+Uw referentie : SCAN 12/03/26                2100 DEURNE
+
+Verzending                                   Factureren aan
+Traceringsnummer (zending) :                 EURO BRICO
+Verzenddatum : 13 maart 2026                 ALI EL-ARFANI
+Brutogewicht van eenheid : 0                 FRANS BAETENSTRAAT 25-29
+Eenheden per collo : 0                       2100 DEURNE
+                                             Ondernemingsnr. : BE0597.683.415
+
+Nr.         Barcode            Omschrijving               Omschrijving 2  Aantal Eenheid       Bruto
+                                                                                            eenheids
+1-55-521  X(25DFG1*PPPMLN(     KOEVOET FAT MAX            1000 mm                2 Stk      prijs excl.
+0-13-036  X(25DFG0*LNKNQR(     RINGSTEEKSLEUTEL ANTISLIP  13 mm                  3 Blister  BTW EUR
+1-43-104  X(25DFG1*ONLKON(     WATERPAS STANLEY CLASSIC   800 mm                 5 Blister
+0-30-687  X(25DFG0*NKQSRS(     ROLMETER TYLON TAPE        3 m - 12,7 mm          5 Blister        37,96
+0-30-697  X(25DFG0*NKQTRR(     ROLMETER TYLON TAPE        5 m - 19 mm            6 Blister          6,80
+0-37-231  X(25DFG0*NRMNLQ(     ROLBANDMAAT CONTROL-       5 m - 25 mm            5 Blister
+0-35-458  X(25DFG0*NPOPST(     LOCK                       2 m - 15 mm          20 Blister         28,89
+0-47-315  X(25DFG0*ORNLPK(     VOUWMETER, HOUT, GEEL-WIT  ROOD - ZWART -         5 Blister          4,22
+0-47-440  X(25DFG0*OROOKT(     3 MARKEERSTIFTEN FATMAX    BLAUW                  4 Blister          7,00
+1-45-685  X(25DFG1*OPQSPP(     SLAGLIJNMOLEN ABS          30 m                   6 Stk
+1-42-316  X(25DFG1*OMNLQL(     WINKELHAAK                 140X250 mm             1 Stk            20,60
+1-42-315  X(25DFG1*OMNLPO(     WATERPAS FATMAX MLH        1000 mm                1 Stk              5,41
+0-28-510  X(25DFG0*MSPLKO(     WATERPAS FATMAX MLH        800 mm               10 Blister           7,31
+                               10 RESERVEMESJES VOOR 0-   40 mm
+                               28-500                                                             10,51
+                                                                                                  25,03
+                                                                                                 103,26
+                                                                                                  65,61
+
+                                                                                                    5,41
+
+Pardaen NV                                   +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                   info@pardaen.be
+1910 KAMPENHOUT                              www.pardaen.be
+België
+                                                                                                      1
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.            Barcode           Omschrijving                   Omschrijving 2  Aantal Eenheid       Bruto
+                                                                                                  eenheids
+0-10-425       X(25DFG0*LKOMPM(  DYNA GRIP AFBREEKMES           25 mm                  6 Blister  prijs excl.
+0-10-266       X(25DFG0*LKMQQL(                                 18 mm                  6 Blister  BTW EUR
+0-10-481       X(25DFG0*LKOSLS(  AFBREEKMES AUTOLOCK            18 mm                  6 Blister
+0-11-301       X(25DFG0*LLNKLS(                                 18 mm                30 Blister         14,73
+2-10-099       X(25DFG2*LKKTTN(  AFBREEKMES FATMAX              99 E                   6 Blister          8,29
+0-11-983       u(0AA36G*LLTQLS(                                 50 x 19 mm           10 Blister
+0-20-807       X(25DFG0*MKSKRN(  10 VERVANG AFBREEKMESJES                              1 Blister        14,47
+1-51-278       X(25DFG1*PLMRSK(                                 570 gr                 2 Stk              6,95
+2-15-599       X(25DFG2*LPPTTN(  CLASSIC STANLEY                500 mm                 3 Stk
+2-15-288       X(25DFG2*LPMSSQ(  UITSCHUIFMES                   500 mm                 4 Stk            11,07
+2-14-563       X(25DFG2*LOPQNP(  5 RESERVEMESJES 1996                                  6 Blister          3,97
+0-69-251       X(25DFG0*QTMPLN(  HAAKMOD.                       1,5 - 6 mm             1 Blister          9,63
+1-TRA706T      X(25DFG1*KPOMSK(  MINI METAALZAAGBEUGEL          10 mm - 3/8''          5 Stk
+1-TRA709T      X(25DFG1*KPONKN(                                 14 mm - 9/16''         4 Stk            55,83
+0-13-040       X(25DFG0*LNKOKO(  HAMER,RECHTE KL.FATM.          17 mm                  3 Blister        24,41
+1-8854-628-10  U(058060*RKTPTN(  ANTIVIBE                       6x28,25mm              5 Blister        24,41
+1-8853-10-12   U(058060*SKSPPP(  HANDZAAG JET CUT FINE          10x25mm                5 Blister        29,66
+1-8852-10-200  U(058060*RTTNMR(                                 10x25mm                1 Doos (1
+                                 HANDZAAG JET CUT HP                                                      4,64
+                                                                                             ST)          5,87
+                                 BLIKSCHAAR RECHT SNIJDEND                                                6,39
+                                                                                                          9,32
+                                 8-DELIGE STIFTSLEUTELSET                                                 9,93
+                                                                                                          5,92
+                                 NIETEN TYPE G - doos 1000 st.                                          68,27
+
+                                 NIETEN TYPE G - doos 1000 st.
+
+                                 RINGSTEEKSLEUTEL ANTISLIP
+
+                                 10 HOLLEWANDPLUGGEN,
+                                 NYLON 054DE
+                                 12 GIPSPLAATPLUGGEN, ALU
+                                 034RE
+                                 200 GIPSPLAATPLUGGEN,
+                                 NYLON 013TE
+
+Pardaen NV                                     +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                     info@pardaen.be
+België                                         www.pardaen.be
+
+                                                                                                          2
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.             Barcode           Omschrijving                Omschrijving 2  Aantal Eenheid       Bruto
+                                                                                                eenheids
+1-6590-12-4     x(7B2FE3*QKKLQR(  BINDDRAAD VERZINKT No 4     0,9MM                  6 Stk      prijs excl.
+1-8300-12-10-1  u(4BA24H*KPTOPK(  50M                         12mm x 10M           10 Stk       BTW EUR
+1-8300-20-5-1   u(4BA24H*KNQLSP(                              19x1mmx5M            10 Stk
+1-8330-125      x(7B4DB8*KKQTQT(  ROL BANDIJZER,              125 mm               50 Stk               6,14
+1-8331-125      x(7B4DB8*KKQTPM(  GEPERFOREERD                125 mm               50 Stk             12,39
+S-0810-12100    u(4BA24H*MTQNRO(                              M12x100mm
+S-0271-1        u(4BA24H*KKPTKR(  ROLLEN BANDIJZER,           4 KG                   5 Blister          9,75
+1-8307          x(7B4DB8*LOKLKQ(  GEPERFOREERD                136x63 mm            10 Blister           2,03
+1-8307-63160    x(7B4DB8*LOKRNL(                              158x63 mm            20 Stk               2,13
+1-1423-71-42    u(4BA24H*NKPKKR(  HOEKVERBINDINGEN+VERSTE     42 mm                20 Stk               5,08
+1-1283-175      u(4BA24H*KOKMTS(  RKING                       187 mm               12 Stk               2,84
+S-9587-10       u(4BA24H*NMMQQK(                              35 mm                12 Stk               4,08
+S-9087          u(4BA24H*KNQTPQ(  HOEKVERBINDINGEN VLAK       35 mm                                     4,60
+S-9084          u(4BA24H*KQPOLN(                              35 mm                  3 Blister          4,06
+S-8920          u(4BA24H*LLLTMT(  2 DOORSTEEKANKERS,          115 - 17 mm            3 Blister          4,21
+S-1838-12-75    u(4BA24H*KLOMMK(  VERZINKT                    75 MM                  3 Blister        23,49
+1-0407-250      u(4BA24H*KNMNKT(                              250x300MM              3 Blister          7,06
+1-0407-300      u(4BA24H*KNMNLQ(  2 MAGNETISCHE SLUIT.WIT 2   300x350MM              5 Blister          7,18
+                                  GAT.                                             20 Stk             14,18
+                                                                                   20 Stk               4,97
+                                  BALKDRAGERS OPLEG ZWAAR                                               1,45
+                                                                                                        1,82
+                                  BALKDRAGERS OPLEG, ZWAAR
+
+                                  MEUBELWIELEN,RUBBER,VAST
+                                  E PL.
+
+                                  KRUISHENGSEL ZWAAR
+                                  VERZINKT
+
+                                  10
+                                  INBOORVEERSCHARNIER,HOE
+                                  KIG
+                                  2
+                                  INBOORVEERSCHARNIEREN,H
+                                  OEKIG
+                                  2
+                                  INBOORVEERSCHARNIEREN,H
+                                  OEKIG
+                                  DEURKRUKSET,L-MODEL, INOX-
+                                  LOOK
+
+                                  2 BREDE SCHARNIEREN
+                                  VERZ.ZWAAR
+
+                                  PLANKDRAGERS EPOXY WIT
+
+                                  PLANKDRAGERS EPOXY WIT
+
+Pardaen NV                                      +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                      info@pardaen.be
+België                                          www.pardaen.be
+
+                                                                                                           3
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.            Barcode           Omschrijving                    Omschrijving 2  Aantal Eenheid     Bruto
+                                                                                      10 Stk     eenheids
+1-0454-1-150                     PLANKDRAGERS ALU, EPOXY         150x100mm                       prijs excl.
+1-1036-18-300                    WIT                             300x200mm                       BTW EUR
+1-1036-2-300                                                     300x210mm
+1-0074-12-5                      PLANKDRAGERS, ZWAAR,                                                    5,51
+1-0074-12-6                      EPOXI WIT                       M8
+1-0074-12-8    u(4BA24H*KNMNNK(                                  25 mm           10 Stk          6,08
+1-0089-12-8    u(4BA24H*KNQTLS(  PLANKDRAGERS, ZWAAR,
+1-6300-25      u(4BA24H*MTSQTT(  ZWART                           M8 x 24 mm      10 Stk          6,08
+1-9000-4008    u(4BA24H*LQPQMP(
+1-9000-3292    u(4BA24H*LPMMQR(  KOETSWERKSLUITRINGEN            M12x24mm         5 Doos (100     6,41
+1-9000-3604    u(4BA24H*LPMTRR(  VERZINKT                        8x140 mm               ST)       8,02
+1-9000-3568    u(4BA24H*KRNQTM(                                  8X100 MM                         8,02
+1-0087-10      u(4BA24H*LRLPKN(  KOETSWERKSLUITRINGEN            8X80 MM          5 Doos (100     3,38
+1-0089-12-12   u(4BA24H*TOKKSQ(  VERZINKT                                               ST)      63,75
+1-0933-1050    u(4BA24H*TNMTMK(                                                                   2,10
+1-0173-8140    u(4BA24H*TNQKOL(  KOETSWERKSLUITRINGEN                             5 Doos (100
+1-0173-8100    u(4BA24H*TNPQSQ(  VERZINKT                                               ST)
+1-0173-880     u(4BA24H*LOTLOO(
+               u(4BA24H*KRNPTN(  PLATTE                                           5 Doos (100
+               u(4BA24H*LRRPSL(  SLUITRINGEN,VERZINKT                                   ST)
+               u(4BA24H*LQRKNM(
+               u(4BA24H*LQPPMQ(  SCHALIENAGELS, EXTRA                             1 Doos (5
+               u(4BA24H*MPRRPR(  BREDE KOP                                              KG)
+
+                                 Koetswerksluitringen, verzinkt                  12 Blister
+
+                                 Metaalbouten cil.kop met moer                   10 Blister      2,10
+
+                                 Verbindingsmoeren, verzinkt                     12 Blister      2,10
+
+                                 Zeskantmoeren, verzinkt                         10 Blister      3,20
+
+                                 ZESKANTMOEREN VERZINKT                          1 Doos (100     12,06
+                                                                                      ST)         8,88
+                                 PLATTE
+                                 SLUITRINGEN,VERZINKT                            2 Doos (100     39,30
+                                                                                      ST)        25,24
+                                 TAPBOUTEN,ZESKANTKOP,VER                                        33,17
+                                 ZINKT                                           1 Doos (100     56,04
+                                                                                      ST)
+                                 HOUTDRAADBOUTEN
+                                 ZESK.KOP VERZ.                                  2 Doos (50
+                                                                                      ST)
+                                 HOUTDRAADBOUTEN
+                                 ZESK.KOP VERZ.                                  1 Doos (100
+                                                                                      ST)
+                                 HOUTDRAADBOUTEN
+                                 ZESK.KOP VERZ.                                  1 Doos (200
+                                                                                      ST)
+
+Pardaen NV                                     +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                     info@pardaen.be
+België                                         www.pardaen.be
+
+                                                                                                          4
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.              Barcode           Omschrijving                Omschrijving 2  Aantal Eenheid        Bruto
+                                                                                    10 Blister    eenheids
+1-9000-1318                        Houtdraadbouten, verzinkt   6,0 x 70 mm                        prijs excl.
+1-9000-1320                                                    6,0 x 80 mm                        BTW EUR
+S-0498                             Houtdraadbouten, verzinkt   1,25x25x150mm
+1-8806-6-100                                                   6 mm                                       2,10
+1-8806-8-100                       6 RAAMANKERS vr. ALU/PVC    8 mm
+1-8806-10-50     u(4BA24H*TLNLST(  PROF.                       10 mm           10 Blister         3,20
+1-8806-16-15     u(4BA24H*TLNMKM(                              16 mm
+1-8810-6         u(4BA24H*NLRNTK(  100 PLUGGEN IN NYLON        6 mm            6 Blister          8,15
+1-8810-8         u(4BA24H*KQTKTL(                              8 mm
+1-5150-11-3525   u(4BA24H*KQTLLO(  100 PLUGGEN IN NYLON        3,5x25mm        10 Doos (1          3,15
+1-7505-63120     Y(0B67JC*KLKPPK(                              6.3x120 mm             ST)          5,38
+S-0845-75152-20  u(4BA24H*KQTKQK(  50 PLUGGEN IN NYLON         T25-7.5x152mm                       4,69
+S-0845-75182-20  Y(0B67JC*KLSTNS(                              T25-7.5x182mm   10 Doos (1          4,34
+S-1845-75152-20  Y(0B67JC*KLSTOP(  10 PLUGGEN IN NYLON         T30-7.5x152mm          ST)          3,59
+1-0128-31-3530   u(9AG67F*LQSQKT(                              3.5x30 mm                           5,44
+1-0128-31-4550   u(4BA24H*NLMNSS(  100 UNIVERSELE PLUGGEN,     4.5x50 mm       10 Doos (1         12,88
+1-5150-11-3535   u(4BA24H*MOMMKN(  GRIJS                       3,5x35mm               ST)         68,50
+1-5150-11-3545   u(4BA24H*MOMMLK(                              3,5x45mm                           13,82
+                 u(4BA24H*MOMLOM(  100 UNIVERSELE PLUGGEN,                      6 Doos (1
+                 u(4BA24H*MTLRPL(  GRIJS                                              ST)
+                 u(4BA24H*MRSKMS(
+                 u(9AG67F*LQSQMN(  GIPSPLAATSCHROEVEN,                          6 Doos (1
+                 u(9AG67F*LQSQSP(  ZWART                                              ST)
+
+                                   ZELFBO.SCHR.,EPDM                            6 Doos (1
+                                   RING,ZESK,VZ                                       ST)
+
+                                   20                                          16 Doos
+                                   KOZIJNSCHROEVEN,CIL.K,GALV                         (1.000 ST)
+
+                                   20                                           2 Doos (100
+                                   KOZIJNSCHROEVEN,CIL.K,GALV                         ST)
+
+                                   20                                           5 Blister
+                                   KOZIJNSCHROEVEN,VERZ.K,GA
+                                   LV                                          6 Blister          20,20
+                                   PANEELSCHROEVEN PLATKOP,
+                                   RVS                                         10 Blister         13,68
+
+                                   PANEELSCHROEVEN PLATKOP,                     1 Doos (200       14,51
+                                   RVS                                                ST)         26,08
+                                                                                                  17,57
+                                   GIPSPLAATSCHROEVEN,                          1 Doos (200       13,16
+                                   ZWART                                              ST)
+
+                                   GIPSPLAATSCHROEVEN,                         12 Doos
+                                   ZWART                                              (1.000 ST)
+
+                                                                               12 Doos (500
+                                                                                      ST)
+
+Pardaen NV                                       +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                       info@pardaen.be
+België                                           www.pardaen.be
+
+                                                                                                            5
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.             Barcode           Omschrijving                    Omschrijving 2  Aantal Eenheid        Bruto
+                                                                                                     eenheids
+1-2367-640      u(9AG67F*LQTMMO(  NAGELPLUG VERZONKEN KOP         6x40 mm              48 Doos (100  prijs excl.
+1-2367-660      u(9AG67F*LQTMOS(                                  6x60 mm                      ST)   BTW EUR
+S-2367-10140-4  u(4BA24H*KLRKOR(  NAGELPLUG VERZONKEN KOP         10x140mm
+S-2367-10120-4  u(4BA24H*KLRKMN(                                  10x120mm             48 Doos (100          9,39
+S-2367-8120-10  u(4BA24H*KRTPQO(  4 KOZIJNPLUGGEN +               8x120 mm                     ST)
+S-2367-8100-10  u(4BA24H*KPLRNR(  SCHROEFNAGEL                    8X100 mm                                 12,45
+S-2367-860-10   u(4BA24H*KPLROO(                                  8X60 mm                3 Blister
+S-2367-660-10   u(4BA24H*KPLRMK(  4 KOZIJNPLUGGEN +               6X60 mm                                    6,18
+1-7251-3513     u(4BA24H*MRPQNS(  SCHROEFNAGEL                    3.5 x 13 mm
+1-2367-680      u(9AG67F*LRRPOK(                                  6x80 mm         3 Blister          5,43
+S-2368-90-5     u(4BA24H*LMRQLQ(  10                              10 x 90 mm
+S-2368-150-5    u(4BA24H*KPNKSN(  KOZIJNPLUGGEN+SCHROEFNA         10 x 150 mm     3 Blister          6,85
+1-9000-0962     u(4BA24H*TKTQMP(  GEL
+1-9000-0400     u(4BA24H*TKOKKM(  10                              5,0 x 80 mm     3 Blister          5,89
+1-0128-3516     u(4BA24H*LKQPRO(  KOZIJNPLUGGEN+SCHROEFNA         3,5x16 mm
+1-0128-435      u(4BA24H*LKQRKN(  GEL                             4x35 mm         10 Blister         5,52
+1-0128-440      u(4BA24H*LKQRLK(  10                              4x40 mm
+1-0128-445      u(4BA24H*LKQRMR(  KOZIJNPLUGGEN+SCHROEFNA         4x45 mm         5 Blister          4,24
+                                  GEL
+                                  10                                              30 Doos (200       10,04
+                                  KOZIJNPLUGGEN+SCHROEFNA                                ST)         17,96
+                                  GEL
+                                  ZELFBOR.SCHR.                                    8 Doos (100        4,88
+                                  vr.METAL.PROFIEL                                       ST)
+
+                                  NAGELPLUG VERZONKEN KOP                          5 Blister
+
+                                  5 HULSPLUGGEN MET                               5 Blister          6,29
+                                  KRUISKOPBOUT
+                                                                                  12 Blister         2,10
+                                  5 HULSPLUGGEN MET
+                                  KRUISKOPBOUT                                    12 Blister         2,10
+
+                                  Zelftappende schroeven cil.kop                   8 Doos (200        5,09
+                                                                                         ST)          8,36
+                                  Spaanplaatschroeven, RVS                                            9,54
+                                                                                   6 Doos (200       10,38
+                                  PANEELSCHROEVEN PLATKOP                                ST)
+                                  VERZ.
+                                                                                   6 Doos (200
+                                  PANEELSCHROEVEN PLATKOP                                ST)
+                                  VERZ.
+                                                                                  12 Doos (200
+                                  PANEELSCHROEVEN PLATKOP                                ST)
+                                  VERZ.
+
+                                  PANEELSCHROEVEN PLATKOP
+                                  VERZ.
+
+Pardaen NV                                      +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                      info@pardaen.be
+België                                          www.pardaen.be
+
+                                                                                                           6
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.           Barcode           Omschrijving              Omschrijving 2  Aantal Eenheid         Bruto
+                                                                                              eenheids
+1-0128-4570   u(4BA24H*LKQSQO(  PANEELSCHROEVEN PLATKOP   4,5x70 mm              2 Doos (200  prijs excl.
+1-0128-4560   u(4BA24H*LKQSPR(  VERZ.                     4,5x60 mm                    ST)    BTW EUR
+1-5129-60180  u(4BA24H*MQQTSS(                            6 x 180 mm
+1-0128-580    u(4BA24H*LKRKLO(  PANEELSCHROEVEN PLATKOP   5x80 mm                4 Doos (200        18,02
+1-0128-5100   u(4BA24H*LKQTKL(  VERZ.                     5x100 mm                     ST)          14,87
+1-0128-6100   u(4BA24H*LSLOLK(                            6x100 mm                                  63,60
+1-0128-6120   u(4BA24H*LKRKPM(  PANEELSCHROEF,FREESDRAAI  6x120 mm               4 Doos (100        22,22
+1-0128-6130   u(4BA24H*LKRKQT(  ., T30                    6x130 mm                     ST)          37,38
+1-0128-6140   u(4BA24H*LKRKRQ(                            6x140 mm                                  21,53
+1-0128-6150   u(4BA24H*LKRKSN(  PANEELSCHROEVEN PLATKOP   6x150 mm               1 Doos (200        28,46
+1-0128-670    u(4BA24H*MMNQNT(  VERZ.                     6x70 mm                      ST)          34,55
+1-0128-660    u(4BA24H*MMNQMM(                            6x60 mm                                   37,59
+1-0128-530    u(4BA24H*LKQTNM(  PANEELSCHROEVEN PLATKOP   5x30 mm                6 Doos (200        42,32
+1-0128-540    u(4BA24H*LKQTPQ(  VERZ.                     5x40 mm                      ST)          13,11
+1-0128-545    u(4BA24H*LKQTQN(                            5x45 mm                                   12,16
+1-0128-550    u(4BA24H*LKQTRK(  PANEELSCHROEVEN PLATKOP   5x50 mm                4 Doos (100
+1-0128-560    u(4BA24H*LKQTTO(  VERZ.                     5x60 mm                      ST)            9,62
+1-0128-570    u(4BA24H*LKRKKR(                            5x70 mm                                   11,60
+                                PANEELSCHROEVEN PLATKOP                          1 Doos (100        12,69
+                                VERZ.                                                  ST)          13,86
+                                                                                                    16,22
+                                PANEELSCHROEVEN PLATKOP                          3 Doos (100        19,03
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          1 Doos (100
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          2 Doos (100
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          2 Doos (100
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          3 Doos (100
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          3 Doos (200
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          4 Doos (200
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          7 Doos (200
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          4 Doos (200
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          6 Doos (200
+                                VERZ.                                                  ST)
+
+                                PANEELSCHROEVEN PLATKOP                          6 Doos (200
+                                VERZ.                                                  ST)
+
+Pardaen NV                                    +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                    info@pardaen.be
+België                                        www.pardaen.be
+
+                                                                                                         7
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.          Barcode           Omschrijving               Omschrijving 2  Aantal Eenheid         Bruto
+                                                                                              eenheids
+1-0128-4550  u(4BA24H*LKQSNN(  PANEELSCHROEVEN PLATKOP    4,5x50 mm              4 Doos (200  prijs excl.
+1-0128-4545  u(4BA24H*LKQSLT(  VERZ.                      4,5x45 mm                    ST)    BTW EUR
+1-0128-4540  u(4BA24H*LKQSKM(                             4,5x40 mm
+1-0128-4535  u(4BA24H*LKQRTQ(  PANEELSCHROEVEN PLATKOP    4,5x35 mm              1 Doos (200        12,60
+1-0128-4530  u(4BA24H*LKQRST(  VERZ.                      4,5x30 mm                    ST)          11,76
+1-0128-460   u(4BA24H*LKQSSS(                             4x60 mm                                   10,80
+1-0128-450   u(4BA24H*LKQROL(  PANEELSCHROEVEN PLATKOP    4x50 mm                3 Doos (200
+1-0128-430   u(4BA24H*LKQQTR(  VERZ.                      4x30 mm                      ST)            9,62
+1-0128-425   u(4BA24H*LKQQSK(                             4x25 mm                                     8,82
+1-0128-416   u(4BA24H*LKQQQQ(  PANEELSCHROEVEN PLATKOP    4x16 mm                3 Doos (200        13,11
+1-0128-3540  u(4BA24H*LKQQMS(  VERZ.                      3,5x40 mm                    ST)          11,39
+1-0128-3535  u(4BA24H*LKQQLL(                             3,5x35 mm                                   7,52
+1-5142-3025  x(7B2FE3*QOTSKR(  PANEELSCHROEVEN PLATKOP    TX10 3.0x25mm          3 Doos (200          7,19
+1-5142-3030  x(7B2FE3*QOTSLO(  VERZ.                      TX10 3.0x30mm                ST)            5,88
+1-5142-3516  x(7B2FE3*MKTPLN(                             TX20 3.5x16mm                               8,19
+1-5142-3530  x(7B2FE3*MKTQNQ(  PANEELSCHROEVEN PLATKOP    TX20 3.5x30mm          1 Doos (200          7,44
+1-5142-3540  x(7B2FE3*MKTRLL(  VERZ.                      TX20 3.5x40mm                ST)            6,22
+1-5142-4050  x(7B2FE3*QOTTRP(                             TX20 4.0x50mm                               6,98
+                               PANEELSCHROEVEN PLATKOP                           5 Doos (200          6,22
+                               VERZ.                                                   ST)            8,61
+                                                                                                      9,29
+                               PANEELSCHROEVEN PLATKOP                           5 Doos (200        14,58
+                               VERZ.                                                   ST)
+
+                               PANEELSCHROEVEN PLATKOP                           3 Doos (200
+                               VERZ.                                                   ST)
+
+                               PANEELSCHROEVEN PLATKOP                           4 Doos (200
+                               VERZ.                                                   ST)
+
+                               PANEELSCHROEVEN PLATKOP                           2 Doos (200
+                               VERZ.                                                   ST)
+
+                               PANEELSCHROEVEN PLATKOP                           1 Doos (200
+                               VERZ.                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         1 Doos (200
+                               VOLDR                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         3 Doos (200
+                               VOLDR                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         2 Doos (200
+                               VOLDR                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         3 Doos (200
+                               VOLDR                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         1 Doos (200
+                               VOLDR                                                   ST)
+
+                               HOUTSCHR.SILVERMATE,VERZ,                         2 Doos (200
+                               VOLDR                                                   ST)
+
+Pardaen NV                                   +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                   info@pardaen.be
+België                                       www.pardaen.be
+
+                                                                                                        8
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.           Barcode           Omschrijving               Omschrijving 2  Aantal Eenheid         Bruto
+                                                                                               eenheids
+1-5142-4045   x(7B2FE3*QOTTQS(  HOUTSCHR.SILVERMATE,VERZ,  TX20 4.0x45mm          1 Doos (200  prijs excl.
+1-5142-4040   x(7B2FE3*QOTTPL(  VOLDR                                                   ST)    BTW EUR
+1-5142-4035   x(7B2FE3*QOTTOO(                             TX20 4.0x40mm
+1-5142-4030   x(7B2FE3*QOTTNR(  HOUTSCHR.SILVERMATE,VERZ,                         2 Doos (200        13,74
+1-5142-4025   x(7B2FE3*QOTTMK(  VOLDR                      TX20 4.0x35mm                ST)          11,72
+1-5142-4020   x(7B2FE3*QOTTLN(                                                                       10,80
+1-5142-4540   x(7B2FE3*QPKKOT(  HOUTSCHR.SILVERMATE,VERZ,  TX20 4.0x30mm          6 Doos (200
+1-5142-4545   x(7B2FE3*QPKKPQ(  VOLDR                                                   ST)            9,08
+1-5142-4550   x(7B2FE3*QPKKQN(                             TX20 4.0x25mm                               8,53
+1-5142-5050   x(7B2FE3*QPKLOS(  HOUTSCHR.SILVERMATE,VERZ,                         1 Doos (200          7,52
+1-5143-4070   x(7B2FE3*QPKMPO(  VOLDR                      TX20 4.0X20mm                ST)          13,49
+1-5143-4560   x(7B2FE3*QPKMTM(                                                                       14,58
+1-5143-50100  x(7B2FE3*QPKNSO(  HOUTSCHR.SILVERMATE,VERZ,  TX20 4.5x40mm          1 Doos (200        16,34
+1-5143-50120  x(7B2FE3*QPKNTL(  VOLDR                                                   ST)          19,16
+1-5143-6080   x(7B2FE3*QPKOOP(                             TX20 4.5x45mm                             20,37
+1-5143-60100  x(7B2FE3*QPKOQT(  HOUTSCHR.SILVERMATE,VERZ,                         5 Doos (200        18,82
+1-5143-60120  x(7B2FE3*QPKOSN(  VOLDR                      TX20 4.5x50mm                ST)          40,07
+1-5143-60140  x(7B2FE3*QPKPKQ(                                                                       64,89
+                                HOUTSCHR.SILVERMATE,VERZ,  TX20 5.0x50mm          3 Doos (200        20,98
+                                VOLDR                                                   ST)          27,93
+                                                           TX20                                      34,34
+                                HOUTSCHR.SILVERMATE,VERZ,  4.0x70/42mm            4 Doos (200        44,00
+                                VOLDR                      TX20                         ST)
+                                                           4.5x60/37mm
+                                HOUTSCHR.SILVERMATE,VERZ,  TX20                   1 Doos (200
+                                VOLDR                      5.0x100/65mm                 ST)
+                                                           TX20
+                                HOUTSCHR.SILVERMATE,VERZ,  5.0x120/65mm           1 Doos (200
+                                VOLDR                      TX30                         ST)
+                                                           6.0x80/48mm
+                                HOUTSCHR.SILVERMATE,VERZ,  TX30                   2 Doos (200
+                                DEELD                      6.0x100/65mm                 ST)
+                                                           TX30
+                                HOUTSCHR.SILVERMATE,VERZ,  6.0x120/65mm           4 Doos (200
+                                DEELD                      TX30                         ST)
+                                                           6.0x140/65mm
+                                HOUTSCHR.SILVERMATE,VERZ,                         4 Doos (200
+                                DEELD                                                   ST)
+
+                                HOUTSCHR.SILVERMATE,VERZ,                         2 Doos (200
+                                DEELD                                                   ST)
+
+                                HOUTSCHR.SILVERMATE,VERZ,                         1 Doos (100
+                                DEELD                                                   ST)
+
+                                HOUTSCHR.SILVERMATE,VERZ,                         2 Doos (100
+                                DEELD                                                   ST)
+
+                                HOUTSCHR.SILVERMATE,VERZ,                         3 Doos (100
+                                DEELD                                                   ST)
+
+                                HOUTSCHR.SILVERMATE,VERZ,                         1 Doos (100
+                                DEELD                                                   ST)
+
+Pardaen NV                                    +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                    info@pardaen.be
+België                                        www.pardaen.be
+
+                                                                                                         9
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.           Barcode           Omschrijving                    Omschrijving 2  Aantal Eenheid         Bruto
+                                                                                                    eenheids
+1-5143-60160  x(7B2FE3*KNONTT(  HOUTSCHR.SILVERMATE,VERZ,       TX30                   2 Doos (100  prijs excl.
+1-5143-60180  x(7B2FE3*KNOOKP(  DEELD                           6.0x160/65mm                 ST)    BTW EUR
+1-5143-60200  x(7B2FE3*KNOOLM(                                  TX30
+S-4400-24-1   u(4BA24H*KMMMPQ(  HOUTSCHR.SILVERMATE,VERZ,       6.0x180/65mm           3 Doos (100        60,06
+S-6245        u(4BA24H*NLNKLT(  DEELD                           TX30                         ST)
+1-4750-1      x(7B1CI6*SQKTKQ(                                  6.0x200/65mm                              81,06
+1-9000-5322   u(4BA24H*TPNMMM(  HOUTSCHR.SILVERMATE,VERZ,       1/4"                   3 Doos (100
+1-8100-1525   u(4BA24H*LLKQPQ(  DEELD                           6Mx23mm                      ST)          97,34
+1-8100-2040   u(4BA24H*LLKQSR(                                  41x7 x 1000 mm
+1-8100-8115   u(4BA24H*TSLLPR(  KABELSPANNER HAAK+OOG           5,2 x 50 mm            5 Blister            5,16
+1-8100-3065   u(4BA24H*TNKQPK(  VERZ.                           1,5 x 25 mm
+1-8100-3060   u(4BA24H*TNKQKP(                                  2 x 40 mm       3 Blister           35,30
+1-2224-5-20   u(4BB38H*KNNOSP(  LINTOPWINDER DRAAIBAAR          3 x 15 mm
+1-2614-6-20   u(4BB38H*KLSMLP(  CHR.                            3 x 65 mm       6 Blister           9,12
+1-1443-8-10   u(4BB38H*KOLRRK(                                  3 x 60 mm
+1-1399        u(4BB38H*KOKKMP(  DORPELPROFIEL, WIT,             5 mm - 20 M     12 Blister          3,20
+1-2203-8-20   u(4BB38H*KTKSMM(  110101250                       6 mm - 20 M
+1-1444-3-100  u(4BB38H*KKKPNL(                                  8 mm - 10 M     10 Blister          4,30
+                                Kramschroeven met gleuf, verz.
+                                                                8 mm - 20 M     10 Blister          4,30
+                                IJZEREN NAGELS, PLATTE KOP      3 mm - 100 M
+                                                                                10 Blister          6,50
+                                IJZEREN NAGELS, PLATTE KOP
+                                                                                5 Blister           6,50
+                                Verzinkte nagels brede kop
+                                                                                5 Blister           6,50
+                                IJZEREN NAGELS, PLATTE KOP
+                                                                                1 Blister           12,59
+                                IJZEREN NAGELS, PLATTE KOP
+                                                                                1 Blister           14,35
+                                POLYPR.TOUW, BLAUW-GEEL-
+                                GROEN                                           1 Blister           17,75
+
+                                GEVLOCHTEN                                      20 Stk              4,25
+                                POLYESTERTOUW
+                                                                                5 Stk               9,18
+                                KATOENTOUW,GEVLOCHT.,IN
+                                STRENG                                          4 Stk               13,79
+
+                                LIJNSPANNER, RUBBER,
+                                FLUOGROEN
+
+                                TOUW, POLYPROPYLEEN, IN
+                                STRENG
+
+                                KATOENTOUW,GEVLOCHT.,OP
+                                ROL
+
+Pardaen NV                                    +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                    info@pardaen.be
+België                                        www.pardaen.be
+
+                                                                                                       10
+Verzending
+
+VLE036347
+Documentdatum 13 maart 2026
+
+Nr.           Barcode           Omschrijving                 Omschrijving 2     Aantal Eenheid       Bruto
+                                                                                                  eenheids
+1-2326-10-20  u(4BB38H*KKLKSS(  SYNTHETISCHE VLASTOUW,       10 mm - 20 M              1 Stk      prijs excl.
+1-2427-10-20  u(4BB38H*KLSNOP(  STRENG                       10 mm - 20 M              1 Stk      BTW EUR
+1-1396-8-20   u(4BB38H*TLKSMN(                               8 mm - 20 M               1 Stk
+1-5705-350    u(4BB38H*KPKTLS(  GEVLOCHTEN NYLONTOUW,        2 x 3,5M -500 daN         3 Blister        24,87
+1-6273-80     u(4BB38H*KPKSKM(  WIT                          8 mm - 80 cm              5 Blister
+1-6276        u(4BB38H*KKKLLL(                               8 mm - 40 cm              3 Blister        51,47
+S-1306-50     u(4BA24H*MLSPON(  SISTALTOUW,4-DRAADS, IN      72x50 mm                  3 Blister
+S-1306-60     u(4BA24H*MLSPQR(  STRENG                       72x60 mm                  3 Blister        13,48
+1-6410-50-3   u(4BA24H*MPPTNR(                               NR. 3                   25 Stk
+1-6410-25-2   u(4BA24H*MRPTRN(  SJORBAND M.RATEL MOTO,       NR. 2                   50 Stk             23,35
+1-6420-25-2   u(4BA24H*NLKLPP(  +HAKEN                       NR. 2                   50 Stk
+                                                                                                          6,40
+                                2 SNELBINDERS MET ZWARE
+                                HAKEN                                                                     7,15
+
+                                ELASTIEK, 8-ARMIG                                                       37,39
+                                vr.BAGAGEDR.
+                                                                                                        37,39
+                                INSTEEKSLOT, GEWOON,
+                                KEERBAAR                                                                  2,31
+
+                                INSTEEKSLOT, GEWOON,                                                      1,28
+                                KEERBAAR
+                                                                                                          1,28
+                                SCHROEFBITS 50 mm,
+                                POZIDRIV
+
+                                SCHROEFBITS 25 mm,
+                                POZIDRIV
+
+                                SCHROEFBITS 25 mm, PHILLIPS
+
+Pardaen NV                                    +32 (0)2 251 13 85
+Haachtsesteenweg 672 bus 1                    info@pardaen.be
+België                                        www.pardaen.be
+
+                                                                                                       11
+

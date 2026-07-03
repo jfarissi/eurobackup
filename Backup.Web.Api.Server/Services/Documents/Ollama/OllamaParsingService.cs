@@ -207,7 +207,7 @@ namespace Backup.Web.Api.Server.Services.Documents.Ollama
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Échec parsing IA");
+                _logger.LogDebug(ex, "Échec parsing IA (Ollama), continuation sans lignes IA");
             }
 
             return results;
@@ -309,7 +309,7 @@ Texte à analyser:";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Erreur parsing réponse IA");
+                _logger.LogDebug(ex, "Réponse IA non JSON, tableau vide");
                 return new List<AiLine>();
             }
         }

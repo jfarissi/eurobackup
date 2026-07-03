@@ -51,6 +51,24 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.HasIndex(s => s.ProductKey).IsUnique();
                 entity.Property(s => s.ProductKey).HasMaxLength(256);
+                entity.Property(s => s.Supplier).HasMaxLength(256);
+                entity.Property(s => s.Description).HasMaxLength(1024);
+                entity.Property(s => s.Unit).HasMaxLength(16);
+            });
+            modelBuilder.Entity<StockUpdate>(entity =>
+            {
+                entity.HasIndex(s => s.DeliveryId);
+                entity.HasIndex(s => s.ProductKey);
+                entity.Property(s => s.ProductKey).HasMaxLength(256);
+                entity.ToTable("StockUpdates");
+            });
+            modelBuilder.Entity<DeliveryLineAdjustment>(entity =>
+            {
+                entity.HasIndex(a => new { a.DeliveryId, a.ProductKey });
+                entity.HasIndex(a => a.DeliveryId);
+                entity.Property(a => a.ProductKey).HasMaxLength(256);
+                entity.Property(a => a.CreatedBy).HasMaxLength(128);
+                entity.Property(a => a.ValidatedBy).HasMaxLength(128);
             });
             //AddSemesterCourseReferences(modelBuilder);
             //AddStudentSemesterCourseReferences(modelBuilder);

@@ -1,6 +1,7 @@
 export const environment = {
   production: true,
-  apiBaseUrl: '/api'
+  apiBaseUrl: '/api',
+  pythonServiceUrl: '/api/python',
 };
 
 

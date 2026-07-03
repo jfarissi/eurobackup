@@ -1,0 +1,15 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/node_modules
+**/.venv
+**/dist
+**/terminals
+**/*.user
+**/*.suo
+**/Storage/**
+python-service/.venv
+python-service/**/__pycache__
+auto_invoice_parser

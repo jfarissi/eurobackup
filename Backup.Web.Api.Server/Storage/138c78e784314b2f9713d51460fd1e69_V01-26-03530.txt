@@ -1,0 +1,382 @@
+Factuur
+
+                                                                                                                                                                       FR15066
+
+Factuurnr. : V01-26-03530                                                                   Gefactureerd aan                         Verzendadres
+Documentdatum : 4 juni 2026                                                                 EURO BRICO                               EURO BRICO
+Vervaldatum : 30 juli 2026                                                                  ALI EL-ARFANI                            ALI EL-ARFANI
+Orderklantnr.: 004883                                                                       FRANS BAETENSTRAAT 25-29                 FRANS BAETENSTRAAT 25-29
+Verkoper : Davy Pacolet - 0473/45.42.11                                                     2100 DEURNE                              2100 DEURNE
+                                                                                            België                                   België
+Betalingsvoorwaarden : 30 dagen einde maand                                                 Ondernemingsnr. :
+                                                                                            BE0597.683.415
+
+Nr.               Omschrijving                                             Omschrijving 2   Aantal          Eenheid        Bruto     Korting %      Netto    Regelbedrag     Btw %
+                                                                                                                      eenheidsprijs             eenheidspri       Excl. btw
+                                                                                                                     excl. BTW EUR
+                                                                                                                                                   js excl.
+                                                                                                                                                 BTW EUR
+
+0-30-657          Verzendnr. VLE039998:                                    8 m - 25 mm                  4   Blister   11,90          41         7,02         28,08           21
+0-35-458          ROLMETER TYLON TAPE                                                                       Blister   5,41           41         3,19         31,92           21
+0-12-105          VOUWMETER, HOUT, GEEL-WIT                                2 m - 15 mm                  10  Blister   27,30          41         16,11        32,21           21
+0-10-266          COMBINATIESCHAAFJE                                                                        Blister   8,29           41         4,89         29,35           21
+0-10-425          AFBREEKMES AUTOLOCK                                      50 mm                        2   Blister   14,73          41         8,69         52,14           21
+0-11-301          DYNA GRIP AFBREEKMES                                                                      Blister   6,95           41         4,10         41,00           21
+0-37-231          10 VERVANG AFBREEKMESJES                                 18 mm                        6   Blister   20,60          41         12,16        48,62           21
+1-51-172          ROLBANDMAAT CONTROL-LOCK                                                                            9,84           41         5,81         11,61           21
+1-51-173          BANKHAMER DIN 1041, HOUTEN ST.                           25 mm                        6     Stk     11,28          41         6,66         6,66            21
+0-13-036          BANKHAMER DIN 1041, HOUTEN ST.                                                              Stk     6,80           41         4,01         20,06           21
+1-TRA706T         RINGSTEEKSLEUTEL ANTISLIP                                18 mm                        10  Blister   5,87           41         3,46         17,32           21
+0-16-876          NIETEN TYPE G - doos 1000 st.                                                               Stk     17,15          41         10,12        20,24           21
+0-13-123          HOUTBEITEL DYNA GRIP                                     5 m - 25 mm                  4   Blister   23,84          41         14,07        28,13           21
+2-14-564          VERSTELBARE MOERSLEUTEL                                                                   Blister   29,66          41         17,50        52,50           21
+2-14-563          BLIKSCHAAR RECHTSSNIJDEND                                200 gr.                      2   Blister   29,66          41         17,50        35,00           21
+2-14-562          BLIKSCHAAR RECHT SNIJDEND                                                                 Blister   29,66          41         17,50        35,00           21
+1-8854-631-10     BLIKSCHAAR LINKSSNIJDEND                                 300 gr.                      1   Blister   11,46          50+10      5,16         25,78           21
+1-8852-13-10      10 HOLLEWANDPLUGGEN, NYLON 059DE                                                          Blister   6,28           50+10      2,83         14,13           21
+1-8853-1013-2525  10 GIPSPLAATPLUGGEN, NYLON 029RE                         13 mm                        5   Blister   22,03          50+10      9,91         49,57           21
+1-8853-10-12      25+25 GIPSPLAATPLUGGEN, ALU 048KE                                                         Blister   6,16           50+10      2,77         13,86           21
+1-8853-13-10      12 GIPSPLAATPLUGGEN, ALU 034RE                           10 mm - 3/8''                5   Blister   6,62           50+10      2,98         14,89           21
+                  10 GIPSPLAATPLUGGEN, ALU 042RE                                                            Blister
+                                                                           16 mm                        2                                                                             1
+
+                                                                           250 mm                       2
+
+                                                                                                        3
+
+                                                                                                        2
+
+                                                                                                        2
+
+                                                                           6x31,5mm                     5
+
+                                                                           13,5x37,5mm                  5
+
+                                                                           10x25mm+13x37mm              5
+
+                                                                           10x25mm                      5
+
+                                                                           13,5x37,5mm                  5
+
+                                     Sensitivity Classification: Internal           +32 (0)2 251 13 85                               BE 0400.695.221
+                                                                                    info@pardaen.be                                  KBC BE93 4347 1027 9167 KREDBEBB
+Pardaen NV                                                                          www.pardaen.be
+Haachtsesteenweg 672 bus 1
+1910 KAMPENHOUT
+België
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.             Omschrijving                          Omschrijving 2  Aantal Eenheid          Bruto            Korting %       Korting %  Netto        Regelbedrag   Btw %
+                                                                                              eenheidsprijs                               eenheidspri  Excl. btw
+1-8858-1039-8   8 UNIVERSELE PLUGGEN, GRIJS 173RE     10x39mm                             5   excl. BTW                  9,84  50+10      js excl.                         21
+1-8857-832-10   10 UNIVERSELE PLUGGEN, BLAUW 172RE                                            EUR                        8,50  50+10      BTW EUR             22,14        21
+1-8853-13-100   100 GIPSPLAATPLUGGEN, ALU 041TE       8x32mm                              5                             48,19  50+10                          19,12        21
+1-8305-19-10-1  ROL BANDIJZER, ZWART GEPLASTF.                                                       Blister            15,97  50+10             4,43         21,69        21
+1-8307          BALKDRAGERS OPLEG ZWAAR               13,5x37,5mm                         1          Blister             4,24  50+10             3,82        143,73        21
+1-8307-63160    BALKDRAGERS OPLEG, ZWAAR                                                         Doos (1 ST)             4,78  50+10            21,69         38,16        21
+1-8331-150      HOEKVERBINDINGEN VLAK                 19x0.8mmx10M                        20                             3,09  50+10             7,19         43,02        21
+S-0810-1080     2 DOORSTEEKANKERS, VERZINKT                                                            Stk               4,15  50+10             1,91         69,52        21
+S-0275-1        2 MAGNETISCHE SLUITINGEN WIT          136x63 mm                           20           Stk               4,65  50+10             2,15          9,34        21
+S-0271-1        2 MAGNETISCHE SLUIT.WIT 2 GAT.                                                         Stk               2,94  50+10             1,39         20,92        21
+S-0019-1-96-1   2 MEUBELGREPEN PVC WIT+SCHROEV        158x63 mm                           20           Stk               5,82  50+10             1,87          6,61        21
+S-9426-41       DEURKETTING, MESSING, +SCHR.                                                         Blister            14,48  50+10             2,09         13,09        21
+S-6505-90       2 DEURSCHILDEN,SLEUTEL.,ALU F1        150 mm                              50         Blister             8,21  50+10             1,32         32,58        21
+S-9587          2 INBOORVEERSCHARNIEREN,HOEKIG                                                       Blister             6,44  50+10             2,62         18,47        21
+S-7502          2 WANDPLATEN VR. KASTOPHANGER         M10x80mm                            5          Blister             2,88  50+10             6,52          8,69        21
+S-9284          2 INBOORVEERSCHARNIEREN,HOEKIG                                                       Blister             4,99  50+10             3,69          6,48        21
+1-1036-300      PLANKDRAGERS, ZWAAR, VERZINKT         6 KG                                10         Blister             6,33  50+10             2,90          6,74        21
+1-1036-2-300    PLANKDRAGERS, ZWAAR, ZWART                                                           Blister             6,33  50+10             1,30         28,48        21
+1-0454-2-200    PLANKDRAGERS ALU, EPOXY ZWART         4 KG                                5          Blister             8,88  50+10             2,25         28,48        21
+1-0407-2-150    PLANKDRAGERS, ZWART GELAKT                                                           Blister             0,70  50+10             2,85         39,96        21
+1-0407-2-250    PLANKDRAGERS, ZWART GELAKT            96 mm                               5            Stk               1,51  50+10             2,85          6,30        21
+1-9000-1346     Houtdraadbouten, verzinkt                                                              Stk               3,20  50+10             4,00         13,59        21
+1-8806-14-20    20 PLUGGEN IN NYLON                   85x35 mm                            5            Stk               4,92  50+10            0,315          8,64        21
+1-8806-16-15    10 PLUGGEN IN NYLON                                                                    Stk               4,51  50+10            0,680         11,07        21
+1-8810-6        100 UNIVERSELE PLUGGEN, GRIJS         90 x 210 mm                         5            Stk               3,73  50+10             1,44         10,15        21
+1-1845-75112    KOZIJNSCHROEF,VERZONK.K,VERZ.                                                        Blister            36,51  50+10             2,21         16,78        21
+1-1845-75072    KOZIJNSCHROEF,VERZONK.K,VERZ.         35 mm                               3      Doos (1 ST)            21,64  50+10             2,03         32,86        21
+1-5150-11-3525  GIPSPLAATSCHROEVEN, ZWART                                                        Doos (1 ST)            13,88  50+10             1,68          9,74        21
+                                                      58x50 mm                            5      Doos (1 ST)                                    16,43         31,23
+                                                                                               Doos (100 ST)                                     9,74
+                                                      26 mm                               3    Doos (100 ST)                                     6,25
+                                                                                              Doos (1.000 ST)
+                                                      300x200mm                           10
+
+                                                      300x210mm                           10
+
+                                                      200x150mm                           10
+
+                                                      150x200 mm                          20
+
+                                                      250x300 mm                          20
+
+                                                      8,0 x 80 mm                         6
+
+                                                      14 mm                               5
+
+                                                      16 mm                               5
+
+                                                      6 mm                                10
+
+                                                      T30-7.5x112mm                       2
+
+                                                      T30-7.5x72mm                        1
+
+                                                      3,5x25mm                            5
+
+                Sensitivity Classification: Internal
+
+Pardaen NV                                                            +32 (0)2 251 13 85                                       BE 0400.695.221
+Haachtsesteenweg 672 bus 1                                            info@pardaen.be                                          KBC BE93 4347 1027 9167 KREDBEBB
+1910 KAMPENHOUT                                                       www.pardaen.be
+België
+
+                                                                                                                                                                               2
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.              Omschrijving                          Omschrijving 2  Aantal Eenheid          Bruto            Korting %       Korting %  Netto        Regelbedrag   Btw %
+                                                                                               eenheidsprijs                               eenheidspri  Excl. btw
+S-0845-75092-20  20 KOZIJNSCHROEVEN,CIL.K,GALV         T25-7.5x92mm                        5   excl. BTW                  9,39  50+10      js excl.                         21
+S-0845-75112-20  20 KOZIJNSCHROEVEN,CIL.K,GALV                                                 EUR                       11,03  50+10      BTW EUR             21,13        21
+S-1845-75152-20  20 KOZIJNSCHROEVEN,VERZ.K,GALV        T30-7.5x112mm                       5                             14,23  50+10                          24,82        21
+1-0128-31-3520   PANEELSCHROEVEN PLATKOP, RVS                                                         Blister             9,65  50+10             4,23         32,02        21
+1-5150-11-3535   GIPSPLAATSCHROEVEN, ZWART             T30-7.5x152mm                       5          Blister            18,28  50+10             4,96         13,03        21
+1-2367-640       NAGELPLUG VERZONKEN KOP                                                              Blister             9,77  50+10             6,40        197,42        21
+1-2367-660       NAGELPLUG VERZONKEN KOP               3.5x20 mm                           3    Doos (200 ST)            12,95  50+10             4,34         52,76        21
+1-2367-860       NAGELPLUG VERZONKEN KOP                                                       Doos (1.000 ST)           24,20  50+10             8,23         69,93        21
+S-2367-10140-4   4 KOZIJNPLUGGEN + SCHROEFNAGEL        3,5x35mm                            24   Doos (100 ST)             6,43  50+10             4,40         87,12        21
+S-2367-660-10    10 KOZIJNPLUGGEN+SCHROEFNAGEL                                                  Doos (100 ST)             4,41  50+10             5,83          8,68        21
+S-2367-640-10    10 KOZIJNPLUGGEN+SCHROEFNAGEL         6x40 mm                             12   Doos (100 ST)             4,09  50+10            10,89          9,92        21
+S-2367-880-10    10 KOZIJNPLUGGEN+SCHROEFNAGEL                                                        Blister             5,40  50+10             2,89          9,20        21
+1-2367-680       NAGELPLUG VERZONKEN KOP               6x60 mm                             12         Blister            18,68  50+10             1,98         12,15        21
+S-2368-150-5     5 HULSPLUGGEN MET KRUISKOPBOUT                                                       Blister             6,55  50+10             1,84        100,87        21
+1-9000-0982      Zelftappende schroeven cil.kop        8x60MM                              8          Blister             2,10  50+10             2,43         14,74        21
+S-2368-130-5     5 HULSPLUGGEN MET KRUISKOPBOUT                                                 Doos (100 ST)             6,08  50+10             8,41         11,34        21
+1-0140-3932      ZELFBORENDE SCHROEVEN,VERZINKT        10x140mm                            3          Blister            13,71  50+10             2,95         13,68        21
+1-0140-3925      ZELFBORENDE SCHROEVEN,VERZINKT                                                       Blister            13,46  50+10            0,945         37,02        21
+1-0140-3916      ZELFBORENDE SCHROEVEN,VERZINKT        6X60 mm                             5          Blister            11,67  50+10             2,74         18,17        21
+1-0128-5100      PANEELSCHROEVEN PLATKOP VERZ.                                                  Doos (200 ST)            38,88  50+10             6,17         15,75        21
+1-0128-6140      PANEELSCHROEVEN PLATKOP VERZ.         6x40 mm                             5    Doos (200 ST)            39,10  50+10             6,06         17,50        21
+1-0128-6130      PANEELSCHROEVEN PLATKOP VERZ.                                                  Doos (200 ST)            35,94  50+10             5,25         52,78        21
+1-0128-6120      PANEELSCHROEVEN PLATKOP VERZ.         8X80 mm                             5    Doos (200 ST)            29,60  50+10            17,50         16,17        21
+1-0128-570       PANEELSCHROEVEN PLATKOP VERZ.                                                  Doos (100 ST)            19,80  50+10            17,59         39,96        21
+1-0128-560       PANEELSCHROEVEN PLATKOP VERZ.         6x80 mm                             12   Doos (100 ST)            16,87  50+10            16,17          8,91        21
+1-0128-550       PANEELSCHROEVEN PLATKOP VERZ.                                                  Doos (100 ST)            14,42  50+10            13,32          7,59        21
+1-0128-545       PANEELSCHROEVEN PLATKOP VERZ.         10 x 150 mm                         5    Doos (200 ST)            13,20  50+10             8,91         12,98        21
+1-0128-4540      PANEELSCHROEVEN PLATKOP VERZ.                                                  Doos (200 ST)            11,24  50+10             7,59         35,64        21
+                                                       4,8 x 16 mm                         12   Doos (200 ST)                                     6,49         20,23
+                                                                                                Doos (200 ST)                                     5,94
+                                                       10 x 130 mm                         5    Doos (200 ST)                                     5,06
+
+                                                       3,9x32mm                            6
+
+                                                       3,9x25mm                            3
+
+                                                       3,9x16mm                            3
+
+                                                       5x100 mm                            1
+
+                                                       6x140 mm                            3
+
+                                                       6x130 mm                            1
+
+                                                       6x120 mm                            3
+
+                                                       5x70 mm                             1
+
+                                                       5x60 mm                             1
+
+                                                       5x50 mm                             2
+
+                                                       5x45 mm                             6
+
+                                                       4,5x40 mm                           4
+
+                 Sensitivity Classification: Internal
+
+Pardaen NV                                                             +32 (0)2 251 13 85                                       BE 0400.695.221
+Haachtsesteenweg 672 bus 1                                             info@pardaen.be                                          KBC BE93 4347 1027 9167 KREDBEBB
+1910 KAMPENHOUT                                                        www.pardaen.be
+België
+
+                                                                                                                                                                                3
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.           Omschrijving                          Omschrijving 2  Aantal Eenheid         Bruto           Korting %       Korting %  Netto        Regelbedrag   Btw %
+                                                                                           eenheidsprijs                              eenheidspri  Excl. btw
+1-0128-4545   PANEELSCHROEVEN PLATKOP VERZ.         4,5x45 mm                           3  excl. BTW                12,24  50+10      js excl.                         21
+1-9000-0258   Spaanplaatschroeven platte kop                                               EUR                       3,20  50+10      BTW EUR             16,52        21
+1-5142-3535   HOUTSCHR.SILVERMATE,VERZ,VOLDR        6,0 x 90 mm                         6                           10,01  50+20                           8,64        21
+1-5142-3540   HOUTSCHR.SILVERMATE,VERZ,VOLDR                                                Doos (200 ST)            9,67  50+20             5,51          8,01        21
+1-5142-4030   HOUTSCHR.SILVERMATE,VERZ,VOLDR        TX20 3.5x35mm                       2         Blister            9,45  50+20             1,44         11,60        21
+1-5142-4535   HOUTSCHR.SILVERMATE,VERZ,VOLDR                                                                        12,85  50+20             4,01          3,78        21
+1-5142-4545   HOUTSCHR.SILVERMATE,VERZ,VOLDR        TX20 3.5x40mm                       3   Doos (200 ST)           15,17  50+20             3,87          5,14        21
+1-5142-4550   HOUTSCHR.SILVERMATE,VERZ,VOLDR                                                Doos (200 ST)           17,00  50+20             3,78          6,07        21
+1-5143-4040   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.0x30mm                       1   Doos (200 ST)           12,19  50+20             5,14          6,80        21
+1-5143-4050   HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           15,17  50+20             6,07         34,13        21
+1-5143-4060   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.5x35mm                       1   Doos (200 ST)           17,44  50+20             6,80         24,27        21
+1-5143-4070   HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           21,19  50+20             4,88         13,95        21
+1-5143-5070   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.5x45mm                       1   Doos (200 ST)           25,69  50+20             6,07         16,95        21
+1-5143-5060   HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           23,55  50+20             6,98         30,83        21
+1-5143-5050   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.5x50mm                       1   Doos (200 ST)           19,93  50+20             8,48          9,42        21
+1-5143-4560   HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           19,58  50+20            10,28          7,97        21
+1-5143-4550   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.0x40/25mm                    7   Doos (200 ST)           17,00  50+20             9,42          7,83        21
+1-5143-50120  HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           67,49  50+20             7,97         20,40        21
+1-5143-6060   HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.0x50/32mm                    4   Doos (200 ST)           16,30  50+20             7,83         80,99        21
+1-5143-6080   HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)           21,82  50+20             6,80          6,52        21
+1-5143-60100  HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.0x60/37mm                    2   Doos (200 ST)           29,05  50+20            27,00          8,73        21
+1-5143-60200  HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (200 ST)          101,24  50+20             6,52         11,62        21
+1-5143-60180  HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 4.0x70/42mm                    2   Doos (100 ST)           84,31  50+20             8,73         40,50        21
+1-5143-60120  HOUTSCHR.SILVERMATE,VERZ,DEELD                                                Doos (100 ST)           35,72  50+20            11,62        168,62        21
+1-5143-60140  HOUTSCHR.SILVERMATE,VERZ,DEELD        TX20 5.0x70/42mm                    3   Doos (100 ST)           45,76  50+20            40,50        100,02        21
+S-0501-3-2    2 KABELKLEMMEN "SIMPLEX" VERZ.                                                Doos (100 ST)            1,80  50+10            33,72        146,43        21
+S-0500-6-2    2 KABELKLEMMEN "GROSBY" VERZ.         TX20 5.0x60/37mm                    1   Doos (100 ST)            1,80  50+10            14,29          4,05        21
+1-6276        ELASTIEK, 8-ARMIG vr.BAGAGEDR.                                                Doos (100 ST)            7,15  50+15            18,30          4,05        21
+                                                    TX20 5.0x50/32mm                    1   Doos (100 ST)                                   0,810          9,12
+                                                                                                                                            0,810
+                                                    TX20 4.5x60/37mm                    1         Blister                                    3,04
+                                                                                                  Blister
+                                                    TX20 4.5x50/32mm                    3         Blister
+
+                                                    TX20 5.0x120/65mm                   3
+
+                                                    TX30 6.0x60/37mm                    1
+
+                                                    TX30 6.0x80/48mm                    1
+
+                                                    TX30 6.0x100/65mm                   1
+
+                                                    TX30 6.0x200/65mm                   1
+
+                                                    TX30 6.0x180/65mm                   5
+
+                                                    TX30 6.0x120/65mm                   7
+
+                                                    TX30 6.0x140/65mm                   8
+
+                                                    3 MM                                5
+
+                                                    6 MM                                5
+
+                                                    8 mm - 40 cm                        3
+
+              Sensitivity Classification: Internal
+
+Pardaen NV                                                          +32 (0)2 251 13 85                                     BE 0400.695.221
+Haachtsesteenweg 672 bus 1                                          info@pardaen.be                                        KBC BE93 4347 1027 9167 KREDBEBB
+1910 KAMPENHOUT                                                     www.pardaen.be
+België
+
+                                                                                                                                                                           4
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.             Omschrijving                                               Omschrijving 2  Aantal Eenheid          Bruto           Korting %       Korting %  Netto        Regelbedrag     Btw %
+                                                                                                                   eenheidsprijs                              eenheidspri  Excl. btw
+1-6277-25       10 ELASTIEKLUSSEN M.HAAK,ZWART                             8 mm - 25 cm                        3   excl. BTW                19,33  50+15      js excl.                           21
+                                                                                                                   EUR                       9,28  50+15      BTW EUR             24,65          21
+1-5701-2-250    2 KLEMGESPEN, ZWART                                        25mmx2,5M-220daN                    3                            23,36  50+10                          11,83          21
+                                                                                                                          Blister           26,90  50+10             8,22         31,54          21
+S-1353-50-RO    DEURSLOT,OMLEGB.,RONDE PLATEN                              50x110 mm                           3          Blister           31,18  50+10             3,94         72,63          21
+                                                                                                                          Blister           98,35  50+10            10,51         84,19          21
+S-1391-50       INSTEEKSLOT,KEERBAAR, AFGEROND                             50 x 90 mm                          6          Blister            9,40  50+10            12,11        177,03          21
+                                                                                                                          Blister           33,02  50+10            14,03         21,15          21
+S-1126-50R      INSTEEKSLOT, 1 SLEUTEL, RECHTS                             85X50 MM                            6          Blister           53,14  50+10            44,26         74,29          21
+                                                                                                                          Blister           45,00  50+10             4,23        119,56          21
+1-4921-49       OPLEGCIL.SLOT,VERSTELB,NIK.MAT                             50-60 mm                            4          Blister            7,08  50+10            14,86         60,75          21
+                                                                                                                          Blister                                   23,91         44,60
+S-6780          CIL.SLUITING, ZAMAC VERCHROOMD                             17 mm                               5          Blister           24,94  50+10            20,25                        21
+                                                                                                                                                                     3,19         67,34
+S-0203-30       CILINDERSLUITING, MESS. VERNIK                             31 mm                               5            Stk             43,38  50+10                                         21
+                                                                                                                                            43,38  50+10            11,22         58,56          21
+S-5700-43-3535  CILINDER,MESS.VERNIKKELD 70mm                              35-35 mm                            5            Stk             14,65  50+10                          58,56          21
+                                                                                                                                                                    19,52         39,55
+S-2653-60-RO-C  SLOT, OMLEGBAAR, RONDE PLATEN                              110x60mm                            3            Stk             75,72  50+10            19,52                        21
+                                                                                                                            Stk             75,72  50+10             6,59         68,15          21
+1-5922-5230     20 ULTRAGRIME VOOR INTERIEUR AUTO                          380 x 250 MM,                       14           Stk                                                   68,15
+                                                                                                                                                                    34,08
+                                                                           PAARS                                            Stk                                     34,08
+                                                                                                                            Stk
+1-5900          100 ULTRAGRIME MULTIUSE DOEKJES                            380x250 MM,                         6
+
+                                                                           BLAUW
+
+1-6785-1        BRIEVENBUSSEN DEAUVILLE, WIT                               225x340x90 mm                       3
+
+1-6785-2        BRIEVENBUSSEN DEAUVILLE, ZWART                             225x340x90 mm                       3
+
+1-5922-5411     40 ULTRAGRIME MULTI-PURPOSE VEELZIJDIGE                    380 x 250 MM,                       6
+
+                DOEKJES                                                    BLAUW
+
+1-6739-1        BRIEVENBUSSEN BOLOGNA, WIT                                 260x340x85 mm                       2
+
+1-6739-2        BRIEVENBUSSEN BOLOGNA, ZWART                               260x340x85 mm                       2
+
+                                                                                                                                                   Subtotaal EUR           4.182,65
+                                                                                                                                                           21% btw           860,79
+
+                                                                                                                                                            Totaal €       5.043,44
+
+                                                                                                                   Gelieve te betalen via gestructureerde mededeling +++001/2603/53029+++
+
+                                     Sensitivity Classification: Internal                  +32 (0)2 251 13 85                                      BE 0400.695.221
+                                                                                           info@pardaen.be                                         KBC BE93 4347 1027 9167 KREDBEBB
+Pardaen NV                                                                                 www.pardaen.be
+Haachtsesteenweg 672 bus 1
+1910 KAMPENHOUT
+België
+
+                                                                                                                                                                                                     5
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.      Omschrijving                                                      Omschrijving 2  Aantal Eenheid      Bruto          Korting %  Korting %  Netto        Regelbedrag                Btw %
+                                                                                                               eenheidsprijs                        eenheidspri  Excl. btw
+                                                                                                               excl. BTW                            js excl.
+                                                                                                               EUR                                  BTW EUR
+
+                                                                                           Kontant korting is 83,65 (dus een te betalen bedrag van €4.959,79 ) als u betaalt vóór 12/06/26
+
+                                     Sensitivity Classification: Internal                  +32 (0)2 251 13 85                            BE 0400.695.221
+                                                                                           info@pardaen.be                               KBC BE93 4347 1027 9167 KREDBEBB
+Pardaen NV                                                                                 www.pardaen.be
+Haachtsesteenweg 672 bus 1                                                                                                                                                                             6
+1910 KAMPENHOUT
+België
+Factuur
+
+Factuurnr. : V01-26-03530
+Documentdatum : 4 juni 2026
+
+Nr.      Omschrijving                                                      Omschrijving 2  Aantal Eenheid      Bruto          Korting %  Korting %  Netto        Regelbedrag  Btw %
+                                                                                                               eenheidsprijs                        eenheidspri  Excl. btw
+                                                                                                               excl. BTW                            js excl.
+                                                                                                               EUR                                  BTW EUR
+
+Btw %    Basisbedrag         Btw-bedrag
+21 (G3)              btw            860,79
+
+               4.182,65
+
+                                     Sensitivity Classification: Internal                  +32 (0)2 251 13 85                            BE 0400.695.221
+                                                                                           info@pardaen.be                               KBC BE93 4347 1027 9167 KREDBEBB
+Pardaen NV                                                                                 www.pardaen.be
+Haachtsesteenweg 672 bus 1                                                                                                                                                                             7
+1910 KAMPENHOUT
+België
+
