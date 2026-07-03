@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { DocumentRelation } from '../../models/relation';
-import { ComparisonResult, InvoicePriceComparisonResult } from '../../models/comparison';
+import { ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonResult } from '../../models/comparison';
 
 @Component({
   selector: 'app-compare',
@@ -39,6 +39,9 @@ export class CompareComponent implements OnInit {
   selectedInvoice2: Document | null = null; // Pour comparaison facture vs facture
   comparaisonResult: ComparisonResult | null = null;
   invoicePriceComparisonResult: InvoicePriceComparisonResult | null = null;
+  erpPriceComparisonResult: ErpPriceDiffLine[] | null = null;
+  erpPriceComparisonInvoice: Document | null = null;
+  erpPriceComparisonLoading = false;
   
   query = '';
   expandedInvoiceId: number | null = null;
@@ -246,7 +249,8 @@ export class CompareComponent implements OnInit {
           console.log('First line productKey:', res.lines[0].productKey);
         }
         this.comparaisonResult = res;
-        this.invoicePriceComparisonResult = null; // Clear other comparison
+        this.invoicePriceComparisonResult = null;
+        this.erpPriceComparisonResult = null;
         this.snack.open('Comparaison effectuée', 'OK', { duration: 2000 });
       },
       error: (err) => {
@@ -263,6 +267,7 @@ export class CompareComponent implements OnInit {
         this.selectedInvoice = this.factures.find(f => f.id === invoiceId) || null;
         this.selectedDelivery = null;
         this.invoicePriceComparisonResult = null;
+        this.erpPriceComparisonResult = null;
         this.snack.open('Comparaison globale facture vs total BL effectuée', 'OK', { duration: 2500 });
       },
       error: (err) => {
@@ -382,6 +387,28 @@ export class CompareComponent implements OnInit {
     });
   }
 
+  compareWithErp(invoiceId: number) {
+    this.erpPriceComparisonLoading = true;
+    this.erpPriceComparisonResult = null;
+    this.comparaisonResult = null;
+    this.invoicePriceComparisonResult = null;
+    this.erpPriceComparisonInvoice = this.factures.find(f => f.id === invoiceId) || null;
+
+    this.docs.getErpPriceDiff(invoiceId).subscribe({
+      next: (res) => {
+        this.erpPriceComparisonResult = res;
+        this.erpPriceComparisonLoading = false;
+        this.snack.open('Comparaison avec les prix ERP effectuée', 'OK', { duration: 2500 });
+      },
+      error: (err) => {
+        console.error('Erreur lors de la comparaison ERP:', err);
+        this.erpPriceComparisonLoading = false;
+        const errorMessage = err.error?.message || err.message || 'Erreur lors de la comparaison ERP';
+        this.snack.open(errorMessage, 'Fermer', { duration: 4000 });
+      }
+    });
+  }
+
   compareInvoices() {
     if (!this.selectedInvoice1 || !this.selectedInvoice2) {
       this.snack.open('Veuillez sélectionner deux factures', 'OK', { duration: 2000 });
@@ -403,7 +430,8 @@ export class CompareComponent implements OnInit {
     this.docs.compareInvoices(this.selectedInvoice1.id, this.selectedInvoice2.id).subscribe({
       next: (res) => {
         this.invoicePriceComparisonResult = res;
-        this.comparaisonResult = null; // Clear other comparison
+        this.comparaisonResult = null;
+        this.erpPriceComparisonResult = null;
         this.snack.open('Comparaison de prix effectuée', 'OK', { duration: 2000 });
       },
       error: (err) => {

@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Document } from '../models/document';
 import { DocumentRelation } from '../models/relation';
-import { ComparisonResult, InvoicePriceComparisonResult } from '../models/comparison';
+import { ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonResult } from '../models/comparison';
 import { BatchCompareAndStockResponse, CompareAndStockResponse } from '../models/stock';
 
 @Injectable({ providedIn: 'root' })
@@ -59,6 +59,10 @@ export class DocumentService {
 
   compareInvoices(invoice1Id: number, invoice2Id: number): Observable<InvoicePriceComparisonResult> {
     return this.http.post<InvoicePriceComparisonResult>(`${this.baseUrl}/compare-invoices?invoice1Id=${invoice1Id}&invoice2Id=${invoice2Id}`, {});
+  }
+
+  getErpPriceDiff(invoiceId: number): Observable<ErpPriceDiffLine[]> {
+    return this.http.get<ErpPriceDiffLine[]>(`${this.baseUrl}/${invoiceId}/erp-price-diff`);
   }
 
   compareAndStock(invoiceId: number, deliveryId: number, forceUpdate: boolean = false): Observable<CompareAndStockResponse> {

@@ -39,4 +39,14 @@ export interface InvoicePriceComparisonLine {
   priceDiff: number;
 }
 
+export interface ErpPriceDiffLine {
+  product: string;
+  productCode?: string | null;
+  ean?: string | null;
+  invoiceUnitPrice: number;
+  erpUnitPrice?: number | null;
+  delta?: number | null;
+  status: string;
+}
+
 

@@ -55,6 +55,11 @@
       <mat-icon>link</mat-icon>
       Associer
     </button>
+    <button mat-raised-button color="accent" *ngIf="selectedInvoice" [disabled]="erpPriceComparisonLoading"
+      (click)="compareWithErp(selectedInvoice.id)" class="link-button" style="margin-left: 8px;">
+      <mat-icon>price_check</mat-icon>
+      Comparer avec les prix ERP
+    </button>
   </div>
 
   <!-- Sélection pour comparaison de prix entre factures -->
@@ -187,6 +192,11 @@
                 matTooltip="Re-lancer le parsing Python sur cette facture uniquement">
                 <mat-icon>refresh</mat-icon>
                 Reparser cette facture
+              </button>
+              <button mat-raised-button color="accent" [disabled]="erpPriceComparisonLoading"
+                (click)="compareWithErp(invoice.id)" matTooltip="Comparer les prix unitaires avec le web service ERP">
+                <mat-icon>price_check</mat-icon>
+                Comparer avec les prix ERP
               </button>
             </div>
             <!-- BL associés (relation facture -> plusieurs BL) -->
@@ -548,6 +558,75 @@
 
         <tr mat-header-row *matHeaderRowDef="['product', 'invoice1Price', 'invoice2Price', 'priceDiff']"></tr>
         <tr mat-row *matRowDef="let row; columns: ['product', 'invoice1Price', 'invoice2Price', 'priceDiff']"></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Résultat de comparaison avec les prix ERP -->
+  <div class="comparison-result-card" *ngIf="erpPriceComparisonLoading || erpPriceComparisonResult">
+    <h2>🏷️ Comparaison avec les prix ERP</h2>
+    <div class="invoice-comparison-header" *ngIf="erpPriceComparisonInvoice">
+      <div class="invoice-info-box">
+        <strong>Facture:</strong>
+        <span *ngIf="erpPriceComparisonInvoice.numero">{{ erpPriceComparisonInvoice.numero }}</span>
+        <span *ngIf="!erpPriceComparisonInvoice.numero">#{{ erpPriceComparisonInvoice.id }}</span>
+        <span *ngIf="erpPriceComparisonInvoice.supplier" class="supplier-badge">
+          ({{ erpPriceComparisonInvoice.supplier }})
+        </span>
+      </div>
+    </div>
+    <div *ngIf="erpPriceComparisonLoading" class="erp-loading">
+      <mat-spinner diameter="36"></mat-spinner>
+      <span>Interrogation du web service ERP en cours…</span>
+    </div>
+    <div class="table-wrapper" *ngIf="erpPriceComparisonResult && !erpPriceComparisonLoading">
+      <table mat-table [dataSource]="erpPriceComparisonResult" class="comparison-table">
+        <ng-container matColumnDef="productCode">
+          <th mat-header-cell *matHeaderCellDef>Code produit</th>
+          <td mat-cell *matCellDef="let l">{{ l.productCode || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="product">
+          <th mat-header-cell *matHeaderCellDef>Désignation</th>
+          <td mat-cell *matCellDef="let l">{{ l.product }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="invoiceUnitPrice">
+          <th mat-header-cell *matHeaderCellDef>Prix facture</th>
+          <td mat-cell *matCellDef="let l">{{ l.invoiceUnitPrice | number:'1.2-2' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="erpUnitPrice">
+          <th mat-header-cell *matHeaderCellDef>Prix ERP</th>
+          <td mat-cell *matCellDef="let l">
+            <span *ngIf="l.erpUnitPrice != null">{{ l.erpUnitPrice | number:'1.2-2' }}</span>
+            <span *ngIf="l.erpUnitPrice == null" class="no-price">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="delta">
+          <th mat-header-cell *matHeaderCellDef>Delta</th>
+          <td mat-cell *matCellDef="let l"
+            [class.price-positive]="l.delta != null && l.delta > 0"
+            [class.price-negative]="l.delta != null && l.delta < 0"
+            [class.price-zero]="l.delta === 0"
+            [class.no-price]="l.delta == null">
+            <span *ngIf="l.delta != null">{{ l.delta | number:'1.2-2' }}</span>
+            <span *ngIf="l.delta == null">-</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let l">
+            <mat-chip-set>
+              <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">{{ l.status }}</mat-chip>
+            </mat-chip-set>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['productCode', 'product', 'invoiceUnitPrice', 'erpUnitPrice', 'delta', 'status']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['productCode', 'product', 'invoiceUnitPrice', 'erpUnitPrice', 'delta', 'status']"></tr>
       </table>
     </div>
   </div>

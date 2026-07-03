@@ -255,9 +255,20 @@
 }
 
 .invoice-reparse-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.erp-loading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  color: #5f6c7b;
 }
 
 .invoice-actions mat-icon {
