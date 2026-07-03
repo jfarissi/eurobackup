@@ -9,7 +9,7 @@
 **/terminals
 **/*.user
 **/*.suo
-**/Storage/**
+Storage/
 python-service/.venv
 python-service/**/__pycache__
 auto_invoice_parser
