@@ -490,6 +490,64 @@ namespace Backup.Web.Api.Server.Controllers
 
             return Ok(results.OrderBy(r => r.Product).ToList());
         }
+
+        public class ErpPriceDiffLine
+        {
+            public string Product { get; set; } = string.Empty;
+            public string? ProductCode { get; set; }
+            public string? Ean { get; set; }
+            public decimal InvoiceUnitPrice { get; set; }
+            public decimal? ErpUnitPrice { get; set; }
+            public decimal? Delta => ErpUnitPrice.HasValue ? InvoiceUnitPrice - ErpUnitPrice.Value : null;
+            public string Status { get; set; } = string.Empty; // "OK", "Produit sans code", "Non trouvé via web service"
+        }
+
+        [HttpGet("{invoiceId:int}/erp-price-diff")]
+        public async Task<IActionResult> ErpPriceDiff([FromRoute] int invoiceId, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage, [FromServices] Backup.Web.Api.Server.Services.Pricing.IErpPricingService erpPricing, CancellationToken ct)
+        {
+            var invoice = await storage.SelectDocumentByIdAsync(invoiceId);
+            if (invoice == null) return NotFound("Invoice not found");
+
+            var invLines = storage.SelectLinesByDocumentId(invoiceId).ToList();
+            if (invLines.Count == 0) return Ok(Array.Empty<ErpPriceDiffLine>());
+
+            var results = new List<ErpPriceDiffLine>();
+
+            foreach (var l in invLines)
+            {
+                if (l.UnitPrice <= 0) continue;
+
+                var diff = new ErpPriceDiffLine
+                {
+                    Product = l.Product ?? string.Empty,
+                    ProductCode = l.ProductCode,
+                    Ean = l.Ean,
+                    InvoiceUnitPrice = l.UnitPrice
+                };
+
+                if (string.IsNullOrWhiteSpace(l.ProductCode))
+                {
+                    diff.Status = "Produit sans code";
+                }
+                else
+                {
+                    var erpPrice = await erpPricing.GetProductPriceAsync(l.ProductCode, ct);
+                    if (erpPrice.HasValue)
+                    {
+                        diff.ErpUnitPrice = erpPrice.Value;
+                        diff.Status = "OK";
+                    }
+                    else
+                    {
+                        diff.Status = "Non trouvé via web service";
+                    }
+                }
+
+                results.Add(diff);
+            }
+
+            return Ok(results.OrderBy(r => r.Product).ToList());
+        }
         [HttpPost("generate-pro-samples")]
         public async Task<IActionResult> GenerateProSamples(CancellationToken ct)
         {

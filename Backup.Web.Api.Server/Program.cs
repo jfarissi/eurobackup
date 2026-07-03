@@ -1,4 +1,4 @@
-﻿using Backup.Web.Api.Server.Authorization;
+using Backup.Web.Api.Server.Authorization;
 using Backup.Web.Api.Server.Brokers.DateTimes;
 using Backup.Web.Api.Server.Brokers.Loggings;
 using Backup.Web.Api.Server.Brokers.RoleManagement;
@@ -50,12 +50,14 @@ builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Ollama.Ollam
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Ollama.IOllamaParsingService, Backup.Web.Api.Server.Services.Documents.Ollama.OllamaParsingService>();
 // Python extractor (optional)
 builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorOptions>(builder.Configuration.GetSection("PythonExtractor"));
+builder.Services.Configure<Backup.Web.Api.Server.Services.Pricing.ErpPricingOptions>(builder.Configuration.GetSection("ErpPricing"));
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient, Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorClient>();
 builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonProxyController), client =>
 {
     client.Timeout = TimeSpan.FromMinutes(30);
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
+builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Pricing.IErpPricingService, Backup.Web.Api.Server.Services.Pricing.ErpPricingService>();
 builder.Services.AddDbContext<StorageBroker>();
 builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
 builder.Services.AddScoped<IRoleManagementBroker, RoleManagementBroker>();
