@@ -405,9 +405,18 @@ namespace Backup.Web.Api.Server.Services.Documents
                 .GroupBy(l => Key(l), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.Average(x => x.UnitPrice), StringComparer.OrdinalIgnoreCase);
 
-            // Get all product keys from both invoices
-            var allKeys = new HashSet<string>(inv1PriceMap.Keys, StringComparer.OrdinalIgnoreCase);
-            foreach (var k in inv2PriceMap.Keys) allKeys.Add(k);
+            // Produits présents dans les deux factures (intersection des clés)
+            var inv1Keys = inv1Lines
+                .Select(Key)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var inv2Keys = inv2Lines
+                .Select(Key)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var commonKeys = inv1Keys.Intersect(inv2Keys, StringComparer.OrdinalIgnoreCase);
 
             // Build product name map for labels
             var inv1NameMap = inv1Lines
@@ -428,7 +437,7 @@ namespace Backup.Web.Api.Server.Services.Documents
                 Invoice2Supplier = invoice2.Supplier
             };
 
-            foreach (var key in allKeys)
+            foreach (var key in commonKeys)
             {
                 var price1 = inv1PriceMap.TryGetValue(key, out var p1) ? p1 : 0m;
                 var price2 = inv2PriceMap.TryGetValue(key, out var p2) ? p2 : 0m;
