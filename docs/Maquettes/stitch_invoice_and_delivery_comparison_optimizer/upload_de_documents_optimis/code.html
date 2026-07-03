@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gestion Documents - Upload Dashboard</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Hanken Grotesk & Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;900&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f7f9fb",
+                        "tertiary-fixed": "#89f5e7",
+                        "surface-tint": "#4d44e3",
+                        "on-secondary-container": "#54647a",
+                        "surface-dim": "#d8dadc",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-variant": "#e0e3e5",
+                        "tertiary-container": "#006c63",
+                        "on-tertiary-fixed-variant": "#005049",
+                        "primary-container": "#4f46e5",
+                        "surface-container-high": "#e6e8ea",
+                        "primary-fixed": "#e2dfff",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "inverse-surface": "#2d3133",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-fixed": "#0f0069",
+                        "on-error": "#ffffff",
+                        "on-background": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#00524b",
+                        "on-surface": "#191c1e",
+                        "outline-variant": "#c7c4d8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "secondary-container": "#d0e1fb",
+                        "secondary": "#505f76",
+                        "inverse-primary": "#c3c0ff",
+                        "on-primary-container": "#dad7ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-container": "#eceef0",
+                        "surface-container-low": "#f2f4f6",
+                        "on-tertiary-container": "#81eddf",
+                        "on-secondary-fixed": "#0b1c30",
+                        "on-tertiary-fixed": "#00201d",
+                        "primary": "#3525cd",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#6bd8cb",
+                        "outline": "#777587",
+                        "on-surface-variant": "#464555",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "background": "#f7f9fb",
+                        "on-primary-fixed-variant": "#3323cc"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "lg": "24px",
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "gutter": "16px",
+                        "xl": "32px",
+                        "margin-desktop": "48px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "data-mono": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "headline-lg": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "data-mono": ["13px", {"lineHeight": "16px", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .comparison-pane {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .drop-zone-active {
+            border-color: #3525cd;
+            background-color: rgba(53, 37, 205, 0.04);
+        }
+    </style>
+</head>
+<body class="text-on-background selection:bg-primary-fixed selection:text-on-primary-fixed">
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar (Predicted Component) -->
+<aside class="hidden lg:flex flex-col h-screen py-md gap-xs bg-surface-container border-r border-outline-variant w-64">
+<div class="px-md mb-lg">
+<span class="font-headline-sm text-headline-sm text-primary font-black uppercase tracking-tighter">DocManager Pro</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant opacity-70">Industrial Logistics</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-transform active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-md">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center px-md py-sm bg-primary-container text-on-primary-container font-semibold rounded-lg mx-2 transition-transform active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-md">cloud_upload</span>
+<span class="font-body-md text-body-md">Upload</span>
+</a>
+<a class="flex items-center px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-transform active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-md">link</span>
+<span class="font-body-md text-body-md">Association</span>
+</a>
+<a class="flex items-center px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-transform active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-md">inventory_2</span>
+<span class="font-body-md text-body-md">Stock</span>
+</a>
+<a class="flex items-center px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-transform active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined mr-md">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+<div class="px-md mt-auto">
+<button class="w-full py-sm bg-primary text-on-primary rounded font-semibold text-body-sm flex items-center justify-center gap-xs shadow-md hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    New Analysis
+                </button>
+</div>
+</aside>
+<div class="flex-1 flex flex-col overflow-hidden">
+<!-- TopNavBar (Predicted Component) -->
+<header class="flex justify-between items-center w-full px-md h-16 bg-primary shadow-md z-10">
+<div class="flex items-center gap-md">
+<button class="lg:hidden text-on-primary">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold text-on-primary">Gestion Documents</span>
+</div>
+<div class="hidden md:flex items-center gap-sm">
+<button class="px-md py-1 bg-on-primary/10 border-b-2 border-on-primary text-on-primary font-bold transition-all duration-200">
+                        Upload
+                    </button>
+<button class="px-md py-1 text-on-primary/80 hover:text-on-primary hover:bg-on-primary/5 transition-colors">
+                        Association
+                    </button>
+<button class="px-md py-1 text-on-primary/80 hover:text-on-primary hover:bg-on-primary/5 transition-colors">
+                        Stock
+                    </button>
+<button class="px-md py-1 text-on-primary/80 hover:text-on-primary hover:bg-on-primary/5 transition-colors">
+                        Settings
+                    </button>
+</div>
+<div class="flex items-center gap-md">
+<span class="hidden md:block font-label-caps text-label-caps text-on-primary/70 uppercase">Python / Ollama Environment</span>
+<button class="text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto bg-surface p-lg md:p-xl">
+<div class="max-w-5xl mx-auto space-y-lg">
+<!-- Page Header Card -->
+<div class="bg-surface-container-lowest border border-outline-variant p-md rounded-xl shadow-sm flex items-center gap-sm">
+<div class="p-xs bg-primary/10 rounded">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">upload_file</span>
+</div>
+<h1 class="font-headline-sm text-headline-sm text-on-surface">Upload de Documents</h1>
+</div>
+<!-- Upload Form Card -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+<div class="p-lg border-b border-outline-variant bg-surface-container-low">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Nouveau Document</h2>
+</div>
+<div class="p-lg space-y-lg">
+<!-- Drop Zone -->
+<div class="group cursor-pointer border-2 border-dashed border-outline-variant rounded-xl p-xl flex flex-col items-center justify-center gap-md hover:border-primary hover:bg-primary/5 transition-all duration-300 relative overflow-hidden" id="dropZone">
+<div class="w-16 h-16 bg-primary-container/10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary-container text-4xl" style="font-variation-settings: 'FILL' 1;">cloud_upload</span>
+</div>
+<div class="text-center">
+<p class="font-headline-sm text-headline-sm text-primary">V01-26-03530.pdf</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Faites glisser votre fichier ici ou cliquez pour parcourir</p>
+</div>
+<!-- Visual progress simulation or subtle pattern -->
+<div class="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" style="width: 100%"></div>
+</div>
+<!-- Form Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<!-- Type de Document -->
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Type de Document</label>
+<div class="relative">
+<select class="w-full border border-outline rounded p-sm bg-white font-body-md text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent appearance-none">
+<option>Facture</option>
+<option>Bon de Livraison</option>
+<option>Bon de Commande</option>
+<option>Avoir</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 pointer-events-none text-on-surface-variant">arrow_drop_down</span>
+</div>
+</div>
+<!-- Fournisseur -->
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Fournisseur</label>
+<div class="relative">
+<select class="w-full border border-outline rounded p-sm bg-white font-body-md text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent appearance-none">
+<option>-- Sélectionner --</option>
+<option>Logistics Direct SARL</option>
+<option>Global Freight Solutions</option>
+<option>Industrial Parts Co.</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 pointer-events-none text-on-surface-variant">arrow_drop_down</span>
+</div>
+<p class="text-[10px] text-on-surface-variant opacity-60 italic mt-1 leading-tight">Aucun fournisseur enregistré. Le fournisseur sera ajouté lors de l'inspection du fichier.</p>
+</div>
+<!-- Numéro -->
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Numéro</label>
+<input class="w-full border border-outline rounded p-sm bg-white font-data-mono text-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent" type="text" value="ister"/>
+</div>
+<!-- Client & Date Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Client</label>
+<input class="w-full border border-outline rounded p-sm bg-white font-body-sm text-body-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent" type="text" value="Factuurnr. : V01-26-03530 Gefactureerd aa"/>
+</div>
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-semibold text-on-surface-variant block">Date</label>
+<input class="w-full border border-outline rounded p-sm bg-white font-body-md text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="jj/mm/aaaa" type="text"/>
+</div>
+</div>
+</div>
+<!-- AI Status Indicator -->
+<div class="bg-primary/10 rounded-lg p-md flex items-center justify-between border border-primary/20">
+<div class="flex items-center gap-sm">
+<div class="relative flex items-center justify-center">
+<span class="absolute inline-flex h-full w-full rounded-full bg-primary opacity-20 animate-ping"></span>
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<span class="font-body-md text-body-md text-primary font-semibold">Extraction par IA activée</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="font-data-mono text-[12px] text-primary bg-primary/20 px-2 py-0.5 rounded-full">Précision ~99%</span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center gap-md pt-md border-t border-outline-variant">
+<button class="flex items-center gap-sm bg-primary text-on-primary px-lg py-sm rounded font-semibold text-body-md shadow hover:bg-primary-container transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined text-[18px]">upload</span>
+                                    Uploader
+                                </button>
+<button class="px-lg py-sm border border-outline text-on-surface-variant rounded font-semibold text-body-md hover:bg-surface-variant transition-colors active:scale-[0.98]">
+                                    Réinitialiser
+                                </button>
+</div>
+</div>
+</section>
+<!-- Recent Activities (Bento Grid Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<div class="md:col-span-2 bg-white border border-outline-variant rounded-xl p-md shadow-sm">
+<div class="flex items-center justify-between mb-md">
+<h3 class="font-headline-sm text-headline-sm">Historique Récent</h3>
+<button class="text-primary font-body-sm font-semibold hover:underline">Tout voir</button>
+</div>
+<div class="space-y-sm">
+<!-- Table Header -->
+<div class="grid grid-cols-4 px-sm py-xs bg-surface-container-low font-label-caps text-label-caps text-on-surface-variant rounded">
+<span>DOCUMENT</span>
+<span>FOURNISSEUR</span>
+<span>STATUT</span>
+<span class="text-right">DATE</span>
+</div>
+<!-- Row 1 -->
+<div class="grid grid-cols-4 px-sm py-sm border-b border-outline-variant font-body-sm items-center hover:bg-surface-container-lowest transition-colors">
+<span class="font-medium text-primary">INV-8829.pdf</span>
+<span>Logistics Direct</span>
+<span>
+<span class="bg-tertiary-fixed/30 text-tertiary px-2 py-0.5 rounded text-[10px] font-bold uppercase">Validé</span>
+</span>
+<span class="text-right text-on-surface-variant">Il y a 2h</span>
+</div>
+<!-- Row 2 (Error Example) -->
+<div class="grid grid-cols-4 px-sm py-sm border-b border-outline-variant font-body-sm items-center bg-error-container/10">
+<span class="font-medium text-primary">BILL-304.png</span>
+<span class="text-error">Non identifié</span>
+<span>
+<span class="bg-error-container text-error px-2 py-0.5 rounded text-[10px] font-bold uppercase">Erreur</span>
+</span>
+<span class="text-right text-on-surface-variant">Il y a 5h</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-highest/30 border border-outline-variant rounded-xl p-md flex flex-col gap-md relative overflow-hidden">
+<div class="absolute -right-8 -top-8 w-32 h-32 bg-primary/5 rounded-full blur-3xl"></div>
+<h3 class="font-headline-sm text-headline-sm relative z-10">Métriques IA</h3>
+<div class="flex-1 flex flex-col justify-center gap-lg relative z-10">
+<div class="text-center">
+<div class="text-[32px] font-bold text-primary">1,402</div>
+<div class="text-label-caps text-on-surface-variant uppercase tracking-widest">Extractions ce mois</div>
+</div>
+<div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 85%"></div>
+</div>
+<p class="text-body-sm text-on-surface-variant text-center opacity-80">Gain de temps estimé: <span class="font-bold text-primary">24h</span></p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+<!-- Micro-interaction for dropzone -->
+<script>
+        const dropZone = document.getElementById('dropZone');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drop-zone-active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drop-zone-active');
+            }, false);
+        });
+    </script>
+</body></html>

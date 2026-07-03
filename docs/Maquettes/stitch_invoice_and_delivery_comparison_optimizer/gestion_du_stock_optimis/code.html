@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stock Management | Gestion Documents</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Hanken Grotesk, Inter, JetBrains Mono -->
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        /* Custom scrollbar for high-density tables */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Zebra-less Row Hover Focus */
+        .table-row-hover:hover {
+            background-color: #f1f5f9 !important;
+            transition: background-color 0.15s ease;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f7f9fb",
+                        "tertiary-fixed": "#89f5e7",
+                        "surface-tint": "#4d44e3",
+                        "on-secondary-container": "#54647a",
+                        "surface-dim": "#d8dadc",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-variant": "#e0e3e5",
+                        "tertiary-container": "#006c63",
+                        "on-tertiary-fixed-variant": "#005049",
+                        "primary-container": "#4f46e5",
+                        "surface-container-high": "#e6e8ea",
+                        "primary-fixed": "#e2dfff",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "inverse-surface": "#2d3133",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-fixed": "#0f0069",
+                        "on-error": "#ffffff",
+                        "on-background": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#00524b",
+                        "on-surface": "#191c1e",
+                        "outline-variant": "#c7c4d8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "secondary-container": "#d0e1fb",
+                        "secondary": "#505f76",
+                        "inverse-primary": "#c3c0ff",
+                        "on-primary-container": "#dad7ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-container": "#eceef0",
+                        "surface-container-low": "#f2f4f6",
+                        "on-tertiary-container": "#81eddf",
+                        "on-secondary-fixed": "#0b1c30",
+                        "on-tertiary-fixed": "#00201d",
+                        "primary": "#3525cd",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#6bd8cb",
+                        "outline": "#777587",
+                        "on-surface-variant": "#464555",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "background": "#f7f9fb",
+                        "on-primary-fixed-variant": "#3323cc"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "lg": "24px",
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "gutter": "16px",
+                        "xl": "32px",
+                        "margin-desktop": "48px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "data-mono": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "headline-lg": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "data-mono": ["13px", {"lineHeight": "16px", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-hidden flex h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="hidden lg:flex flex-col h-screen py-md gap-xs bg-surface-container dark:bg-surface-container-high border-r border-outline-variant w-64 flex-shrink-0">
+<div class="px-md mb-lg">
+<h1 class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed font-black">DocManager Pro</h1>
+<p class="text-on-surface-variant font-body-sm">Industrial Logistics</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="cloud_upload">cloud_upload</span>
+<span class="font-body-md">Upload</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="link">link</span>
+<span class="font-body-md">Association</span>
+</a>
+<!-- Active Tab: Stock -->
+<a class="flex items-center gap-md px-md py-sm bg-primary-container text-on-primary-container font-semibold rounded-lg mx-2 scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-body-md">Stock</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md">Settings</span>
+</a>
+</nav>
+<div class="px-md mt-auto pt-md border-t border-outline-variant/30">
+<button class="w-full py-sm bg-primary text-on-primary rounded-lg font-semibold hover:opacity-90 transition-opacity">
+                New Analysis
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col min-w-0 bg-surface overflow-hidden">
+<!-- TopAppBar Anchor -->
+<header class="flex justify-between items-center w-full px-lg h-16 bg-primary dark:bg-primary-container shadow-md z-10">
+<div class="flex items-center gap-xl">
+<div class="font-headline-md text-headline-md font-bold text-on-primary dark:text-on-primary-container">Gestion Documents</div>
+<nav class="hidden md:flex gap-xs items-center">
+<a class="px-md py-2 text-on-primary/80 hover:text-on-primary font-label-caps text-label-caps transition-colors" href="#">UPLOAD</a>
+<a class="px-md py-2 text-on-primary/80 hover:text-on-primary font-label-caps text-label-caps transition-colors" href="#">ASSOCIATION</a>
+<a class="px-md py-2 bg-on-primary/10 border-b-2 border-on-primary text-on-primary font-bold font-label-caps text-label-caps" href="#">STOCK</a>
+<a class="px-md py-2 text-on-primary/80 hover:text-on-primary font-label-caps text-label-caps transition-colors" href="#">SETTINGS</a>
+</nav>
+</div>
+<div class="flex items-center gap-md text-on-primary">
+<span class="material-symbols-outlined cursor-pointer hover:bg-on-primary/10 p-2 rounded-full transition-colors" data-icon="account_circle">account_circle</span>
+</div>
+</header>
+<!-- Dynamic Content Header -->
+<section class="bg-surface-container-low border-b border-outline-variant/20 px-lg py-md flex flex-col gap-md">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md">
+<div class="space-y-xs">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Gestion du Stock</h2>
+<p class="text-body-sm text-on-surface-variant italic">Consultation du stock mis à jour depuis les bons de livraison</p>
+</div>
+<!-- Search Bar -->
+<div class="relative max-w-md w-full">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline text-[20px]" data-icon="search">search</span>
+</div>
+<input class="block w-full pl-10 pr-32 py-2 border border-outline rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent font-body-md transition-all" placeholder="Rechercher un produit ou un code..." type="text"/>
+<button class="absolute right-1 top-1 bottom-1 px-4 bg-primary text-on-primary font-semibold rounded-md text-body-sm hover:bg-on-primary-fixed-variant transition-colors">
+                        Rechercher
+                    </button>
+</div>
+</div>
+<!-- Stats Bar -->
+<div class="flex flex-wrap gap-lg">
+<div class="flex items-baseline gap-xs bg-white px-md py-sm rounded-lg border border-outline-variant/30 shadow-sm">
+<span class="text-body-sm font-semibold text-on-surface-variant uppercase tracking-wider">Total de produits :</span>
+<span class="font-data-mono text-headline-sm text-primary">169</span>
+</div>
+<div class="flex items-baseline gap-xs bg-white px-md py-sm rounded-lg border border-outline-variant/30 shadow-sm">
+<span class="text-body-sm font-semibold text-on-surface-variant uppercase tracking-wider">Total des quantités :</span>
+<span class="font-data-mono text-headline-sm text-primary">2.141</span>
+</div>
+<div class="flex items-center gap-xs ml-auto text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+<span class="text-body-sm font-semibold">Trier par : Code</span>
+</div>
+</div>
+</section>
+<!-- Main Data Area -->
+<section class="flex-1 overflow-auto bg-surface p-lg">
+<!-- Table Container (Comparison Pane Style) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm flex flex-col h-full max-w-container-max mx-auto overflow-hidden">
+<!-- Entity Header -->
+<div class="bg-surface-container-high px-md py-sm flex justify-between items-center border-b border-outline-variant">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="package_2">package_2</span>
+<span class="font-headline-sm text-body-lg font-bold">Paridant</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">(160 produits)</span>
+</div>
+<div class="text-body-sm text-on-surface-variant font-medium">
+                        Quantité totale: <span class="font-data-mono text-primary">1.989</span>
+</div>
+</div>
+<!-- Scrollable Table -->
+<div class="overflow-auto flex-1">
+<table class="w-full text-left border-collapse min-w-[800px]">
+<thead class="sticky top-0 bg-surface-container-low border-b border-outline-variant z-10">
+<tr>
+<th class="px-md py-3 text-label-caps text-on-surface-variant font-bold border-r border-outline-variant/10 w-[120px]">Code</th>
+<th class="px-md py-3 text-label-caps text-on-surface-variant font-bold border-r border-outline-variant/10">Libellé</th>
+<th class="px-md py-3 text-label-caps text-on-surface-variant font-bold border-r border-outline-variant/10 w-[100px] text-right">Quantité</th>
+<th class="px-md py-3 text-label-caps text-on-surface-variant font-bold border-r border-outline-variant/10 w-[80px] text-center">Unité</th>
+<th class="px-md py-3 text-label-caps text-on-surface-variant font-bold w-[180px]">Dernière mise à jour</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20 font-body-sm text-on-surface">
+<!-- High Density Rows -->
+<tr class="table-row-hover group">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-10-151</td>
+<td class="px-md py-2 font-medium">AFBREEKMES, SM TEST 18 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">8</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-10-425</td>
+<td class="px-md py-2 font-medium">DYNA GRIP AFBREEKMES 25 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">6</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<!-- Mismatch Example (Attention Signal) -->
+<tr class="table-row-hover bg-error-container/20">
+<td class="px-md py-2 font-data-mono text-on-surface-variant border-r border-outline-variant/10">0-11-301</td>
+<td class="px-md py-2 font-medium flex items-center gap-xs">
+                                    10 VERVANG AFBREEKMESJES 18 mm
+                                    <span class="material-symbols-outlined text-error text-[16px]" data-icon="report" title="Stock critique">report</span>
+</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-error border-r border-outline-variant/10">20</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-11-325</td>
+<td class="px-md py-2 font-medium">10 AFBREEKMESJES IN DISPENSER 25 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">20</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-12-105</td>
+<td class="px-md py-2 font-medium">COMBINATIESCHAAF 50 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">2</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-16-137</td>
+<td class="px-md py-2 font-medium">GIPSPLATENSCHROEFBIT PHILLIPS NR. 2</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">12</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-30-657</td>
+<td class="px-md py-2 font-medium">ROLMETER TYLON TAPE 8 m - 25 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">3</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-47-440</td>
+<td class="px-md py-2 font-medium">SLAGLIJNMODEN ABS 30 m</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">3</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">0-65-412</td>
+<td class="px-md py-2 font-medium">SCHROEVENDRAAIER FATMAX PLAT 4 x 100 mm</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">6</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0074-12-5</td>
+<td class="px-md py-2 font-medium">KOETSWERKSLUITRINGEN VERZINKT M5 Doos (100 ST) VLE038234 Nr. Barcode Omschrijving</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">1</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0074-12-8</td>
+<td class="px-md py-2 font-medium">KOETSWERKSLUITRINGEN VERZINKT M8 Doos (100 ST)</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">3</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0128-31-430</td>
+<td class="px-md py-2 font-medium">PANEELSCHROEVEN PLATKOP,RVS 4x30 mm Doos (200 ST)</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">1</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0128-31-440</td>
+<td class="px-md py-2 font-medium">PANEELSCHROEVEN PLATKOP, RVS 4x40 mm Doos (200 ST)</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">1</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<!-- Repeatable placeholders to show density -->
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0128-4540</td>
+<td class="px-md py-2 font-medium">PANEELSCHROEVEN PLATKOP VERZ. 4,5x40 mm Doos (200 ST)</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">6</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+<tr class="table-row-hover">
+<td class="px-md py-2 font-data-mono text-on-surface-variant bg-surface-container-lowest border-r border-outline-variant/10">1-0128-570</td>
+<td class="px-md py-2 font-medium">PANEELSCHROEVEN PLATKOP VERZ. 5x70 mm Doos (200 ST)</td>
+<td class="px-md py-2 text-right font-data-mono font-bold text-primary border-r border-outline-variant/10">1</td>
+<td class="px-md py-2 text-center text-on-surface-variant border-r border-outline-variant/10">ST</td>
+<td class="px-md py-2 text-on-surface-variant opacity-70">07/05/2026 11:00</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Entity Footer / Secondary Section -->
+<div class="bg-surface-container px-md py-sm flex justify-between items-center border-t border-outline-variant">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="expand_more">expand_more</span>
+<span class="font-headline-sm text-body-md font-bold">Schrauwen Sanitair &amp; Verwarming NV</span>
+<span class="text-on-surface-variant/60 text-[11px]">(9 produits)</span>
+</div>
+<div class="text-body-sm text-on-surface-variant">
+                        Quantité totale: <span class="font-data-mono">152</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Tooltip/Hover Placeholder Logic -->
+<div class="fixed hidden bg-inverse-surface text-inverse-on-surface text-[11px] px-2 py-1 rounded shadow-lg pointer-events-none z-50" id="row-tooltip">
+            Détails de l'article
+        </div>
+</main>
+<script>
+        // Simple micro-interaction for tooltips on table rows
+        const rows = document.querySelectorAll('.table-row-hover');
+        const tooltip = document.getElementById('row-tooltip');
+
+        rows.forEach(row => {
+            row.addEventListener('mousemove', (e) => {
+                tooltip.classList.remove('hidden');
+                tooltip.style.left = (e.clientX + 10) + 'px';
+                tooltip.style.top = (e.clientY + 10) + 'px';
+            });
+            row.addEventListener('mouseleave', () => {
+                tooltip.classList.add('hidden');
+            });
+        });
+
+        // Search Bar focus effect
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('scale-[1.01]');
+            searchInput.parentElement.style.transition = 'transform 0.2s ease';
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('scale-[1.01]');
+        });
+    </script>
+</body></html>

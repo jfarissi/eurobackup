@@ -632,18 +632,23 @@ export class CompareComponent implements OnInit {
       return false;
     }
     
-    // Si les deux factures ont un fournisseur, ils doivent être identiques
     if (this.selectedInvoice1.supplier && this.selectedInvoice2.supplier) {
       return this.selectedInvoice1.supplier.toLowerCase() === this.selectedInvoice2.supplier.toLowerCase();
     }
     
-    // Si une seule facture a un fournisseur, on ne peut pas comparer
     if (this.selectedInvoice1.supplier || this.selectedInvoice2.supplier) {
       return false;
     }
     
-    // Si aucune facture n'a de fournisseur, on permet la comparaison (cas limite)
     return true;
+  }
+
+  getMatchCount(): number {
+    return this.comparaisonResult?.lines?.filter(l => l.status === 'OK').length ?? 0;
+  }
+
+  getErrorCount(): number {
+    return this.comparaisonResult?.lines?.filter(l => l.status !== 'OK').length ?? 0;
   }
 }
 

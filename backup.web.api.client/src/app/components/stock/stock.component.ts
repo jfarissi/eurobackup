@@ -20,6 +20,7 @@ export class StockComponent implements OnInit {
   stockBySupplier: { supplier: string; items: StockItem[] }[] = [];
   searchQuery: string = '';
   displayedColumns: string[] = ['productKey', 'description', 'quantityOnHand', 'unit', 'lastUpdated'];
+  expandedSuppliers = new Set<string>();
 
   constructor(
     private stockService: StockService,
@@ -61,6 +62,22 @@ export class StockComponent implements OnInit {
         items: items.sort((a, b) => a.productKey.localeCompare(b.productKey))
       }))
       .sort((a, b) => a.supplier.localeCompare(b.supplier));
+
+    if (this.expandedSuppliers.size === 0 && this.stockBySupplier.length > 0) {
+      this.expandedSuppliers.add(this.stockBySupplier[0].supplier);
+    }
+  }
+
+  toggleSupplier(supplier: string): void {
+    if (this.expandedSuppliers.has(supplier)) {
+      this.expandedSuppliers.delete(supplier);
+    } else {
+      this.expandedSuppliers.add(supplier);
+    }
+  }
+
+  isSupplierExpanded(supplier: string): boolean {
+    return this.expandedSuppliers.has(supplier);
   }
 
   onSearch(): void {

@@ -1,102 +1,101 @@
-<div class="stock-container">
-  <div class="stock-header">
-    <h1>📦 Gestion du Stock</h1>
-    <p>Consultation du stock mis à jour depuis les bons de livraison</p>
-  </div>
+<div class="page stock-page">
+  <!-- Sub-header -->
+  <section class="stock-subheader">
+    <div class="stock-subheader-inner">
+      <div class="stock-title-block">
+        <h2>Gestion du Stock</h2>
+        <p>Consultation du stock mis à jour depuis les bons de livraison</p>
+      </div>
 
-  <div class="stock-actions">
-    <mat-form-field appearance="outline" class="search-field">
-      <mat-label>Rechercher un produit</mat-label>
-      <input matInput [(ngModel)]="searchQuery" (keyup.enter)="onSearch()" placeholder="Code produit ou description...">
-      <mat-icon matSuffix>search</mat-icon>
-    </mat-form-field>
-    <button mat-raised-button color="primary" (click)="onSearch()">
-      <mat-icon>search</mat-icon>
-      Rechercher
-    </button>
-    <button mat-stroked-button (click)="clearSearch()" *ngIf="searchQuery">
-      <mat-icon>clear</mat-icon>
-      Effacer
-    </button>
-  </div>
+      <div class="search-bar-wrap">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input class="search-input"
+               [(ngModel)]="searchQuery"
+               (keyup.enter)="onSearch()"
+               placeholder="Rechercher un produit ou un code..." />
+        <button class="search-btn" (click)="onSearch()">Rechercher</button>
+        <button class="clear-btn" *ngIf="searchQuery" (click)="clearSearch()">
+          <mat-icon>clear</mat-icon>
+        </button>
+      </div>
+    </div>
 
-  <div class="stock-stats" *ngIf="stockItems.length > 0">
-    <mat-card>
-      <mat-card-content>
-        <p><strong>Total de produits en stock:</strong> {{ stockItems.length }}</p>
-        <p><strong>Total des quantités:</strong> {{ getTotalQuantity() | number:'1.0-0' }}</p>
-      </mat-card-content>
-    </mat-card>
-  </div>
+    <!-- Stats bar -->
+    <div class="stats-bar" *ngIf="stockItems.length > 0">
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Total de produits</span>
+        <span class="stat-value font-mono">{{ stockItems.length }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Total des quantités</span>
+        <span class="stat-value font-mono">{{ getTotalQuantity() | number:'1.0-0' }}</span>
+      </div>
+      <div class="sort-hint">
+        <mat-icon>filter_list</mat-icon>
+        <span>Trier par : Code</span>
+      </div>
+    </div>
+  </section>
 
-  <!-- Stock groupé par fournisseur avec expansion panels -->
-  <div class="stock-by-supplier" *ngIf="stockBySupplier.length > 0">
-    <mat-accordion>
-      <mat-expansion-panel *ngFor="let group of stockBySupplier" class="supplier-panel">
-        <mat-expansion-panel-header>
-          <mat-panel-title>
-            <mat-icon>business</mat-icon>
+  <!-- Data area -->
+  <section class="stock-data-area">
+    <div class="stock-data-inner">
+
+      <div class="no-data" *ngIf="stockItems.length === 0">
+        <mat-icon>inventory_2</mat-icon>
+        <p>Aucun produit en stock</p>
+      </div>
+
+      <div class="supplier-block card" *ngFor="let group of stockBySupplier; let i = index">
+        <!-- Supplier header -->
+        <div class="supplier-block-header" (click)="toggleSupplier(group.supplier)">
+          <div class="supplier-block-title">
+            <mat-icon class="expand-icon" [class.expanded]="isSupplierExpanded(group.supplier)">
+              {{ isSupplierExpanded(group.supplier) ? 'expand_less' : 'expand_more' }}
+            </mat-icon>
+            <mat-icon class="package-icon">inventory_2</mat-icon>
             <span class="supplier-name">{{ group.supplier }}</span>
-            <span class="item-count">({{ group.items.length }} produit{{ group.items.length > 1 ? 's' : '' }})</span>
-          </mat-panel-title>
-          <mat-panel-description>
-            Quantité totale: {{ getSupplierTotalQuantity(group.items) | number:'1.0-2' }}
-          </mat-panel-description>
-        </mat-expansion-panel-header>
-        
-        <table mat-table [dataSource]="group.items" class="stock-table">
-            <!-- Colonne Code Produit -->
-            <ng-container matColumnDef="productKey">
-              <th mat-header-cell *matHeaderCellDef>Code</th>
-              <td mat-cell *matCellDef="let item">
-                <strong>{{ item.productKey }}</strong>
-              </td>
-            </ng-container>
+            <span class="supplier-count">({{ group.items.length }} produit{{ group.items.length > 1 ? 's' : '' }})</span>
+          </div>
+          <div class="supplier-total">
+            Quantité totale: <span class="font-mono">{{ getSupplierTotalQuantity(group.items) | number:'1.0-0' }}</span>
+          </div>
+        </div>
 
-            <!-- Colonne Description -->
-            <ng-container matColumnDef="description">
-              <th mat-header-cell *matHeaderCellDef>Libellé</th>
-              <td mat-cell *matCellDef="let item">
-                {{ item.description || '-' }}
-              </td>
-            </ng-container>
-
-            <!-- Colonne Quantité -->
-            <ng-container matColumnDef="quantityOnHand">
-              <th mat-header-cell *matHeaderCellDef>Quantité</th>
-              <td mat-cell *matCellDef="let item">
-                <span [class.negative]="item.quantityOnHand < 0" [class.zero]="item.quantityOnHand === 0">
+        <!-- Table -->
+        <div class="table-wrap" *ngIf="isSupplierExpanded(group.supplier)">
+          <table class="data-table stock-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Libellé</th>
+                <th class="text-right">Quantité</th>
+                <th class="text-center">Unité</th>
+                <th>Dernière mise à jour</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of group.items"
+                  [class.row-error]="item.quantityOnHand < 0"
+                  class="stock-row">
+                <td class="col-mono code-cell">{{ item.productKey }}</td>
+                <td class="label-cell">
+                  {{ item.description || '-' }}
+                  <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" matTooltip="Stock négatif">report</mat-icon>
+                </td>
+                <td class="text-right col-mono qty-cell"
+                    [class.negative]="item.quantityOnHand < 0"
+                    [class.zero]="item.quantityOnHand === 0">
                   {{ item.quantityOnHand | number:'1.0-2' }}
-                </span>
-              </td>
-            </ng-container>
-
-            <!-- Colonne Unité -->
-            <ng-container matColumnDef="unit">
-              <th mat-header-cell *matHeaderCellDef>Unité</th>
-              <td mat-cell *matCellDef="let item">
-                {{ item.unit || '-' }}
-              </td>
-            </ng-container>
-
-            <!-- Colonne Dernière mise à jour -->
-            <ng-container matColumnDef="lastUpdated">
-              <th mat-header-cell *matHeaderCellDef>Dernière mise à jour</th>
-              <td mat-cell *matCellDef="let item">
-                {{ formatDate(item.lastUpdated) }}
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+                </td>
+                <td class="text-center unit-cell">{{ item.unit || '-' }}</td>
+                <td class="date-cell">{{ formatDate(item.lastUpdated) }}</td>
+              </tr>
+            </tbody>
           </table>
-        </mat-expansion-panel>
-    </mat-accordion>
-  </div>
+        </div>
+      </div>
 
-  <div class="no-data" *ngIf="stockItems.length === 0">
-    <mat-icon>inventory_2</mat-icon>
-    <p>Aucun produit en stock</p>
-  </div>
+    </div>
+  </section>
 </div>
-

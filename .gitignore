@@ -529,3 +529,11 @@ TestResults/
 
 ## Local development
 local.settings.json
+
+# Documents et scripts locaux
+*.txt
+*.pdf
+*.md
+*.xlsx
+*.ps1
+*.sql

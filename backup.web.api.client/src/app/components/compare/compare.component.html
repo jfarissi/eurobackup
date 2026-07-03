@@ -1,7 +1,17 @@
-<div class="compare-container">
-  <div class="compare-header">
-    <h1>🔗 Association & Comparaison de Documents</h1>
-  </div>
+<div class="page compare-page">
+
+  <!-- Page header -->
+  <section class="compare-page-header">
+    <div class="compare-page-header-text">
+      <h1>Association & Comparaison de Documents</h1>
+      <p>Réconciliation automatisée des factures et bons de livraison.</p>
+    </div>
+    <div class="compare-page-header-actions" *ngIf="selectedInvoice && selectedDelivery">
+      <button class="btn-secondary" (click)="linkSelected()">
+        <mat-icon>link</mat-icon> Valider l'Association
+      </button>
+    </div>
+  </section>
 
   <!-- Suggestions pour BL uploadé -->
   <div class="suggestion-card" *ngIf="blId && suggestedInvoices.length > 0">
@@ -126,13 +136,17 @@
 
   <!-- Recherche -->
   <div class="search-card">
-    <mat-form-field appearance="outline" class="search-field">
-      <mat-label>Recherche (texte, numéro, client)</mat-label>
-      <input matInput [(ngModel)]="query" (keyup.enter)="search()" />
-      <mat-icon matSuffix>search</mat-icon>
-    </mat-form-field>
-    <button mat-raised-button (click)="search()">Rechercher</button>
-    <button mat-stroked-button (click)="load()">Tout</button>
+    <div class="search-bar-wrap">
+      <mat-icon class="search-icon">search</mat-icon>
+      <input class="search-input"
+             [(ngModel)]="query"
+             (keyup.enter)="search()"
+             placeholder="Recherche (texte, numéro, client)..." />
+    </div>
+    <button class="btn-primary" (click)="search()">
+      <mat-icon>search</mat-icon> Rechercher
+    </button>
+    <button class="btn-secondary" (click)="load()">Tout</button>
   </div>
 
   <!-- Tableau des factures avec expansion -->
@@ -345,29 +359,24 @@
 
   <!-- Résultat de comparaison -->
   <div class="comparison-result-card" *ngIf="comparaisonResult">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h2 style="margin: 0;">📊 Résultat de la Comparaison</h2>
-      <div style="display: flex; gap: 8px;">
-        <button mat-stroked-button color="accent" (click)="reparseDocument(comparaisonResult.invoiceId)"
-          *ngIf="comparaisonResult?.invoiceId" matTooltip="Re-parser la facture (corriger le parsing)">
-          <mat-icon>refresh</mat-icon>
-          Reparser Facture
+    <div class="comparison-result-header">
+      <div class="comparison-result-title">
+        <h2>Comparaison de Détails</h2>
+        <div class="match-badges" *ngIf="comparaisonResult.lines.length">
+          <span class="badge-match"><mat-icon>check_circle</mat-icon> {{ getMatchCount() }} OK</span>
+          <span class="badge-error" *ngIf="getErrorCount() > 0"><mat-icon>error</mat-icon> {{ getErrorCount() }} ERREURS</span>
+        </div>
+      </div>
+      <div class="comparison-result-actions">
+        <button class="btn-ghost-sm" (click)="reparseDocument(comparaisonResult.invoiceId)" *ngIf="comparaisonResult?.invoiceId">
+          <mat-icon>refresh</mat-icon> Reparser Facture
         </button>
-        <button mat-stroked-button color="accent" (click)="reparseDocument(comparaisonResult.deliveryId)"
-          *ngIf="comparaisonResult?.deliveryId" matTooltip="Re-parser le BL (corriger le parsing)">
-          <mat-icon>refresh</mat-icon>
-          Reparser BL
+        <button class="btn-ghost-sm" (click)="reparseDocument(comparaisonResult.deliveryId)" *ngIf="comparaisonResult?.deliveryId">
+          <mat-icon>refresh</mat-icon> Reparser BL
         </button>
       </div>
     </div>
-    <div class="table-wrapper">
-      <!-- DEBUG: TO BE REMOVED -->
-      <div
-        style="background: #333; color: #fff; padding: 10px; margin-bottom: 10px; font-family: monospace; font-size: 12px; overflow: auto; max-height: 200px;"
-        *ngIf="comparaisonResult.lines.length > 0">
-        <h3>DEBUG JSON (First Line)</h3>
-        <pre>{{ comparaisonResult.lines[0] | json }}</pre>
-      </div>
+    <div class="table-wrapper comparison-scroll">
       <table mat-table [dataSource]="comparaisonResult.lines" class="comparison-table">
         <ng-container matColumnDef="product">
           <th mat-header-cell *matHeaderCellDef>Produit</th>

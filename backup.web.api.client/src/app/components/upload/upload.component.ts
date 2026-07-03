@@ -29,6 +29,10 @@ export class UploadComponent implements OnInit {
   displayedColumns: string[] = ['id', 'type', 'numero', 'client', 'supplier', 'date', 'actions'];
   suppliers: string[] = [];
   loading = false;
+  isDragOver = false;
+  recentDocuments: Document[] = [];
+  totalDocuments = 0;
+  metricsPercent = 0;
 
   constructor(
     private docs: DocumentService,
@@ -37,28 +41,59 @@ export class UploadComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // La liste des fournisseurs commence vide
-    // Elle sera remplie dynamiquement lors de l'inspection des fichiers ou après l'upload
+    this.loadRecentDocuments();
   }
 
-  loadSuppliers() {
+  loadRecentDocuments() {
     this.docs.list().subscribe(docs => {
+      this.totalDocuments = docs.length;
+      this.metricsPercent = Math.min(100, Math.round((docs.length / Math.max(docs.length, 50)) * 85));
+      this.recentDocuments = [...docs]
+        .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
+        .slice(0, 5);
       const suppliersSet = new Set<string>();
-      docs.forEach(d => {
-        if (d.supplier) {
-          suppliersSet.add(d.supplier);
-        }
-      });
+      docs.forEach(d => { if (d.supplier) suppliersSet.add(d.supplier); });
       this.suppliers = Array.from(suppliersSet).sort();
     });
   }
 
+  formatRelativeDate(dateStr: string): string {
+    if (!dateStr) return '-';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return 'À l\'instant';
+    if (hours < 24) return `Il y a ${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `Il y a ${days}j`;
+  }
+
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    this.isDragOver = true;
+  }
+
+  onDragLeave(event: DragEvent) {
+    event.preventDefault();
+    this.isDragOver = false;
+  }
+
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    this.isDragOver = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.processFile(file);
+  }
+
   onFileChange(event: any) {
-    this.file = event.target.files[0];
-    if (this.file) {
-      this.loading = true;
-      this.docs.inspect(this.file).subscribe({
-        next: (r) => {
+    const file = event.target.files?.[0];
+    if (file) this.processFile(file);
+  }
+
+  processFile(file: File) {
+    this.file = file;
+    this.loading = true;
+    this.docs.inspect(this.file).subscribe({
+      next: (r) => {
           if (r?.typeDocument) this.typeDocument = r.typeDocument;
           if (r?.numero) this.numero = r.numero;
           if (r?.client) this.client = r.client;
@@ -82,7 +117,10 @@ export class UploadComponent implements OnInit {
           this.loading = false;
         }
       });
-    }
+  }
+
+  loadSuppliers() {
+    this.loadRecentDocuments();
   }
 
   onSupplierChange() {
@@ -132,6 +170,7 @@ export class UploadComponent implements OnInit {
           }
           
           this.snack.open('Document uploadé avec succès', 'OK', { duration: 2000 });
+          this.loadRecentDocuments();
           
           // Si c'est un BL, rechercher les factures correspondantes
           if (doc.typeDocument === 'BonLivraison' && doc.numero) {

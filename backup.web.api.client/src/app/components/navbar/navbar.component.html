@@ -1,19 +1,66 @@
-<nav class="navbar">
-  <div class="navbar-container">
-    <div class="navbar-brand">
-      <mat-icon>description</mat-icon>
-      <span>Gestion Documents</span>
+<div class="app-shell">
+  <!-- Sidebar (desktop) -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-title">DocManager Pro</span>
+      <span class="brand-sub">Industrial Logistics</span>
     </div>
-    <div class="navbar-links">
-      <a *ngFor="let item of navItems" 
-         [routerLink]="item.path" 
+    <nav class="sidebar-nav">
+      <a *ngFor="let item of navItems"
+         [routerLink]="item.path"
          routerLinkActive="active"
-         [routerLinkActiveOptions]="{exact: false}"
-         class="nav-link">
+         [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+         class="sidebar-link">
         <mat-icon>{{ item.icon }}</mat-icon>
         <span>{{ item.label }}</span>
       </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-primary sidebar-cta" routerLink="/upload">
+        <mat-icon>add</mat-icon>
+        Nouvelle analyse
+      </button>
     </div>
-  </div>
-</nav>
+  </aside>
 
+  <div class="main-area">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="mobile-menu-btn" (click)="mobileNavOpen = !mobileNavOpen" type="button">
+          <mat-icon>menu</mat-icon>
+        </button>
+        <span class="topbar-title">{{ pageTitle }}</span>
+        <nav class="topbar-tabs">
+          <a *ngFor="let item of mainNavItems"
+             [routerLink]="item.path"
+             routerLinkActive="tab-active"
+             [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+             class="topbar-tab">
+            {{ item.tabLabel }}
+          </a>
+        </nav>
+      </div>
+      <div class="topbar-right">
+        <span class="env-badge label-caps">Python / Ollama</span>
+        <mat-icon class="account-icon">account_circle</mat-icon>
+      </div>
+    </header>
+
+    <!-- Mobile nav overlay -->
+    <nav class="mobile-nav" [class.open]="mobileNavOpen">
+      <a *ngFor="let item of navItems"
+         [routerLink]="item.path"
+         routerLinkActive="active"
+         (click)="mobileNavOpen = false"
+         class="mobile-nav-link">
+        <mat-icon>{{ item.icon }}</mat-icon>
+        <span>{{ item.label }}</span>
+      </a>
+    </nav>
+
+  <main class="page-content">
+    <router-outlet></router-outlet>
+  </main>
+  </div>
+</div>
