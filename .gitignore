@@ -532,6 +532,8 @@ local.settings.json
 
 # Documents et scripts locaux
 *.txt
+!requirements.txt
+!**/requirements.txt
 *.pdf
 *.md
 *.xlsx
