@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { filter } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 interface NavItem {
   path: string;
@@ -13,6 +14,21 @@ interface NavItem {
   exact?: boolean;
 }
 
+const MAIN_NAV_ITEMS: NavItem[] = [
+  { path: '/upload', label: 'Upload', tabLabel: 'Upload', icon: 'cloud_upload', title: 'Gestion Documents' },
+  { path: '/recherche', label: 'Recherche', tabLabel: 'Recherche', icon: 'search', title: 'Recherche' },
+  { path: '/compare', label: 'Association', tabLabel: 'Association', icon: 'link', title: 'Association' },
+  { path: '/stock', label: 'Stock', tabLabel: 'Stock', icon: 'inventory_2', title: 'Gestion Documents' },
+];
+
+const PYTHON_TEST_NAV_ITEM: NavItem = {
+  path: '/python-test',
+  label: 'Python / Ollama',
+  tabLabel: 'Dev',
+  icon: 'science',
+  title: 'Python / Ollama',
+};
+
 @Component({
   selector: 'app-navbar',
   templateUrl: './navbar.component.html',
@@ -22,17 +38,11 @@ interface NavItem {
 })
 export class NavbarComponent {
   mobileNavOpen = false;
-
-  readonly mainNavItems: NavItem[] = [
-    { path: '/upload', label: 'Upload', tabLabel: 'Upload', icon: 'cloud_upload', title: 'Gestion Documents' },
-    { path: '/compare', label: 'Association', tabLabel: 'Association', icon: 'link', title: 'Association' },
-    { path: '/stock', label: 'Stock', tabLabel: 'Stock', icon: 'inventory_2', title: 'Gestion Documents' },
-  ];
-
-  readonly navItems: NavItem[] = [
-    ...this.mainNavItems,
-    { path: '/python-test', label: 'Python / Ollama', tabLabel: 'Settings', icon: 'science', title: 'Python / Ollama' },
-  ];
+  readonly enablePythonTest = environment.enablePythonTest;
+  readonly mainNavItems = MAIN_NAV_ITEMS;
+  readonly navItems: NavItem[] = environment.enablePythonTest
+    ? [...MAIN_NAV_ITEMS, PYTHON_TEST_NAV_ITEM]
+    : MAIN_NAV_ITEMS;
 
   pageTitle = 'Gestion Documents';
 

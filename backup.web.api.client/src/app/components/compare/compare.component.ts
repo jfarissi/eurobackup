@@ -43,7 +43,6 @@ export class CompareComponent implements OnInit {
   erpPriceComparisonInvoice: Document | null = null;
   erpPriceComparisonLoading = false;
   
-  query = '';
   expandedInvoiceId: number | null = null;
 
   constructor(
@@ -127,18 +126,6 @@ export class CompareComponent implements OnInit {
       error: (err) => {
         console.error('Erreur lors de la recherche de factures:', err);
       }
-    });
-  }
-
-  search() {
-    if (!this.query) {
-      this.load();
-      return;
-    }
-    this.docs.search(this.query).subscribe(d => {
-      this.documents = d;
-      this.partitionDocuments(d);
-      this.applySupplierFilterIfNeeded();
     });
   }
 

@@ -134,21 +134,6 @@
     </button>
   </div>
 
-  <!-- Recherche -->
-  <div class="search-card">
-    <div class="search-bar-wrap">
-      <mat-icon class="search-icon">search</mat-icon>
-      <input class="search-input"
-             [(ngModel)]="query"
-             (keyup.enter)="search()"
-             placeholder="Recherche (texte, numéro, client)..." />
-    </div>
-    <button class="btn-primary" (click)="search()">
-      <mat-icon>search</mat-icon> Rechercher
-    </button>
-    <button class="btn-secondary" (click)="load()">Tout</button>
-  </div>
-
   <!-- Tableau des factures avec expansion -->
   <div class="table-card">
     <h2>📄 Factures <span class="doc-count">({{ factures.length }})</span></h2>

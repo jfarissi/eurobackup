@@ -45,15 +45,22 @@ export class UploadComponent implements OnInit {
   }
 
   loadRecentDocuments() {
-    this.docs.list().subscribe(docs => {
-      this.totalDocuments = docs.length;
-      this.metricsPercent = Math.min(100, Math.round((docs.length / Math.max(docs.length, 50)) * 85));
-      this.recentDocuments = [...docs]
-        .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
-        .slice(0, 5);
-      const suppliersSet = new Set<string>();
-      docs.forEach(d => { if (d.supplier) suppliersSet.add(d.supplier); });
-      this.suppliers = Array.from(suppliersSet).sort();
+    this.docs.list().subscribe({
+      next: (docs) => {
+        this.totalDocuments = docs.length;
+        this.metricsPercent = Math.min(100, Math.round((docs.length / Math.max(docs.length, 50)) * 85));
+        this.recentDocuments = [...docs]
+          .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
+          .slice(0, 5);
+        const suppliersSet = new Set<string>();
+        docs.forEach(d => { if (d.supplier) suppliersSet.add(d.supplier); });
+        this.suppliers = Array.from(suppliersSet).sort();
+      },
+      error: () => {
+        this.recentDocuments = [];
+        this.totalDocuments = 0;
+        this.metricsPercent = 0;
+      }
     });
   }
 

@@ -557,6 +557,33 @@
   font-weight: 600;
 }
 
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  color: var(--on-surface-variant);
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--error-container);
+  color: var(--on-error-container);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+}
+
+.error-banner mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
 @media (max-width: 768px) {
   .compare-page { padding: 12px; }
   .selection-items { flex-direction: column; }

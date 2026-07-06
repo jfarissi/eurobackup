@@ -1,0 +1,104 @@
+<div class="page search-page">
+  <section class="search-subheader">
+    <div class="search-subheader-inner">
+      <div class="search-title-block">
+        <h2>Recherche de Documents</h2>
+        <p>Rechercher par texte, numéro, client ou fournisseur</p>
+      </div>
+      <div class="search-bar-wrap">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input class="search-input"
+               [(ngModel)]="query"
+               (keyup.enter)="search()"
+               placeholder="Rechercher un document..." />
+        <button class="search-btn" (click)="search()" [disabled]="loading">Rechercher</button>
+        <button class="clear-btn" *ngIf="query" (click)="clear()" type="button">
+          <mat-icon>clear</mat-icon>
+        </button>
+      </div>
+    </div>
+    <div class="stats-bar" *ngIf="hasSearched && !loading">
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Résultats</span>
+        <span class="stat-value font-mono">{{ results.length }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Factures</span>
+        <span class="stat-value font-mono">{{ factures.length }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Bons de livraison</span>
+        <span class="stat-value font-mono">{{ bonsLivraison.length }}</span>
+      </div>
+      <span class="search-hint" *ngIf="hasSearched">Filtre actif : « {{ query }} »</span>
+    </div>
+  </section>
+
+  <section class="search-data-area">
+    <div class="search-data-inner">
+      <div class="loading-row" *ngIf="loading">
+        <mat-spinner diameter="32"></mat-spinner>
+        <span>Recherche en cours…</span>
+      </div>
+
+      <div class="error-banner" *ngIf="errorMessage && !loading">
+        <mat-icon>error</mat-icon>
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <div class="no-data welcome" *ngIf="!loading && !hasSearched && !errorMessage">
+        <mat-icon>search</mat-icon>
+        <p>Saisissez un terme puis cliquez sur <strong>Rechercher</strong></p>
+        <p class="hint">Numéro, client, fournisseur ou texte du document</p>
+      </div>
+
+      <div class="no-data" *ngIf="!loading && hasSearched && !errorMessage && results.length === 0">
+        <mat-icon>search_off</mat-icon>
+        <p>Aucun document trouvé</p>
+      </div>
+
+      <div class="card results-block" *ngIf="!loading && results.length > 0">
+        <div class="card-header">
+          <h3>Documents <span class="doc-count">({{ results.length }})</span></h3>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Numéro</th>
+                <th>Fournisseur</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let doc of results">
+                <td class="col-mono">{{ doc.id }}</td>
+                <td>
+                  <span class="chip-active" *ngIf="isFacture(doc)">Facture</span>
+                  <span class="chip-pending" *ngIf="isBl(doc)">BL</span>
+                  <span class="chip-error" *ngIf="isOther(doc)">{{ doc.typeDocument || 'Autre' }}</span>
+                </td>
+                <td class="col-mono">{{ doc.numero || '-' }}</td>
+                <td>{{ doc.supplier || '-' }}</td>
+                <td>{{ doc.client || '-' }}</td>
+                <td>{{ doc.dateDocument ? (doc.dateDocument | date:'yyyy-MM-dd') : '-' }}</td>
+                <td class="actions-cell">
+                  <button class="btn-ghost-sm" (click)="openInCompare(doc)" matTooltip="Ouvrir dans Association">
+                    <mat-icon>link</mat-icon>
+                  </button>
+                  <button class="btn-ghost-sm" (click)="download(doc.id)" matTooltip="Télécharger">
+                    <mat-icon>download</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
