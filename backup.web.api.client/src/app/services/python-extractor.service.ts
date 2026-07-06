@@ -15,6 +15,8 @@ export interface ParsedItem {
   unit?: string | null;
   unit_price?: number | null;
   line_total?: number | null;
+  /** Remise ligne (colonne % / korting) */
+  discount?: string | null;
 }
 
 /**

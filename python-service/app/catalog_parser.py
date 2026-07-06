@@ -139,23 +139,6 @@ def is_catalog(text: str) -> bool:
     """
     text_lower = text.lower()
     
-    # Mots-clés indicateurs de catalogue
-    catalog_keywords = [
-        "catalogue",
-        "catalog",
-        "product catalog",
-        "produktkatalog",
-        "productenlijst",
-        "prijslijst",
-        "price list",
-        "prijsnota",
-        "product list",
-        "assortiment",
-        "product range",
-        "complete range",
-        "product range presentation"
-    ]
-    
     # Mots-clés qui indiquent que ce n'est PAS un catalogue
     not_catalog_keywords = [
         "factuur",
@@ -166,32 +149,69 @@ def is_catalog(text: str) -> bool:
         "delivery note",
         "bon de livraison",
         "verzendnota",
-        "afleveringsbon"
+        "afleveringsbon",
+        "levering ",
+        "vervaldatum",
+        "factuurdatum",
+        "uw referentie",
+        "korting",
+        "subtotaal",
+        "goederen",
     ]
     
-    # Vérifier les mots-clés de catalogue
-    has_catalog_keyword = any(keyword in text_lower for keyword in catalog_keywords)
+    # Mots catalogue ambigus (peuvent apparaître dans une description produit)
+    weak_catalog_keywords = [
+        "assortiment",
+        "prijslijst",
+        "prijsnota",
+        "productenlijst",
+    ]
+    strong_catalog_keywords = [
+        "catalogue",
+        "catalog",
+        "product catalog",
+        "produktkatalog",
+        "price list",
+        "product list",
+        "product range",
+        "complete range",
+        "product range presentation",
+    ]
+    
+    has_strong_catalog_keyword = any(keyword in text_lower for keyword in strong_catalog_keywords)
+    has_weak_catalog_keyword = any(
+        re.search(rf"\b{re.escape(keyword)}\b", text_lower) for keyword in weak_catalog_keywords
+    )
+    has_catalog_keyword = has_strong_catalog_keyword or has_weak_catalog_keyword
     
     # Vérifier qu'il n'y a pas de mots-clés de facture/BL
     has_invoice_keyword = any(keyword in text_lower for keyword in not_catalog_keywords)
     
-    # Si on trouve "catalogue" et pas de mots-clés de facture, c'est probablement un catalogue
-    if has_catalog_keyword and not has_invoice_keyword:
+    # Métadonnées facture (y compris en-têtes verticaux type Xenex : Factuur / NUMMER / DATUM)
+    has_invoice_metadata = bool(
+        re.search(r"(?:factuur|invoice|faktuur)\s*(?:nr|number|nummer)\s*:?\s*\d{4,}", text_lower)
+        or re.search(r"(?:datum|date)\s*:?\s*\d{2}[./-]\d{2}[./-]\d{4}", text_lower)
+        or re.search(r"(?:client|klant|customer|factuurontvanger)\s*:?\s*[A-Z0-9]", text_lower)
+        or (
+            re.search(r"\bfactuur\b", text_lower)
+            and re.search(r"\b(nummer|datum|klant|vervaldatum|factuurdatum)\b", text_lower)
+        )
+        or re.search(r"\blevering\s+\d{4,}", text_lower)
+        or (
+            re.search(r"\b(?:korting|totaal)\b", text_lower)
+            and re.search(r"\b(?:aantal|omschrijving|ehp)\b", text_lower)
+        )
+    )
+    
+    # Facture / BL explicite → jamais un catalogue
+    if has_invoice_keyword or has_invoice_metadata:
+        return False
+    
+    # Catalogue explicite sans signaux facture
+    if has_catalog_keyword:
         return True
     
     # Heuristique supplémentaire : détection par patterns de catalogue
-    # Vérifier les métadonnées de facture (si présentes, ce n'est probablement pas un catalogue)
-    has_invoice_metadata = bool(
-        re.search(r"(?:factuur|invoice|faktuur)\s*(?:nr|number|nummer)\s*:?\s*\d{8,12}", text_lower) or
-        re.search(r"(?:datum|date)\s*:?\s*\d{2}[./-]\d{2}[./-]\d{4}", text_lower) or
-        re.search(r"(?:client|klant|customer|factuurontvanger)\s*:?\s*[A-Z0-9]", text_lower)
-    )
-    
-    # Si pas de métadonnées de facture et présence de "catalogue", c'est probablement un catalogue
-    if has_catalog_keyword and not has_invoice_metadata:
-        return True
-    
-    # Heuristique avancée : détecter les catalogues sans le mot "catalogue"
     # Patterns typiques d'un catalogue :
     # 1. Beaucoup de références produits (REF., REF, référence, etc.)
     ref_patterns = [

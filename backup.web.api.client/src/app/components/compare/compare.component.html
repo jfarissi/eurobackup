@@ -6,8 +6,11 @@
       <h1>Association & Comparaison de Documents</h1>
       <p>Réconciliation automatisée des factures et bons de livraison.</p>
     </div>
-    <div class="compare-page-header-actions" *ngIf="selectedInvoice && selectedDelivery">
-      <button class="btn-secondary" (click)="linkSelected()">
+    <div class="compare-page-header-actions">
+      <button class="btn-secondary" *ngIf="hasComparisonResults()" (click)="exportAllComparisonsExcel()">
+        <mat-icon>download</mat-icon> Exporter tout (Excel)
+      </button>
+      <button class="btn-secondary" *ngIf="selectedInvoice && selectedDelivery" (click)="linkSelected()">
         <mat-icon>link</mat-icon> Valider l'Association
       </button>
     </div>
@@ -353,6 +356,9 @@
         </div>
       </div>
       <div class="comparison-result-actions">
+        <button class="btn-ghost-sm" (click)="exportComparaisonExcel()">
+          <mat-icon>download</mat-icon> Excel
+        </button>
         <button class="btn-ghost-sm" (click)="reparseDocument(comparaisonResult.invoiceId)" *ngIf="comparaisonResult?.invoiceId">
           <mat-icon>refresh</mat-icon> Reparser Facture
         </button>
@@ -495,7 +501,12 @@
 
   <!-- Résultat de comparaison de prix entre factures -->
   <div class="comparison-result-card" *ngIf="invoicePriceComparisonResult">
-    <h2>💰 Comparaison de Prix entre Factures</h2>
+    <div class="comparison-result-header">
+      <h2>💰 Comparaison de Prix entre Factures</h2>
+      <button class="btn-ghost-sm" (click)="exportInvoicePriceExcel()">
+        <mat-icon>download</mat-icon> Excel
+      </button>
+    </div>
     <div class="invoice-comparison-header">
       <div class="invoice-info-box">
         <strong>Facture 1:</strong>
@@ -558,7 +569,12 @@
 
   <!-- Résultat de comparaison avec les prix ERP -->
   <div class="comparison-result-card" *ngIf="erpPriceComparisonLoading || erpPriceComparisonResult">
-    <h2>🏷️ Comparaison avec les prix ERP</h2>
+    <div class="comparison-result-header">
+      <h2>🏷️ Comparaison avec les prix ERP</h2>
+      <button class="btn-ghost-sm" *ngIf="erpPriceComparisonResult?.length" (click)="exportErpPriceExcel()">
+        <mat-icon>download</mat-icon> Excel
+      </button>
+    </div>
     <div class="invoice-comparison-header" *ngIf="erpPriceComparisonInvoice">
       <div class="invoice-info-box">
         <strong>Facture:</strong>

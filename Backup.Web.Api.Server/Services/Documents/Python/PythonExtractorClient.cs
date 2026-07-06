@@ -301,10 +301,14 @@ namespace Backup.Web.Api.Server.Services.Documents.Python
                     // Prix
                     var unitPrice = (decimal)(item.unit_price ?? 0d);
                     var totalValue = (decimal)(item.line_total ?? 0d);
-                    // Si line_total n'est pas disponible, calculer depuis unit_price * qty
-                    if (totalValue == 0 && unitPrice > 0 && qty > 0)
+                    // Regelbedrag prioritaire ; repli qté×PU seulement si absent
+                    if (item.line_total == null && unitPrice > 0 && qty > 0)
                     {
                         totalValue = unitPrice * (decimal)qty;
+                    }
+                    else if (item.line_total != null)
+                    {
+                        totalValue = (decimal)item.line_total;
                     }
 
                     // Enforce DB max lengths

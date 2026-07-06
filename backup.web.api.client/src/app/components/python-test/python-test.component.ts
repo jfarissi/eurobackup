@@ -35,6 +35,7 @@ export class PythonTestComponent implements OnInit {
     'qty',
     'unit',
     'unit_price',
+    'discount',
     'line_calc',
     'line_total'
   ];
@@ -413,13 +414,13 @@ export class PythonTestComponent implements OnInit {
     this.updateAmountSummary();
   }
 
-  /** Regelbedrag arrondi 2 déc.; sinon repli qté×PU (peut différer du PDF). */
+  /** Regelbedrag du PDF (prioritaire sur qté×PU, ex. 54,05 vs 4×13,51). */
   lineAmount(item: ParsedItem): number {
-    const qty = item.qty ?? 0;
-    const unit = item.unit_price ?? 0;
-    if (item.line_total != null && item.line_total > 0) {
+    if (item.line_total != null && item.line_total >= 0) {
       return this.roundMoney(item.line_total);
     }
+    const qty = item.qty ?? 0;
+    const unit = item.unit_price ?? 0;
     if (qty > 0 && unit > 0) {
       return this.roundMoney(qty * unit);
     }
@@ -434,7 +435,7 @@ export class PythonTestComponent implements OnInit {
   }
 
   hasAmountMismatch(item: ParsedItem): boolean {
-    if (item.line_total == null || item.line_total <= 0) return false;
+    if (item.line_total == null || item.line_total < 0) return false;
     const calc = this.qtyTimesUnit(item);
     if (calc == null) return false;
     return Math.abs(this.roundMoney(item.line_total) - calc) >= 0.01;
@@ -445,7 +446,7 @@ export class PythonTestComponent implements OnInit {
       const qty = item.qty ?? 0;
       const unit = item.unit_price ?? 0;
       let lineTotal = item.line_total;
-      if (lineTotal != null && lineTotal > 0) {
+      if (lineTotal != null && lineTotal >= 0) {
         lineTotal = this.roundMoney(lineTotal);
       } else if (qty > 0 && unit > 0) {
         lineTotal = this.roundMoney(qty * unit);
@@ -468,7 +469,7 @@ export class PythonTestComponent implements OnInit {
     let mismatchCount = 0;
     for (const item of items) {
       linesSum += this.lineAmount(item);
-      if (item.line_total != null && item.line_total > 0) {
+      if (item.line_total != null && item.line_total >= 0) {
         regelSum += this.roundMoney(item.line_total);
       }
       const calc = this.qtyTimesUnit(item);

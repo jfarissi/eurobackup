@@ -58,6 +58,40 @@ def classify_supplier(text: str) -> Tuple[str, float, Dict[str, int]]:
             "haachtsesteenweg 672",
             "kampenhout",
         ],
+        "Bobrush": [
+            "bobrush bv",
+            "bobrush.be",
+            "info@bobrush.be",
+            "ter vlucht 20",
+            "ardooie",
+        ],
+        "Sadu": [
+            "sadu abrasives",
+            "info@sadu.be",
+            "entrepotstraat 12",
+            "sint-niklaas",
+            "sadu.com",
+            "kwakkelhoekstraat 89",
+            "kort.%",
+            "sad/out/",
+        ],
+        "Xenex": [
+            "xenex",
+            "info@xenex.be",
+            "xenex.be",
+            "oudenaardebaan 64",
+            "kluisbergen",
+            "rec/beb",
+        ],
+        "Rectavit": [
+            "rectavit",
+            "info@rectavit.be",
+            "rectavit.be",
+            "ambachtenlaan 4",
+            "lochristi",
+            "rectafix",
+            "rvit ",
+        ],
     }
 
     raw_scores: Dict[str, int] = {k: _contains_any(t, v) for k, v in signals.items()}

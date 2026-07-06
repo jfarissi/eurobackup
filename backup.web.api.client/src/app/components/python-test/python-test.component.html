@@ -286,8 +286,8 @@
       </div>
     </div>
     <p class="amount-hint" *ngIf="stats.amountMismatchCount > 0">
-      Ex. <code>1-5143-5080</code> : 4 × 13,51 = 54,04 € mais le PDF indique 54,05 € (regelbedrag).
-      La colonne <strong>Total</strong> doit reprendre le regelbedrag du parseur, pas qté×PU.
+      Ex. <code>1-5143-5080</code> : 4 × 13,51 = 54,04 € mais le PDF indique 54,05 € (regelbedrag après remise %).
+      La colonne <strong>Total ligne</strong> reprend le regelbedrag du parseur ; la colonne <strong>Qté×PU</strong> sert uniquement à la comparaison.
     </p>
   </div>
 
@@ -330,6 +330,12 @@
         <ng-container matColumnDef="unit_price">
           <th mat-header-cell *matHeaderCellDef>Prix unitaire</th>
           <td mat-cell *matCellDef="let item">{{ formatUnitPrice(item.unit_price) }}</td>
+        </ng-container>
+
+        <!-- Discount % Column -->
+        <ng-container matColumnDef="discount">
+          <th mat-header-cell *matHeaderCellDef>%</th>
+          <td mat-cell *matCellDef="let item">{{ item.discount || '-' }}</td>
         </ng-container>
 
         <!-- Qté × PU (comparaison) -->

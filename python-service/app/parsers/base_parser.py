@@ -67,6 +67,22 @@ class BaseParser(ABC):
             return "STG"
         elif "stg" in self.text_lower and ("tool" in self.text_lower or "group" in self.text_lower):
             return "STG"
+        elif "bobrush" in self.text_lower or "info@bobrush.be" in self.text_lower:
+            return "Bobrush"
+        elif "sadu abrasives" in self.text_lower or "info@sadu.be" in self.text_lower:
+            return "Sadu"
+        elif "sad/out/" in self.text_lower and "kort.%" in self.text_lower:
+            return "Sadu"
+        elif "entrepotstraat 12" in self.text_lower and "sint-niklaas" in self.text_lower:
+            return "Sadu"
+        elif "xenex" in self.text_lower or "info@xenex.be" in self.text_lower:
+            return "Xenex"
+        elif "oudenaardebaan 64" in self.text_lower and "kluisbergen" in self.text_lower:
+            return "Xenex"
+        elif "rectavit" in self.text_lower or "info@rectavit.be" in self.text_lower:
+            return "Rectavit"
+        elif "ambachtenlaan 4" in self.text_lower and "lochristi" in self.text_lower:
+            return "Rectavit"
             
         return "Unknown"
     

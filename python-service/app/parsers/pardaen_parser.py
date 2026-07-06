@@ -693,7 +693,7 @@ class PardaenParser(BaseParser):
                 joined,
             ).strip()
         qty, unit, _ = self._extract_qty_unit_price(block, sku, prefer_last=True)
-        unit_price, line_total = self._extract_invoice_prices_from_tail(block, qty)
+        unit_price, line_total, discount = self._extract_invoice_prices_from_tail(block, qty)
         unit_price, line_total = self._finalize_invoice_line_amounts(
             unit_price, line_total, qty
         )
@@ -718,6 +718,7 @@ class PardaenParser(BaseParser):
                 "ean": None,
                 "barcode_raw": None,
                 "barcode_normalized": None,
+                "discount": discount,
                 "unit_price": unit_price,
                 "line_total": line_total,
             },
@@ -884,10 +885,32 @@ class PardaenParser(BaseParser):
 
         return self._resolve_invoice_net_price(bruto, net, line_total, qty)
 
+    @staticmethod
+    def _format_discount_value(raw: Optional[str]) -> Optional[str]:
+        if not raw:
+            return None
+        t = str(raw).strip()
+        if not t:
+            return None
+        if t.endswith("%"):
+            return t
+        if re.fullmatch(r"\d+\+\d+", t):
+            return t
+        return f"{t}%"
+
+    def _extract_invoice_discount_from_tail(self, tail_lines: List[str]) -> Optional[str]:
+        """Colonne Korting % (header « % ») dans le bloc prix après qté/unité."""
+        for line in tail_lines:
+            s = line.strip()
+            if self._is_invoice_korting_line(s):
+                return self._format_discount_value(s)
+        return None
+
     def _append_invoice_row_match(self, items: List[Dict], match: re.Match) -> None:
         qty = self._to_float(match.group(3)) or 0.0
         unit = match.group(4).strip()
         bruto = self._to_float(match.group(5))
+        discount = self._format_discount_value(match.group(6))
         net = self._to_float(match.group(7))
         line_total = self._to_float(match.group(8))
         unit_price, line_total = self._resolve_invoice_net_price(bruto, net, line_total, qty)
@@ -903,6 +926,7 @@ class PardaenParser(BaseParser):
                 "ean": None,
                 "barcode_raw": None,
                 "barcode_normalized": None,
+                "discount": discount,
                 "unit_price": unit_price,
                 "line_total": line_total,
             }
@@ -912,6 +936,7 @@ class PardaenParser(BaseParser):
         """Ligne facture 100% korting (netto 0,00) — qty/unit en groupes 3-4."""
         qty = self._to_float(match.group(3)) or 0.0
         unit = match.group(4).strip()
+        discount = self._format_discount_value(match.group(5))
         net = self._to_float(match.group(6)) or 0.0
         items.append(
             {
@@ -922,6 +947,7 @@ class PardaenParser(BaseParser):
                 "ean": None,
                 "barcode_raw": None,
                 "barcode_normalized": None,
+                "discount": discount,
                 "unit_price": net,
                 "line_total": round(net * qty, 2) if qty > 0 else net,
             }
@@ -929,8 +955,9 @@ class PardaenParser(BaseParser):
 
     def _extract_invoice_prices_from_tail(
         self, tail_lines: List[str], qty: Optional[float] = None
-    ) -> tuple[Optional[float], Optional[float]]:
+    ) -> tuple[Optional[float], Optional[float], Optional[str]]:
         """Collect price lines after qty+unit; skip Korting % and Btw % rows."""
+        discount = self._extract_invoice_discount_from_tail(tail_lines)
         money_after_unit: List[float] = []
         seen_unit = False
         for line in tail_lines:
@@ -951,14 +978,16 @@ class PardaenParser(BaseParser):
                 if v is not None:
                     money_after_unit.append(v)
         if money_after_unit:
-            return self._pick_invoice_net_unit_price(money_after_unit, qty)
+            unit_price, line_total = self._pick_invoice_net_unit_price(money_after_unit, qty)
+            return unit_price, line_total, discount
         joined = " ".join(tail_lines)
         money_values = [
             self._to_float(x.group(0))
             for x in self.INVOICE_MONEY_RE.finditer(joined)
         ]
         money_values = [v for v in money_values if v is not None]
-        return self._pick_invoice_net_unit_price(money_values, qty)
+        unit_price, line_total = self._pick_invoice_net_unit_price(money_values, qty)
+        return unit_price, line_total, discount
 
     def _clean_invoice_description(self, desc: str) -> str:
         out = (desc or "").strip()
@@ -1183,7 +1212,7 @@ class PardaenParser(BaseParser):
             lt = it.get("line_total")
             up = float(it.get("unit_price") or 0)
             qty = float(it.get("qty") or 0)
-            if lt is not None and float(lt) > 0:
+            if lt is not None and float(lt) >= 0:
                 total += float(lt)
             elif up > 0 and qty > 0:
                 total += round(up * qty, 2)
@@ -1226,29 +1255,32 @@ class PardaenParser(BaseParser):
         """Lignes tableau complètes (Bruto/Netto/Regelbedrag) → regelbedrag fiable pour la somme HT."""
         if not self.full_text:
             return
-        by_sku: Dict[str, tuple[float, float, float]] = {}
+        by_sku: Dict[str, tuple[float, float, float, Optional[str]]] = {}
         for line in self.full_text.splitlines():
             m = self.INVOICE_LINE_FIND_RE.search(line.strip())
             if not m:
                 continue
             sku = m.group(1).strip().upper()
             ref_qty = self._to_float(m.group(3)) or 0.0
+            ref_discount = self._format_discount_value(m.group(6))
             ref_net = self._to_float(m.group(7)) or 0.0
             regel = self._to_float(m.group(8)) or 0.0
             if regel > 0:
-                by_sku[sku] = (ref_qty, ref_net, regel)
+                by_sku[sku] = (ref_qty, ref_net, regel, ref_discount)
 
         for it in items:
             sku = (it.get("sku") or "").strip().upper()
             if sku not in by_sku:
                 continue
-            ref_qty, ref_net, regel = by_sku[sku]
+            ref_qty, ref_net, regel, ref_discount = by_sku[sku]
             qty = float(it.get("qty") or 0)
             if ref_qty > 0 and qty > 0 and abs(qty - ref_qty) / max(ref_qty, qty) > 0.05:
                 continue
             it["line_total"] = regel
             if ref_net > 0:
                 it["unit_price"] = ref_net
+            if ref_discount and not it.get("discount"):
+                it["discount"] = ref_discount
 
     def _finalize_invoice_items(self, items: List[Dict]) -> List[Dict]:
         """Drop OCR garbage, then one row per SKU with summed quantities."""
@@ -1268,15 +1300,14 @@ class PardaenParser(BaseParser):
         consolidated = self._consolidate_items_by_sku(cleaned)
         self._backfill_regelbedrag_from_embedded_rows(consolidated)
         for it in consolidated:
+            lt = it.get("line_total")
+            if lt is not None:
+                it["line_total"] = round(float(lt), 2)
+                continue
             up = float(it.get("unit_price") or 0)
             qty = float(it.get("qty") or 0)
-            if up <= 0 or qty <= 0:
-                continue
-            lt = it.get("line_total")
-            if lt is None or float(lt) <= 0:
+            if up > 0 and qty > 0:
                 it["line_total"] = round(up * qty, 2)
-            else:
-                it["line_total"] = round(float(lt), 2)
         return consolidated
 
     def _is_weak_delivery_item(self, sku: str, description: str, block_lines: List[str]) -> bool:
@@ -1642,7 +1673,7 @@ class PardaenParser(BaseParser):
         qty, unit, _ = self._extract_qty_unit_price(
             tail_lines, sku, prefer_last=True
         )
-        unit_price, line_total = self._extract_invoice_prices_from_tail(tail_lines, qty)
+        unit_price, line_total, discount = self._extract_invoice_prices_from_tail(tail_lines, qty)
         unit_price, line_total = self._finalize_invoice_line_amounts(
             unit_price, line_total, qty
         )
@@ -1664,6 +1695,7 @@ class PardaenParser(BaseParser):
                 "ean": None,
                 "barcode_raw": None,
                 "barcode_normalized": None,
+                "discount": discount,
                 "unit_price": unit_price,
                 "line_total": line_total,
             },
@@ -1676,11 +1708,12 @@ class PardaenParser(BaseParser):
         line_total: Optional[float],
         qty: float,
     ) -> tuple[Optional[float], Optional[float]]:
+        """Conserve le regelbedrag PDF ; ne calcule qté×PU qu'en dernier recours."""
+        if line_total is not None and line_total >= 0:
+            return unit_price, round(float(line_total), 2)
         if unit_price is None or qty <= 0:
             return unit_price, line_total
-        if line_total is None or line_total <= 0:
-            return unit_price, round(unit_price * qty, 2)
-        return unit_price, round(line_total, 2)
+        return unit_price, round(unit_price * qty, 2)
 
     def _extract_products_invoice_vertical(self, lines: List[str]) -> List[Dict]:
         items: List[Dict] = []
@@ -1866,8 +1899,11 @@ class PardaenParser(BaseParser):
             )
 
             line_total = None
+            discount = None
             if not is_delivery:
-                unit_price, line_total = self._extract_invoice_prices_from_tail(block_lines, qty)
+                unit_price, line_total, discount = self._extract_invoice_prices_from_tail(
+                    block_lines, qty
+                )
             elif unit_price is None:
                 money_values = [
                     self._to_float(x.group(0))
@@ -1938,6 +1974,7 @@ class PardaenParser(BaseParser):
                         "ean": ean,
                         "barcode_raw": barcode_raw,
                         "barcode_normalized": barcode_normalized,
+                        "discount": discount,
                         "unit_price": unit_price,
                         "line_total": line_total,
                     }

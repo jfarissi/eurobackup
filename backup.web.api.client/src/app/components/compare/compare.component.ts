@@ -8,6 +8,12 @@ import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { DocumentRelation } from '../../models/relation';
 import { ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonResult } from '../../models/comparison';
+import {
+  exportAllComparisonsToExcel,
+  exportComparaisonToExcel,
+  exportErpPriceToExcel,
+  exportInvoicePriceToExcel,
+} from '../../utils/comparison-excel.util';
 
 @Component({
   selector: 'app-compare',
@@ -636,6 +642,54 @@ export class CompareComponent implements OnInit {
 
   getErrorCount(): number {
     return this.comparaisonResult?.lines?.filter(l => l.status !== 'OK').length ?? 0;
+  }
+
+  hasComparisonResults(): boolean {
+    return !!(
+      this.comparaisonResult?.lines?.length ||
+      this.invoicePriceComparisonResult?.lines?.length ||
+      this.erpPriceComparisonResult?.length
+    );
+  }
+
+  exportComparaisonExcel(): void {
+    if (!this.comparaisonResult?.lines?.length) {
+      return;
+    }
+    exportComparaisonToExcel(this.comparaisonResult);
+    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+  }
+
+  exportInvoicePriceExcel(): void {
+    if (!this.invoicePriceComparisonResult?.lines?.length) {
+      return;
+    }
+    exportInvoicePriceToExcel(this.invoicePriceComparisonResult);
+    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+  }
+
+  exportErpPriceExcel(): void {
+    if (!this.erpPriceComparisonResult?.length) {
+      return;
+    }
+    const label = this.erpPriceComparisonInvoice?.numero
+      ?? String(this.erpPriceComparisonInvoice?.id ?? 'facture');
+    exportErpPriceToExcel(this.erpPriceComparisonResult, label);
+    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+  }
+
+  exportAllComparisonsExcel(): void {
+    if (!this.hasComparisonResults()) {
+      return;
+    }
+    exportAllComparisonsToExcel({
+      comparaison: this.comparaisonResult,
+      invoicePrice: this.invoicePriceComparisonResult,
+      erpLines: this.erpPriceComparisonResult,
+      erpInvoiceLabel: this.erpPriceComparisonInvoice?.numero
+        ?? String(this.erpPriceComparisonInvoice?.id ?? ''),
+    });
+    this.snack.open('Export Excel (toutes les comparaisons) téléchargé', 'OK', { duration: 2500 });
   }
 }
 

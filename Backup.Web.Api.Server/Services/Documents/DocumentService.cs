@@ -469,6 +469,10 @@ namespace Backup.Web.Api.Server.Services.Documents
             // Supplier (optional): look for known suppliers
             if (lower.Contains("ff group")) meta.Supplier = "FF GROUP";
             if (lower.Contains("knauf")) meta.Supplier = "Knauf";
+            if (lower.Contains("bobrush") || lower.Contains("bobruche")) meta.Supplier = "Bobrush";
+            if (lower.Contains("sadu abrasives") || lower.Contains("info@sadu.be")) meta.Supplier = "Sadu";
+            if (lower.Contains("xenex") || lower.Contains("info@xenex.be")) meta.Supplier = "Xenex";
+            if (lower.Contains("rectavit") || lower.Contains("info@rectavit.be")) meta.Supplier = "Rectavit";
 
             return meta;
         }

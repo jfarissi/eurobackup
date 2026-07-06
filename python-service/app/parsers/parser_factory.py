@@ -9,6 +9,10 @@ from .kolor_system import KolorSystemParser
 from .coek_parser import CoekParser
 from .pgb_parser import PGBParser
 from .pardaen_parser import PardaenParser
+from .bobruche_parser import BobrucheParser
+from .sadu_parser import SaduParser
+from .xenex_parser import XenexParser
+from .rectavit_parser import RectavitParser
 from .document_classifier import classify_supplier, classify_doc_type
 
 def log_debug(msg):
@@ -77,6 +81,14 @@ def create_parser(
         return PGBParser(pdf_path)
     elif "pardaen" in supplier_lower:
         return PardaenParser(pdf_path)
+    elif "bobrush" in supplier_lower or "bobruche" in supplier_lower:
+        return BobrucheParser(pdf_path)
+    elif "sadu" in supplier_lower:
+        return SaduParser(pdf_path)
+    elif "xenex" in supplier_lower:
+        return XenexParser(pdf_path)
+    elif "rectavit" in supplier_lower:
+        return RectavitParser(pdf_path)
     else:
         return GenericParser(pdf_path)
 
