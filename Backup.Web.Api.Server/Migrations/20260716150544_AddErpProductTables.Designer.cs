@@ -4,6 +4,7 @@ using Backup.Web.Api.Server.Brokers.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Backup.Web.Api.Server.Migrations
 {
     [DbContext(typeof(StorageBroker))]
-    partial class StorageBrokerModelSnapshot : ModelSnapshot
+    [Migration("20260716150544_AddErpProductTables")]
+    partial class AddErpProductTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -235,10 +238,6 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("DataSource")
-                        .HasMaxLength(32)
-                        .HasColumnType("varchar(32)");
-
                     b.Property<decimal?>("Depth")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -259,9 +258,6 @@ namespace Backup.Web.Api.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
-
-                    b.Property<bool>("FromExcel")
-                        .HasColumnType("tinyint(1)");
 
                     b.Property<decimal?>("Height")
                         .HasPrecision(18, 4)
@@ -355,10 +351,6 @@ namespace Backup.Web.Api.Server.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("varchar(128)");
 
-                    b.Property<string>("SourceFile")
-                        .HasMaxLength(512)
-                        .HasColumnType("varchar(512)");
-
                     b.Property<DateTime?>("StockDate")
                         .HasColumnType("datetime(6)");
 
@@ -418,8 +410,6 @@ namespace Backup.Web.Api.Server.Migrations
 
                     b.HasIndex("ErpProductId")
                         .IsUnique();
-
-                    b.HasIndex("FromExcel");
 
                     b.HasIndex("Reference");
 

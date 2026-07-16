@@ -19,6 +19,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { path: '/recherche', label: 'Recherche', tabLabel: 'Recherche', icon: 'search', title: 'Recherche' },
   { path: '/compare', label: 'Association', tabLabel: 'Association', icon: 'link', title: 'Association' },
   { path: '/stock', label: 'Stock', tabLabel: 'Stock', icon: 'inventory_2', title: 'Gestion Documents' },
+  { path: '/erp-changes', label: 'ERP', tabLabel: 'ERP', icon: 'sync_alt', title: 'Changements ERP' },
 ];
 
 const PYTHON_TEST_NAV_ITEM: NavItem = {

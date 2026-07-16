@@ -1,0 +1,181 @@
+<div class="page erp-page">
+  <section class="erp-subheader">
+    <div class="erp-subheader-inner">
+      <div class="erp-title-block">
+        <h2>Changements ERP</h2>
+        <p>Suivi des modifications détectées sur les produits du webservice EuroBrico</p>
+      </div>
+
+      <div class="erp-actions">
+        <button class="btn-secondary" type="button" (click)="loadChanges()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Actualiser
+        </button>
+        <button class="btn-secondary" type="button" (click)="importExcel(false)" [disabled]="importing || syncing">
+          <mat-icon>upload_file</mat-icon>
+          {{ importing ? 'Import…' : 'Importer Excel' }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="importExcel(true)" [disabled]="importing || syncing">
+          <mat-icon>playlist_add_check</mat-icon>
+          Excel + Sync ERP
+        </button>
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing">
+          <mat-icon>{{ syncing ? 'hourglass_top' : 'sync' }}</mat-icon>
+          {{ syncing ? 'Sync en cours…' : 'Enrichir depuis ERP' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Total filtrés</span>
+        <span class="stat-value font-mono">{{ total }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Non lus (page)</span>
+        <span class="stat-value font-mono">{{ unreadCount() }}</span>
+      </div>
+      <div class="stat-chip" *ngIf="syncLogs[0] as last">
+        <span class="stat-label label-caps">Dernière sync</span>
+        <span class="stat-value">{{ last.status }} · {{ formatDate(last.completedAt || last.startedAt) }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="erp-filters">
+    <div class="erp-filters-inner">
+      <label class="filter-toggle">
+        <input type="checkbox" [(ngModel)]="unreadOnly" (change)="applyFilters()" />
+        Non lus uniquement
+      </label>
+
+      <select class="filter-select" [(ngModel)]="changeType" (change)="applyFilters()">
+        <option *ngFor="let t of changeTypes" [value]="t.value">{{ t.label }}</option>
+      </select>
+
+      <button class="btn-secondary btn-sm" type="button" (click)="markSelectedRead()" [disabled]="selectedIds.size === 0">
+        <mat-icon>done</mat-icon>
+        Marquer sélection
+      </button>
+      <button class="btn-secondary btn-sm" type="button" (click)="markAllVisibleRead()">
+        <mat-icon>done_all</mat-icon>
+        Tout marquer (page)
+      </button>
+      <button class="clear-link" type="button" (click)="clearFilters()">Réinitialiser</button>
+    </div>
+  </section>
+
+  <section class="erp-data-area">
+    <div class="erp-data-inner">
+
+      <div class="loading-wrap" *ngIf="loading">
+        <mat-spinner diameter="36"></mat-spinner>
+        <span>Chargement des changements…</span>
+      </div>
+
+      <div class="no-data" *ngIf="!loading && changes.length === 0">
+        <mat-icon>notifications_none</mat-icon>
+        <p>Aucun changement ERP pour ces filtres</p>
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing">
+          Lancer une synchronisation
+        </button>
+      </div>
+
+      <div class="card table-card" *ngIf="!loading && changes.length > 0">
+        <div class="table-wrap">
+          <table class="data-table erp-table">
+            <thead>
+              <tr>
+                <th class="col-check">
+                  <input type="checkbox"
+                         [checked]="allSelected"
+                         (change)="toggleSelectAll()"
+                         aria-label="Tout sélectionner" />
+                </th>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Produit</th>
+                <th>Champ</th>
+                <th>Avant</th>
+                <th>Après</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let change of changes"
+                  [class.row-unread]="!change.isRead"
+                  (click)="toggleSelect(change.id)">
+                <td class="col-check" (click)="$event.stopPropagation()">
+                  <input type="checkbox"
+                         [checked]="isSelected(change.id)"
+                         (change)="toggleSelect(change.id)" />
+                </td>
+                <td class="date-cell">{{ formatDate(change.detectedAt) }}</td>
+                <td>
+                  <span class="type-chip" [ngClass]="changeTypeClass(change.changeType)">
+                    {{ changeTypeLabel(change.changeType) }}
+                  </span>
+                </td>
+                <td class="product-cell">
+                  <div class="product-name">{{ productTitle(change) }}</div>
+                  <div class="product-meta font-mono" *ngIf="change.product as p">
+                    <span *ngIf="p.reference">{{ p.reference }}</span>
+                    <span *ngIf="p.ean"> · {{ p.ean }}</span>
+                    <span *ngIf="p.brand"> · {{ p.brand }}</span>
+                  </div>
+                </td>
+                <td>{{ fieldLabel(change.fieldName) }}</td>
+                <td class="value-cell old font-mono">{{ change.oldValue || '—' }}</td>
+                <td class="value-cell new font-mono">{{ change.newValue || '—' }}</td>
+                <td>
+                  <span class="read-badge" [class.unread]="!change.isRead">
+                    {{ change.isRead ? 'Lu' : 'Non lu' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pager">
+          <button class="btn-secondary btn-sm" type="button" (click)="prevPage()" [disabled]="page <= 1">
+            Précédent
+          </button>
+          <span class="pager-info font-mono">Page {{ page }} / {{ totalPages }}</span>
+          <button class="btn-secondary btn-sm" type="button" (click)="nextPage()" [disabled]="page >= totalPages">
+            Suivant
+          </button>
+        </div>
+      </div>
+
+      <div class="card sync-logs-card" *ngIf="syncLogs.length > 0">
+        <h3>Dernières synchronisations</h3>
+        <table class="data-table sync-table">
+          <thead>
+            <tr>
+              <th>Démarrée</th>
+              <th>Statut</th>
+              <th>Nouveaux</th>
+              <th>Mis à jour</th>
+              <th>Échecs</th>
+              <th>Changements</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let log of syncLogs">
+              <td>{{ formatDate(log.startedAt) }}</td>
+              <td>
+                <span class="status-pill" [attr.data-status]="log.status">{{ log.status }}</span>
+              </td>
+              <td class="font-mono">{{ log.newProducts }}</td>
+              <td class="font-mono">{{ log.updatedProducts }}</td>
+              <td class="font-mono">{{ log.failedProducts }}</td>
+              <td class="font-mono">{{ log.totalChanges }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+</div>

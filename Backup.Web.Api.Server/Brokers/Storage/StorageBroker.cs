@@ -70,9 +70,89 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(a => a.CreatedBy).HasMaxLength(128);
                 entity.Property(a => a.ValidatedBy).HasMaxLength(128);
             });
-            //AddSemesterCourseReferences(modelBuilder);
-            //AddStudentSemesterCourseReferences(modelBuilder);
-            //AddStudentGuardianReferences(modelBuilder);
+
+            modelBuilder.Entity<ErpProduct>(entity =>
+            {
+                entity.ToTable("ErpProducts");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.ErpProductId).IsUnique();
+                entity.HasIndex(p => p.Ean);
+                entity.HasIndex(p => p.Reference);
+                entity.Property(p => p.ErpProductId).IsRequired().HasMaxLength(64);
+                entity.Property(p => p.Name).HasMaxLength(512);
+                entity.Property(p => p.Name2).HasMaxLength(512);
+                entity.Property(p => p.Reference).HasMaxLength(128);
+                entity.Property(p => p.Ean).HasMaxLength(64);
+                entity.Property(p => p.Brand).HasMaxLength(256);
+                entity.Property(p => p.Manufacturer).HasMaxLength(256);
+                entity.Property(p => p.Model).HasMaxLength(256);
+                entity.Property(p => p.Comment).HasMaxLength(2048);
+                entity.Property(p => p.Link).HasMaxLength(1024);
+                entity.Property(p => p.PicName).HasMaxLength(512);
+                entity.Property(p => p.PerUnit).HasMaxLength(64);
+                entity.Property(p => p.PieceID).HasMaxLength(64);
+                entity.Property(p => p.MainTypeID).HasMaxLength(64);
+                entity.Property(p => p.MainTypeName).HasMaxLength(256);
+                entity.Property(p => p.MainSubTypeID).HasMaxLength(64);
+                entity.Property(p => p.MainSubTypeName).HasMaxLength(256);
+                entity.Property(p => p.TypeID).HasMaxLength(64);
+                entity.Property(p => p.TypeName).HasMaxLength(256);
+                entity.Property(p => p.SubTypeID).HasMaxLength(64);
+                entity.Property(p => p.SubTypeName).HasMaxLength(256);
+                entity.Property(p => p.SubProductID).HasMaxLength(64);
+                entity.Property(p => p.Label).HasMaxLength(256);
+                entity.Property(p => p.ColorCode).HasMaxLength(64);
+                entity.Property(p => p.DataSource).HasMaxLength(32);
+                entity.Property(p => p.SourceFile).HasMaxLength(512);
+                entity.HasIndex(p => p.FromExcel);
+                entity.Property(p => p.PriceHT).HasPrecision(18, 4);
+                entity.Property(p => p.UnitPrice).HasPrecision(18, 4);
+                entity.Property(p => p.CPrice).HasPrecision(18, 4);
+                entity.Property(p => p.RPrice).HasPrecision(18, 4);
+                entity.Property(p => p.TypeVatPerc).HasPrecision(18, 4);
+                entity.Property(p => p.DiscountPerc).HasPrecision(18, 4);
+                entity.Property(p => p.DiscountPrice).HasPrecision(18, 4);
+                entity.Property(p => p.ProductDiscountPerc).HasPrecision(18, 4);
+                entity.Property(p => p.TypeDiscountPerc).HasPrecision(18, 4);
+                entity.Property(p => p.PromoPrice).HasPrecision(18, 4);
+                entity.Property(p => p.StockQuantity).HasPrecision(18, 4);
+                entity.Property(p => p.Quantity).HasPrecision(18, 4);
+                entity.Property(p => p.Weight).HasPrecision(18, 4);
+                entity.Property(p => p.Height).HasPrecision(18, 4);
+                entity.Property(p => p.Width).HasPrecision(18, 4);
+                entity.Property(p => p.Depth).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<ErpProductChangeLog>(entity =>
+            {
+                entity.ToTable("ErpProductChangeLogs");
+                entity.HasKey(c => c.Id);
+                entity.HasIndex(c => c.ErpProductId);
+                entity.HasIndex(c => c.DetectedAt);
+                entity.HasIndex(c => c.IsRead);
+                entity.HasIndex(c => c.SyncJobId);
+                entity.Property(c => c.ChangeType).IsRequired().HasMaxLength(64);
+                entity.Property(c => c.FieldName).IsRequired().HasMaxLength(128);
+                entity.Property(c => c.OldValue).HasMaxLength(2048);
+                entity.Property(c => c.NewValue).HasMaxLength(2048);
+                entity.Property(c => c.SyncJobId).HasMaxLength(64);
+                entity.HasOne(c => c.ErpProduct)
+                    .WithMany(p => p.ChangeLogs)
+                    .HasForeignKey(c => c.ErpProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpSyncLog>(entity =>
+            {
+                entity.ToTable("ErpSyncLogs");
+                entity.HasKey(s => s.Id);
+                entity.HasIndex(s => s.JobId).IsUnique();
+                entity.HasIndex(s => s.StartedAt);
+                entity.Property(s => s.JobId).IsRequired().HasMaxLength(64);
+                entity.Property(s => s.Status).IsRequired().HasMaxLength(64);
+                entity.Property(s => s.ErrorMessage).HasMaxLength(4000);
+                entity.Property(s => s.Details).HasColumnType("longtext");
+            });
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

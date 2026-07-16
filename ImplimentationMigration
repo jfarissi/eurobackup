@@ -1,0 +1,265 @@
+Migration Produits ERP — Sync WebService & Background Service
+Contexte
+Le projet Backup.Web.Api (ASP.NET Core 9 / MySQL / EF Core) doit être enrichi pour :
+
+Stocker les produits ERP depuis le webservice http://eurobrico.ddns.net:15021/ServiceMM.svc/
+Détecter et historiser chaque changement sur les produits ERP
+Exécuter un Background Service nocturne qui synchronise automatiquement les produits
+Exposer une interface (API) pour consulter les changements détectés
+Le fichier Excel à F:\EuroBricoMigration\product\ contient 138 fichiers fournisseurs (déjà traités par les scripts Python existants). La nouvelle fonctionnalité se concentre sur la synchronisation depuis le webservice ERP vers le projet Backup.Web.Api.
+
+User Review Required
+IMPORTANT
+
+La base de données existante est MySQL (Pomelo.EntityFrameworkCore.MySql). Les nouveaux modèles seront créés avec EF Core Migrations pour MySQL.
+
+IMPORTANT
+
+Le Background Service se lancera chaque nuit à 2h00 du matin (configurable via appsettings.json). Confirmez si cet horaire convient.
+
+WARNING
+
+Le webservice ERP (eurobrico.ddns.net:15021) ne nécessite pas d'authentification pour GetProductByID. Vérifiez que c'est bien le cas pour les endpoints getProductMainTypes, getProductTypesByMainType, getProductSubTypesByProductType, et getProductsBySubType (qui seront utilisés pour le scan complet).
+
+Open Questions
+Stratégie de scan : Pour synchroniser tous les produits, il faut parcourir l'arborescence des types. Voulez-vous scanner :
+
+Tous les MainTypes → Types → SubTypes → Products (scan complet) ?
+Ou seulement une liste d'IDs de produits connus (depuis la table locale) ?
+Fréquence : Le service nocturne à 2h00 est-il OK, ou voulez-vous un intervalle différent ?
+
+Notifications : Pour "signaler les changements aux utilisateurs", voulez-vous :
+
+Uniquement une API REST consultable depuis le client Angular ?
+Ou aussi des notifications push / SignalR en temps réel ?
+Proposed Changes
+1. Modèle ErpProduct — Table produit ERP
+[NEW] 
+ErpProduct.cs
+Modèle EF Core mappé au JSON du webservice avec toutes les colonnes :
+
+csharp
+
+public class ErpProduct
+{
+    public int Id { get; set; }               // Auto-increment PK
+    public string ErpProductId { get; set; }   // "ID" du webservice (155476)
+    public string? Name { get; set; }          // "Name"
+    public string? Name2 { get; set; }         // "Name2"
+    public string? Reference { get; set; }     // "Reference"
+    public string? Ean { get; set; }           // "EAN"
+    public string? Brand { get; set; }         // "Brand"
+    public string? Manufacturer { get; set; }  // "Manufacturer"
+    public string? Model { get; set; }         // "Model"
+    public string? Comment { get; set; }       // "Comment"
+    public string? Link { get; set; }          // "Link"
+    public string? PicName { get; set; }       // "PicName"
+    
+    // Pricing
+    public decimal? PriceHT { get; set; }      // "PriceHT" (2,5785)
+    public decimal? UnitPrice { get; set; }    // "UnitPrice" (3,12)
+    public decimal? CPrice { get; set; }       // "CPrice"
+    public decimal? RPrice { get; set; }       // "RPrice"
+    public bool VatIncluded { get; set; }      // "VatIncluded" (1/0)
+    public decimal? TypeVatPerc { get; set; }  // "TypeVatPerc" (21)
+    
+    // Discounts
+    public decimal? DiscountPerc { get; set; }
+    public decimal? DiscountPrice { get; set; }
+    public decimal? ProductDiscountPerc { get; set; }
+    public decimal? TypeDiscountPerc { get; set; }
+    
+    // Promo
+    public bool PromoActive { get; set; }       // "PromoActive" (0/1)
+    public decimal? PromoPrice { get; set; }    // "PromoPrice"
+    public DateTime? PromoStartDate { get; set; }
+    public DateTime? PromoEndDate { get; set; }
+    
+    // Stock
+    public decimal? StockQuantity { get; set; } // "StockQuantity"
+    public DateTime? StockDate { get; set; }    // "StockDate"
+    public decimal? Quantity { get; set; }      // "Quantity"
+    public string? PerUnit { get; set; }        // "PerUnit"
+    public string? PieceID { get; set; }        // "PieceID"
+    
+    // Dimensions
+    public decimal? Weight { get; set; }
+    public decimal? Height { get; set; }
+    public decimal? Width { get; set; }
+    public decimal? Depth { get; set; }
+    
+    // Classification (4 niveaux)
+    public string? MainTypeID { get; set; }
+    public string? MainTypeName { get; set; }
+    public string? MainSubTypeID { get; set; }
+    public string? MainSubTypeName { get; set; }
+    public string? TypeID { get; set; }
+    public string? TypeName { get; set; }
+    public string? SubTypeID { get; set; }
+    public string? SubTypeName { get; set; }
+    public string? SubProductID { get; set; }
+    
+    // Metadata
+    public string? Label { get; set; }
+    public string? ColorCode { get; set; }
+    public bool? Archived { get; set; }        // "Achived"
+    
+    // Tracking
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastSyncAt { get; set; }  // Dernière sync webservice
+}
+Index uniques : ErpProductId, Ean, Reference
+
+2. Modèle ErpProductChangeLog — Historique des changements
+[NEW] 
+ErpProductChangeLog.cs
+csharp
+
+public class ErpProductChangeLog
+{
+    public int Id { get; set; }
+    public int ErpProductId { get; set; }         // FK → ErpProduct
+    public string ChangeType { get; set; }         // "Created", "Updated", "PriceChanged", "StockChanged", "Deleted"
+    public string FieldName { get; set; }          // "UnitPrice", "StockQuantity", etc.
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+    public DateTime DetectedAt { get; set; }
+    public string? SyncJobId { get; set; }         // ID du job qui a détecté le changement
+    public bool IsRead { get; set; }               // Lu par l'utilisateur ?
+    public ErpProduct ErpProduct { get; set; }     // Navigation
+}
+3. Modèle ErpSyncLog — Log du Background Service
+[NEW] 
+ErpSyncLog.cs
+csharp
+
+public class ErpSyncLog
+{
+    public int Id { get; set; }
+    public string JobId { get; set; }              // GUID unique du job
+    public string Status { get; set; }             // "Running", "Completed", "Failed", "PartiallyCompleted"
+    public DateTime StartedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public int TotalProducts { get; set; }
+    public int UpdatedProducts { get; set; }
+    public int NewProducts { get; set; }
+    public int FailedProducts { get; set; }
+    public int TotalChanges { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? Details { get; set; }           // JSON détails supplémentaires
+}
+4. Service ErpProductSyncService — Logique de synchronisation
+[NEW] 
+IErpProductSyncService.cs
+[NEW] 
+ErpProductSyncService.cs
+Responsabilités :
+
+Appeler le webservice ERP pour récupérer les produits (par Type/SubType ou par ID)
+Comparer avec les données locales et détecter les changements (prix, stock, nom, etc.)
+Sauvegarder les changements dans ErpProductChangeLog
+Mettre à jour la table ErpProduct locale
+Logger l'exécution dans ErpSyncLog
+Méthodes clés :
+
+csharp
+
+Task<ErpSyncLog> SyncAllProductsAsync(CancellationToken ct);
+Task<ErpProduct?> SyncProductByIdAsync(string erpProductId, CancellationToken ct);
+Task<List<ErpProductChangeLog>> GetUnreadChangesAsync();
+Task MarkChangesAsReadAsync(List<int> changeLogIds);
+5. Background Service nocturne
+[NEW] 
+ErpProductSyncBackgroundService.cs
+csharp
+
+public class ErpProductSyncBackgroundService : BackgroundService
+{
+    // Configuration via appsettings.json:
+    // "ErpSync": { "Enabled": true, "CronHour": 2, "CronMinute": 0 }
+    // Se lance à 2h00 chaque nuit
+    // Log dans ErpSyncLog + ILogger (Serilog)
+    // Gestion des erreurs avec retry et log détaillé
+}
+6. Controller API
+[NEW] 
+ErpProductController.cs
+Endpoint	Méthode	Description
+GET /api/erp-products	GET	Liste paginée des produits ERP
+GET /api/erp-products/{id}	GET	Détail d'un produit
+GET /api/erp-products/search?q=	GET	Recherche par nom/EAN/ref
+POST /api/erp-products/sync/{erpId}	POST	Sync manuelle d'un produit
+POST /api/erp-products/sync-all	POST	Déclencher un sync complet
+GET /api/erp-products/changes	GET	Liste des changements (filtrable par date, type, non-lu)
+POST /api/erp-products/changes/mark-read	POST	Marquer des changements comme lus
+GET /api/erp-products/sync-logs	GET	Historique des exécutions du background service
+7. Configuration & Registration
+[MODIFY] 
+appsettings.json
+Ajout de la section ErpSync :
+
+json
+
+{
+  "ErpSync": {
+    "Enabled": true,
+    "BaseUrl": "http://eurobrico.ddns.net:15021/ServiceMM.svc",
+    "CronHour": 2,
+    "CronMinute": 0,
+    "BatchSize": 50,
+    "TimeoutSeconds": 30,
+    "RetryCount": 3
+  }
+}
+[MODIFY] 
+StorageBroker.cs
+Ajouter les DbSet et la configuration Fluent API pour les 3 nouvelles tables.
+
+[NEW] 
+IStorageBroker.ErpProduct.cs
+[NEW] 
+StorageBroker.ErpProduct.cs
+Partial classes pour les opérations CRUD sur les 3 nouvelles tables (pattern existant du projet).
+
+[MODIFY] 
+Program.cs
+Ajouter :
+
+csharp
+
+builder.Services.Configure<ErpSyncOptions>(builder.Configuration.GetSection("ErpSync"));
+builder.Services.AddHttpClient<IErpProductSyncService, ErpProductSyncService>();
+builder.Services.AddHostedService<ErpProductSyncBackgroundService>();
+8. Migration EF Core
+[NEW] Migration AddErpProductTables
+Génération automatique via dotnet ef migrations add AddErpProductTables après la création des modèles.
+
+Résumé des fichiers
+Action	Fichier	Description
+NEW	Models/ErpProduct.cs	Modèle produit ERP (47 colonnes)
+NEW	Models/ErpProductChangeLog.cs	Historique des changements
+NEW	Models/ErpSyncLog.cs	Log des exécutions du sync
+NEW	Services/ErpSync/ErpSyncOptions.cs	Options de configuration
+NEW	Services/ErpSync/ErpProductDto.cs	DTO pour désérialiser le JSON webservice
+NEW	Services/ErpSync/IErpProductSyncService.cs	Interface du service de sync
+NEW	Services/ErpSync/ErpProductSyncService.cs	Implémentation du service de sync
+NEW	Services/ErpSync/ErpProductSyncBackgroundService.cs	Background Service nocturne
+NEW	Brokers/Storage/IStorageBroker.ErpProduct.cs	Interface broker (partial)
+NEW	Brokers/Storage/StorageBroker.ErpProduct.cs	Broker implémentation (partial)
+NEW	Controllers/ErpProductController.cs	API REST
+MODIFY	Brokers/Storage/StorageBroker.cs	Ajout DbSet + Fluent API
+MODIFY	Program.cs	Registration DI + HostedService
+MODIFY	appsettings.json	Section ErpSync
+Verification Plan
+Automated Tests
+bash
+
+cd D:\GitHub\Backup.Web.Api\Backup.Web.Api.Server
+dotnet build
+dotnet ef migrations add AddErpProductTables
+Manual Verification
+Vérifier que le projet compile sans erreur
+Vérifier que la migration génère le bon schéma SQL
+Tester les endpoints API via Swagger
+Vérifier les logs du background service dans la console/fichier

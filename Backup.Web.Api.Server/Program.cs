@@ -51,6 +51,8 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Ollama.I
 // Python extractor (optional)
 builder.Services.Configure<Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorOptions>(builder.Configuration.GetSection("PythonExtractor"));
 builder.Services.Configure<Backup.Web.Api.Server.Services.Pricing.ErpPricingOptions>(builder.Configuration.GetSection("ErpPricing"));
+builder.Services.Configure<Backup.Web.Api.Server.Services.ErpSync.ErpSyncOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.ErpSync.ErpSyncOptions.SectionName));
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient, Backup.Web.Api.Server.Services.Documents.Python.PythonExtractorClient>();
 builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonProxyController), client =>
 {
@@ -58,6 +60,13 @@ builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonPr
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Pricing.IErpPricingService, Backup.Web.Api.Server.Services.Pricing.ErpPricingService>();
+builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProductSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncService>(client =>
+{
+    var timeoutSeconds = builder.Configuration.GetValue("ErpSync:TimeoutSeconds", 30);
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(5, timeoutSeconds));
+});
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpExcelImportService, Backup.Web.Api.Server.Services.ErpSync.ErpExcelImportService>();
+builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddDbContext<StorageBroker>();
 builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
 builder.Services.AddScoped<IRoleManagementBroker, RoleManagementBroker>();
