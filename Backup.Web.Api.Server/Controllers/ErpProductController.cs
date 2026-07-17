@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Services.ErpSync;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RESTFulSense.Controllers;
@@ -156,17 +157,26 @@ namespace Backup.Web.Api.Server.Controllers
         /// puis optionnellement lance l'enrichissement ERP.
         /// </summary>
         [HttpPost("import-excel")]
+        [RequestTimeout(3_600_000)]
         public async Task<IActionResult> ImportExcel(
             [FromQuery] bool syncAfter = false,
             [FromQuery] string? path = null,
             CancellationToken ct = default)
         {
-            var importResult = await _excelImport.ImportFromDirectoryAsync(path, ct);
-            object? syncLog = null;
-            if (syncAfter)
-                syncLog = await _syncService.SyncAllProductsAsync(ct);
+            try
+            {
+                var importResult = await _excelImport.ImportFromDirectoryAsync(path, ct);
+                object? syncLog = null;
+                if (syncAfter)
+                    syncLog = await _syncService.SyncAllProductsAsync(ct);
 
-            return Ok(new { import = importResult, sync = syncLog });
+                return Ok(new { import = importResult, sync = syncLog });
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Import Excel échoué", detail = msg });
+            }
         }
 
         [HttpGet("changes")]

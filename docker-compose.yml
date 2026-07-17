@@ -79,6 +79,12 @@ services:
       - ${EXCEL_PRODUCT_HOST_PATH:-./data/eurobrico-product}:${EXCEL_PRODUCT_CONTAINER_PATH:-/data/eurobrico-product}:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
 volumes:
   backup-mysql-data:

@@ -46,6 +46,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             _logger = logger;
         }
 
+        private const int SaveBatchSize = 100;
+
         public async Task<ExcelImportResult> ImportFromDirectoryAsync(string? directoryPath = null, CancellationToken ct = default)
         {
             var result = new ExcelImportResult();
@@ -65,12 +67,20 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             result.FilesScanned = files.Count;
             _logger.LogInformation("Excel import: {Count} fichiers dans {Path}", files.Count, path);
 
+            var index = new ProductIndex(await _storage.SelectAllErpProducts().ToListAsync(ct));
+            var pendingChanges = 0;
+
             foreach (var file in files)
             {
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    await ImportFileAsync(file, result, ct);
+                    pendingChanges += ImportFileAsync(file, result, index, ct);
+                    if (pendingChanges >= SaveBatchSize)
+                    {
+                        await index.FlushAsync(_storage, ct);
+                        pendingChanges = 0;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -80,28 +90,40 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 }
             }
 
+            if (pendingChanges > 0)
+                await index.FlushAsync(_storage, ct);
+
+            _logger.LogInformation(
+                "Excel import terminé: created={Created} updated={Updated} skipped={Skipped} errors={Errors}",
+                result.Created, result.Updated, result.Skipped, result.Errors.Count);
+
             return result;
         }
 
-        private async Task ImportFileAsync(string filePath, ExcelImportResult result, CancellationToken ct)
+        private int ImportFileAsync(
+            string filePath,
+            ExcelImportResult result,
+            ProductIndex index,
+            CancellationToken ct)
         {
             var fileName = Path.GetFileName(filePath);
             if (fileName.Equals("marques.xlsx", StringComparison.OrdinalIgnoreCase))
             {
                 result.Skipped++;
-                return;
+                return 0;
             }
 
+            var changes = 0;
             using var workbook = new XLWorkbook(filePath);
             var sheet = workbook.Worksheets.First();
             var used = sheet.RangeUsed();
             if (used == null)
-                return;
+                return 0;
 
             var firstRow = used.FirstRow().RowNumber();
             var lastRow = used.LastRow().RowNumber();
             if (lastRow < firstRow + 1)
-                return;
+                return 0;
 
             Dictionary<string, int>? colMap = null;
             var headerRow = -1;
@@ -118,7 +140,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             if (colMap == null || headerRow < 0)
             {
                 result.Errors.Add($"{fileName}: colonne Dénomination introuvable");
-                return;
+                return 0;
             }
 
             var brandFallback = Path.GetFileNameWithoutExtension(fileName).Trim();
@@ -154,11 +176,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     var cost = ParseDecimal(GetCell(row, colMap, "cost_price"));
                     var sell = ParseDecimal(GetCell(row, colMap, "selling_price"));
 
-                    // Code-barres Excel parfois lu comme nombre scientifique / double
                     barcode = NormalizeBarcode(barcode);
 
                     result.RowsRead++;
-                    await UpsertExcelRowAsync(
+                    if (UpsertExcelRow(
                         fileName,
                         Truncate(denomination.Trim(), 512)!,
                         Truncate(sku.Trim(), 128)!,
@@ -170,7 +191,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                         cost,
                         sell,
                         result,
-                        ct);
+                        index))
+                    {
+                        changes++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -181,9 +205,11 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     _logger.LogDebug(ex, "Excel row import failed {File} row {Row}", fileName, r);
                 }
             }
+
+            return changes;
         }
 
-        private async Task UpsertExcelRowAsync(
+        private static bool UpsertExcelRow(
             string sourceFile,
             string name,
             string reference,
@@ -195,37 +221,13 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             decimal? costPrice,
             decimal? sellingPrice,
             ExcelImportResult result,
-            CancellationToken ct)
+            ProductIndex index)
         {
-            ErpProduct? existing = null;
-
-            if (!string.IsNullOrWhiteSpace(excelErpId)
-                && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
-            {
-                existing = await _storage.SelectAllErpProducts()
-                    .FirstOrDefaultAsync(p => p.ErpProductId == excelErpId, ct);
-            }
-
-            if (existing == null && !string.IsNullOrWhiteSpace(ean))
-            {
-                existing = await _storage.SelectAllErpProducts()
-                    .FirstOrDefaultAsync(p => p.Ean == ean, ct);
-            }
+            var existing = index.Find(excelErpId, ean, reference);
 
             if (existing == null)
             {
-                existing = await _storage.SelectAllErpProducts()
-                    .FirstOrDefaultAsync(p => p.Reference == reference, ct);
-            }
-
-            if (existing == null)
-            {
-                var provisionalId = ResolveProductId(excelErpId, ean, reference);
-                var collision = await _storage.SelectAllErpProducts()
-                    .AnyAsync(p => p.ErpProductId == provisionalId, ct);
-                if (collision)
-                    provisionalId = Truncate($"XLS-{Guid.NewGuid():N}", 64)!;
-
+                var provisionalId = ResolveProductId(excelErpId, ean, reference, index);
                 var created = new ErpProduct
                 {
                     ErpProductId = provisionalId,
@@ -245,9 +247,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                await _storage.InsertErpProductAsync(created);
+                index.TrackNew(created);
                 result.Created++;
-                return;
+                return true;
             }
 
             existing.Name = name;
@@ -270,27 +272,112 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 ? "Excel"
                 : "Merged";
 
-            // Remplacer l'ID provisoire XLS-* par l'ID ERP du fichier si dispo
             if (!string.IsNullOrWhiteSpace(excelErpId)
-                && existing.ErpProductId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
+                && existing.ErpProductId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
+                && !index.IsErpIdTaken(excelErpId, existing.Id))
             {
-                var taken = await _storage.SelectAllErpProducts()
-                    .AnyAsync(p => p.ErpProductId == excelErpId && p.Id != existing.Id, ct);
-                if (!taken)
-                    existing.ErpProductId = excelErpId!;
+                index.RemoveFromLookup(existing);
+                existing.ErpProductId = excelErpId!;
+                index.AddToLookup(existing);
             }
 
             existing.UpdatedAt = DateTime.UtcNow;
-            await _storage.UpdateErpProductAsync(existing);
+            index.MarkUpdated(existing);
             result.Updated++;
+            return true;
         }
 
-        private static string ResolveProductId(string? excelErpId, string? ean, string reference)
+        private sealed class ProductIndex
         {
-            if (!string.IsNullOrWhiteSpace(excelErpId))
-                return Truncate(excelErpId, 64)!;
+            private readonly Dictionary<string, ErpProduct> _byErpId = new(StringComparer.OrdinalIgnoreCase);
+            private readonly Dictionary<string, ErpProduct> _byEan = new(StringComparer.OrdinalIgnoreCase);
+            private readonly Dictionary<string, ErpProduct> _byReference = new(StringComparer.OrdinalIgnoreCase);
+            private readonly HashSet<ErpProduct> _newProducts = new();
+            private readonly HashSet<ErpProduct> _updatedProducts = new();
 
-            return BuildProvisionalId(ean, reference);
+            public ProductIndex(IEnumerable<ErpProduct> products)
+            {
+                foreach (var product in products)
+                    AddToLookup(product);
+            }
+
+            public bool HasErpId(string erpId) => _byErpId.ContainsKey(erpId);
+
+            public void TrackNew(ErpProduct product)
+            {
+                AddToLookup(product);
+                _newProducts.Add(product);
+            }
+
+            public void AddToLookup(ErpProduct product)
+            {
+                if (!string.IsNullOrWhiteSpace(product.ErpProductId))
+                    _byErpId[product.ErpProductId] = product;
+                if (!string.IsNullOrWhiteSpace(product.Ean))
+                    _byEan[product.Ean] = product;
+                if (!string.IsNullOrWhiteSpace(product.Reference))
+                    _byReference[product.Reference] = product;
+            }
+
+            public void RemoveFromLookup(ErpProduct product)
+            {
+                if (!string.IsNullOrWhiteSpace(product.ErpProductId))
+                    _byErpId.Remove(product.ErpProductId);
+                if (!string.IsNullOrWhiteSpace(product.Ean))
+                    _byEan.Remove(product.Ean);
+                if (!string.IsNullOrWhiteSpace(product.Reference))
+                    _byReference.Remove(product.Reference);
+            }
+
+            public ErpProduct? Find(string? excelErpId, string? ean, string reference)
+            {
+                if (!string.IsNullOrWhiteSpace(excelErpId)
+                    && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
+                    && _byErpId.TryGetValue(excelErpId, out var byErpId))
+                    return byErpId;
+
+                if (!string.IsNullOrWhiteSpace(ean) && _byEan.TryGetValue(ean, out var byEan))
+                    return byEan;
+
+                if (_byReference.TryGetValue(reference, out var byReference))
+                    return byReference;
+
+                return null;
+            }
+
+            public bool IsErpIdTaken(string erpId, int localId) =>
+                _byErpId.TryGetValue(erpId, out var existing) && existing.Id != localId;
+
+            public void MarkUpdated(ErpProduct product)
+            {
+                if (!_newProducts.Contains(product))
+                    _updatedProducts.Add(product);
+            }
+
+            public async Task FlushAsync(IStorageBroker storage, CancellationToken ct)
+            {
+                if (_newProducts.Count == 0 && _updatedProducts.Count == 0)
+                    return;
+
+                foreach (var product in _newProducts)
+                    await storage.StageInsertErpProductAsync(product);
+
+                await storage.FlushChangesAsync(ct);
+                _newProducts.Clear();
+                _updatedProducts.Clear();
+            }
+        }
+
+        private static string ResolveProductId(string? excelErpId, string? ean, string reference, ProductIndex index)
+        {
+            var id = !string.IsNullOrWhiteSpace(excelErpId)
+                ? Truncate(excelErpId, 64)!
+                : BuildProvisionalId(ean, reference);
+
+            if (index.HasErpId(id))
+                id = Truncate($"XLS-{Guid.NewGuid():N}", 64)!;
+
+            return id;
         }
 
         private static string BuildProvisionalId(string? ean, string reference)

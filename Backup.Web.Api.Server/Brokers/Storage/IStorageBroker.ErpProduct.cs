@@ -9,6 +9,9 @@ namespace Backup.Web.Api.Server.Brokers.Storage
     public partial interface IStorageBroker
     {
         ValueTask<ErpProduct> InsertErpProductAsync(ErpProduct product);
+        ValueTask<ErpProduct> StageInsertErpProductAsync(ErpProduct product);
+        void StageUpdateErpProduct(ErpProduct product);
+        Task FlushChangesAsync(CancellationToken cancellationToken = default);
         IQueryable<ErpProduct> SelectAllErpProducts();
         ValueTask<ErpProduct?> SelectErpProductByIdAsync(int id);
         ValueTask<ErpProduct?> SelectErpProductByErpIdAsync(string erpProductId);

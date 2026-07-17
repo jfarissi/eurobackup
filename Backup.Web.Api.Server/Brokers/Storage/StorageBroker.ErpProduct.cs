@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Models;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,18 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             await this.SaveChangesAsync();
             return entry.Entity;
         }
+
+        public async ValueTask<ErpProduct> StageInsertErpProductAsync(ErpProduct product)
+        {
+            EntityEntry<ErpProduct> entry = await this.ErpProducts.AddAsync(product);
+            return entry.Entity;
+        }
+
+        public void StageUpdateErpProduct(ErpProduct product) =>
+            this.ErpProducts.Update(product);
+
+        public Task FlushChangesAsync(CancellationToken cancellationToken = default) =>
+            this.SaveChangesAsync(cancellationToken);
 
         public IQueryable<ErpProduct> SelectAllErpProducts() => this.ErpProducts.AsQueryable();
 

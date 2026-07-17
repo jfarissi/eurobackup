@@ -122,6 +122,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 });
+builder.Services.AddRequestTimeouts();
 
 var app = builder.Build();
 
@@ -147,7 +148,11 @@ if (builder.Configuration.GetValue("UseHttpsRedirection", true))
 
 app.UseCors();
 
+app.UseRequestTimeouts();
+
 app.UseAuthorization();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapControllers();
 
