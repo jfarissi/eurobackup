@@ -90,21 +90,160 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             if (string.IsNullOrWhiteSpace(erpProductId))
                 return null;
 
+            var id = erpProductId.Trim();
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+            var jobId = $"manual-{Guid.NewGuid():N}";
+
+            // A) Fiche locale déjà connue par ErpProductId (prioritaire sur la PK locale)
+            var localByErpId = await storage.SelectAllErpProducts()
+                .FirstOrDefaultAsync(p => p.ErpProductId == id, ct);
+            if (localByErpId != null)
+                return await EnrichOrFetchForLocalAsync(storage, localByErpId, jobId, ct, preferredErpId: id);
+
+            // B) PK locale uniquement si aucune fiche avec cet ErpProductId
+            //    (évite de confondre Id MySQL 375765 avec ERP 375765)
+            if (int.TryParse(id, out var localPk))
+            {
+                var byPk = await storage.SelectAllErpProducts()
+                    .FirstOrDefaultAsync(p => p.Id == localPk, ct);
+                if (byPk != null
+                    && (byPk.ErpProductId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(byPk.ErpProductId, id, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return await EnrichOrFetchForLocalAsync(storage, byPk, jobId, ct, preferredErpId: id);
+                }
+            }
+
+            // C) Pas de fiche locale : fetch ERP direct (comme Postman getProductByID/{id})
+            var remote = await FetchProductByIdAsync(id, ct)
+                ?? throw new InvalidOperationException(
+                    $"Produit ERP {id} introuvable via getProductByID.");
+
+            return await UpsertFromRemoteAsync(storage, remote, jobId, ct);
+        }
+
+        /// <summary>Sync par PK MySQL (bouton UI Produits).</summary>
+        public async Task<ErpProduct?> SyncLocalProductByIdAsync(int localId, CancellationToken ct = default)
+        {
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
             var jobId = $"manual-{Guid.NewGuid():N}";
 
             var local = await storage.SelectAllErpProducts()
-                .FirstOrDefaultAsync(p => p.ErpProductId == erpProductId.Trim() || p.Id.ToString() == erpProductId.Trim(), ct);
+                .FirstOrDefaultAsync(p => p.Id == localId, ct);
+            if (local == null)
+                return null;
 
-            if (local != null)
+            return await EnrichOrFetchForLocalAsync(storage, local, jobId, ct);
+        }
+
+        private async Task<ErpProduct> EnrichOrFetchForLocalAsync(
+            IStorageBroker storage,
+            ErpProduct local,
+            string jobId,
+            CancellationToken ct,
+            string? preferredErpId = null)
+        {
+            ErpProductDto? remote = null;
+
+            // Priorité : ID ERP réel demandé / stocké
+            var erpId = preferredErpId;
+            if (string.IsNullOrWhiteSpace(erpId)
+                || erpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
             {
-                await EnrichLocalProductAsync(storage, local, jobId, ct);
-                return await storage.SelectErpProductByIdAsync(local.Id);
+                erpId = local.ErpProductId;
             }
 
-            await UpsertProductByErpIdAsync(storage, erpProductId.Trim(), jobId, preserveExcelFields: false, ct);
-            return await storage.SelectErpProductByErpIdAsync(erpProductId.Trim());
+            if (!string.IsNullOrWhiteSpace(erpId)
+                && !erpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
+            {
+                remote = await FetchProductByIdAsync(erpId, ct);
+            }
+
+            remote ??= await ResolveRemoteProductAsync(local, ct);
+
+            if (remote == null || string.IsNullOrWhiteSpace(remote.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Aucune fiche ERP trouvée pour le produit local #{local.Id} " +
+                    $"(ErpId={local.ErpProductId}, Ref={local.Reference}, Ean={local.Ean}).");
+            }
+
+            return await MergeRemoteIntoLocalAsync(storage, local, remote, jobId, ct);
+        }
+
+        private async Task<ErpProduct> UpsertFromRemoteAsync(
+            IStorageBroker storage,
+            ErpProductDto remote,
+            string jobId,
+            CancellationToken ct)
+        {
+            var mapped = MapDto(remote);
+            mapped.LastSyncAt = DateTime.UtcNow;
+
+            var existing = await storage.SelectAllErpProducts()
+                .FirstOrDefaultAsync(p =>
+                    p.ErpProductId == mapped.ErpProductId
+                    || (!string.IsNullOrWhiteSpace(mapped.Ean) && p.Ean == mapped.Ean)
+                    || (!string.IsNullOrWhiteSpace(mapped.Reference) && p.Reference == mapped.Reference), ct);
+
+            if (existing == null)
+            {
+                mapped.CreatedAt = DateTime.UtcNow;
+                mapped.UpdatedAt = DateTime.UtcNow;
+                mapped.DataSource = "Erp";
+                mapped.FromExcel = false;
+                var inserted = await storage.InsertErpProductAsync(mapped);
+                await storage.InsertErpProductChangeLogAsync(new ErpProductChangeLog
+                {
+                    ErpProductId = inserted.Id,
+                    ChangeType = "Created",
+                    FieldName = "*",
+                    NewValue = mapped.Name ?? mapped.Reference ?? mapped.ErpProductId,
+                    DetectedAt = DateTime.UtcNow,
+                    SyncJobId = jobId,
+                    IsRead = false
+                });
+                return await storage.SelectAllErpProducts().AsNoTracking().FirstAsync(p => p.Id == inserted.Id, ct);
+            }
+
+            return await MergeRemoteIntoLocalAsync(storage, existing, remote, jobId, ct);
+        }
+
+        private async Task<ErpProduct> MergeRemoteIntoLocalAsync(
+            IStorageBroker storage,
+            ErpProduct local,
+            ErpProductDto remote,
+            string jobId,
+            CancellationToken ct)
+        {
+            var mapped = MapDto(remote);
+            mapped.LastSyncAt = DateTime.UtcNow;
+
+            if (!string.Equals(local.ErpProductId, mapped.ErpProductId, StringComparison.OrdinalIgnoreCase))
+            {
+                var taken = await storage.SelectAllErpProducts()
+                    .AnyAsync(p => p.ErpProductId == mapped.ErpProductId && p.Id != local.Id, ct);
+                if (!taken)
+                    local.ErpProductId = mapped.ErpProductId;
+            }
+
+            var changes = DetectChanges(local, mapped, jobId, local.FromExcel);
+            ApplyMappedValues(local, mapped, preserveExcelFields: local.FromExcel);
+            local.DataSource = local.FromExcel ? "Merged" : (local.DataSource ?? "Erp");
+            local.UpdatedAt = DateTime.UtcNow;
+            local.LastSyncAt = mapped.LastSyncAt;
+            await storage.UpdateErpProductAsync(local);
+
+            if (changes.Count > 0)
+            {
+                foreach (var change in changes)
+                    change.ErpProductId = local.Id;
+                await storage.InsertErpProductChangeLogsAsync(changes);
+            }
+
+            return await storage.SelectAllErpProducts().AsNoTracking().FirstAsync(p => p.Id == local.Id, ct);
         }
 
         public async Task<List<ErpProductChangeLog>> GetUnreadChangesAsync(CancellationToken ct = default)
@@ -700,7 +839,29 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             return syncLog;
         }
 
-        private async Task<T?> GetJsonAsync<T>(string relativePath, CancellationToken ct)
+        private async Task<ErpProductDto?> FetchProductByIdAsync(string erpProductId, CancellationToken ct)
+        {
+            // Essayer les deux casse d'URI utilisées par le webservice
+            var paths = new[]
+            {
+                $"getProductByID/{Uri.EscapeDataString(erpProductId)}",
+                $"GetProductByID/{Uri.EscapeDataString(erpProductId)}"
+            };
+
+            foreach (var path in paths)
+            {
+                var list = await GetJsonAsync<ErpProductDto[]>(path, ct, throwOnFinalFailure: false);
+                var match = list?.FirstOrDefault(p =>
+                    string.Equals(p.Id?.Trim(), erpProductId, StringComparison.OrdinalIgnoreCase))
+                    ?? list?.FirstOrDefault();
+                if (match != null && !string.IsNullOrWhiteSpace(match.Id))
+                    return match;
+            }
+
+            return null;
+        }
+
+        private async Task<T?> GetJsonAsync<T>(string relativePath, CancellationToken ct, bool throwOnFinalFailure = false)
         {
             var baseUrl = (_options.BaseUrl ?? string.Empty).TrimEnd('/');
             var url = $"{baseUrl}/{relativePath.TrimStart('/')}";
@@ -715,6 +876,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     if (!response.IsSuccessStatusCode)
                     {
                         lastError = new HttpRequestException($"HTTP {(int)response.StatusCode} for {url}");
+                        _logger.LogWarning("ERP HTTP {Status} {Url} (attempt {Attempt})",
+                            (int)response.StatusCode, url, attempt);
                         continue;
                     }
 
@@ -727,12 +890,21 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 catch (Exception ex) when (attempt < Math.Max(1, _options.RetryCount))
                 {
                     lastError = ex;
+                    _logger.LogWarning(ex, "ERP request failed {Url} (attempt {Attempt})", url, attempt);
                     await Task.Delay(TimeSpan.FromSeconds(attempt), ct);
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
                 }
             }
 
             if (lastError != null)
-                _logger.LogDebug(lastError, "ERP request failed for {Url}", url);
+                _logger.LogWarning(lastError, "ERP request ultimately failed for {Url}", url);
+
+            if (throwOnFinalFailure && lastError != null)
+                throw lastError;
+
             return default;
         }
 

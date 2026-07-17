@@ -5,6 +5,9 @@ import { environment } from '../../environments/environment';
 import {
   ErpChangesPage,
   ErpChangesQuery,
+  ErpProduct,
+  ErpProductsPage,
+  ErpProductsQuery,
   ErpProductSummary,
   ErpSyncLog,
   ErpSyncLogsPage,
@@ -16,6 +19,21 @@ export class ErpProductService {
   private baseUrl = `${environment.apiBaseUrl}/erp-products`;
 
   constructor(private http: HttpClient) {}
+
+  getProducts(query: ErpProductsQuery = {}): Observable<ErpProductsPage> {
+    let params = new HttpParams();
+    if (query.page != null) params = params.set('page', String(query.page));
+    if (query.pageSize != null) params = params.set('pageSize', String(query.pageSize));
+    if (query.brand) params = params.set('brand', query.brand);
+    if (query.q) params = params.set('q', query.q);
+    if (query.fromExcel != null) params = params.set('fromExcel', String(query.fromExcel));
+    if (query.dataSource) params = params.set('dataSource', query.dataSource);
+    return this.http.get<ErpProductsPage>(this.baseUrl, { params });
+  }
+
+  getById(id: number): Observable<ErpProduct> {
+    return this.http.get<ErpProduct>(`${this.baseUrl}/${id}`);
+  }
 
   getChanges(query: ErpChangesQuery = {}): Observable<ErpChangesPage> {
     let params = new HttpParams();
@@ -53,6 +71,11 @@ export class ErpProductService {
 
   syncOne(erpId: string): Observable<ErpProductSummary> {
     return this.http.post<ErpProductSummary>(`${this.baseUrl}/sync/${encodeURIComponent(erpId)}`, {});
+  }
+
+  /** Sync un produit local via sa PK MySQL (résout ensuite l'ID ERP / EAN / réf). */
+  syncProduct(product: { id: number; erpProductId: string }): Observable<ErpProduct> {
+    return this.http.post<ErpProduct>(`${this.baseUrl}/${product.id}/sync`, {});
   }
 
   syncAll(): Observable<ErpSyncLog> {

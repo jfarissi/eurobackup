@@ -1,0 +1,166 @@
+<div class="page products-page">
+  <section class="products-subheader">
+    <div class="products-subheader-inner">
+      <div class="products-title-block">
+        <h2>Produits ERP</h2>
+        <p>Consultation des fiches locales et synchronisation unitaire avec le webservice</p>
+      </div>
+      <div class="products-actions">
+        <a class="btn-secondary" routerLink="/erp-changes">
+          <mat-icon>history</mat-icon>
+          Changements
+        </a>
+        <button class="btn-secondary" type="button" (click)="loadProducts()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Actualiser
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Total</span>
+        <span class="stat-value font-mono">{{ total }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">Page</span>
+        <span class="stat-value font-mono">{{ page }} / {{ totalPages }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="products-filters">
+    <div class="products-filters-inner">
+      <div class="search-bar-wrap">
+        <mat-icon class="search-icon">search</mat-icon>
+        <input class="search-input"
+               [(ngModel)]="searchQuery"
+               (keyup.enter)="applyFilters()"
+               placeholder="Nom, réf, EAN, ID ERP, marque…" />
+      </div>
+      <input class="filter-input"
+             [(ngModel)]="brandFilter"
+             (keyup.enter)="applyFilters()"
+             placeholder="Marque" />
+      <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()">
+        <option *ngFor="let o of sourceOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+      <button class="btn-primary btn-sm" type="button" (click)="applyFilters()">Filtrer</button>
+      <button class="clear-link" type="button" (click)="clearFilters()">Réinitialiser</button>
+    </div>
+  </section>
+
+  <section class="products-data-area">
+    <div class="products-layout" [class.with-detail]="!!selected">
+
+      <div class="list-pane">
+        <div class="loading-wrap" *ngIf="loading">
+          <mat-spinner diameter="36"></mat-spinner>
+          <span>Chargement…</span>
+        </div>
+
+        <div class="no-data" *ngIf="!loading && products.length === 0">
+          <mat-icon>inventory_2</mat-icon>
+          <p>Aucun produit trouvé</p>
+          <a class="btn-primary" routerLink="/erp-changes">Importer depuis Excel</a>
+        </div>
+
+        <div class="card table-card" *ngIf="!loading && products.length > 0">
+          <div class="table-wrap">
+            <table class="data-table products-table">
+              <thead>
+                <tr>
+                  <th>Produit</th>
+                  <th>Réf / EAN</th>
+                  <th>Marque</th>
+                  <th class="text-right">Prix</th>
+                  <th class="text-right">Stock</th>
+                  <th>Source</th>
+                  <th>Sync</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let p of products"
+                    [class.row-selected]="selected?.id === p.id"
+                    (click)="selectProduct(p)">
+                  <td class="product-cell">
+                    <div class="product-name">{{ p.name || '—' }}</div>
+                    <div class="product-meta font-mono">ID {{ p.erpProductId }}</div>
+                  </td>
+                  <td>
+                    <div class="font-mono">{{ p.reference || '—' }}</div>
+                    <div class="product-meta font-mono">{{ p.ean || '—' }}</div>
+                  </td>
+                  <td>{{ p.brand || '—' }}</td>
+                  <td class="text-right font-mono">{{ formatPrice(p.unitPrice) }}</td>
+                  <td class="text-right font-mono">{{ p.stockQuantity != null ? (p.stockQuantity | number:'1.0-2') : '—' }}</td>
+                  <td>
+                    <span class="src-chip" [ngClass]="sourceClass(p.dataSource)">
+                      {{ p.dataSource || '—' }}
+                    </span>
+                  </td>
+                  <td class="date-cell">
+                    <span [class.muted]="!isSynced(p)">{{ formatDate(p.lastSyncAt) }}</span>
+                  </td>
+                  <td class="actions-cell" (click)="$event.stopPropagation()">
+                    <button class="btn-sync"
+                            type="button"
+                            [disabled]="syncingId === p.id"
+                            (click)="syncProduct(p, $event)"
+                            matTooltip="Synchroniser avec l'ERP">
+                      <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pager">
+            <button class="btn-secondary btn-sm" type="button" (click)="prevPage()" [disabled]="page <= 1">Précédent</button>
+            <span class="pager-info font-mono">Page {{ page }} / {{ totalPages }}</span>
+            <button class="btn-secondary btn-sm" type="button" (click)="nextPage()" [disabled]="page >= totalPages">Suivant</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="detail-pane card" *ngIf="selected as p">
+        <div class="detail-header">
+          <h3>{{ p.name || p.reference || p.erpProductId }}</h3>
+          <button type="button" class="icon-btn" (click)="closeDetail()" aria-label="Fermer">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="detail-actions">
+          <button class="btn-primary" type="button"
+                  [disabled]="syncingId === p.id"
+                  (click)="syncProduct(p)">
+            <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
+            {{ syncingId === p.id ? 'Sync…' : 'Sync ERP' }}
+          </button>
+        </div>
+
+        <dl class="detail-grid">
+          <div><dt>ID ERP</dt><dd class="font-mono">{{ p.erpProductId }}</dd></div>
+          <div><dt>Référence</dt><dd class="font-mono">{{ p.reference || '—' }}</dd></div>
+          <div><dt>EAN</dt><dd class="font-mono">{{ p.ean || '—' }}</dd></div>
+          <div><dt>Marque</dt><dd>{{ p.brand || '—' }}</dd></div>
+          <div><dt>Prix vente</dt><dd class="font-mono">{{ formatPrice(p.unitPrice) }}</dd></div>
+          <div><dt>Prix achat</dt><dd class="font-mono">{{ formatPrice(p.priceHT) }}</dd></div>
+          <div><dt>Stock</dt><dd class="font-mono">{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</dd></div>
+          <div><dt>TVA %</dt><dd class="font-mono">{{ p.typeVatPerc != null ? p.typeVatPerc : '—' }}</dd></div>
+          <div class="full"><dt>Catégorie</dt><dd>{{ p.mainTypeName || '—' }} / {{ p.typeName || '—' }} / {{ p.subTypeName || '—' }}</dd></div>
+          <div class="full"><dt>Nom 2</dt><dd>{{ p.name2 || '—' }}</dd></div>
+          <div><dt>Source</dt><dd>{{ p.dataSource || '—' }}</dd></div>
+          <div><dt>Fichier Excel</dt><dd>{{ p.sourceFile || '—' }}</dd></div>
+          <div><dt>Dernière sync</dt><dd>{{ formatDate(p.lastSyncAt) }}</dd></div>
+          <div><dt>Mis à jour</dt><dd>{{ formatDate(p.updatedAt) }}</dd></div>
+          <div class="full" *ngIf="p.comment"><dt>Commentaire</dt><dd>{{ p.comment }}</dd></div>
+        </dl>
+      </aside>
+
+    </div>
+  </section>
+</div>

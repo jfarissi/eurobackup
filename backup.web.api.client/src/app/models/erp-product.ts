@@ -9,6 +9,64 @@ export interface ErpProductSummary {
   stockQuantity?: number | null;
 }
 
+export interface ErpProduct {
+  id: number;
+  erpProductId: string;
+  name?: string | null;
+  name2?: string | null;
+  reference?: string | null;
+  ean?: string | null;
+  brand?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  comment?: string | null;
+  link?: string | null;
+  picName?: string | null;
+  priceHT?: number | null;
+  unitPrice?: number | null;
+  cPrice?: number | null;
+  rPrice?: number | null;
+  vatIncluded?: boolean;
+  typeVatPerc?: number | null;
+  discountPerc?: number | null;
+  discountPrice?: number | null;
+  stockQuantity?: number | null;
+  stockDate?: string | null;
+  weight?: number | null;
+  height?: number | null;
+  width?: number | null;
+  depth?: number | null;
+  mainTypeName?: string | null;
+  mainSubTypeName?: string | null;
+  typeName?: string | null;
+  subTypeName?: string | null;
+  promoActive?: boolean;
+  promoPrice?: number | null;
+  archived?: boolean | null;
+  dataSource?: string | null;
+  sourceFile?: string | null;
+  fromExcel?: boolean;
+  createdAt?: string;
+  updatedAt?: string | null;
+  lastSyncAt?: string | null;
+}
+
+export interface ErpProductsPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: ErpProduct[];
+}
+
+export interface ErpProductsQuery {
+  page?: number;
+  pageSize?: number;
+  brand?: string;
+  q?: string;
+  fromExcel?: boolean;
+  dataSource?: string;
+}
+
 export interface ErpProductChange {
   id: number;
   erpProductId: number;

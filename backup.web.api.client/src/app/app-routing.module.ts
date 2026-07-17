@@ -5,6 +5,7 @@ import { CompareComponent } from './components/compare/compare.component';
 import { StockComponent } from './components/stock/stock.component';
 import { DocumentSearchComponent } from './components/search/document-search.component';
 import { ErpChangesComponent } from './components/erp-changes/erp-changes.component';
+import { ErpProductsComponent } from './components/erp-products/erp-products.component';
 import { environment } from '../environments/environment';
 
 const routes: Routes = [
@@ -13,6 +14,7 @@ const routes: Routes = [
   { path: 'recherche', component: DocumentSearchComponent },
   { path: 'compare', component: CompareComponent },
   { path: 'stock', component: StockComponent },
+  { path: 'erp-products', component: ErpProductsComponent },
   { path: 'erp-changes', component: ErpChangesComponent },
 ];
 

@@ -34,6 +34,9 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 50,
             [FromQuery] string? brand = null,
+            [FromQuery] string? q = null,
+            [FromQuery] bool? fromExcel = null,
+            [FromQuery] string? dataSource = null,
             CancellationToken ct = default)
         {
             page = Math.Max(1, page);
@@ -42,6 +45,22 @@ namespace Backup.Web.Api.Server.Controllers
             var query = _storage.SelectAllErpProducts().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(brand))
                 query = query.Where(p => p.Brand != null && p.Brand.Contains(brand));
+            if (fromExcel.HasValue)
+                query = query.Where(p => p.FromExcel == fromExcel.Value);
+            if (!string.IsNullOrWhiteSpace(dataSource))
+                query = query.Where(p => p.DataSource == dataSource);
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLowerInvariant();
+                query = query.Where(p =>
+                    (p.Name != null && p.Name.ToLower().Contains(term))
+                    || (p.Name2 != null && p.Name2.ToLower().Contains(term))
+                    || (p.Reference != null && p.Reference.ToLower().Contains(term))
+                    || (p.Ean != null && p.Ean.ToLower().Contains(term))
+                    || (p.ErpProductId != null && p.ErpProductId.ToLower().Contains(term))
+                    || (p.Brand != null && p.Brand.ToLower().Contains(term))
+                    || (p.SourceFile != null && p.SourceFile.ToLower().Contains(term)));
+            }
 
             var total = await query.CountAsync(ct);
             var items = await query
@@ -93,10 +112,36 @@ namespace Backup.Web.Api.Server.Controllers
             if (string.IsNullOrWhiteSpace(erpId))
                 return BadRequest("erpId required");
 
-            var product = await _syncService.SyncProductByIdAsync(erpId, ct);
-            if (product == null)
-                return NotFound();
-            return Ok(product);
+            try
+            {
+                var product = await _syncService.SyncProductByIdAsync(erpId, ct);
+                if (product == null)
+                    return NotFound(new { message = $"Produit {erpId} introuvable après sync" });
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(502, new { message = $"Sync ERP échouée pour {erpId}", detail = msg });
+            }
+        }
+
+        /// <summary>Sync par Id local (PK MySQL) — utilisé par l'UI Produits.</summary>
+        [HttpPost("{id:int}/sync")]
+        public async Task<IActionResult> SyncByLocalId([FromRoute] int id, CancellationToken ct = default)
+        {
+            try
+            {
+                var product = await _syncService.SyncLocalProductByIdAsync(id, ct);
+                if (product == null)
+                    return NotFound(new { message = $"Produit local #{id} introuvable" });
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(502, new { message = $"Sync ERP échouée pour produit #{id}", detail = msg });
+            }
         }
 
         [HttpPost("sync-all")]
