@@ -1,11 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
-import { ErpProduct } from '../../models/erp-product';
+import { ErpProduct, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
+import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 
 @Component({
   selector: 'app-erp-products',
@@ -14,7 +15,7 @@ import { ErpProductService } from '../../services/erp-product.service';
   standalone: true,
   imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
 })
-export class ErpProductsComponent implements OnInit {
+export class ErpProductsComponent implements OnInit, OnDestroy {
   products: ErpProduct[] = [];
   selected: ErpProduct | null = null;
   total = 0;
@@ -22,6 +23,9 @@ export class ErpProductsComponent implements OnInit {
   pageSize = 50;
   loading = false;
   syncingId: number | null = null;
+  syncingAll = false;
+  syncProgress: ErpSyncLog | null = null;
+  private syncPollSub: Subscription | null = null;
 
   searchQuery = '';
   brandFilter = '';
@@ -41,6 +45,34 @@ export class ErpProductsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProducts();
+  }
+
+  ngOnDestroy(): void {
+    this.stopSyncPoll();
+  }
+
+  get syncProgressPercent(): number {
+    const log = this.syncProgress;
+    if (!log || !log.totalProducts || log.totalProducts <= 0) return 0;
+    const processed = log.processedProducts ?? 0;
+    return Math.min(100, Math.round((processed / log.totalProducts) * 100));
+  }
+
+  get syncProgressIndeterminate(): boolean {
+    return !!this.syncProgress
+      && this.syncProgress.status === 'Running'
+      && (!this.syncProgress.totalProducts || this.syncProgress.totalProducts <= 0);
+  }
+
+  get syncProgressLabel(): string {
+    const log = this.syncProgress;
+    if (!log) return '';
+    if (this.syncProgressIndeterminate) {
+      return 'Collecte du catalogue ERP…';
+    }
+    const processed = log.processedProducts ?? 0;
+    return `${processed} / ${log.totalProducts} produits`
+      + ` · +${log.newProducts} créés · ${log.updatedProducts} maj · ${log.failedProducts} échecs`;
   }
 
   loadProducts(): void {
@@ -118,6 +150,70 @@ export class ErpProductsComponent implements OnInit {
         );
       }
     });
+  }
+
+  triggerSyncAll(): void {
+    if (this.syncingAll || this.syncingId != null) return;
+    this.syncingAll = true;
+    this.syncProgress = null;
+    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
+    this.erpService.syncAll().subscribe({
+      next: (log) => this.watchSyncJob(log),
+      error: (err) => {
+        this.syncingAll = false;
+        this.syncProgress = null;
+        const detail = err?.error?.detail || err?.error?.message || err?.message;
+        this.snack.open(
+          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la synchronisation ERP',
+          'Fermer',
+          { duration: 8000 }
+        );
+      }
+    });
+  }
+
+  private watchSyncJob(log: ErpSyncLog): void {
+    this.syncProgress = log;
+    this.stopSyncPoll();
+
+    if (log.status !== 'Running') {
+      this.onSyncFinished(log);
+      return;
+    }
+
+    this.syncPollSub = timer(0, 1500).pipe(
+      switchMap(() => this.erpService.getSyncLog(log.jobId)),
+      takeWhile((current) => current.status === 'Running', true)
+    ).subscribe({
+      next: (current) => {
+        this.syncProgress = current;
+        if (current.status !== 'Running') {
+          this.onSyncFinished(current);
+        }
+      },
+      error: () => {
+        this.syncingAll = false;
+        this.stopSyncPoll();
+        this.snack.open('Impossible de suivre la progression du sync', 'Fermer', { duration: 4000 });
+      }
+    });
+  }
+
+  private onSyncFinished(log: ErpSyncLog): void {
+    this.syncingAll = false;
+    this.stopSyncPoll();
+    this.syncProgress = log;
+    this.snack.open(
+      `Sync ${log.status}: +${log.newProducts} créés, ${log.updatedProducts} maj, ${log.failedProducts} échecs`,
+      'OK',
+      { duration: 6000 }
+    );
+    this.loadProducts();
+  }
+
+  private stopSyncPoll(): void {
+    this.syncPollSub?.unsubscribe();
+    this.syncPollSub = null;
   }
 
   prevPage(): void {

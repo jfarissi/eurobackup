@@ -8,6 +8,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
     public interface IErpProductSyncService
     {
         Task<ErpSyncLog> SyncAllProductsAsync(CancellationToken ct = default);
+        /// <summary>Démarre le sync en arrière-plan et retourne immédiatement le job (Status=Running).</summary>
+        Task<ErpSyncLog> StartSyncAllAsync(CancellationToken ct = default);
+        Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default);
         Task<ErpProduct?> SyncProductByIdAsync(string erpProductId, CancellationToken ct = default);
         Task<ErpProduct?> SyncLocalProductByIdAsync(int localId, CancellationToken ct = default);
         Task<List<ErpProductChangeLog>> GetUnreadChangesAsync(CancellationToken ct = default);

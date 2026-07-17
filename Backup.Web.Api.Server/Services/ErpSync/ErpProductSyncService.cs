@@ -85,6 +85,79 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             return await SyncLocalEnrichAsync(ct);
         }
 
+        public async Task<ErpSyncLog> StartSyncAllAsync(CancellationToken ct = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+
+            var running = await storage.SelectAllErpSyncLogs()
+                .AsNoTracking()
+                .Where(s => s.Status == "Running")
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefaultAsync(ct);
+            if (running != null)
+                return running;
+
+            var jobId = Guid.NewGuid().ToString("N");
+            var syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
+            {
+                JobId = jobId,
+                Status = "Running",
+                StartedAt = DateTime.UtcNow,
+                Details = JsonSerializer.Serialize(new
+                {
+                    mode = (_options.SyncMode ?? "LocalEnrich").Trim(),
+                    phase = "starting"
+                })
+            });
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var mode = (_options.SyncMode ?? "LocalEnrich").Trim();
+                    if (mode.Equals("FullCatalog", StringComparison.OrdinalIgnoreCase))
+                        await SyncFullCatalogAsync(CancellationToken.None, jobId);
+                    else
+                        await SyncLocalEnrichAsync(CancellationToken.None, jobId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background ERP sync {JobId} crashed", jobId);
+                    try
+                    {
+                        using var failScope = _scopeFactory.CreateScope();
+                        var failStorage = failScope.ServiceProvider.GetRequiredService<IStorageBroker>();
+                        var log = await failStorage.SelectAllErpSyncLogs()
+                            .FirstOrDefaultAsync(s => s.JobId == jobId);
+                        if (log != null && log.Status == "Running")
+                        {
+                            log.Status = "Failed";
+                            log.ErrorMessage = ex.Message;
+                            log.CompletedAt = DateTime.UtcNow;
+                            await failStorage.UpdateErpSyncLogAsync(log);
+                        }
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "Failed to mark sync {JobId} as Failed", jobId);
+                    }
+                }
+            });
+
+            return syncLog;
+        }
+
+        public async Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(jobId))
+                return null;
+
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+            return await storage.SelectErpSyncLogByJobIdAsync(jobId.Trim());
+        }
+
         public async Task<ErpProduct?> SyncProductByIdAsync(string erpProductId, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(erpProductId))
@@ -268,19 +341,27 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             await storage.MarkErpProductChangeLogsAsReadAsync(changeLogIds);
         }
 
-        private async Task<ErpSyncLog> SyncLocalEnrichAsync(CancellationToken ct)
+        private async Task<ErpSyncLog> SyncLocalEnrichAsync(CancellationToken ct, string? existingJobId = null)
         {
-            var jobId = Guid.NewGuid().ToString("N");
-            var syncLog = new ErpSyncLog
-            {
-                JobId = jobId,
-                Status = "Running",
-                StartedAt = DateTime.UtcNow
-            };
-
+            var jobId = existingJobId ?? Guid.NewGuid().ToString("N");
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
-            syncLog = await storage.InsertErpSyncLogAsync(syncLog);
+
+            ErpSyncLog syncLog;
+            if (!string.IsNullOrWhiteSpace(existingJobId))
+            {
+                syncLog = await storage.SelectAllErpSyncLogs()
+                    .FirstAsync(s => s.JobId == jobId, ct);
+            }
+            else
+            {
+                syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
+                {
+                    JobId = jobId,
+                    Status = "Running",
+                    StartedAt = DateTime.UtcNow
+                });
+            }
 
             try
             {
@@ -289,6 +370,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     .ToListAsync(ct);
 
                 syncLog.TotalProducts = locals.Count;
+                syncLog.ProcessedProducts = 0;
+                syncLog.Details = JsonSerializer.Serialize(new { mode = "LocalEnrich", phase = "enriching" });
                 await storage.UpdateErpSyncLogAsync(syncLog);
 
                 _logger.LogInformation(
@@ -318,10 +401,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                         }
 
                         processed++;
+                        syncLog.ProcessedProducts = processed;
                     }
 
-                    if (processed % Math.Max(1, _options.BatchSize) == 0)
-                        await storage.UpdateErpSyncLogAsync(syncLog);
+                    await storage.UpdateErpSyncLogAsync(syncLog);
                 }
 
                 return await FinalizeSyncLogAsync(storage, syncLog, jobId, new
@@ -336,24 +419,37 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             }
         }
 
-        private async Task<ErpSyncLog> SyncFullCatalogAsync(CancellationToken ct)
+        private async Task<ErpSyncLog> SyncFullCatalogAsync(CancellationToken ct, string? existingJobId = null)
         {
-            var jobId = Guid.NewGuid().ToString("N");
-            var syncLog = new ErpSyncLog
-            {
-                JobId = jobId,
-                Status = "Running",
-                StartedAt = DateTime.UtcNow
-            };
-
+            var jobId = existingJobId ?? Guid.NewGuid().ToString("N");
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
-            syncLog = await storage.InsertErpSyncLogAsync(syncLog);
+
+            ErpSyncLog syncLog;
+            if (!string.IsNullOrWhiteSpace(existingJobId))
+            {
+                syncLog = await storage.SelectAllErpSyncLogs()
+                    .FirstAsync(s => s.JobId == jobId, ct);
+            }
+            else
+            {
+                syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
+                {
+                    JobId = jobId,
+                    Status = "Running",
+                    StartedAt = DateTime.UtcNow
+                });
+            }
 
             try
             {
+                syncLog.Details = JsonSerializer.Serialize(new { mode = "FullCatalog", phase = "collecting" });
+                await storage.UpdateErpSyncLogAsync(syncLog);
+
                 var productIds = await CollectAllProductIdsAsync(ct);
                 syncLog.TotalProducts = productIds.Count;
+                syncLog.ProcessedProducts = 0;
+                syncLog.Details = JsonSerializer.Serialize(new { mode = "FullCatalog", phase = "upserting" });
                 await storage.UpdateErpSyncLogAsync(syncLog);
 
                 var processed = 0;
@@ -377,10 +473,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                         }
 
                         processed++;
+                        syncLog.ProcessedProducts = processed;
                     }
 
-                    if (processed % Math.Max(1, _options.BatchSize) == 0)
-                        await storage.UpdateErpSyncLogAsync(syncLog);
+                    await storage.UpdateErpSyncLogAsync(syncLog);
                 }
 
                 return await FinalizeSyncLogAsync(storage, syncLog, jobId, new

@@ -94,6 +94,7 @@ export interface ErpSyncLog {
   startedAt: string;
   completedAt?: string | null;
   totalProducts: number;
+  processedProducts?: number;
   updatedProducts: number;
   newProducts: number;
   failedProducts: number;

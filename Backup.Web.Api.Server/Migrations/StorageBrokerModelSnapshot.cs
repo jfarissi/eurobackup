@@ -507,6 +507,9 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Property<int>("NewProducts")
                         .HasColumnType("int");
 
+                    b.Property<int>("ProcessedProducts")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("datetime(6)");
 

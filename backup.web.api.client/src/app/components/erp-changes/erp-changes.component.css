@@ -45,6 +45,86 @@
   gap: 6px;
 }
 
+.erp-actions .btn-primary {
+  background: #3525cd !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.erp-actions .btn-primary mat-icon {
+  color: #ffffff !important;
+}
+
+.erp-actions .btn-secondary {
+  background: #ffffff !important;
+  color: #191c1e !important;
+  border: 1px solid #777587 !important;
+}
+
+.erp-actions .btn-secondary mat-icon {
+  color: #464555 !important;
+}
+
+.sync-progress-panel {
+  max-width: 1440px;
+  margin: 16px auto 0;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #c7c4d8;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.sync-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sync-progress-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #191c1e;
+}
+
+.sync-progress-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3525cd;
+}
+
+.sync-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2dfff;
+  overflow: hidden;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #3525cd;
+  transition: width 0.35s ease;
+}
+
+.sync-progress-track.indeterminate .sync-progress-fill {
+  animation: sync-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes sync-indeterminate {
+  0% { margin-left: 0; width: 20%; }
+  50% { margin-left: 40%; width: 35%; }
+  100% { margin-left: 80%; width: 20%; }
+}
+
+.sync-progress-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #464555;
+}
+
 .erp-filters .btn-sm {
   padding: 6px 10px;
   font-size: 12px;
@@ -147,6 +227,19 @@
   width: 40px;
   height: 40px;
   opacity: 0.6;
+}
+
+.no-data .btn-primary {
+  background: #3525cd !important;
+  color: #ffffff !important;
+}
+
+.no-data .btn-primary mat-icon {
+  color: #ffffff !important;
+  opacity: 1;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 .table-card,

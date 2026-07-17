@@ -146,9 +146,26 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("sync-all")]
-        public async Task<IActionResult> SyncAll(CancellationToken ct = default)
+        public async Task<IActionResult> SyncAll(
+            [FromQuery] bool wait = false,
+            CancellationToken ct = default)
         {
-            var log = await _syncService.SyncAllProductsAsync(ct);
+            if (wait)
+            {
+                var log = await _syncService.SyncAllProductsAsync(ct);
+                return Ok(log);
+            }
+
+            var started = await _syncService.StartSyncAllAsync(ct);
+            return Accepted(started);
+        }
+
+        [HttpGet("sync-logs/{jobId}")]
+        public async Task<IActionResult> GetSyncLogByJobId([FromRoute] string jobId, CancellationToken ct = default)
+        {
+            var log = await _syncService.GetSyncLogByJobIdAsync(jobId, ct);
+            if (log == null)
+                return NotFound(new { message = $"Job {jobId} introuvable" });
             return Ok(log);
         }
 

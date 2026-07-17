@@ -82,6 +82,10 @@ export class ErpProductService {
     return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-all`, {});
   }
 
+  getSyncLog(jobId: string): Observable<ErpSyncLog> {
+    return this.http.get<ErpSyncLog>(`${this.baseUrl}/sync-logs/${encodeURIComponent(jobId)}`);
+  }
+
   importExcel(syncAfter = false): Observable<{ import: ExcelImportResult; sync?: ErpSyncLog | null }> {
     const params = new HttpParams().set('syncAfter', String(syncAfter));
     return this.http.post<{ import: ExcelImportResult; sync?: ErpSyncLog | null }>(

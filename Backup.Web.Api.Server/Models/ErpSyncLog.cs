@@ -10,6 +10,8 @@ namespace Backup.Web.Api.Server.Models
         public DateTime StartedAt { get; set; } = DateTime.UtcNow;
         public DateTime? CompletedAt { get; set; }
         public int TotalProducts { get; set; }
+        /// <summary>Nombre de produits déjà traités dans le job en cours.</summary>
+        public int ProcessedProducts { get; set; }
         public int UpdatedProducts { get; set; }
         public int NewProducts { get; set; }
         public int FailedProducts { get; set; }

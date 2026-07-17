@@ -6,6 +6,10 @@
         <p>Consultation des fiches locales et synchronisation unitaire avec le webservice</p>
       </div>
       <div class="products-actions">
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncingAll || syncingId != null">
+          <mat-icon>{{ syncingAll ? 'hourglass_top' : 'sync' }}</mat-icon>
+          {{ syncingAll ? 'Sync en cours…' : 'Enrichir depuis ERP' }}
+        </button>
         <a class="btn-secondary" routerLink="/erp-changes">
           <mat-icon>history</mat-icon>
           Changements
@@ -15,6 +19,18 @@
           Actualiser
         </button>
       </div>
+    </div>
+
+    <div class="sync-progress-panel" *ngIf="syncingAll || (syncProgress && syncProgress.status === 'Running')">
+      <div class="sync-progress-header">
+        <span class="sync-progress-title">Enrichissement ERP en cours</span>
+        <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
+      </div>
+      <div class="sync-progress-track" [class.indeterminate]="syncProgressIndeterminate">
+        <div class="sync-progress-fill"
+             [style.width.%]="syncProgressIndeterminate ? 30 : syncProgressPercent"></div>
+      </div>
+      <div class="sync-progress-meta">{{ syncProgressLabel }}</div>
     </div>
 
     <div class="stats-bar">

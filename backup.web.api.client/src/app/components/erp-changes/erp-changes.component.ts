@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { ErpProductChange, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
+import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 
 @Component({
   selector: 'app-erp-changes',
@@ -14,7 +15,7 @@ import { ErpProductService } from '../../services/erp-product.service';
   standalone: true,
   imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
 })
-export class ErpChangesComponent implements OnInit {
+export class ErpChangesComponent implements OnInit, OnDestroy {
   changes: ErpProductChange[] = [];
   syncLogs: ErpSyncLog[] = [];
   total = 0;
@@ -23,6 +24,9 @@ export class ErpChangesComponent implements OnInit {
   loading = false;
   syncing = false;
   importing = false;
+
+  syncProgress: ErpSyncLog | null = null;
+  private syncPollSub: Subscription | null = null;
 
   unreadOnly = true;
   changeType = '';
@@ -45,6 +49,34 @@ export class ErpChangesComponent implements OnInit {
   ngOnInit(): void {
     this.loadChanges();
     this.loadSyncLogs();
+  }
+
+  ngOnDestroy(): void {
+    this.stopSyncPoll();
+  }
+
+  get syncProgressPercent(): number {
+    const log = this.syncProgress;
+    if (!log || !log.totalProducts || log.totalProducts <= 0) return 0;
+    const processed = log.processedProducts ?? 0;
+    return Math.min(100, Math.round((processed / log.totalProducts) * 100));
+  }
+
+  get syncProgressIndeterminate(): boolean {
+    return !!this.syncProgress
+      && this.syncProgress.status === 'Running'
+      && (!this.syncProgress.totalProducts || this.syncProgress.totalProducts <= 0);
+  }
+
+  get syncProgressLabel(): string {
+    const log = this.syncProgress;
+    if (!log) return '';
+    if (this.syncProgressIndeterminate) {
+      return 'Collecte du catalogue ERP…';
+    }
+    const processed = log.processedProducts ?? 0;
+    return `${processed} / ${log.totalProducts} produits`
+      + ` · +${log.newProducts} créés · ${log.updatedProducts} maj · ${log.failedProducts} échecs`;
   }
 
   loadChanges(): void {
@@ -150,23 +182,61 @@ export class ErpChangesComponent implements OnInit {
   triggerSyncAll(): void {
     if (this.syncing) return;
     this.syncing = true;
-    this.snack.open('Synchronisation ERP démarrée…', undefined, { duration: 2500 });
+    this.syncProgress = null;
+    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
     this.erpService.syncAll().subscribe({
-      next: (log) => {
+      next: (log) => this.watchSyncJob(log),
+      error: () => {
         this.syncing = false;
-        this.snack.open(
-          `Sync terminée: ${log.status} — +${log.newProducts} / ~${log.updatedProducts} / !${log.failedProducts}`,
-          'OK',
-          { duration: 5000 }
-        );
-        this.loadChanges();
-        this.loadSyncLogs();
+        this.syncProgress = null;
+        this.snack.open('Échec du démarrage de la synchronisation ERP', 'Fermer', { duration: 4000 });
+      }
+    });
+  }
+
+  private watchSyncJob(log: ErpSyncLog): void {
+    this.syncProgress = log;
+    this.stopSyncPoll();
+
+    if (log.status !== 'Running') {
+      this.onSyncFinished(log);
+      return;
+    }
+
+    this.syncPollSub = timer(0, 1500).pipe(
+      switchMap(() => this.erpService.getSyncLog(log.jobId)),
+      takeWhile((current) => current.status === 'Running', true)
+    ).subscribe({
+      next: (current) => {
+        this.syncProgress = current;
+        if (current.status !== 'Running') {
+          this.onSyncFinished(current);
+        }
       },
       error: () => {
         this.syncing = false;
-        this.snack.open('Échec de la synchronisation ERP', 'Fermer', { duration: 4000 });
+        this.stopSyncPoll();
+        this.snack.open('Impossible de suivre la progression du sync', 'Fermer', { duration: 4000 });
       }
     });
+  }
+
+  private onSyncFinished(log: ErpSyncLog): void {
+    this.syncing = false;
+    this.stopSyncPoll();
+    this.syncProgress = log;
+    this.snack.open(
+      `Sync ${log.status}: +${log.newProducts} créés, ${log.updatedProducts} maj, ${log.failedProducts} échecs`,
+      'OK',
+      { duration: 6000 }
+    );
+    this.loadChanges();
+    this.loadSyncLogs();
+  }
+
+  private stopSyncPoll(): void {
+    this.syncPollSub?.unsubscribe();
+    this.syncPollSub = null;
   }
 
   importExcel(syncAfter = false): void {

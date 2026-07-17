@@ -7,9 +7,9 @@
       </div>
 
       <div class="erp-actions">
-        <button class="btn-secondary" type="button" (click)="loadChanges()" [disabled]="loading">
-          <mat-icon>refresh</mat-icon>
-          Actualiser
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing">
+          <mat-icon>{{ syncing ? 'hourglass_top' : 'sync' }}</mat-icon>
+          {{ syncing ? 'Sync en cours…' : 'Enrichir depuis ERP' }}
         </button>
         <button class="btn-secondary" type="button" (click)="importExcel(false)" [disabled]="importing || syncing">
           <mat-icon>upload_file</mat-icon>
@@ -19,11 +19,23 @@
           <mat-icon>playlist_add_check</mat-icon>
           Excel + Sync ERP
         </button>
-        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing">
-          <mat-icon>{{ syncing ? 'hourglass_top' : 'sync' }}</mat-icon>
-          {{ syncing ? 'Sync en cours…' : 'Enrichir depuis ERP' }}
+        <button class="btn-secondary" type="button" (click)="loadChanges()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Actualiser
         </button>
       </div>
+    </div>
+
+    <div class="sync-progress-panel" *ngIf="syncing || (syncProgress && syncProgress.status === 'Running')">
+      <div class="sync-progress-header">
+        <span class="sync-progress-title">Enrichissement ERP en cours</span>
+        <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
+      </div>
+      <div class="sync-progress-track" [class.indeterminate]="syncProgressIndeterminate">
+        <div class="sync-progress-fill"
+             [style.width.%]="syncProgressIndeterminate ? 30 : syncProgressPercent"></div>
+      </div>
+      <div class="sync-progress-meta">{{ syncProgressLabel }}</div>
     </div>
 
     <div class="stats-bar">
