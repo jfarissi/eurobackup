@@ -9,5 +9,17 @@ namespace Backup.Web.Api.Server.Services.Pricing
         /// Optional override when BaseUrl does not end with getProductStockByReference.
         /// </summary>
         public string? ProductsByReferenceUrl { get; set; }
+
+        /// <summary>
+        /// Préfixes marque collés devant la référence dans l'ERP
+        /// (ex: "Benman 70310", "FF-Group 10723").
+        /// </summary>
+        public string[] ReferenceBrandPrefixes { get; set; } =
+        {
+            "Benman",
+            "FF-Group",
+            "FF Group",
+            "FFGroup"
+        };
     }
 }

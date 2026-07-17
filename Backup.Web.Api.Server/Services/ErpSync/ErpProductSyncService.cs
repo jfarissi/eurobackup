@@ -460,23 +460,92 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             if (!string.IsNullOrWhiteSpace(local.Reference))
             {
-                var searchPrefix = local.Reference.Contains('/')
-                    ? local.Reference.Split('/')[0]
-                    : local.Reference;
-                if (!string.IsNullOrWhiteSpace(searchPrefix))
+                var searchKeys = BuildReferenceSearchKeys(local.Reference);
+                foreach (var searchPrefix in searchKeys)
                 {
                     var byRef = await GetJsonAsync<ErpProductDto[]>(
                         $"getProductsByReference/{Uri.EscapeDataString(searchPrefix)}", ct);
-                    var exact = byRef?.FirstOrDefault(p =>
-                        string.Equals(p.Reference?.Trim(), local.Reference, StringComparison.OrdinalIgnoreCase));
-                    if (exact != null)
-                        return exact;
-                    if (byRef is { Length: 1 })
+                    if (byRef == null || byRef.Length == 0)
+                        continue;
+
+                    var match = byRef.FirstOrDefault(p => ReferencesMatch(local.Reference, p.Reference));
+                    if (match != null)
+                        return match;
+                    if (byRef.Length == 1)
                         return byRef[0];
                 }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Préfixes marque collés devant la référence ERP (FF Group / Benman).
+        /// </summary>
+        private static readonly string[] ReferenceBrandPrefixes =
+        {
+            "Benman", "FF-Group", "FF Group", "FFGroup"
+        };
+
+        private static IEnumerable<string> BuildReferenceSearchKeys(string reference)
+        {
+            var list = new List<string>();
+            var raw = reference.Trim();
+            var core = StripBrandPrefix(raw);
+
+            void Add(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    return;
+                var key = value.Contains('/') ? value.Split('/')[0].Trim() : value.Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                    return;
+                if (!list.Any(x => string.Equals(x, key, StringComparison.OrdinalIgnoreCase)))
+                    list.Add(key);
+            }
+
+            Add(raw);
+            Add(core);
+            foreach (var prefix in ReferenceBrandPrefixes)
+                Add($"{prefix} {core}");
+
+            return list;
+        }
+
+        private static string StripBrandPrefix(string reference)
+        {
+            var value = reference.Trim();
+            foreach (var prefix in ReferenceBrandPrefixes.OrderByDescending(p => p.Length))
+            {
+                if (value.StartsWith(prefix + " ", StringComparison.OrdinalIgnoreCase))
+                    return value[(prefix.Length + 1)..].Trim();
+                if (value.StartsWith(prefix + "-", StringComparison.OrdinalIgnoreCase))
+                    return value[(prefix.Length + 1)..].Trim();
+            }
+
+            return value;
+        }
+
+        private static bool ReferencesMatch(string localRef, string? erpRef)
+        {
+            if (string.IsNullOrWhiteSpace(erpRef))
+                return false;
+
+            var a = localRef.Trim();
+            var b = erpRef.Trim();
+            if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var aCore = StripBrandPrefix(a);
+            var bCore = StripBrandPrefix(b);
+            if (string.Equals(aCore, bCore, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (b.EndsWith(" " + aCore, StringComparison.OrdinalIgnoreCase)
+                || b.EndsWith("-" + aCore, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
         }
 
         private async Task<HashSet<string>> CollectAllProductIdsAsync(CancellationToken ct)
