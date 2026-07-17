@@ -73,8 +73,10 @@ services:
       Ollama__Enabled: "false"
       Database__ApplyMigrationsOnStartup: "true"
       UseHttpsRedirection: "false"
+      ErpSync__ExcelProductPath: ${EXCEL_PRODUCT_CONTAINER_PATH:-/data/eurobrico-product}
     volumes:
       - backup-storage:/app/Storage
+      - ${EXCEL_PRODUCT_HOST_PATH:-./data/eurobrico-product}:${EXCEL_PRODUCT_CONTAINER_PATH:-/data/eurobrico-product}:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
