@@ -22,17 +22,13 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             PropertyNameCaseInsensitive = true
         };
 
-        /// <summary>Champs provenant de l'Excel — non écrasés s'ils sont déjà renseignés.</summary>
+        /// <summary>Champs Excel — non écrasés s'ils sont déjà renseignés. Les prix sont toujours pris depuis l'ERP (avec historique PriceChanged).</summary>
         private static readonly HashSet<string> ExcelProtectedFields = new(StringComparer.Ordinal)
         {
             nameof(ErpProduct.Name),
             nameof(ErpProduct.Reference),
             nameof(ErpProduct.Ean),
             nameof(ErpProduct.Brand),
-            nameof(ErpProduct.PriceHT),
-            nameof(ErpProduct.CPrice),
-            nameof(ErpProduct.UnitPrice),
-            nameof(ErpProduct.RPrice),
             nameof(ErpProduct.Comment)
         };
 
@@ -45,6 +41,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             nameof(ErpProduct.Brand),
             nameof(ErpProduct.UnitPrice),
             nameof(ErpProduct.PriceHT),
+            nameof(ErpProduct.CPrice),
+            nameof(ErpProduct.RPrice),
             nameof(ErpProduct.DiscountPrice),
             nameof(ErpProduct.StockQuantity),
             nameof(ErpProduct.Comment),
@@ -803,6 +801,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 var changeType = field switch
                 {
                     nameof(ErpProduct.UnitPrice) or nameof(ErpProduct.PriceHT)
+                        or nameof(ErpProduct.CPrice) or nameof(ErpProduct.RPrice)
                         or nameof(ErpProduct.DiscountPrice) or nameof(ErpProduct.PromoPrice)
                         => "PriceChanged",
                     nameof(ErpProduct.StockQuantity) => "StockChanged",
@@ -838,6 +837,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 nameof(ErpProduct.Brand) => product.Brand,
                 nameof(ErpProduct.UnitPrice) => FormatDecimal(product.UnitPrice),
                 nameof(ErpProduct.PriceHT) => FormatDecimal(product.PriceHT),
+                nameof(ErpProduct.CPrice) => FormatDecimal(product.CPrice),
+                nameof(ErpProduct.RPrice) => FormatDecimal(product.RPrice),
                 nameof(ErpProduct.DiscountPrice) => FormatDecimal(product.DiscountPrice),
                 nameof(ErpProduct.StockQuantity) => FormatDecimal(product.StockQuantity),
                 nameof(ErpProduct.Comment) => product.Comment,

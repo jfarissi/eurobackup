@@ -320,6 +320,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
       Brand: 'Marque',
       UnitPrice: 'Prix unitaire',
       PriceHT: 'Prix HT',
+      CPrice: 'Prix coût',
+      RPrice: 'Prix détail',
       DiscountPrice: 'Prix remisé',
       StockQuantity: 'Stock',
       Comment: 'Commentaire',
