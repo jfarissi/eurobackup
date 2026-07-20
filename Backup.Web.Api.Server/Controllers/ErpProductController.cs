@@ -200,6 +200,13 @@ namespace Backup.Web.Api.Server.Controllers
         public async Task<IActionResult> GetChanges(
             [FromQuery] bool? unreadOnly = null,
             [FromQuery] string? changeType = null,
+            /// <summary>
+            /// both = Avant et Après renseignés ;
+            /// cleared = Avant renseigné, Après vide ;
+            /// added = Avant vide, Après renseigné.
+            /// </summary>
+            [FromQuery] string? valueMode = null,
+            [FromQuery] string? q = null,
             [FromQuery] DateTime? from = null,
             [FromQuery] DateTime? to = null,
             [FromQuery] int page = 1,
@@ -214,6 +221,42 @@ namespace Backup.Web.Api.Server.Controllers
                 query = query.Where(c => !c.IsRead);
             if (!string.IsNullOrWhiteSpace(changeType))
                 query = query.Where(c => c.ChangeType == changeType);
+
+            var mode = (valueMode ?? string.Empty).Trim().ToLowerInvariant();
+            if (mode == "both")
+            {
+                query = query.Where(c =>
+                    c.OldValue != null && c.OldValue != ""
+                    && c.NewValue != null && c.NewValue != "");
+            }
+            else if (mode == "cleared")
+            {
+                query = query.Where(c =>
+                    c.OldValue != null && c.OldValue != ""
+                    && (c.NewValue == null || c.NewValue == ""));
+            }
+            else if (mode == "added")
+            {
+                query = query.Where(c =>
+                    (c.OldValue == null || c.OldValue == "")
+                    && c.NewValue != null && c.NewValue != "");
+            }
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLowerInvariant();
+                query = query.Where(c =>
+                    c.ErpProduct != null && (
+                        (c.ErpProduct.Name != null && c.ErpProduct.Name.ToLower().Contains(term))
+                        || (c.ErpProduct.Reference != null && c.ErpProduct.Reference.ToLower().Contains(term))
+                        || (c.ErpProduct.Ean != null && c.ErpProduct.Ean.ToLower().Contains(term))
+                        || (c.ErpProduct.Brand != null && c.ErpProduct.Brand.ToLower().Contains(term))
+                        || (c.ErpProduct.ErpProductId != null && c.ErpProduct.ErpProductId.ToLower().Contains(term))
+                        || (c.FieldName != null && c.FieldName.ToLower().Contains(term))
+                        || (c.OldValue != null && c.OldValue.ToLower().Contains(term))
+                        || (c.NewValue != null && c.NewValue.ToLower().Contains(term))));
+            }
+
             if (from.HasValue)
                 query = query.Where(c => c.DetectedAt >= from.Value);
             if (to.HasValue)

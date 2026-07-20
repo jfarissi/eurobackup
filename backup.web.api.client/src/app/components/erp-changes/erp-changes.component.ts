@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
-import { ErpProductChange, ErpSyncLog } from '../../models/erp-product';
+import { ErpChangeValueMode, ErpProductChange, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
-import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap, takeWhile, timer } from 'rxjs';
 
 @Component({
   selector: 'app-erp-changes',
@@ -31,6 +31,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
 
   unreadOnly = true;
   changeType = '';
+  valueMode: ErpChangeValueMode = 'both';
+  search = '';
   selectedIds = new Set<number>();
 
   readonly changeTypes = [
@@ -42,18 +44,35 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     { value: 'Deleted', label: 'Suppression' }
   ];
 
+  readonly valueModes: { value: ErpChangeValueMode; label: string }[] = [
+    { value: '', label: 'Toutes les valeurs' },
+    { value: 'both', label: 'Avant et Après renseignés' },
+    { value: 'cleared', label: 'Valeur vidée (→ —)' },
+    { value: 'added', label: 'Valeur ajoutée (— →)' }
+  ];
+
+  private searchInput$ = new Subject<string>();
+  private searchSub: Subscription | null = null;
+
   constructor(
     private erpService: ErpProductService,
     private snack: MatSnackBar
   ) {}
 
   ngOnInit(): void {
+    this.searchSub = this.searchInput$.pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ).subscribe(() => this.applyFilters());
+
     this.loadChanges();
     this.loadSyncLogs();
   }
 
   ngOnDestroy(): void {
     this.stopSyncPoll();
+    this.searchSub?.unsubscribe();
+    this.searchSub = null;
   }
 
   get syncProgressPercent(): number {
@@ -85,6 +104,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     this.erpService.getChanges({
       unreadOnly: this.unreadOnly ? true : undefined,
       changeType: this.changeType || undefined,
+      valueMode: this.valueMode || undefined,
+      q: this.search.trim() || undefined,
       page: this.page,
       pageSize: this.pageSize
     }).subscribe({
@@ -101,6 +122,10 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
         this.snack.open('Erreur lors du chargement des changements ERP', 'Fermer', { duration: 3500 });
       }
     });
+  }
+
+  onSearchInput(): void {
+    this.searchInput$.next(this.search.trim());
   }
 
   loadSyncLogs(): void {
@@ -122,6 +147,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   clearFilters(): void {
     this.unreadOnly = true;
     this.changeType = '';
+    this.valueMode = 'both';
+    this.search = '';
     this.page = 1;
     this.loadChanges();
   }

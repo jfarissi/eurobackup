@@ -65,6 +65,16 @@
         <option *ngFor="let t of changeTypes" [value]="t.value">{{ t.label }}</option>
       </select>
 
+      <select class="filter-select" [(ngModel)]="valueMode" (change)="applyFilters()" title="Filtrer selon Avant / Après">
+        <option *ngFor="let m of valueModes" [value]="m.value">{{ m.label }}</option>
+      </select>
+
+      <input class="filter-search"
+             type="search"
+             [(ngModel)]="search"
+             (ngModelChange)="onSearchInput()"
+             placeholder="Rechercher produit, réf, EAN, valeur…" />
+
       <button class="btn-secondary btn-sm" type="button" (click)="markSelectedRead()" [disabled]="selectedIds.size === 0">
         <mat-icon>done</mat-icon>
         Marquer sélection

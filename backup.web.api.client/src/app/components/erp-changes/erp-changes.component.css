@@ -190,6 +190,23 @@
   font-size: 13px;
 }
 
+.filter-search {
+  min-width: 220px;
+  flex: 1 1 220px;
+  max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-lg);
+  background: white;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.filter-search:focus {
+  outline: 2px solid rgba(53, 37, 205, 0.25);
+  border-color: #3525cd;
+}
+
 .clear-link {
   border: none;
   background: transparent;

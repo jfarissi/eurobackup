@@ -110,9 +110,14 @@ export interface ErpSyncLogsPage {
   items: ErpSyncLog[];
 }
 
+export type ErpChangeValueMode = '' | 'both' | 'cleared' | 'added';
+
 export interface ErpChangesQuery {
   unreadOnly?: boolean;
   changeType?: string;
+  /** both = Avant+Après renseignés ; cleared = Après vide ; added = Avant vide */
+  valueMode?: ErpChangeValueMode;
+  q?: string;
   from?: string;
   to?: string;
   page?: number;

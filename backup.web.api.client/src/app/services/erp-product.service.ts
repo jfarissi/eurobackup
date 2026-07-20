@@ -43,6 +43,12 @@ export class ErpProductService {
     if (query.changeType) {
       params = params.set('changeType', query.changeType);
     }
+    if (query.valueMode) {
+      params = params.set('valueMode', query.valueMode);
+    }
+    if (query.q) {
+      params = params.set('q', query.q);
+    }
     if (query.from) {
       params = params.set('from', query.from);
     }
