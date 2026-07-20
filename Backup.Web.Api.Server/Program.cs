@@ -12,11 +12,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MySqlConnector;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+ApplyDockerMySqlConnectionString(builder.Configuration);
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -138,9 +139,21 @@ if (app.Environment.IsDevelopment())
 
 if (builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", false))
 {
-    using var scope = app.Services.CreateScope();
-    if (scope.ServiceProvider.GetService<StorageBroker>() is { } broker)
-        broker.Database.Migrate();
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        if (scope.ServiceProvider.GetService<StorageBroker>() is { } broker)
+            broker.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var startupLogger = app.Services
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Startup");
+        startupLogger.LogError(
+            ex,
+            "Database migration failed on startup — app continues but DB features may be unavailable");
+    }
 }
 
 if (builder.Configuration.GetValue("UseHttpsRedirection", true))
@@ -159,3 +172,23 @@ app.MapControllers();
 app.MapFallbackToFile("/index.html");
 
 app.Run();
+
+static void ApplyDockerMySqlConnectionString(IConfiguration configuration)
+{
+    var mysqlUser = configuration["MYSQL_USER"];
+    if (string.IsNullOrWhiteSpace(mysqlUser))
+        return;
+
+    var csb = new MySqlConnectionStringBuilder
+    {
+        Server = configuration["MYSQL_HOST"] ?? "mysql",
+        Port = uint.TryParse(configuration["MYSQL_PORT"], out var port) ? port : 3306,
+        Database = configuration["MYSQL_DATABASE"] ?? "backupcontent",
+        UserID = mysqlUser,
+        Password = configuration["MYSQL_PASSWORD"] ?? string.Empty,
+        PersistSecurityInfo = false,
+        ConnectionTimeout = 300
+    };
+
+    configuration["ConnectionStrings:DefaultConnection"] = csb.ConnectionString;
+}

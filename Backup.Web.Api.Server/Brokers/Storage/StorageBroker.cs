@@ -157,8 +157,15 @@ namespace Backup.Web.Api.Server.Brokers.Storage
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            string connectionString = this.configuration.GetConnectionString("DefaultConnection");
-            optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            string connectionString = this.configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+
+            var configuredVersion = this.configuration["Database:ServerVersion"];
+            var serverVersion = !string.IsNullOrWhiteSpace(configuredVersion)
+                ? ServerVersion.Parse(configuredVersion)
+                : ServerVersion.AutoDetect(connectionString);
+
+            optionsBuilder.UseMySql(connectionString, serverVersion);
             optionsBuilder.LogTo(Console.WriteLine);
             optionsBuilder.EnableSensitiveDataLogging();
             optionsBuilder.EnableDetailedErrors();
