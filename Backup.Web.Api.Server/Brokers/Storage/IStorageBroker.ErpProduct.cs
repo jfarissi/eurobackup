@@ -21,6 +21,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask InsertErpProductChangeLogsAsync(IEnumerable<ErpProductChangeLog> changeLogs);
         IQueryable<ErpProductChangeLog> SelectAllErpProductChangeLogs();
         ValueTask MarkErpProductChangeLogsAsReadAsync(IEnumerable<int> changeLogIds);
+        ValueTask<int> DeleteErpProductChangeLogsAsync(IEnumerable<int> changeLogIds);
 
         ValueTask<ErpSyncLog> InsertErpSyncLogAsync(ErpSyncLog syncLog);
         ValueTask<ErpSyncLog> UpdateErpSyncLogAsync(ErpSyncLog syncLog);

@@ -15,5 +15,6 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         Task<ErpProduct?> SyncLocalProductByIdAsync(int localId, CancellationToken ct = default);
         Task<List<ErpProductChangeLog>> GetUnreadChangesAsync(CancellationToken ct = default);
         Task MarkChangesAsReadAsync(List<int> changeLogIds, CancellationToken ct = default);
+        Task<int> CleanupFormattingFalsePositivesAsync(CancellationToken ct = default);
     }
 }

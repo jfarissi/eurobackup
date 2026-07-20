@@ -263,6 +263,13 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(new { marked = request.Ids.Count });
         }
 
+        [HttpPost("changes/cleanup-formatting")]
+        public async Task<IActionResult> CleanupFormattingFalsePositives(CancellationToken ct = default)
+        {
+            var deleted = await _syncService.CleanupFormattingFalsePositivesAsync(ct);
+            return Ok(new { deleted });
+        }
+
         [HttpGet("sync-logs")]
         public async Task<IActionResult> GetSyncLogs(
             [FromQuery] int page = 1,

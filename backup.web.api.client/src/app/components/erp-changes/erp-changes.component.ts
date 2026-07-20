@@ -24,6 +24,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   loading = false;
   syncing = false;
   importing = false;
+  cleaning = false;
 
   syncProgress: ErpSyncLog | null = null;
   private syncPollSub: Subscription | null = null;
@@ -176,6 +177,28 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
         this.loadChanges();
       },
       error: () => this.snack.open('Impossible de marquer comme lu', 'Fermer', { duration: 3000 })
+    });
+  }
+
+  cleanupFormattingFalsePositives(): void {
+    if (this.cleaning) return;
+    this.cleaning = true;
+    this.erpService.cleanupFormattingFalsePositives().subscribe({
+      next: (res) => {
+        this.cleaning = false;
+        this.snack.open(
+          res.deleted > 0
+            ? `${res.deleted} faux changement(s) supprimé(s)`
+            : 'Aucun faux changement de formatage trouvé',
+          'OK',
+          { duration: 4000 }
+        );
+        this.loadChanges();
+      },
+      error: () => {
+        this.cleaning = false;
+        this.snack.open('Impossible de nettoyer les faux changements', 'Fermer', { duration: 3000 });
+      }
     });
   }
 

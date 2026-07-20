@@ -73,6 +73,10 @@
         <mat-icon>done_all</mat-icon>
         Tout marquer (page)
       </button>
+      <button class="btn-secondary btn-sm" type="button" (click)="cleanupFormattingFalsePositives()" [disabled]="cleaning">
+        <mat-icon>cleaning_services</mat-icon>
+        {{ cleaning ? 'Nettoyage…' : 'Nettoyer faux changements' }}
+      </button>
       <button class="clear-link" type="button" (click)="clearFilters()">Réinitialiser</button>
     </div>
   </section>

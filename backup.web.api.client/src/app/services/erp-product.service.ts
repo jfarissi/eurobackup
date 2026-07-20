@@ -62,6 +62,10 @@ export class ErpProductService {
     return this.http.post<{ marked: number }>(`${this.baseUrl}/changes/mark-read`, { ids });
   }
 
+  cleanupFormattingFalsePositives(): Observable<{ deleted: number }> {
+    return this.http.post<{ deleted: number }>(`${this.baseUrl}/changes/cleanup-formatting`, {});
+  }
+
   getSyncLogs(page = 1, pageSize = 10): Observable<ErpSyncLogsPage> {
     const params = new HttpParams()
       .set('page', String(page))

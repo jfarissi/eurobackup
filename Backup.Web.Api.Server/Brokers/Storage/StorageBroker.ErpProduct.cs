@@ -81,6 +81,24 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             await this.SaveChangesAsync();
         }
 
+        public async ValueTask<int> DeleteErpProductChangeLogsAsync(IEnumerable<int> changeLogIds)
+        {
+            var ids = changeLogIds.ToList();
+            if (ids.Count == 0)
+                return 0;
+
+            var logs = await this.ErpProductChangeLogs
+                .Where(c => ids.Contains(c.Id))
+                .ToListAsync();
+
+            if (logs.Count == 0)
+                return 0;
+
+            this.ErpProductChangeLogs.RemoveRange(logs);
+            await this.SaveChangesAsync();
+            return logs.Count;
+        }
+
         public async ValueTask<ErpSyncLog> InsertErpSyncLogAsync(ErpSyncLog syncLog)
         {
             EntityEntry<ErpSyncLog> entry = await this.ErpSyncLogs.AddAsync(syncLog);

@@ -32,6 +32,17 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             nameof(ErpProduct.Comment)
         };
 
+        private static readonly HashSet<string> DecimalTrackedFields = new(StringComparer.Ordinal)
+        {
+            nameof(ErpProduct.UnitPrice),
+            nameof(ErpProduct.PriceHT),
+            nameof(ErpProduct.CPrice),
+            nameof(ErpProduct.RPrice),
+            nameof(ErpProduct.DiscountPrice),
+            nameof(ErpProduct.StockQuantity),
+            nameof(ErpProduct.PromoPrice)
+        };
+
         private static readonly string[] TrackedFields =
         {
             nameof(ErpProduct.Name),
@@ -337,6 +348,30 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
             await storage.MarkErpProductChangeLogsAsReadAsync(changeLogIds);
+        }
+
+        public async Task<int> CleanupFormattingFalsePositivesAsync(CancellationToken ct = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+
+            var logs = await storage.SelectAllErpProductChangeLogs()
+                .Where(c => DecimalTrackedFields.Contains(c.FieldName))
+                .ToListAsync(ct);
+
+            var idsToDelete = logs
+                .Where(c => DecimalValuesEquivalent(c.OldValue, c.NewValue))
+                .Select(c => c.Id)
+                .ToList();
+
+            if (idsToDelete.Count == 0)
+                return 0;
+
+            var deleted = await storage.DeleteErpProductChangeLogsAsync(idsToDelete);
+            _logger.LogInformation(
+                "ERP changes cleanup: removed {Count} formatting-only false positives",
+                deleted);
+            return deleted;
         }
 
         private async Task<ErpSyncLog> SyncLocalEnrichAsync(CancellationToken ct, string? existingJobId = null)
@@ -793,10 +828,11 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     continue;
                 }
 
+                if (FieldValuesEqual(existing, incoming, field))
+                    continue;
+
                 var oldVal = GetFieldValue(existing, field);
                 var newVal = GetFieldValue(incoming, field);
-                if (string.Equals(oldVal, newVal, StringComparison.Ordinal))
-                    continue;
 
                 var changeType = field switch
                 {
@@ -825,6 +861,39 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
         private static bool IsEmptyField(ErpProduct product, string fieldName) =>
             string.IsNullOrWhiteSpace(GetFieldValue(product, fieldName));
+
+        private static bool FieldValuesEqual(ErpProduct existing, ErpProduct incoming, string fieldName) =>
+            fieldName switch
+            {
+                nameof(ErpProduct.UnitPrice) => existing.UnitPrice == incoming.UnitPrice,
+                nameof(ErpProduct.PriceHT) => existing.PriceHT == incoming.PriceHT,
+                nameof(ErpProduct.CPrice) => existing.CPrice == incoming.CPrice,
+                nameof(ErpProduct.RPrice) => existing.RPrice == incoming.RPrice,
+                nameof(ErpProduct.DiscountPrice) => existing.DiscountPrice == incoming.DiscountPrice,
+                nameof(ErpProduct.StockQuantity) => existing.StockQuantity == incoming.StockQuantity,
+                nameof(ErpProduct.PromoPrice) => existing.PromoPrice == incoming.PromoPrice,
+                nameof(ErpProduct.PromoActive) => existing.PromoActive == incoming.PromoActive,
+                nameof(ErpProduct.Archived) => existing.Archived == incoming.Archived,
+                _ => string.Equals(
+                    GetFieldValue(existing, fieldName),
+                    GetFieldValue(incoming, fieldName),
+                    StringComparison.Ordinal)
+            };
+
+        private static bool DecimalValuesEquivalent(string? oldValue, string? newValue)
+        {
+            if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                return true;
+
+            var oldDecimal = ParseDecimal(oldValue);
+            var newDecimal = ParseDecimal(newValue);
+            if (!oldDecimal.HasValue && !newDecimal.HasValue)
+                return true;
+            if (oldDecimal.HasValue != newDecimal.HasValue)
+                return false;
+
+            return oldDecimal.Value == newDecimal.Value;
+        }
 
         private static string? GetFieldValue(ErpProduct product, string fieldName) =>
             fieldName switch
@@ -1078,7 +1147,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         private static string? FormatDecimal(decimal? value) =>
-            value?.ToString(CultureInfo.InvariantCulture);
+            value?.ToString("G29", CultureInfo.InvariantCulture);
 
         private static string? Truncate(string? value, int max) =>
             value == null || value.Length <= max ? value : value[..max];
