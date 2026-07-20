@@ -19,15 +19,18 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker _storage;
         private readonly IErpProductSyncService _syncService;
         private readonly IErpExcelImportService _excelImport;
+        private readonly IErpCatalogSyncService _catalogSync;
 
         public ErpProductController(
             IStorageBroker storage,
             IErpProductSyncService syncService,
-            IErpExcelImportService excelImport)
+            IErpExcelImportService excelImport,
+            IErpCatalogSyncService catalogSync)
         {
             _storage = storage;
             _syncService = syncService;
             _excelImport = excelImport;
+            _catalogSync = catalogSync;
         }
 
         [HttpGet]
@@ -187,13 +190,63 @@ namespace Backup.Web.Api.Server.Controllers
                 if (syncAfter)
                     syncLog = await _syncService.SyncAllProductsAsync(ct);
 
-                return Ok(new { import = importResult, sync = syncLog });
+                var catalog = await _catalogSync.RebuildFromProductsAsync(ct);
+
+                return Ok(new { import = importResult, sync = syncLog, catalog });
             }
             catch (Exception ex)
             {
                 var msg = ex.InnerException?.Message ?? ex.Message;
                 return StatusCode(500, new { message = "Import Excel échoué", detail = msg });
             }
+        }
+
+        /// <summary>
+        /// Reconstruit ErpBrands + ErpCategories depuis les produits existants
+        /// et rattache BrandId / CategoryId.
+        /// </summary>
+        [HttpPost("rebuild-catalog")]
+        public async Task<IActionResult> RebuildCatalog(CancellationToken ct = default)
+        {
+            try
+            {
+                var result = await _catalogSync.RebuildFromProductsAsync(ct);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Rebuild catalog échoué", detail = msg });
+            }
+        }
+
+        [HttpGet("brands")]
+        public async Task<IActionResult> GetBrands(CancellationToken ct = default)
+        {
+            var items = await _storage.SelectAllErpBrands()
+                .AsNoTracking()
+                .OrderBy(b => b.Name)
+                .ToListAsync(ct);
+            return Ok(items);
+        }
+
+        [HttpGet("categories")]
+        public async Task<IActionResult> GetCategories(
+            [FromQuery] string? level = null,
+            [FromQuery] int? parentId = null,
+            CancellationToken ct = default)
+        {
+            var query = _storage.SelectAllErpCategories().AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(level))
+                query = query.Where(c => c.Level == level);
+            if (parentId.HasValue)
+                query = query.Where(c => c.ParentId == parentId.Value);
+
+            var items = await query
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.NameNl)
+                .ToListAsync(ct);
+            return Ok(items);
         }
 
         [HttpGet("changes")]

@@ -13,6 +13,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public DbSet<ErpProduct> ErpProducts { get; set; } = null!;
         public DbSet<ErpProductChangeLog> ErpProductChangeLogs { get; set; } = null!;
         public DbSet<ErpSyncLog> ErpSyncLogs { get; set; } = null!;
+        public DbSet<ErpBrand> ErpBrands { get; set; } = null!;
+        public DbSet<ErpCategory> ErpCategories { get; set; } = null!;
 
         public async ValueTask<ErpProduct> InsertErpProductAsync(ErpProduct product)
         {
@@ -118,5 +120,37 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public async ValueTask<ErpSyncLog?> SelectErpSyncLogByJobIdAsync(string jobId) =>
             await this.ErpSyncLogs.AsNoTracking()
                 .FirstOrDefaultAsync(s => s.JobId == jobId);
+
+        public IQueryable<ErpBrand> SelectAllErpBrands() => this.ErpBrands.AsQueryable();
+
+        public async ValueTask<ErpBrand> InsertErpBrandAsync(ErpBrand brand)
+        {
+            var entry = await this.ErpBrands.AddAsync(brand);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<ErpBrand> UpdateErpBrandAsync(ErpBrand brand)
+        {
+            var entry = this.ErpBrands.Update(brand);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<ErpCategory> SelectAllErpCategories() => this.ErpCategories.AsQueryable();
+
+        public async ValueTask<ErpCategory> InsertErpCategoryAsync(ErpCategory category)
+        {
+            var entry = await this.ErpCategories.AddAsync(category);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<ErpCategory> UpdateErpCategoryAsync(ErpCategory category)
+        {
+            var entry = this.ErpCategories.Update(category);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
     }
 }

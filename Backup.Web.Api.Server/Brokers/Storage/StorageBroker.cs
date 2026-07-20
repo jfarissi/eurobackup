@@ -121,6 +121,53 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(p => p.Height).HasPrecision(18, 4);
                 entity.Property(p => p.Width).HasPrecision(18, 4);
                 entity.Property(p => p.Depth).HasPrecision(18, 4);
+
+                entity.HasOne(p => p.BrandEntity)
+                    .WithMany(b => b.Products)
+                    .HasForeignKey(p => p.BrandId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(p => p.Category)
+                    .WithMany(c => c.Products)
+                    .HasForeignKey(p => p.CategoryId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(p => p.BrandId);
+                entity.HasIndex(p => p.CategoryId);
+            });
+
+            modelBuilder.Entity<ErpBrand>(entity =>
+            {
+                entity.ToTable("ErpBrands");
+                entity.HasKey(b => b.Id);
+                entity.HasIndex(b => b.Name).IsUnique();
+                entity.HasIndex(b => b.Slug).IsUnique();
+                entity.Property(b => b.Name).IsRequired().HasMaxLength(255);
+                entity.Property(b => b.Slug).IsRequired().HasMaxLength(255);
+                entity.Property(b => b.LogoUrl).HasMaxLength(500);
+                entity.Property(b => b.WebsiteUrl).HasMaxLength(500);
+                entity.Property(b => b.Description).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<ErpCategory>(entity =>
+            {
+                entity.ToTable("ErpCategories");
+                entity.HasKey(c => c.Id);
+                entity.HasIndex(c => new { c.Level, c.ErpExternalId }).IsUnique();
+                entity.HasIndex(c => c.ParentId);
+                entity.HasIndex(c => c.SlugNl);
+                entity.Property(c => c.ErpExternalId).IsRequired().HasMaxLength(64);
+                entity.Property(c => c.Level).IsRequired().HasMaxLength(32);
+                entity.Property(c => c.NameNl).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.NameFr).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.NameEn).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.SlugNl).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.SlugFr).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.SlugEn).IsRequired().HasMaxLength(255);
+                entity.HasOne(c => c.Parent)
+                    .WithMany(c => c.Children)
+                    .HasForeignKey(c => c.ParentId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<ErpProductChangeLog>(entity =>

@@ -12,6 +12,9 @@ namespace Backup.Web.Api.Server.Models
         public string? Reference { get; set; }
         public string? Ean { get; set; }
         public string? Brand { get; set; }
+        public int? BrandId { get; set; }
+        public ErpBrand? BrandEntity { get; set; }
+
         public string? Manufacturer { get; set; }
         public string? Model { get; set; }
         public string? Comment { get; set; }
@@ -55,6 +58,10 @@ namespace Backup.Web.Api.Server.Models
         public string? SubTypeID { get; set; }
         public string? SubTypeName { get; set; }
         public string? SubProductID { get; set; }
+
+        /// <summary>Catégorie feuille préférée (SubType, sinon Type, sinon MainType).</summary>
+        public int? CategoryId { get; set; }
+        public ErpCategory? Category { get; set; }
 
         public string? Label { get; set; }
         public string? ColorCode { get; set; }

@@ -67,6 +67,7 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProduc
     client.Timeout = TimeSpan.FromSeconds(Math.Max(5, timeoutSeconds));
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpExcelImportService, Backup.Web.Api.Server.Services.ErpSync.ErpExcelImportService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddDbContext<StorageBroker>();
 builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
