@@ -224,7 +224,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             ExcelImportResult result,
             ProductIndex index)
         {
-            var existing = index.Find(excelErpId, ean, reference);
+            var existing = index.Find(excelErpId, ean, reference, name, sellingPrice);
 
             if (existing == null)
             {
@@ -287,7 +287,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 : "Merged";
 
             if (!string.IsNullOrWhiteSpace(excelErpId)
-                && existing.ErpProductId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
+                && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(existing.ErpProductId, excelErpId, StringComparison.OrdinalIgnoreCase)
                 && !index.IsErpIdTaken(excelErpId, existing.Id))
             {
                 index.RemoveFromLookup(existing);
@@ -305,7 +306,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         {
             private readonly Dictionary<string, ErpProduct> _byErpId = new(StringComparer.OrdinalIgnoreCase);
             private readonly Dictionary<string, ErpProduct> _byEan = new(StringComparer.OrdinalIgnoreCase);
-            private readonly Dictionary<string, ErpProduct> _byReference = new(StringComparer.OrdinalIgnoreCase);
+            private readonly Dictionary<string, List<ErpProduct>> _byReference = new(StringComparer.OrdinalIgnoreCase);
             private readonly HashSet<ErpProduct> _newProducts = new();
             private readonly HashSet<ErpProduct> _updatedProducts = new();
 
@@ -330,7 +331,16 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 if (!string.IsNullOrWhiteSpace(product.Ean))
                     _byEan[product.Ean] = product;
                 if (!string.IsNullOrWhiteSpace(product.Reference))
-                    _byReference[product.Reference] = product;
+                {
+                    if (!_byReference.TryGetValue(product.Reference, out var list))
+                    {
+                        list = new List<ErpProduct>();
+                        _byReference[product.Reference] = list;
+                    }
+
+                    if (!list.Contains(product))
+                        list.Add(product);
+                }
             }
 
             public void RemoveFromLookup(ErpProduct product)
@@ -339,24 +349,46 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     _byErpId.Remove(product.ErpProductId);
                 if (!string.IsNullOrWhiteSpace(product.Ean))
                     _byEan.Remove(product.Ean);
-                if (!string.IsNullOrWhiteSpace(product.Reference))
-                    _byReference.Remove(product.Reference);
+                if (!string.IsNullOrWhiteSpace(product.Reference)
+                    && _byReference.TryGetValue(product.Reference, out var list))
+                {
+                    list.Remove(product);
+                    if (list.Count == 0)
+                        _byReference.Remove(product.Reference);
+                }
             }
 
-            public ErpProduct? Find(string? excelErpId, string? ean, string reference)
+            public ErpProduct? Find(
+                string? excelErpId,
+                string? ean,
+                string reference,
+                string? nameHint,
+                decimal? sellingPriceHint)
             {
+                // 1) ID ERP Excel (prioritaire) — ne PAS retomber sur la référence :
+                //    une même ref peut désigner l'unité ET le pack (ex. verpakking 50).
                 if (!string.IsNullOrWhiteSpace(excelErpId)
-                    && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase)
-                    && _byErpId.TryGetValue(excelErpId, out var byErpId))
-                    return byErpId;
+                    && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (_byErpId.TryGetValue(excelErpId, out var byErpId))
+                        return byErpId;
+
+                    if (!string.IsNullOrWhiteSpace(ean) && _byEan.TryGetValue(ean, out var byEanWithId))
+                        return byEanWithId;
+
+                    return null;
+                }
 
                 if (!string.IsNullOrWhiteSpace(ean) && _byEan.TryGetValue(ean, out var byEan))
                     return byEan;
 
-                if (_byReference.TryGetValue(reference, out var byReference))
-                    return byReference;
+                if (!_byReference.TryGetValue(reference, out var byRef) || byRef.Count == 0)
+                    return null;
 
-                return null;
+                if (byRef.Count == 1)
+                    return byRef[0];
+
+                return PickBestSameReferenceProduct(byRef, ean, nameHint, sellingPriceHint);
             }
 
             public bool IsErpIdTaken(string erpId, int localId) =>
@@ -380,6 +412,68 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 _newProducts.Clear();
                 _updatedProducts.Clear();
             }
+        }
+
+        /// <summary>
+        /// Départage unité vs pack quand plusieurs fiches partagent la même référence.
+        /// </summary>
+        private static ErpProduct? PickBestSameReferenceProduct(
+            IReadOnlyList<ErpProduct> candidates,
+            string? ean,
+            string? nameHint,
+            decimal? sellingPriceHint)
+        {
+            if (candidates.Count == 0)
+                return null;
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            IEnumerable<ErpProduct> pool = candidates;
+            if (!string.IsNullOrWhiteSpace(ean))
+            {
+                var byEan = candidates
+                    .Where(p => string.Equals(p.Ean, ean, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (byEan.Count == 1)
+                    return byEan[0];
+                if (byEan.Count > 1)
+                    pool = byEan;
+            }
+
+            var hintPack = IsPackProduct(nameHint, null);
+            var packMatches = pool
+                .Where(p => IsPackProduct(p.Name, p.Name2) == hintPack)
+                .ToList();
+            if (packMatches.Count == 1)
+                return packMatches[0];
+            if (packMatches.Count > 1)
+                pool = packMatches;
+
+            if (sellingPriceHint.HasValue)
+            {
+                var nearest = pool
+                    .Where(p => p.UnitPrice.HasValue)
+                    .OrderBy(p => Math.Abs(p.UnitPrice!.Value - sellingPriceHint.Value))
+                    .FirstOrDefault();
+                if (nearest != null
+                    && Math.Abs(nearest.UnitPrice!.Value - sellingPriceHint.Value) <= Math.Max(0.05m, sellingPriceHint.Value * 0.15m))
+                    return nearest;
+            }
+
+            // Ambigu : mieux créer une nouvelle fiche que fusionner unité + pack.
+            return null;
+        }
+
+        private static bool IsPackProduct(string? name, string? name2)
+        {
+            var text = $"{name} {name2}";
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            return Regex.IsMatch(
+                text,
+                @"verpakking|\bpack\b|\bbo[iî]te\b|\bcartouche\b|\b\d+\s*st\.?\b|\bx\s*\d+\b|\b\d+\s*pi[eè]ces?\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
         private static string ResolveProductId(string? excelErpId, string? ean, string reference, ProductIndex index)

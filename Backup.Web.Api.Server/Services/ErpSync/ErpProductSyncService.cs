@@ -271,11 +271,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var mapped = MapDto(remote);
             mapped.LastSyncAt = DateTime.UtcNow;
 
-            var existing = await storage.SelectAllErpProducts()
-                .FirstOrDefaultAsync(p =>
-                    p.ErpProductId == mapped.ErpProductId
-                    || (!string.IsNullOrWhiteSpace(mapped.Ean) && p.Ean == mapped.Ean)
-                    || (!string.IsNullOrWhiteSpace(mapped.Reference) && p.Reference == mapped.Reference), ct);
+            var existing = await FindLocalProductForRemoteAsync(storage, mapped, ct);
 
             if (existing == null)
             {
@@ -613,7 +609,12 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 var byBarcode = await GetJsonAsync<ErpProductDto[]>(
                     $"getProductStockByBarcode/{Uri.EscapeDataString(local.Ean)}", ct);
                 if (byBarcode is { Length: > 0 })
-                    return byBarcode[0];
+                {
+                    // Même EAN rare, mais si plusieurs résultats on départage.
+                    var barcodeMatch = PickBestRemoteMatch(local, byBarcode);
+                    if (barcodeMatch != null)
+                        return barcodeMatch;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(local.Reference))
@@ -626,15 +627,97 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     if (byRef == null || byRef.Length == 0)
                         continue;
 
-                    var match = byRef.FirstOrDefault(p => ReferencesMatch(local.Reference, p.Reference));
-                    if (match != null)
-                        return match;
-                    if (byRef.Length == 1)
-                        return byRef[0];
+                    var matches = byRef
+                        .Where(p => ReferencesMatch(local.Reference!, p.Reference))
+                        .ToList();
+                    if (matches.Count == 0 && byRef.Length == 1)
+                        matches.Add(byRef[0]);
+
+                    var best = PickBestRemoteMatch(local, matches);
+                    if (best != null)
+                        return best;
                 }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Choisit la bonne fiche ERP quand plusieurs partagent la même référence
+        /// (ex. vente à l'unité vs verpakking 50).
+        /// </summary>
+        private static ErpProductDto? PickBestRemoteMatch(ErpProduct local, IReadOnlyList<ErpProductDto> candidates)
+        {
+            if (candidates.Count == 0)
+                return null;
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            IEnumerable<ErpProductDto> pool = candidates;
+
+            if (!string.IsNullOrWhiteSpace(local.ErpProductId)
+                && !local.ErpProductId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase))
+            {
+                var byId = candidates
+                    .Where(p => string.Equals(p.Id?.Trim(), local.ErpProductId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (byId.Count == 1)
+                    return byId[0];
+                if (byId.Count > 1)
+                    pool = byId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(local.Ean))
+            {
+                var byEan = pool
+                    .Where(p => string.Equals(p.Ean?.Trim(), local.Ean, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (byEan.Count == 1)
+                    return byEan[0];
+                if (byEan.Count > 1)
+                    pool = byEan;
+            }
+
+            var localIsPack = IsPackProductName(local.Name, local.Name2);
+            var packMatches = pool
+                .Where(p => IsPackProductName(p.Name, p.Name2) == localIsPack)
+                .ToList();
+            if (packMatches.Count == 1)
+                return packMatches[0];
+            if (packMatches.Count > 1)
+                pool = packMatches;
+
+            if (local.UnitPrice.HasValue)
+            {
+                var withPrice = pool
+                    .Select(p => new { Dto = p, Price = ParseDecimal(p.UnitPrice) })
+                    .Where(x => x.Price.HasValue)
+                    .OrderBy(x => Math.Abs(x.Price!.Value - local.UnitPrice.Value))
+                    .ToList();
+                if (withPrice.Count > 0)
+                {
+                    var best = withPrice[0];
+                    var tolerance = Math.Max(0.05m, local.UnitPrice.Value * 0.15m);
+                    if (Math.Abs(best.Price!.Value - local.UnitPrice.Value) <= tolerance)
+                        return best.Dto;
+                }
+            }
+
+            // Ambigu : ne pas prendre le premier au hasard (évite 66.97 ↔ 2.10).
+            return null;
+        }
+
+        private static bool IsPackProductName(string? name, string? name2)
+        {
+            var text = $"{name} {name2}";
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            return System.Text.RegularExpressions.Regex.IsMatch(
+                text,
+                @"verpakking|\bpack\b|\bbo[iî]te\b|\bcartouche\b|\b\d+\s*st\.?\b|\bx\s*\d+\b|\b\d+\s*pi[eè]ces?\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
         }
 
         /// <summary>
@@ -704,6 +787,80 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 return true;
 
             return false;
+        }
+
+        private static async Task<ErpProduct?> FindLocalProductForRemoteAsync(
+            IStorageBroker storage,
+            ErpProduct mapped,
+            CancellationToken ct)
+        {
+            var byErpId = await storage.SelectAllErpProducts()
+                .FirstOrDefaultAsync(p => p.ErpProductId == mapped.ErpProductId, ct);
+            if (byErpId != null)
+                return byErpId;
+
+            if (!string.IsNullOrWhiteSpace(mapped.Ean))
+            {
+                var byEan = await storage.SelectAllErpProducts()
+                    .Where(p => p.Ean == mapped.Ean)
+                    .ToListAsync(ct);
+                if (byEan.Count == 1)
+                    return byEan[0];
+                if (byEan.Count > 1)
+                {
+                    return PickBestLocalForMapped(byEan, mapped)
+                           ?? byEan.FirstOrDefault(p =>
+                               string.Equals(p.ErpProductId, mapped.ErpProductId, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(mapped.Reference))
+                return null;
+
+            var byRef = await storage.SelectAllErpProducts()
+                .Where(p => p.Reference == mapped.Reference)
+                .ToListAsync(ct);
+            if (byRef.Count == 0)
+                return null;
+            if (byRef.Count == 1)
+                return byRef[0];
+
+            // Plusieurs locaux avec la même ref (unité + pack) : ne fusionner que si on départage.
+            return PickBestLocalForMapped(byRef, mapped);
+        }
+
+        private static ErpProduct? PickBestLocalForMapped(IReadOnlyList<ErpProduct> candidates, ErpProduct mapped)
+        {
+            if (candidates.Count == 0)
+                return null;
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            IEnumerable<ErpProduct> pool = candidates;
+            var mappedIsPack = IsPackProductName(mapped.Name, mapped.Name2);
+            var packMatches = candidates
+                .Where(p => IsPackProductName(p.Name, p.Name2) == mappedIsPack)
+                .ToList();
+            if (packMatches.Count == 1)
+                return packMatches[0];
+            if (packMatches.Count > 1)
+                pool = packMatches;
+
+            if (mapped.UnitPrice.HasValue)
+            {
+                var nearest = pool
+                    .Where(p => p.UnitPrice.HasValue)
+                    .OrderBy(p => Math.Abs(p.UnitPrice!.Value - mapped.UnitPrice.Value))
+                    .FirstOrDefault();
+                if (nearest != null)
+                {
+                    var tolerance = Math.Max(0.05m, mapped.UnitPrice.Value * 0.15m);
+                    if (Math.Abs(nearest.UnitPrice!.Value - mapped.UnitPrice.Value) <= tolerance)
+                        return nearest;
+                }
+            }
+
+            return null;
         }
 
         private async Task<HashSet<string>> CollectAllProductIdsAsync(CancellationToken ct)
@@ -783,11 +940,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var mapped = MapDto(remote);
             mapped.LastSyncAt = DateTime.UtcNow;
 
-            var existing = await storage.SelectAllErpProducts()
-                .FirstOrDefaultAsync(p =>
-                    p.ErpProductId == mapped.ErpProductId
-                    || (!string.IsNullOrWhiteSpace(mapped.Ean) && p.Ean == mapped.Ean)
-                    || (!string.IsNullOrWhiteSpace(mapped.Reference) && p.Reference == mapped.Reference), ct);
+            var existing = await FindLocalProductForRemoteAsync(storage, mapped, ct);
 
             if (existing == null)
             {
