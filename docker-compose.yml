@@ -19,6 +19,22 @@ services:
       retries: 10
       start_period: 60s
 
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: backup-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      # Connexion manuelle avec les identifiants du fichier .env (pas d'auto-login)
+      PMA_ARBITRARY: 1
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   python-extractor:
     build:
       context: ./python-service
