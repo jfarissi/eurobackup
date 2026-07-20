@@ -93,9 +93,12 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 _httpClient.Timeout = TimeSpan.FromSeconds(Math.Max(5, _options.TimeoutSeconds));
         }
 
-        public async Task<ErpSyncLog> SyncAllProductsAsync(CancellationToken ct = default)
+        public Task<ErpSyncLog> SyncAllProductsAsync(CancellationToken ct = default) =>
+            SyncAllProductsAsync(modeOverride: null, ct);
+
+        public async Task<ErpSyncLog> SyncAllProductsAsync(string? modeOverride, CancellationToken ct = default)
         {
-            var mode = (_options.SyncMode ?? "LocalEnrich").Trim();
+            var mode = (modeOverride ?? _options.SyncMode ?? "LocalEnrich").Trim();
             if (mode.Equals("FullCatalog", StringComparison.OrdinalIgnoreCase))
                 return await SyncFullCatalogAsync(ct);
             return await SyncLocalEnrichAsync(ct);

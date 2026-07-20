@@ -14,6 +14,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         private readonly IOptionsMonitor<ErpSyncOptions> _options;
         private readonly ILogger<ErpProductSyncBackgroundService> _logger;
 
+        /// <summary>Créneau (vendredi 18:00 UTC) déjà exécuté — évite une boucle de rattrapage.</summary>
+        private DateTime? _lastCompletedSlotUtc;
+
         public ErpProductSyncBackgroundService(
             IServiceScopeFactory scopeFactory,
             IOptionsMonitor<ErpSyncOptions> options,
@@ -26,7 +29,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("ERP product sync background service started");
+            _logger.LogInformation("ERP product sync background service started (weekly Friday evening)");
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -37,12 +40,25 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     continue;
                 }
 
-                var delay = GetDelayUntilNextRun(options.CronHour, options.CronMinute);
-                _logger.LogInformation(
-                    "Next ERP product sync scheduled in {Delay} (target {Hour:D2}:{Minute:D2} UTC)",
-                    delay,
+                var slot = GetNextSlotUtc(
                     options.CronHour,
-                    options.CronMinute);
+                    options.CronMinute,
+                    options.CronDayOfWeek,
+                    _lastCompletedSlotUtc);
+
+                var delay = slot - DateTime.UtcNow;
+                if (delay < TimeSpan.Zero)
+                    delay = TimeSpan.Zero;
+
+                var mode = string.IsNullOrWhiteSpace(options.ScheduledSyncMode)
+                    ? "FullCatalog"
+                    : options.ScheduledSyncMode.Trim();
+
+                _logger.LogInformation(
+                    "Next scheduled ERP sync ({Mode}) for slot {Slot:u} UTC — waiting {Delay}",
+                    mode,
+                    slot,
+                    delay);
 
                 await DelaySafe(delay, stoppingToken);
                 if (stoppingToken.IsCancellationRequested)
@@ -56,8 +72,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var syncService = scope.ServiceProvider.GetRequiredService<IErpProductSyncService>();
-                    _logger.LogInformation("Starting scheduled ERP product sync");
-                    var result = await syncService.SyncAllProductsAsync(stoppingToken);
+
+                    _logger.LogInformation("Starting scheduled ERP product sync (mode={Mode}, slot={Slot:u})", mode, slot);
+                    var result = await syncService.SyncAllProductsAsync(mode, stoppingToken);
                     _logger.LogInformation(
                         "Scheduled ERP sync finished: JobId={JobId} Status={Status} New={New} Updated={Updated} Failed={Failed} Changes={Changes}",
                         result.JobId,
@@ -76,18 +93,71 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     _logger.LogError(ex, "Scheduled ERP product sync failed");
                     await DelaySafe(TimeSpan.FromMinutes(5), stoppingToken);
                 }
+                finally
+                {
+                    // Marquer ce créneau comme fait → prochain = vendredi suivant.
+                    _lastCompletedSlotUtc = slot;
+                }
             }
         }
 
-        private static TimeSpan GetDelayUntilNextRun(int hour, int minute)
+        /// <summary>
+        /// Prochain créneau UTC. Si on est le bon jour dans les 6h après l'heure et que
+        /// ce créneau n'a pas encore été exécuté → rattrapage immédiat.
+        /// </summary>
+        internal static DateTime GetNextSlotUtc(
+            int hour,
+            int minute,
+            int? dayOfWeek,
+            DateTime? lastCompletedSlotUtc)
         {
             hour = Math.Clamp(hour, 0, 23);
             minute = Math.Clamp(minute, 0, 59);
             var now = DateTime.UtcNow;
-            var next = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
-            if (next <= now)
-                next = next.AddDays(1);
-            return next - now;
+
+            if (!dayOfWeek.HasValue)
+            {
+                var today = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
+                if (lastCompletedSlotUtc != today
+                    && now >= today
+                    && now <= today.AddHours(6))
+                {
+                    return today;
+                }
+
+                var next = today;
+                if (next <= now)
+                    next = next.AddDays(1);
+                if (lastCompletedSlotUtc == next)
+                    next = next.AddDays(1);
+                return next;
+            }
+
+            var targetDow = (DayOfWeek)Math.Clamp(dayOfWeek.Value, 0, 6);
+            var daysUntil = ((int)targetDow - (int)now.DayOfWeek + 7) % 7;
+            var slot = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc)
+                .AddDays(daysUntil);
+
+            // Aujourd'hui = jour cible.
+            if (daysUntil == 0)
+            {
+                if (lastCompletedSlotUtc == slot)
+                    return slot.AddDays(7);
+
+                if (now < slot)
+                    return slot;
+
+                // Rattrapage : jusqu'à 6h après l'heure prévue.
+                if (now <= slot.AddHours(6))
+                    return slot;
+
+                return slot.AddDays(7);
+            }
+
+            if (lastCompletedSlotUtc == slot)
+                return slot.AddDays(7);
+
+            return slot;
         }
 
         private static async Task DelaySafe(TimeSpan delay, CancellationToken ct)
@@ -96,7 +166,14 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 return;
             try
             {
-                await Task.Delay(delay, ct);
+                // Tranches d'1h pour rester réactif au stoppingToken.
+                var remaining = delay;
+                while (remaining > TimeSpan.Zero && !ct.IsCancellationRequested)
+                {
+                    var slice = remaining > TimeSpan.FromHours(1) ? TimeSpan.FromHours(1) : remaining;
+                    await Task.Delay(slice, ct);
+                    remaining -= slice;
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
