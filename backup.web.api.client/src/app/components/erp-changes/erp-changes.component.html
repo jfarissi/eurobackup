@@ -79,6 +79,10 @@
         <mat-icon>done</mat-icon>
         Marquer sélection
       </button>
+      <button class="btn-secondary btn-sm" type="button" (click)="deleteSelected()" [disabled]="selectedIds.size === 0">
+        <mat-icon>delete</mat-icon>
+        Supprimer sélection
+      </button>
       <button class="btn-secondary btn-sm" type="button" (click)="markAllVisibleRead()">
         <mat-icon>done_all</mat-icon>
         Tout marquer (page)

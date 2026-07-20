@@ -192,6 +192,21 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     });
   }
 
+  deleteSelected(): void {
+    const ids = Array.from(this.selectedIds);
+    if (ids.length === 0) {
+      this.snack.open('Sélectionnez au moins un changement', 'Fermer', { duration: 2500 });
+      return;
+    }
+    this.erpService.deleteChanges(ids).subscribe({
+      next: (res) => {
+        this.snack.open(`${res.deleted} changement(s) supprimé(s)`, 'OK', { duration: 2500 });
+        this.loadChanges();
+      },
+      error: () => this.snack.open('Impossible de supprimer la sélection', 'Fermer', { duration: 3000 })
+    });
+  }
+
   markAllVisibleRead(): void {
     const ids = this.changes.filter(c => !c.isRead).map(c => c.id);
     if (ids.length === 0) {

@@ -306,6 +306,16 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(new { marked = request.Ids.Count });
         }
 
+        [HttpPost("changes/delete")]
+        public async Task<IActionResult> DeleteChanges([FromBody] MarkChangesReadRequest request, CancellationToken ct = default)
+        {
+            if (request?.Ids == null || request.Ids.Count == 0)
+                return BadRequest("ids required");
+
+            var deleted = await _syncService.DeleteChangesAsync(request.Ids, ct);
+            return Ok(new { deleted });
+        }
+
         [HttpPost("changes/cleanup-formatting")]
         public async Task<IActionResult> CleanupFormattingFalsePositives(CancellationToken ct = default)
         {

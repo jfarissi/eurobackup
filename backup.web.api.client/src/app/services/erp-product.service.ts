@@ -68,6 +68,10 @@ export class ErpProductService {
     return this.http.post<{ marked: number }>(`${this.baseUrl}/changes/mark-read`, { ids });
   }
 
+  deleteChanges(ids: number[]): Observable<{ deleted: number }> {
+    return this.http.post<{ deleted: number }>(`${this.baseUrl}/changes/delete`, { ids });
+  }
+
   cleanupFormattingFalsePositives(): Observable<{ deleted: number }> {
     return this.http.post<{ deleted: number }>(`${this.baseUrl}/changes/cleanup-formatting`, {});
   }
