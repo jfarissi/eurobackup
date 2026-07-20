@@ -258,8 +258,33 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             if (!string.IsNullOrWhiteSpace(name2))
                 existing.Name2 = name2;
             existing.Reference = reference;
-            if (!string.IsNullOrWhiteSpace(ean))
+
+            // Avec ID ERP Excel, la ligne est la source de vérité (EAN vide = pack sans code-barres).
+            // Sinon on ne remplit l'EAN que s'il est fourni (ne pas écraser à vide par erreur).
+            var hasAuthoritativeErpId = !string.IsNullOrWhiteSpace(excelErpId)
+                && !excelErpId.StartsWith("XLS-", StringComparison.OrdinalIgnoreCase);
+            if (hasAuthoritativeErpId)
+            {
+                if (!string.Equals(existing.Ean, ean, StringComparison.OrdinalIgnoreCase))
+                {
+                    index.RemoveFromLookup(existing);
+                    existing.Ean = ean;
+                    index.AddToLookup(existing);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(ean))
+            {
                 existing.Ean = ean;
+            }
+
+            // Pack (verpakking…) sans EAN Excel : ne jamais conserver un EAN d'unité collé par erreur.
+            if (string.IsNullOrWhiteSpace(ean) && IsPackProduct(name, name2) && !string.IsNullOrWhiteSpace(existing.Ean))
+            {
+                index.RemoveFromLookup(existing);
+                existing.Ean = null;
+                index.AddToLookup(existing);
+            }
+
             if (!string.IsNullOrWhiteSpace(brand))
                 existing.Brand = brand;
             if (!string.IsNullOrWhiteSpace(comment))

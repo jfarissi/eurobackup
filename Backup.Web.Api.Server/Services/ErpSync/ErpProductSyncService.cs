@@ -358,6 +358,12 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
 
+            var products = await storage.SelectAllErpProducts().AsNoTracking().ToListAsync(ct);
+            var byReference = products
+                .Where(p => !string.IsNullOrWhiteSpace(p.Reference))
+                .GroupBy(p => p.Reference!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
             var logs = await storage.SelectAllErpProductChangeLogs()
                 .Include(c => c.ErpProduct)
                 .Where(c => DecimalTrackedFields.Contains(c.FieldName))
@@ -366,7 +372,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var idsToDelete = logs
                 .Where(c =>
                     DecimalValuesEquivalent(c.OldValue, c.NewValue)
-                    || IsExcelCostVsSaleHtFalsePositive(c))
+                    || IsExcelCostVsSaleHtFalsePositive(c)
+                    || IsPackVsUnitPriceFalsePositive(c, byReference))
                 .Select(c => c.Id)
                 .Distinct()
                 .ToList();
@@ -376,7 +383,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             var deleted = await storage.DeleteErpProductChangeLogsAsync(idsToDelete);
             _logger.LogInformation(
-                "ERP changes cleanup: removed {Count} false positives (format + Excel cost vs PriceHT)",
+                "ERP changes cleanup: removed {Count} false positives (format / cost-vs-HT / pack-vs-unit)",
                 deleted);
             return deleted;
         }
@@ -397,6 +404,58 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             var cost = change.ErpProduct?.CPrice;
             return cost.HasValue && cost.Value == oldVal.Value;
+        }
+
+        /// <summary>
+        /// Faux positif unité ↔ pack (même ref) : ex. 66.97 (pack 50) ↔ 2.10 (unité).
+        /// </summary>
+        private static bool IsPackVsUnitPriceFalsePositive(
+            ErpProductChangeLog change,
+            IReadOnlyDictionary<string, List<ErpProduct>> byReference)
+        {
+            if (change.FieldName is not (
+                nameof(ErpProduct.UnitPrice)
+                or nameof(ErpProduct.PriceHT)
+                or nameof(ErpProduct.RPrice)
+                or nameof(ErpProduct.CPrice)))
+                return false;
+
+            var oldVal = ParseDecimal(change.OldValue);
+            var newVal = ParseDecimal(change.NewValue);
+            if (!oldVal.HasValue || !newVal.HasValue)
+                return false;
+
+            var min = Math.Min(Math.Abs(oldVal.Value), Math.Abs(newVal.Value));
+            var max = Math.Max(Math.Abs(oldVal.Value), Math.Abs(newVal.Value));
+            if (min <= 0)
+                return false;
+
+            var ratio = max / min;
+            var product = change.ErpProduct;
+            if (product == null || string.IsNullOrWhiteSpace(product.Reference))
+                return IsPackProductName(product?.Name, product?.Name2) && ratio >= 5m;
+
+            if (!byReference.TryGetValue(product.Reference, out var siblings) || siblings.Count < 2)
+                return IsPackProductName(product.Name, product.Name2) && ratio >= 5m;
+
+            var hasPack = siblings.Any(p => IsPackProductName(p.Name, p.Name2));
+            var hasUnit = siblings.Any(p => !IsPackProductName(p.Name, p.Name2));
+            if (!hasPack || !hasUnit)
+                return false;
+
+            // Pack qui porte encore l'EAN de l'unité (ancienne fusion).
+            if (IsPackProductName(product.Name, product.Name2)
+                && !string.IsNullOrWhiteSpace(product.Ean)
+                && siblings.Any(p =>
+                    p.Id != product.Id
+                    && !IsPackProductName(p.Name, p.Name2)
+                    && string.Equals(p.Ean, product.Ean, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // Gros écart de prix sur une fiche pack alors qu'une unité existe pour la même ref.
+            return IsPackProductName(product.Name, product.Name2) && ratio >= 5m;
         }
 
         private async Task<ErpSyncLog> SyncLocalEnrichAsync(CancellationToken ct, string? existingJobId = null)
@@ -606,14 +665,18 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             if (!string.IsNullOrWhiteSpace(local.Ean))
             {
-                var byBarcode = await GetJsonAsync<ErpProductDto[]>(
-                    $"getProductStockByBarcode/{Uri.EscapeDataString(local.Ean)}", ct);
-                if (byBarcode is { Length: > 0 })
+                // Ne pas résoudre par EAN si le produit local est un pack :
+                // l'EAN appartient souvent à la fiche "unité" (même ref).
+                if (!IsPackProductName(local.Name, local.Name2))
                 {
-                    // Même EAN rare, mais si plusieurs résultats on départage.
-                    var barcodeMatch = PickBestRemoteMatch(local, byBarcode);
-                    if (barcodeMatch != null)
-                        return barcodeMatch;
+                    var byBarcode = await GetJsonAsync<ErpProductDto[]>(
+                        $"getProductStockByBarcode/{Uri.EscapeDataString(local.Ean)}", ct);
+                    if (byBarcode is { Length: > 0 })
+                    {
+                        var barcodeMatch = PickBestRemoteMatch(local, byBarcode);
+                        if (barcodeMatch != null)
+                            return barcodeMatch;
+                    }
                 }
             }
 
