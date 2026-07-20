@@ -206,6 +206,7 @@ namespace Backup.Web.Api.Server.Controllers
         /// et rattache BrandId / CategoryId.
         /// </summary>
         [HttpPost("rebuild-catalog")]
+        [RequestTimeout(3_600_000)]
         public async Task<IActionResult> RebuildCatalog(CancellationToken ct = default)
         {
             try

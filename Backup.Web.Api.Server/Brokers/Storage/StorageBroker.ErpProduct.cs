@@ -123,6 +123,14 @@ namespace Backup.Web.Api.Server.Brokers.Storage
 
         public IQueryable<ErpBrand> SelectAllErpBrands() => this.ErpBrands.AsQueryable();
 
+        public async ValueTask StageInsertErpBrandAsync(ErpBrand brand)
+        {
+            await this.ErpBrands.AddAsync(brand);
+        }
+
+        public void StageUpdateErpBrand(ErpBrand brand) =>
+            this.ErpBrands.Update(brand);
+
         public async ValueTask<ErpBrand> InsertErpBrandAsync(ErpBrand brand)
         {
             var entry = await this.ErpBrands.AddAsync(brand);
@@ -138,6 +146,14 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         }
 
         public IQueryable<ErpCategory> SelectAllErpCategories() => this.ErpCategories.AsQueryable();
+
+        public async ValueTask StageInsertErpCategoryAsync(ErpCategory category)
+        {
+            await this.ErpCategories.AddAsync(category);
+        }
+
+        public void StageUpdateErpCategory(ErpCategory category) =>
+            this.ErpCategories.Update(category);
 
         public async ValueTask<ErpCategory> InsertErpCategoryAsync(ErpCategory category)
         {

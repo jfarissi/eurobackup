@@ -29,10 +29,14 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<ErpSyncLog?> SelectErpSyncLogByJobIdAsync(string jobId);
 
         IQueryable<ErpBrand> SelectAllErpBrands();
+        ValueTask StageInsertErpBrandAsync(ErpBrand brand);
+        void StageUpdateErpBrand(ErpBrand brand);
         ValueTask<ErpBrand> InsertErpBrandAsync(ErpBrand brand);
         ValueTask<ErpBrand> UpdateErpBrandAsync(ErpBrand brand);
 
         IQueryable<ErpCategory> SelectAllErpCategories();
+        ValueTask StageInsertErpCategoryAsync(ErpCategory category);
+        void StageUpdateErpCategory(ErpCategory category);
         ValueTask<ErpCategory> InsertErpCategoryAsync(ErpCategory category);
         ValueTask<ErpCategory> UpdateErpCategoryAsync(ErpCategory category);
     }
