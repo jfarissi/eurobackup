@@ -22,7 +22,14 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             PropertyNameCaseInsensitive = true
         };
 
-        /// <summary>Champs Excel — non écrasés s'ils sont déjà renseignés. Les prix sont toujours pris depuis l'ERP (avec historique PriceChanged).</summary>
+        /// <summary>
+        /// Champs Excel — non écrasés s'ils sont déjà renseignés.
+        /// Mapping prix :
+        /// - Excel « prix achat » → CPrice
+        /// - Excel « prix vente » (TTC) → UnitPrice / RPrice
+        /// - ERP PriceHT = prix de vente HT (jamais rempli depuis Excel)
+        /// Les prix ERP écrasent les prix locaux au sync (avec historique PriceChanged).
+        /// </summary>
         private static readonly HashSet<string> ExcelProtectedFields = new(StringComparer.Ordinal)
         {
             nameof(ErpProduct.Name),

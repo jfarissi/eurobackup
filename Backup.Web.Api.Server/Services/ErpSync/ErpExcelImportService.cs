@@ -27,6 +27,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             ["supplier_ref"] = new[] { "ref. fournisseur:", "ref fournisseur", "ref. fournisseur" },
             ["ref"] = new[] { "ref.", "ref", "reference" },
             ["cost_price"] = new[] { "prix achat" },
+            // Excel "prix vente" = TTC (équivalent ERP UnitPrice), pas le PriceHT (vente HT).
             ["selling_price"] = new[] { "prix vente" },
             ["brand"] = new[] { "marque" },
             ["comment"] = new[] { "commentaire:", "commentaire" }
@@ -237,7 +238,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     Ean = ean,
                     Brand = brand,
                     Comment = comment,
-                    PriceHT = costPrice,
+                    // Excel: prix achat → CPrice ; prix vente TTC → UnitPrice/RPrice.
+                    // PriceHT (vente HT) vient uniquement de l'ERP.
                     CPrice = costPrice,
                     UnitPrice = sellingPrice,
                     RPrice = sellingPrice,
@@ -262,10 +264,13 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 existing.Brand = brand;
             if (!string.IsNullOrWhiteSpace(comment))
                 existing.Comment = comment;
-            existing.PriceHT = costPrice;
-            existing.CPrice = costPrice;
-            existing.UnitPrice = sellingPrice;
-            existing.RPrice = sellingPrice;
+            if (costPrice.HasValue)
+                existing.CPrice = costPrice;
+            if (sellingPrice.HasValue)
+            {
+                existing.UnitPrice = sellingPrice;
+                existing.RPrice = sellingPrice;
+            }
             existing.SourceFile = Truncate(sourceFile, 512);
             existing.FromExcel = true;
             existing.DataSource = string.IsNullOrWhiteSpace(existing.DataSource) || existing.DataSource == "Excel"
