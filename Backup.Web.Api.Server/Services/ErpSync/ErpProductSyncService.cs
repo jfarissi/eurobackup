@@ -363,12 +363,16 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
 
             var logs = await storage.SelectAllErpProductChangeLogs()
+                .Include(c => c.ErpProduct)
                 .Where(c => DecimalTrackedFields.Contains(c.FieldName))
                 .ToListAsync(ct);
 
             var idsToDelete = logs
-                .Where(c => DecimalValuesEquivalent(c.OldValue, c.NewValue))
+                .Where(c =>
+                    DecimalValuesEquivalent(c.OldValue, c.NewValue)
+                    || IsExcelCostVsSaleHtFalsePositive(c))
                 .Select(c => c.Id)
+                .Distinct()
                 .ToList();
 
             if (idsToDelete.Count == 0)
@@ -376,9 +380,27 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             var deleted = await storage.DeleteErpProductChangeLogsAsync(idsToDelete);
             _logger.LogInformation(
-                "ERP changes cleanup: removed {Count} formatting-only false positives",
+                "ERP changes cleanup: removed {Count} false positives (format + Excel cost vs PriceHT)",
                 deleted);
             return deleted;
+        }
+
+        /// <summary>
+        /// Faux positif historique : OldValue = prix d'achat Excel (CPrice),
+        /// NewValue = PriceHT ERP (vente HT).
+        /// </summary>
+        private static bool IsExcelCostVsSaleHtFalsePositive(ErpProductChangeLog change)
+        {
+            if (!string.Equals(change.FieldName, nameof(ErpProduct.PriceHT), StringComparison.Ordinal))
+                return false;
+
+            var oldVal = ParseDecimal(change.OldValue);
+            var newVal = ParseDecimal(change.NewValue);
+            if (!oldVal.HasValue || !newVal.HasValue || oldVal == newVal)
+                return false;
+
+            var cost = change.ErpProduct?.CPrice;
+            return cost.HasValue && cost.Value == oldVal.Value;
         }
 
         private async Task<ErpSyncLog> SyncLocalEnrichAsync(CancellationToken ct, string? existingJobId = null)
@@ -838,6 +860,14 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 if (FieldValuesEqual(existing, incoming, field))
                     continue;
 
+                // Ancien bug Excel : prix d'achat stocké dans PriceHT.
+                // Ne pas logger un faux "Prix vente HT" (achat Excel → vente HT ERP).
+                if (field == nameof(ErpProduct.PriceHT)
+                    && IsExcelCostMistakenlyStoredAsPriceHt(existing, incoming))
+                {
+                    continue;
+                }
+
                 var oldVal = GetFieldValue(existing, field);
                 var newVal = GetFieldValue(incoming, field);
 
@@ -868,6 +898,18 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
         private static bool IsEmptyField(ErpProduct product, string fieldName) =>
             string.IsNullOrWhiteSpace(GetFieldValue(product, fieldName));
+
+        /// <summary>
+        /// True si PriceHT local vaut encore le prix d'achat Excel (CPrice)
+        /// alors que l'ERP envoie un vrai prix de vente HT différent.
+        /// </summary>
+        private static bool IsExcelCostMistakenlyStoredAsPriceHt(ErpProduct existing, ErpProduct incoming) =>
+            existing.FromExcel
+            && existing.PriceHT.HasValue
+            && existing.CPrice.HasValue
+            && existing.PriceHT == existing.CPrice
+            && incoming.PriceHT.HasValue
+            && incoming.PriceHT != existing.CPrice;
 
         private static bool FieldValuesEqual(ErpProduct existing, ErpProduct incoming, string fieldName) =>
             fieldName switch

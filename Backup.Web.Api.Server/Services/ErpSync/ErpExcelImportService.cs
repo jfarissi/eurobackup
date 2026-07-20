@@ -271,6 +271,15 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 existing.UnitPrice = sellingPrice;
                 existing.RPrice = sellingPrice;
             }
+
+            // PriceHT = vente HT ERP uniquement.
+            // Si l'ancien import avait mis le prix d'achat dans PriceHT, on le purge.
+            if (existing.PriceHT.HasValue
+                && ((costPrice.HasValue && existing.PriceHT == costPrice)
+                    || (existing.CPrice.HasValue && existing.PriceHT == existing.CPrice)))
+            {
+                existing.PriceHT = null;
+            }
             existing.SourceFile = Truncate(sourceFile, 512);
             existing.FromExcel = true;
             existing.DataSource = string.IsNullOrWhiteSpace(existing.DataSource) || existing.DataSource == "Excel"
