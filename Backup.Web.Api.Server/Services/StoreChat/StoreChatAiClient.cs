@@ -56,6 +56,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 var system = _ai.SystemPrompt
                     ?? $"Tu es l'assistant magasin {_store.BrandName}. "
                        + "Réponds en français, 2 à 4 phrases max. "
+                       + "Le catalogue produits est multilingue (français, néerlandais, anglais) : "
+                       + "accepte les libellés NL/EN et ne les considère pas comme hors sujet. "
                        + "Ne propose QUE des produits présents dans le catalogue fourni. "
                        + "Si le catalogue contient des produits, invite à choisir dans la liste UI (quantité / panier / devis). "
                        + "N'invente jamais de matériaux ou références absents du catalogue. "

@@ -350,40 +350,124 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         private static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["brique"] = new[] { "brique", "briques", "briquetage" },
-            ["mortier"] = new[] { "mortier", "mortiers" },
-            ["ciment"] = new[] { "ciment", "ciments", "ciment portland" },
-            // Pas de "bloc"/"block" : trop de faux positifs (batteries, abrasifs…).
-            ["parpaing"] = new[] { "parpaing", "parpaings", "agglo", "aggloméré", "agglomere", "hourdis" },
-            ["pierre"] = new[] { "pierre", "pierres", "moellon", "moellons" },
-            ["ferraillage"] = new[] { "ferraille", "ferraillage", "armature", "treillis" },
-            ["sable"] = new[] { "sable", "gravier" },
-            ["carrelage"] = new[] { "carrelage", "carreau", "carreaux", "faïence", "faience" },
-            ["peinture"] = new[] { "peinture", "peintures", "lasurer", "enduit" },
+            // FR / NL / EN — les libellés ERP sont multilingues
+            ["brique"] = new[]
+            {
+                "brique", "briques", "briquetage",
+                "baksteen", "bakstenen", "snelbouwsteen", "snelbouwstenen", "metselsteen", "metselstenen",
+                "brick", "bricks"
+            },
+            ["mortier"] = new[]
+            {
+                "mortier", "mortiers",
+                "mortel", "metselmortel", "voegmortel", "lijmmortel",
+                "mortar"
+            },
+            ["ciment"] = new[]
+            {
+                "ciment", "ciments", "ciment portland",
+                "cement", "portlandcement"
+            },
+            // Éviter le mot seul "block" (trop de faux positifs).
+            ["parpaing"] = new[]
+            {
+                "parpaing", "parpaings", "agglo", "aggloméré", "agglomere", "hourdis",
+                "betonblok", "betonblokken", "snelbouwblok", "snelbouwblokken", "cellenblok", "cellenbeton",
+                "kalkzandsteen", "ytong",
+                "concrete block", "cinder block", "breeze block"
+            },
+            ["pierre"] = new[]
+            {
+                "pierre", "pierres", "moellon", "moellons",
+                "natuursteen", "steen",
+                "stone", "masonry"
+            },
+            ["ferraillage"] = new[]
+            {
+                "ferraille", "ferraillage", "armature", "treillis",
+                "wapening", "betonijzer", "draadmat",
+                "rebar", "reinforcement", "mesh"
+            },
+            ["sable"] = new[]
+            {
+                "sable", "gravier",
+                "zand", "grind",
+                "sand", "gravel"
+            },
+            ["carrelage"] = new[]
+            {
+                "carrelage", "carreau", "carreaux", "faïence", "faience",
+                "tegel", "tegels", "vloertegel", "wandtegel",
+                "tile", "tiles", "tiling"
+            },
+            ["peinture"] = new[]
+            {
+                "peinture", "peintures", "lasurer", "enduit",
+                "verf", "muurverf", "latex", "beits",
+                "paint", "coating", "plaster"
+            },
         };
 
         private static readonly Dictionary<string, string[]> DomainSearchTerms = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["wall_construction"] = new[] { "parpaing", "brique", "mortier", "ciment", "agglo", "moellon" },
-            ["painting"] = new[] { "peinture", "rouleau", "enduit", "sous-couche" },
-            ["tiling"] = new[] { "carrelage", "colle", "joint", "carreau" },
-            ["plumbing"] = new[] { "robinet", "tuyau", "siphon", "pvc" },
-            ["electrical"] = new[] { "prise", "interrupteur", "câble", "cable", "led" },
-            ["garden_maintenance"] = new[] { "jardin", "tondeuse", "gazon", "haie" },
+            ["wall_construction"] = new[]
+            {
+                "parpaing", "brique", "mortier", "ciment", "agglo", "moellon",
+                "baksteen", "snelbouwsteen", "betonblok", "mortel", "cement", "metselwerk",
+                "brick", "mortar", "concrete block"
+            },
+            ["painting"] = new[]
+            {
+                "peinture", "rouleau", "enduit", "sous-couche",
+                "verf", "muurverf", "kwast", "roller",
+                "paint", "roller", "primer"
+            },
+            ["tiling"] = new[]
+            {
+                "carrelage", "colle", "joint", "carreau",
+                "tegel", "tegellijm", "voegsel",
+                "tile", "adhesive", "grout"
+            },
+            ["plumbing"] = new[]
+            {
+                "robinet", "tuyau", "siphon", "pvc",
+                "kraan", "leiding", "buis",
+                "tap", "pipe", "plumbing"
+            },
+            ["electrical"] = new[]
+            {
+                "prise", "interrupteur", "câble", "cable", "led",
+                "stopcontact", "schakelaar", "draad",
+                "socket", "switch", "wire"
+            },
+            ["garden_maintenance"] = new[]
+            {
+                "jardin", "tondeuse", "gazon", "haie",
+                "tuin", "grasmaaier", "gazon", "haag",
+                "garden", "lawnmower", "hedge"
+            },
         };
 
         private static readonly string[] MasonryPositive = new[]
         {
+            // FR
             "parpaing", "brique", "briques", "mortier", "ciment", "agglo", "agglom", "moellon",
             "hourdis", "maçon", "macon", "béton", "beton", "chaux", "sable", "gravier",
-            "bouwmaterialen", "bouwmaterial"
+            // NL
+            "baksteen", "snelbouwsteen", "metselsteen", "betonblok", "snelbouwblok", "cellenblok",
+            "cellenbeton", "kalkzandsteen", "mortel", "metselmortel", "voegmortel", "cement",
+            "metselwerk", "bouwmaterialen", "bouwmaterial", "zand", "grind", "wapening",
+            // EN
+            "brick", "bricks", "mortar", "cement", "concrete block", "cinder block", "masonry",
+            "sand", "gravel", "rebar"
         };
 
         private static readonly string[] MasonryNoise = new[]
         {
             "flexi", "schuur", "sandpaper", "duracell", "battery", "batterij", "trolley",
             "module", "affuter", "frees", "filter", "kool", "charbon", "bague", "blocage",
-            "trowel floreffe", "humiblock", "hellico", "helico", "bijl", "monoblock", "monobloc"
+            "trowel floreffe", "humiblock", "hellico", "helico", "bijl", "monoblock", "monobloc",
+            "schuurblok", "sanding block", "power block"
         };
 
         private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(
@@ -396,7 +480,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return new List<StoreChatProductSuggestionDto>();
 
             var scores = new Dictionary<int, ScoredProduct>();
-            foreach (var term in terms.Take(10))
+            foreach (var term in terms.Take(24))
             {
                 var t = term;
                 var rows = await _storage.SelectAllErpProducts()
@@ -477,9 +561,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         {
             var hay = $"{p.Name} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
             var boost = 0;
-            if (hay.Contains("parpaing") || hay.Contains("brique") || hay.Contains("mortier") || hay.Contains("ciment"))
+            if (hay.Contains("parpaing") || hay.Contains("brique") || hay.Contains("mortier") || hay.Contains("ciment")
+                || hay.Contains("baksteen") || hay.Contains("betonblok") || hay.Contains("mortel") || hay.Contains("cement")
+                || hay.Contains("brick") || hay.Contains("mortar"))
                 boost += 5;
-            if (hay.Contains("bouwmaterial"))
+            if (hay.Contains("bouwmaterial") || hay.Contains("metsel"))
                 boost += 2;
             return boost;
         }
@@ -527,7 +613,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             terms.Remove("block");
             terms.Remove("blocks");
 
-            return terms.Take(12).ToList();
+            return terms.Take(24).ToList();
         }
 
         private static void AddTermWithSynonyms(HashSet<string> terms, string token)
@@ -575,8 +661,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             decimal? length = null;
             decimal? height = null;
 
-            var lengthMatch = Regex.Match(lower, @"(?:longueur|longeur|long|l)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*m");
-            var heightMatch = Regex.Match(lower, @"(?:hauteur|haut|h)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*m");
+            var lengthMatch = Regex.Match(lower, @"(?:longueur|longeur|long|lengte|length|l)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*(?:m|metres?|mètres?|mettres?)");
+            var heightMatch = Regex.Match(lower, @"(?:hauteur|haut|hoogte|height|h)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*(?:m|metres?|mètres?|mettres?)");
             if (lengthMatch.Success && decimal.TryParse(lengthMatch.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var l1))
                 length = l1;
             if (heightMatch.Success && decimal.TryParse(heightMatch.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var h1))
@@ -584,7 +670,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             if (length is null || height is null)
             {
-                var pair = Regex.Match(lower, @"(\d+(?:\.\d+)?)\s*m\D{0,24}(\d+(?:\.\d+)?)\s*m");
+                var pair = Regex.Match(lower, @"(\d+(?:\.\d+)?)\s*(?:m|metres?|mètres?|mettres?)\D{0,32}(\d+(?:\.\d+)?)\s*(?:m|metres?|mètres?|mettres?)");
                 if (pair.Success
                     && decimal.TryParse(pair.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var a)
                     && decimal.TryParse(pair.Groups[2].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var b))
@@ -620,20 +706,23 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             var area = areaM2.Value;
 
-            if (ContainsAny(hay, "brique", "briques", "briquetage"))
+            if (ContainsAny(hay, "brique", "briques", "briquetage", "baksteen", "snelbouwsteen", "metselsteen", "brick", "bricks"))
                 return Math.Max(1, Math.Ceiling(area * BricksPerM2));
 
-            if (ContainsAny(hay, "parpaing", "agglo", "agglom", "hourdis", "moellon"))
+            if (ContainsAny(hay, "parpaing", "agglo", "agglom", "hourdis", "moellon",
+                    "betonblok", "snelbouwblok", "cellenblok", "cellenbeton", "kalkzandsteen",
+                    "concrete block", "cinder block", "breeze block"))
                 return Math.Max(1, Math.Ceiling(area * ParpaingsPerM2));
 
-            if (ContainsAny(hay, "mortier", "ciment", "chaux", "béton", "beton"))
+            if (ContainsAny(hay, "mortier", "ciment", "chaux", "béton", "beton",
+                    "mortel", "metselmortel", "voegmortel", "cement", "mortar"))
             {
                 var bagKg = TryParseBagKg(hay) ?? DefaultBagKg;
                 var kgNeeded = area * MortarKgPerM2;
                 return Math.Max(1, Math.Ceiling(kgNeeded / bagKg));
             }
 
-            if (ContainsAny(hay, "sable", "gravier"))
+            if (ContainsAny(hay, "sable", "gravier", "zand", "grind", "sand", "gravel"))
                 return Math.Max(1, Math.Ceiling(area * 0.05m)); // ~50 L/m² → sacs approx.
 
             // Outils / accessoires
@@ -738,7 +827,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 {
                     "construire un mur", "construction de mur", "mur de séparation", "mur de separation",
                     "mur de soutènement", "mur de souteinement", "parpaing", "ciment", "mortier", "brique",
-                    "moellon", "agglo", "maçonner", "maconner", "briquetage"
+                    "moellon", "agglo", "maçonner", "maconner", "briquetage",
+                    "muur bouwen", "metselwerk", "baksteen", "betonblok", "mortel", "cement",
+                    "build a wall", "brick wall", "masonry"
                 }),
                 ("painting", "Peinture", new[] { "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer" }),
                 ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
