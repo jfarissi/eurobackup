@@ -518,9 +518,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     .Where(x => x.Kind is WallProductKind.Block or WallProductKind.Brick or WallProductKind.Mortar)
                     .ToList();
 
-                // Quotas : blocs + briques + ciment/mortier (évite 20× le même lijmblok).
+                // Quotas : moins de variants Silka, plus de briques + ciment.
                 var max = Math.Max(12, _options.MaxProductResults);
-                var brickSlots = Math.Min(6, Math.Max(3, max / 4));
+                var brickSlots = Math.Min(7, Math.Max(4, max / 3));
                 var mortarSlots = Math.Min(6, Math.Max(4, max / 3));
                 var blockSlots = Math.Max(4, max - brickSlots - mortarSlots);
 
@@ -612,19 +612,19 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             Dictionary<int, ScoredProduct> scores,
             CancellationToken ct)
         {
-            var brickRows = await _storage.SelectAllErpProducts()
+            // Aligné sur le vocabulaire PROD (SubTypeName) :
+            // LIKE '%steen%|%bouw%|%brick%|%mortel%|%cement%' → des dizaines de sous-types.
+            // On exclut ensuite inbouw/opbouw sanitaires, carrelage, etc.
+            var bySubType = await _storage.SelectAllErpProducts()
                 .AsNoTracking()
-                .Where(p =>
-                    (p.Name2 != null && (
-                        p.Name2.ToLower().Contains("holle baksteen")
-                        || p.Name2.ToLower().Contains("volle baksteen")
-                        || (p.Name2.ToLower().Contains("klassieke") && p.Name2.ToLower().Contains("baksteen"))))
-                    || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains("snelbouwsteen"))
-                    || (p.Name != null && (
-                        p.Name.ToLower().Contains("baksteen")
-                        || p.Name.ToLower().Contains("snelbouwsteen")
-                        || p.Name.ToLower().Contains("brique"))))
-                .Take(60)
+                .Where(p => p.SubTypeName != null && (
+                    p.SubTypeName.ToLower().Contains("steen")
+                    || p.SubTypeName.ToLower().Contains("bouw")
+                    || p.SubTypeName.ToLower().Contains("brick")
+                    || p.SubTypeName.ToLower().Contains("brique")
+                    || p.SubTypeName.ToLower().Contains("mortel")
+                    || p.SubTypeName.ToLower().Contains("cement")))
+                .Take(120)
                 .Select(p => new ScoredProduct
                 {
                     Id = p.Id,
@@ -641,20 +641,38 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 })
                 .ToListAsync(ct);
 
-            foreach (var p in brickRows)
-                AddOrBumpScore(scores, p, "baksteen", bonus: 4);
+            foreach (var p in bySubType)
+            {
+                if (IsExcludedWallNoise(p))
+                    continue;
 
-            var cementRows = await _storage.SelectAllErpProducts()
+                var kind = ClassifyWallProduct(p);
+                if (kind == WallProductKind.Brick)
+                    AddOrBumpScore(scores, p, "baksteen", bonus: 8);
+                else if (kind == WallProductKind.Block)
+                    AddOrBumpScore(scores, p, "blok", bonus: 6);
+                else if (kind == WallProductKind.Mortar)
+                    AddOrBumpScore(scores, p, "cement", bonus: 6);
+            }
+
+            // Complément Name (Porotherm, Boerkes…) si SubTypeName peu renseigné.
+            var byName = await _storage.SelectAllErpProducts()
                 .AsNoTracking()
-                .Where(p =>
-                    (p.TypeName != null && p.TypeName.ToLower().Contains("cement en mortel"))
-                    || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains("cement"))
-                    || (p.Name != null && (
-                        p.Name.ToLower().Contains("cement cem")
-                        || p.Name.ToLower().Contains("snelcement")
-                        || p.Name.ToLower().StartsWith("cement ")
-                        || p.Name.ToLower().Contains("portland"))))
-                .Take(60)
+                .Where(p => p.Name != null && (
+                    p.Name.ToLower().Contains("snelbouw")
+                    || p.Name.ToLower().Contains("porotherm")
+                    || p.Name.ToLower().Contains("thermobrick")
+                    || p.Name.ToLower().Contains("baksteen")
+                    || p.Name.ToLower().Contains("boerkes")
+                    || p.Name.ToLower().Contains("kalkzandsteen")
+                    || p.Name.ToLower().Contains("lijmblok")
+                    || p.Name.ToLower().Contains("cement cem")
+                    || p.Name.ToLower().Contains("snelcement")
+                    || p.Name.ToLower().StartsWith("cement ")
+                    || p.Name.ToLower().Contains("betonmortel")
+                    || p.Name.ToLower().Contains("metselmortel")
+                    || p.Name.ToLower().Contains("mixcement")))
+                .Take(80)
                 .Select(p => new ScoredProduct
                 {
                     Id = p.Id,
@@ -671,8 +689,25 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 })
                 .ToListAsync(ct);
 
-            foreach (var p in cementRows)
-                AddOrBumpScore(scores, p, "cement", bonus: 5);
+            foreach (var p in byName)
+            {
+                if (IsExcludedWallNoise(p))
+                    continue;
+                var kind = ClassifyWallProduct(p);
+                if (kind is WallProductKind.Brick or WallProductKind.Block or WallProductKind.Mortar)
+                    AddOrBumpScore(scores, p, kind == WallProductKind.Mortar ? "cement" : "baksteen", bonus: 7);
+            }
+        }
+
+        private static bool IsExcludedWallNoise(ScoredProduct p)
+        {
+            var hay = $"{p.Name} {p.Name2} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+            return ContainsAny(hay,
+                "wastafel", "gootsteen", "inbouwdoos", "inbouwdozen", "opbouwdoos", "inbouwnis",
+                "opbouwnis", "sifon", "lavabo", "tegelprofiel", "tegel ", "tegels", "cementino",
+                "flexcement", "vezelcement", "cirkelzaag", "steendrager", "steenbeitel",
+                "waarborgpallet", "leddle", "hydro inbouw", "afvoer", "natuursteenstrip",
+                "aanrechtblad", "kantband", "underc anti");
         }
 
         private static void AddOrBumpScore(
@@ -700,15 +735,23 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var name = (p.Name ?? string.Empty).ToLowerInvariant();
             var type = (p.TypeName ?? string.Empty).ToLowerInvariant();
             var sub = (p.SubTypeName ?? string.Empty).ToLowerInvariant();
+
+            // Préférer sacs 20–25 kg (pas les mini 5 kg → qté 84).
+            var bagBonus = 0;
+            if (ContainsAny(name, "25kg", "25 kg", "20kg", "20 kg"))
+                bagBonus = 10;
+            else if (ContainsAny(name, "05kg", "5kg", "5 kg"))
+                bagBonus = -15;
+
             if (type.Contains("cement en mortel") || sub.Contains("cement papieren") || sub.Contains("cement coeck")
                 || sub.StartsWith("cement ") || name.Contains("cement cem") || name.Contains("snelcement")
                 || name.StartsWith("cement "))
-                return 30;
+                return 30 + bagBonus;
             if (ContainsAny(name, "metselmortel", "mortel") || ContainsAny($"{p.Name2}", "metselmortel"))
-                return 20;
+                return 20 + bagBonus;
             if (ContainsAny(name, "voegmortel", "filler"))
-                return 5;
-            return 10;
+                return 5 + bagBonus;
+            return 10 + bagBonus;
         }
 
         private enum WallProductKind
@@ -768,22 +811,29 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         private static bool IsBrickProduct(string name, string name2, string category)
         {
-            if (ContainsAny(name, "boor", "zaag", "blad", "plug", "fixations", "epoxy", "verf"))
+            if (ContainsAny(name, "boor", "zaag", "blad", "plug", "fixations", "epoxy", "verf", "waarborgpallet",
+                    "wastafel", "gootsteen", "steendrager", "steenbeitel"))
+                return false;
+            if (ContainsAny(category, "wastafel", "gootsteen", "inbouwdoos", "opbouwdoos", "inbouwnis", "sifon"))
                 return false;
 
-            if (ContainsAny(name, "snelbouwsteen", "metselsteen", "brique", "briquetage", "baksteen")
+            if (ContainsAny(name, "snelbouwsteen", "snelbouw ", "metselsteen", "brique", "briquetage", "baksteen",
+                    "thermobrick", "porotherm", "boerkes")
                 || (name.Contains("brick") && !ContainsAny(name, "drill", "saw")))
                 return true;
 
-            if (category.Contains("snelbouwsteen"))
+            // Sous-types prod (requête GROUP BY SubTypeName … %steen%/%bouw%).
+            if (category.Contains("snelbouw") || category.Contains("baksteen") || category.Contains("metselsteen"))
+                return true;
+            if (category.Contains("steen") && !ContainsAny(category, "opbouw", "inbouw", "goot", "wastafel", "strip")
+                && !ContainsAny(name, "profiel", "tegel", "werkblad"))
                 return true;
 
-            // Name2 : vraie brique (ex. Boerkes … "klassieke holle baksteen").
             if (ContainsAny(name2, "holle baksteen", "volle baksteen", "metselbaksteen", "klassieke holle baksteen"))
                 return true;
 
             if (name2.Contains("baksteen")
-                && ContainsAny(name2, "waarmee je", "binnen als buiten", "holle ", "volle ")
+                && ContainsAny(name2, "waarmee je", "binnen als buiten", "holle ", "volle ", "klassieke")
                 && !ContainsAny(name2, "ideaal voor gebruik in", "geschikt voor gebruik", "coating", "epoxy", "fixations"))
                 return true;
 
@@ -794,30 +844,27 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         {
             var hay = $"{name} {name2} {category}";
 
-            // Carrelage / outils / colles flex — pas du ciment de maçonnerie.
             if (ContainsAny(name, "epoxy", "plamuur", "polyfilla", "varioflex", "tegellijm", "primer",
                     "coating", "kelder", "cementino", "flexcement", "vezelcement", "cirkelzaag", "tegel"))
                 return false;
             if (ContainsAny(hay, "cementblok", "cementering", "cementdekvloer", "cementgrijs - 290ml")
-                && !ContainsAny(hay, "mortel", "mortier", "voegmortel", "metselmortel", "cement cem", "snelcement"))
+                && !ContainsAny(hay, "mortel", "mortier", "voegmortel", "metselmortel", "cement cem", "snelcement",
+                    "betonmortel", "mixcement", "gietmortel"))
                 return false;
 
-            // Catégorie ERP réelle des sacs de ciment.
-            if (category.Contains("cement en mortel")
-                || category.Contains("cement papieren")
-                || category.Contains("cement coeck")
-                || category.Contains("cement wit")
-                || category.Contains("cement & gips")
-                || category.Contains("rapolith snelcement"))
+            // Sous-types prod : Cement & Gips, Betonmortel, Rapolith Snelcement, Mixcement…
+            if (ContainsAny(category, "cement en mortel", "cement & gips", "cement papieren", "cement coeck",
+                    "cement wit", "rapolith snelcement", "betonmortel", "gietmortel", "mixcement", "snelcement"))
+                return true;
+            if (category.Contains("mortel") || (category.Contains("cement") && !category.Contains("cementino")))
                 return true;
 
-            // Marqueurs forts dans Name ou Name2.
             if (ContainsAny(hay, "metselmortel", "voegmortel", "lijmmortel", "metserijmortel",
-                    "rioleringmortel", "mortier", "mortel", "mortar", "snelcement", "portlandcement", "cement cem"))
+                    "betonmortel", "gietmortel", "mixcement", "mortier", "mortel", "mortar", "snelcement",
+                    "portlandcement", "cement cem"))
                 return true;
 
-            // Ciment en sac (FR/NL/EN) — Name ou Name2.
-            if ((name.StartsWith("cement ") || ContainsAny(name, "ciment ", " cement "))
+            if ((name.StartsWith("cement ") || ContainsAny(name, "ciment "))
                 && ContainsAny(hay, "kg", "zak", "sac", "bag", "pallet")
                 && !ContainsAny(name, "cementino", "sand "))
                 return true;
@@ -827,7 +874,6 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 && !ContainsAny(name, "tegel", "epoxy"))
                 return true;
 
-            // Filler = voegmortel si Name2 le dit.
             if (ContainsAny(name, "filler") && ContainsAny(name2, "voegmortel", "mortel", "metselmortel"))
                 return true;
 
