@@ -33,8 +33,15 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   brands: ErpBrand[] = [];
   mainTypes: ErpCategory[] = [];
-  types: ErpCategory[] = [];
-  subTypes: ErpCategory[] = [];
+  // pour le filtre tableau (cascade)
+  filterTypes: ErpCategory[] = [];
+  filterSubTypes: ErpCategory[] = [];
+  filterMainTypeId = '';
+  filterTypeId = '';
+  filterSubTypeId = '';
+  // pour le panneau sync catalogue
+  catalogTypes: ErpCategory[] = [];
+  catalogSubTypes: ErpCategory[] = [];
   catalogBrand = '';
   catalogMainTypeId = '';
   catalogTypeId = '';
@@ -86,33 +93,68 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ── Filtre tableau ──────────────────────────────────────────────────────────
+
+  onFilterMainTypeChange(): void {
+    this.filterTypeId = '';
+    this.filterSubTypeId = '';
+    this.filterTypes = [];
+    this.filterSubTypes = [];
+
+    const mainType = this.mainTypes.find(c => c.erpExternalId === this.filterMainTypeId);
+    if (mainType) {
+      this.erpService.getCategories({ level: 'Type', parentId: mainType.id }).subscribe({
+        next: (items) => { this.filterTypes = items ?? []; }
+      });
+    }
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onFilterTypeChange(): void {
+    this.filterSubTypeId = '';
+    this.filterSubTypes = [];
+
+    const type = this.filterTypes.find(c => c.erpExternalId === this.filterTypeId);
+    if (type) {
+      this.erpService.getCategories({ level: 'SubType', parentId: type.id }).subscribe({
+        next: (items) => { this.filterSubTypes = items ?? []; }
+      });
+    }
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onFilterSubTypeChange(): void {
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  // ── Panneau Sync catalogue ──────────────────────────────────────────────────
+
   onCatalogMainTypeChange(): void {
     this.catalogTypeId = '';
     this.catalogSubTypeId = '';
-    this.types = [];
-    this.subTypes = [];
+    this.catalogTypes = [];
+    this.catalogSubTypes = [];
 
     const mainType = this.mainTypes.find(c => c.erpExternalId === this.catalogMainTypeId);
     if (!mainType) return;
 
     this.erpService.getCategories({ level: 'Type', parentId: mainType.id }).subscribe({
-      next: (items) => {
-        this.types = items ?? [];
-      }
+      next: (items) => { this.catalogTypes = items ?? []; }
     });
   }
 
   onCatalogTypeChange(): void {
     this.catalogSubTypeId = '';
-    this.subTypes = [];
+    this.catalogSubTypes = [];
 
-    const type = this.types.find(c => c.erpExternalId === this.catalogTypeId);
+    const type = this.catalogTypes.find(c => c.erpExternalId === this.catalogTypeId);
     if (!type) return;
 
     this.erpService.getCategories({ level: 'SubType', parentId: type.id }).subscribe({
-      next: (items) => {
-        this.subTypes = items ?? [];
-      }
+      next: (items) => { this.catalogSubTypes = items ?? []; }
     });
   }
 
@@ -121,8 +163,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.catalogMainTypeId = '';
     this.catalogTypeId = '';
     this.catalogSubTypeId = '';
-    this.types = [];
-    this.subTypes = [];
+    this.catalogTypes = [];
+    this.catalogSubTypes = [];
   }
 
   categoryLabel(category: ErpCategory): string {
@@ -191,7 +233,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       pageSize: this.pageSize,
       q: this.searchQuery.trim() || undefined,
       brand: this.brandFilter.trim() || undefined,
-      dataSource: this.sourceFilter || undefined
+      dataSource: this.sourceFilter || undefined,
+      subTypeId: this.filterSubTypeId || undefined,
+      typeId: (!this.filterSubTypeId && this.filterTypeId) || undefined,
+      mainTypeId: (!this.filterSubTypeId && !this.filterTypeId && this.filterMainTypeId) || undefined,
     }).subscribe({
       next: (res) => {
         this.products = res.items ?? [];
@@ -220,6 +265,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.searchQuery = '';
     this.brandFilter = '';
     this.sourceFilter = '';
+    this.filterMainTypeId = '';
+    this.filterTypeId = '';
+    this.filterSubTypeId = '';
+    this.filterTypes = [];
+    this.filterSubTypes = [];
     this.page = 1;
     this.loadProducts();
   }

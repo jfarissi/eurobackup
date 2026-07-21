@@ -65,6 +65,9 @@ export interface ErpProductsQuery {
   q?: string;
   fromExcel?: boolean;
   dataSource?: string;
+  mainTypeId?: string;
+  typeId?: string;
+  subTypeId?: string;
 }
 
 export interface ErpProductChange {

@@ -37,11 +37,11 @@
         </select>
         <select class="filter-select" [(ngModel)]="catalogTypeId" (change)="onCatalogTypeChange()" [disabled]="!catalogMainTypeId">
           <option value="">— Sous-catégorie —</option>
-          <option *ngFor="let c of types" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+          <option *ngFor="let c of catalogTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
         </select>
         <select class="filter-select" [(ngModel)]="catalogSubTypeId" [disabled]="!catalogTypeId">
           <option value="">— Sous-sous-catégorie —</option>
-          <option *ngFor="let c of subTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+          <option *ngFor="let c of catalogSubTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
         </select>
         <button class="btn-primary btn-sm" type="button"
                 (click)="triggerCatalogSync()"
@@ -86,10 +86,22 @@
                (keyup.enter)="applyFilters()"
                placeholder="Nom, réf, EAN, ID ERP, marque…" />
       </div>
-      <input class="filter-input"
-             [(ngModel)]="brandFilter"
-             (keyup.enter)="applyFilters()"
-             placeholder="Marque" />
+      <select class="filter-select" [(ngModel)]="brandFilter" (change)="applyFilters()">
+        <option value="">— Toutes marques —</option>
+        <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
+      </select>
+      <select class="filter-select" [(ngModel)]="filterMainTypeId" (change)="onFilterMainTypeChange()">
+        <option value="">— Catégorie —</option>
+        <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+      </select>
+      <select class="filter-select" [(ngModel)]="filterTypeId" (change)="onFilterTypeChange()" [disabled]="!filterMainTypeId">
+        <option value="">— Sous-catégorie —</option>
+        <option *ngFor="let c of filterTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+      </select>
+      <select class="filter-select" [(ngModel)]="filterSubTypeId" (change)="onFilterSubTypeChange()" [disabled]="!filterTypeId">
+        <option value="">— Sous-sous —</option>
+        <option *ngFor="let c of filterSubTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+      </select>
       <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()">
         <option *ngFor="let o of sourceOptions" [value]="o.value">{{ o.label }}</option>
       </select>

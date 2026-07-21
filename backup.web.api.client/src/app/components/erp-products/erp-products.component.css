@@ -118,6 +118,22 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  background: #3525cd !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.catalog-sync-fields .btn-primary mat-icon {
+  color: #ffffff !important;
+}
+
+.catalog-sync-fields .clear-link {
+  padding: 6px 12px;
+  background: #ffffff;
+  color: #191c1e;
+  border: 1px solid #777587;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
 }
 
 .sync-progress-header {

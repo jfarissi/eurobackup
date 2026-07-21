@@ -41,6 +41,9 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? q = null,
             [FromQuery] bool? fromExcel = null,
             [FromQuery] string? dataSource = null,
+            [FromQuery] string? mainTypeId = null,
+            [FromQuery] string? typeId = null,
+            [FromQuery] string? subTypeId = null,
             CancellationToken ct = default)
         {
             page = Math.Max(1, page);
@@ -53,6 +56,12 @@ namespace Backup.Web.Api.Server.Controllers
                 query = query.Where(p => p.FromExcel == fromExcel.Value);
             if (!string.IsNullOrWhiteSpace(dataSource))
                 query = query.Where(p => p.DataSource == dataSource);
+            if (!string.IsNullOrWhiteSpace(subTypeId))
+                query = query.Where(p => p.SubTypeID == subTypeId);
+            else if (!string.IsNullOrWhiteSpace(typeId))
+                query = query.Where(p => p.TypeID == typeId);
+            else if (!string.IsNullOrWhiteSpace(mainTypeId))
+                query = query.Where(p => p.MainTypeID == mainTypeId);
             if (!string.IsNullOrWhiteSpace(q))
             {
                 var term = q.Trim().ToLowerInvariant();

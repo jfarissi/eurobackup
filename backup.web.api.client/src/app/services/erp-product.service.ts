@@ -31,6 +31,9 @@ export class ErpProductService {
     if (query.q) params = params.set('q', query.q);
     if (query.fromExcel != null) params = params.set('fromExcel', String(query.fromExcel));
     if (query.dataSource) params = params.set('dataSource', query.dataSource);
+    if (query.mainTypeId) params = params.set('mainTypeId', query.mainTypeId);
+    if (query.typeId) params = params.set('typeId', query.typeId);
+    if (query.subTypeId) params = params.set('subTypeId', query.subTypeId);
     return this.http.get<ErpProductsPage>(this.baseUrl, { params });
   }
 
