@@ -551,18 +551,39 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             IEnumerable<ScoredProduct> ranked = scores.Values;
             if (wallMode)
             {
-                ranked = ranked
-                    .Where(p => ClassifyWallProduct(p) is WallProductKind.Block or WallProductKind.Brick or WallProductKind.Mortar)
+                var classified = scores.Values
                     .Select(p =>
                     {
+                        var kind = ClassifyWallProduct(p);
                         p.Score += MasonryBoost(p);
-                        return p;
-                    });
+                        return (Product: p, Kind: kind);
+                    })
+                    .Where(x => x.Kind is WallProductKind.Block or WallProductKind.Brick or WallProductKind.Mortar)
+                    .ToList();
+
+                // Réserver des places aux mortiers/ciments (sinon les 20 créneaux partent aux blocs).
+                var max = Math.Max(8, _options.MaxProductResults);
+                var mortarSlots = Math.Min(8, Math.Max(3, max / 3));
+                var unitSlots = max - mortarSlots;
+
+                var units = classified
+                    .Where(x => x.Kind is WallProductKind.Block or WallProductKind.Brick)
+                    .OrderByDescending(x => x.Product.Score)
+                    .ThenBy(x => x.Product.Name)
+                    .Take(unitSlots)
+                    .Select(x => x.Product);
+
+                var mortars = classified
+                    .Where(x => x.Kind == WallProductKind.Mortar)
+                    .OrderByDescending(x => x.Product.Score)
+                    .ThenBy(x => x.Product.Name)
+                    .Take(mortarSlots)
+                    .Select(x => x.Product);
+
+                ranked = units.Concat(mortars);
             }
 
             return ranked
-                .OrderByDescending(p => p.Score)
-                .ThenBy(p => p.Name)
                 .Take(_options.MaxProductResults)
                 .Select(p =>
                 {
@@ -591,9 +612,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         }
 
         /// <summary>
-        /// Classifie sur le libellé produit (Name), pas sur le texte marketing Name2
-        /// (sinon "…in baksteen…" dans une description classe un epoxy en briques).
-        /// Name2 ne sert qu’en appoint si Name est vide ou pour confirmer mortier/filler.
+        /// Blocs/briques : type lu surtout dans Name.
+        /// Mortier/ciment : Name OU Name2 (souvent le type métier est dans Name2).
         /// </summary>
         private static WallProductKind ClassifyWallProduct(ScoredProduct p)
         {
@@ -611,28 +631,66 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             if (ContainsAny(name, "verf", "paint", "latex") && !ContainsAny(name, "baksteen", "lijmblok"))
                 return WallProductKind.Exclude;
 
-            // Blocs / parpaings — doit apparaître dans Name (ou catégorie Stenen).
-            if (ContainsAny(name, "lijmblok", "kalkzandsteen", "betonblok", "snelbouwblok", "cellenblok",
-                    "cellenbeton", "parpaing", "hourdis", "ytong", "concrete block", "cinder block"))
+            // Mortier / ciment d'abord (Name2 porte souvent "metselmortel", "voegmortel", "cement").
+            if (IsMortarOrCementProduct(name, name2, category))
+                return WallProductKind.Mortar;
+
+            // Blocs structurels — intitulés produit, pas "… baksteen / cellenbeton" sur une lame.
+            if (ContainsAny(name, "lijmblok", "kalkzandsteen", "snelbouwblok", "snelbouwsteen", "parpaing",
+                    "hourdis", "ytong", "concrete block", "cinder block"))
                 return WallProductKind.Block;
-            if (category.Contains("stenen") && ContainsAny(name, "blok", "steen")
-                && !ContainsAny(name, "boor", "zaag", "voor "))
+
+            if (ContainsAny(name, "betonblok", "cellenblok", "cellenbeton", "cementblok")
+                && !ContainsAny(name, "zaag", "blad", "plug", "boor", "boren", "snijden", "recipro", "spanner"))
+                return WallProductKind.Block;
+
+            if (category.Contains("stenen")
+                && ContainsAny(name, "blok", "steen")
+                && !ContainsAny(name, "boor", "zaag", "blad", "plug", "voor ", "snijden"))
                 return WallProductKind.Block;
 
             // Briques — dans Name uniquement (pas Name2 marketing).
             if (ContainsAny(name, "snelbouwsteen", "metselsteen", "brique", "briquetage")
-                || (name.Contains("baksteen") && !name.Contains("voor baksteen") && !name.Contains("boor"))
-                || (name.Contains("brick") && !name.Contains("drill")))
+                || (name.Contains("baksteen") && !ContainsAny(name, "voor baksteen", "boor", "zaag", "blad", "plug"))
+                || (name.Contains("brick") && !ContainsAny(name, "drill", "saw")))
                 return WallProductKind.Brick;
 
-            // Mortier / ciment / voegmortel — Name (+ Name2 court pour "voegmortel" si filler).
-            var mortarHay = name.Length >= 3 ? name : name2;
-            if (ContainsAny(mortarHay, "metselmortel", "voegmortel", "lijmmortel", "mortier", "mortel")
-                || (ContainsAny(mortarHay, "ciment", "cement") && (mortarHay.Contains("kg") || name2.Contains("kg")))
-                || (ContainsAny(name, "filler") && ContainsAny(name2, "voegmortel", "mortel", "metselwerk")))
-                return WallProductKind.Mortar;
-
             return WallProductKind.Other;
+        }
+
+        private static bool IsMortarOrCementProduct(string name, string name2, string category)
+        {
+            var hay = $"{name} {name2} {category}";
+
+            // Pas un mortier si clairement autre chose.
+            if (ContainsAny(name, "epoxy", "plamuur", "polyfilla", "varioflex", "tegellijm", "primer", "coating", "kelder"))
+                return false;
+            if (ContainsAny(hay, "cementblok", "cementering", "cementdekvloer")
+                && !ContainsAny(hay, "mortel", "mortier", "voegmortel", "metselmortel"))
+                return false;
+
+            // Marqueurs forts dans Name ou Name2.
+            if (ContainsAny(hay, "metselmortel", "voegmortel", "lijmmortel", "metserijmortel",
+                    "rioleringmortel", "chape mortel", "mortier", "mortel", "mortar"))
+                return true;
+
+            // Ciment en sac (FR/NL/EN) — Name ou Name2.
+            if (ContainsAny(hay, "portlandcement", "portland ciment", "ciment portland")
+                || (ContainsAny(hay, "ciment", "cement")
+                    && ContainsAny(hay, "kg", "zak", "sac", "bag", "pallet")
+                    && !ContainsAny(hay, "cementblok", "bezetting", "coating", "epoxy", "cementering")))
+                return true;
+
+            // Filler = voegmortel si Name2 le dit.
+            if (ContainsAny(name, "filler") && ContainsAny(name2, "voegmortel", "mortel", "metselmortel"))
+                return true;
+
+            // Catégorie métier.
+            if (ContainsAny(category, "mortel", "mortier", "cement", "ciment", "voegsel")
+                && !ContainsAny(name, "blok", "steen", "tegel"))
+                return true;
+
+            return false;
         }
 
         private static string FormatProductDisplayName(string? name, string? name2, string? reference, int id)
@@ -659,13 +717,27 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private static bool IsToolProduct(ScoredProduct p)
         {
             var name = (p.Name ?? string.Empty).ToLowerInvariant();
-            // Outils : se baser sur Name (évite les faux positifs via Name2).
-            if (Regex.IsMatch(name, @"\b(boor|boren|zaagblad|zaagbladen|recipro|lijnspanner|drill|carbide)\b"))
+            var category = $"{p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+
+            // Contient (pas \b) : "reciprozaagbladen" est un seul mot.
+            if (ContainsAny(name,
+                    "zaagblad", "zaagbladen", "reciprozaag", "recipro", "cellenbetonzaag", "betonzaag",
+                    "lijnspanner", "carbide", "drill bit", "cellenbetonplug", "betonplug",
+                    "snijden", "boor voor", "set boren", "gereedschap"))
                 return true;
-            if (name.Contains("voor beton") || name.Contains("voor baksteen") || name.Contains("& baksteen"))
+
+            if (ContainsAny(name, "zaag", "boor", "boren", "plug", "blad")
+                && ContainsAny(name, "baksteen", "cellenbeton", "cementblok", "betonblok", "beton"))
                 return true;
-            return ToolMarkers.Any(m => name.Contains(m))
-                   && !ContainsAny(name, "lijmblok", "kalkzandsteen", "betonblok", "snelbouwsteen", "mortel", "cement");
+
+            if (category.Contains("gereedschap") || category.Contains("lames") || category.Contains("tools"))
+                return true;
+
+            if (ToolMarkers.Any(m => name.Contains(m))
+                && !ContainsAny(name, "lijmblok", "kalkzandsteen", "snelbouwsteen", "mortel", "cement "))
+                return true;
+
+            return false;
         }
 
         private static string ProductHaystack(ScoredProduct p) =>
@@ -684,6 +756,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             };
             if (name.Contains("lijmblok") || name.Contains("kalkzandsteen") || name.Contains("snelbouwsteen"))
                 boost += 4;
+            if (ContainsAny($"{p.Name2}", "metselmortel", "voegmortel", "lijmmortel", "portlandcement"))
+                boost += 5;
             if ((p.MainTypeName ?? "").Contains("Stenen", StringComparison.OrdinalIgnoreCase)
                 || (p.TypeName ?? "").Contains("Stenen", StringComparison.OrdinalIgnoreCase))
                 boost += 3;
