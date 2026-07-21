@@ -112,36 +112,41 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
 
-            var running = await storage.SelectAllErpSyncLogs()
-                .AsNoTracking()
-                .Where(s => s.Status == "Running")
-                .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefaultAsync(ct);
-            if (running != null)
-                return running;
+            // Toujours purger les jobs Running (fantômes après restart Docker inclus)
+            // avant d'en démarrer un nouveau — sinon l'UI reprend un compteur figé.
+            await CancelAllRunningSyncsInternalAsync(storage, ct);
 
+            var mode = (_options.SyncMode ?? "LocalEnrich").Trim();
             var jobId = Guid.NewGuid().ToString("N");
             var syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
             {
                 JobId = jobId,
                 Status = "Running",
                 StartedAt = DateTime.UtcNow,
+                ProcessedProducts = 0,
+                TotalProducts = 0,
                 Details = JsonSerializer.Serialize(new
                 {
-                    mode = (_options.SyncMode ?? "LocalEnrich").Trim(),
+                    mode,
                     phase = "starting"
                 })
             });
+
+            var jobCts = new CancellationTokenSource();
+            ActiveJobs[jobId] = jobCts;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var mode = (_options.SyncMode ?? "LocalEnrich").Trim();
                     if (mode.Equals("FullCatalog", StringComparison.OrdinalIgnoreCase))
-                        await SyncFullCatalogAsync(CancellationToken.None, jobId);
+                        await SyncFullCatalogAsync(jobCts.Token, jobId);
                     else
-                        await SyncLocalEnrichAsync(CancellationToken.None, jobId);
+                        await SyncLocalEnrichAsync(jobCts.Token, jobId);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Background ERP sync {JobId} cancelled", jobId);
                 }
                 catch (Exception ex)
                 {
@@ -164,6 +169,11 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     {
                         _logger.LogError(updateEx, "Failed to mark sync {JobId} as Failed", jobId);
                     }
+                }
+                finally
+                {
+                    ActiveJobs.TryRemove(jobId, out var cts);
+                    cts?.Dispose();
                 }
             });
 
@@ -294,26 +304,44 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
         private async Task<ErpSyncLog?> CancelRunningSyncInternalAsync(IStorageBroker storage, CancellationToken ct)
         {
-            var running = await storage.SelectAllErpSyncLogs()
+            var cancelled = await CancelAllRunningSyncsInternalAsync(storage, ct);
+            return cancelled.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Annule tous les jobs Running (y compris fantômes sans ActiveJobs après restart).
+        /// </summary>
+        private async Task<List<ErpSyncLog>> CancelAllRunningSyncsInternalAsync(
+            IStorageBroker storage,
+            CancellationToken ct)
+        {
+            var runningJobs = await storage.SelectAllErpSyncLogs()
                 .Where(s => s.Status == "Running")
                 .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefaultAsync(ct);
+                .ToListAsync(ct);
 
-            if (running == null)
-                return null;
+            if (runningJobs.Count == 0)
+                return runningJobs;
 
-            if (ActiveJobs.TryRemove(running.JobId, out var cts))
+            foreach (var running in runningJobs)
             {
-                cts.Cancel();
-                cts.Dispose();
+                if (ActiveJobs.TryRemove(running.JobId, out var cts))
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+
+                running.Status = "Cancelled";
+                running.CompletedAt = DateTime.UtcNow;
+                running.ErrorMessage = string.IsNullOrWhiteSpace(running.ErrorMessage)
+                    ? "Annulé"
+                    : running.ErrorMessage;
+                await storage.UpdateErpSyncLogAsync(running);
+                _logger.LogWarning("ERP sync {JobId} cancelled (processed={Processed})",
+                    running.JobId, running.ProcessedProducts);
             }
 
-            running.Status = "Cancelled";
-            running.CompletedAt = DateTime.UtcNow;
-            running.ErrorMessage = "Annulé";
-            await storage.UpdateErpSyncLogAsync(running);
-            _logger.LogWarning("ERP sync {JobId} cancelled", running.JobId);
-            return running;
+            return runningJobs;
         }
 
         public async Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default)
@@ -725,6 +753,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     processed
                 }, ct);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 return await FailSyncLogAsync(storage, syncLog, jobId, ex);
@@ -767,6 +799,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                         productIdsCollected = productIds.Count,
                         processed
                     });
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

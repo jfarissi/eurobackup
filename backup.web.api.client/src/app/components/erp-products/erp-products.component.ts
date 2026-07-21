@@ -72,9 +72,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   get syncProgressTitle(): string {
-    return this.syncMode === 'catalog'
-      ? 'Sync produits filtrés'
-      : 'Enrichissement ERP (produits locaux)';
+    const mode = this.parseSyncDetails(this.syncProgress ?? ({} as ErpSyncLog)).mode;
+    if (mode === 'FullCatalog') return 'Sync catalogue ERP complet';
+    if (this.syncMode === 'catalog') return 'Sync produits filtrés';
+    return 'Enrichissement ERP (produits locaux)';
   }
 
   get syncProgressPercent(): number {
@@ -95,14 +96,20 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     if (!log) return '';
 
     const details = this.parseSyncDetails(log);
-    if (details.phase === 'collecting' || this.syncProgressIndeterminate) {
+    if (details.phase === 'collecting' || details.phase === 'starting' || this.syncProgressIndeterminate) {
+      if (details.mode === 'FullCatalog') {
+        return 'Collecte des IDs produits depuis l\'ERP… (peut prendre plusieurs minutes)';
+      }
       return this.syncMode === 'catalog'
         ? 'Préparation de la sync filtrée…'
         : 'Préparation de l\'enrichissement…';
     }
 
     const processed = log.processedProducts ?? 0;
-    return `${processed} / ${log.totalProducts} produits filtrés synchronisés`
+    const scope = details.mode === 'FullCatalog'
+      ? 'produits ERP'
+      : 'produits synchronisés';
+    return `${processed} / ${log.totalProducts} ${scope}`
       + ` · +${log.newProducts} créés · ${log.updatedProducts} maj · ${log.failedProducts} échecs`;
   }
 
@@ -399,9 +406,16 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   private watchSyncJob(log: ErpSyncLog): void {
     const details = this.parseSyncDetails(log);
-    if (details.mode === 'CatalogFilter' || (log.totalProducts > this.total * 10 && this.total > 0)) {
+    // Ancien job fantôme LocalEnrich massif (ex. 15k figés) — pas FullCatalog.
+    const looksLikeStaleMassLocal =
+      details.mode !== 'FullCatalog'
+      && (log.processedProducts ?? 0) > 0
+      && log.status === 'Running'
+      && (log.totalProducts > this.total * 10 && this.total > 0);
+
+    if (details.mode === 'CatalogFilter' || looksLikeStaleMassLocal) {
       this.snack.open(
-        'Ancienne sync ERP détectée (import massif). Annulation… Relancez Sync filtrés.',
+        'Ancienne sync ERP détectée (job fantôme). Annulation… Relancez la sync.',
         'Fermer',
         { duration: 10000 }
       );

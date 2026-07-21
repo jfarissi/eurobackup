@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Backup.Web.Api.Server.Brokers.Storage;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -30,6 +33,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("ERP product sync background service started (weekly Friday evening)");
+
+            // Jobs Running sans process actif (restart Docker) → fantômes qui bloquent StartSyncAll.
+            await ClearOrphanedRunningJobsAsync(stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -158,6 +164,42 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 return slot.AddDays(7);
 
             return slot;
+        }
+
+        /// <summary>
+        /// Au démarrage du conteneur, les jobs Running en base n'ont plus de Task associée.
+        /// Les laisser en Running bloque StartSyncAll (ancien comportement) et trompe l'UI.
+        /// </summary>
+        private async Task ClearOrphanedRunningJobsAsync(CancellationToken ct)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+                var orphans = await storage.SelectAllErpSyncLogs()
+                    .Where(s => s.Status == "Running")
+                    .ToListAsync(ct);
+
+                if (orphans.Count == 0)
+                    return;
+
+                foreach (var orphan in orphans)
+                {
+                    orphan.Status = "Cancelled";
+                    orphan.CompletedAt = DateTime.UtcNow;
+                    orphan.ErrorMessage = "Annulé au redémarrage (job orphelin)";
+                    await storage.UpdateErpSyncLogAsync(orphan);
+                    _logger.LogWarning(
+                        "Cleared orphaned ERP sync job {JobId} (processed={Processed}/{Total})",
+                        orphan.JobId,
+                        orphan.ProcessedProducts,
+                        orphan.TotalProducts);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Failed to clear orphaned ERP sync jobs");
+            }
         }
 
         private static async Task DelaySafe(TimeSpan delay, CancellationToken ct)
