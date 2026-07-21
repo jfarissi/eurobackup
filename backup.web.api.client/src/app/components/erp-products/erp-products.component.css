@@ -150,6 +150,13 @@
   color: #191c1e;
 }
 
+.sync-progress-scope {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #464555;
+  font-style: italic;
+}
+
 .sync-progress-pct {
   font-size: 13px;
   font-weight: 700;
@@ -268,6 +275,32 @@
 
 .filter-select {
   min-width: 150px;
+}
+
+.products-filters .filter-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #3525cd !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.products-filters .filter-action-btn mat-icon {
+  color: #ffffff !important;
+}
+
+.products-filters .filter-action-btn:disabled {
+  opacity: 0.55;
+}
+
+.products-filters .clear-link {
+  padding: 6px 12px;
+  background: #ffffff;
+  color: #191c1e;
+  border: 1px solid #777587;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
 }
 
 .btn-sm {

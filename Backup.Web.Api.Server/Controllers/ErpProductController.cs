@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Services.ErpSync;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
@@ -51,7 +52,10 @@ namespace Backup.Web.Api.Server.Controllers
 
             var query = _storage.SelectAllErpProducts().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(brand))
-                query = query.Where(p => p.Brand != null && p.Brand.Contains(brand));
+            {
+                var brandTerm = brand.Trim().ToLowerInvariant();
+                query = query.Where(p => p.Brand != null && p.Brand.ToLower() == brandTerm);
+            }
             if (fromExcel.HasValue)
                 query = query.Where(p => p.FromExcel == fromExcel.Value);
             if (!string.IsNullOrWhiteSpace(dataSource))
@@ -279,12 +283,41 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("brands")]
-        public async Task<IActionResult> GetBrands(CancellationToken ct = default)
+        public async Task<IActionResult> GetBrands(
+            [FromQuery] string? mainTypeId = null,
+            [FromQuery] string? typeId = null,
+            [FromQuery] string? subTypeId = null,
+            CancellationToken ct = default)
         {
+            var hasCategoryFilter = !string.IsNullOrWhiteSpace(mainTypeId)
+                || !string.IsNullOrWhiteSpace(typeId)
+                || !string.IsNullOrWhiteSpace(subTypeId);
+
+            if (!hasCategoryFilter)
+            {
+                var all = await _storage.SelectAllErpBrands()
+                    .AsNoTracking()
+                    .OrderBy(b => b.Name)
+                    .ToListAsync(ct);
+                return Ok(all);
+            }
+
+            var brandNames = await BuildFilteredProductsQuery(
+                    brand: null,
+                    mainTypeId,
+                    typeId,
+                    subTypeId)
+                .Where(p => p.Brand != null && p.Brand != "")
+                .Select(p => p.Brand!)
+                .Distinct()
+                .ToListAsync(ct);
+
             var items = await _storage.SelectAllErpBrands()
                 .AsNoTracking()
+                .Where(b => brandNames.Contains(b.Name))
                 .OrderBy(b => b.Name)
                 .ToListAsync(ct);
+
             return Ok(items);
         }
 
@@ -292,6 +325,9 @@ namespace Backup.Web.Api.Server.Controllers
         public async Task<IActionResult> GetCategories(
             [FromQuery] string? level = null,
             [FromQuery] int? parentId = null,
+            [FromQuery] string? brand = null,
+            [FromQuery] string? mainTypeId = null,
+            [FromQuery] string? typeId = null,
             CancellationToken ct = default)
         {
             var query = _storage.SelectAllErpCategories().AsNoTracking();
@@ -300,11 +336,97 @@ namespace Backup.Web.Api.Server.Controllers
             if (parentId.HasValue)
                 query = query.Where(c => c.ParentId == parentId.Value);
 
+            var hasProductFilter = !string.IsNullOrWhiteSpace(brand)
+                || !string.IsNullOrWhiteSpace(mainTypeId)
+                || !string.IsNullOrWhiteSpace(typeId);
+
+            if (hasProductFilter)
+            {
+                var products = BuildFilteredProductsQuery(brand, mainTypeId, typeId, subTypeId: null);
+
+                if (parentId.HasValue && !string.IsNullOrWhiteSpace(level))
+                {
+                    var parent = await _storage.SelectAllErpCategories()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == parentId.Value, ct);
+                    if (parent != null)
+                    {
+                        if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
+                            products = products.Where(p => p.MainTypeID == parent.ErpExternalId);
+                        else if (level.Equals("SubType", StringComparison.OrdinalIgnoreCase))
+                            products = products.Where(p => p.TypeID == parent.ErpExternalId);
+                    }
+                }
+
+                var validIds = await GetDistinctCategoryExternalIdsAsync(products, level, ct);
+                query = validIds.Count > 0
+                    ? query.Where(c => validIds.Contains(c.ErpExternalId))
+                    : query.Where(c => false);
+            }
+
             var items = await query
                 .OrderBy(c => c.SortOrder)
                 .ThenBy(c => c.NameNl)
                 .ToListAsync(ct);
             return Ok(items);
+        }
+
+        private static async Task<List<string>> GetDistinctCategoryExternalIdsAsync(
+            IQueryable<ErpProduct> products,
+            string? level,
+            CancellationToken ct)
+        {
+            if (level.Equals("MainType", StringComparison.OrdinalIgnoreCase))
+            {
+                return await products
+                    .Where(p => p.MainTypeID != null && p.MainTypeID != "")
+                    .Select(p => p.MainTypeID!)
+                    .Distinct()
+                    .ToListAsync(ct);
+            }
+
+            if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
+            {
+                return await products
+                    .Where(p => p.TypeID != null && p.TypeID != "")
+                    .Select(p => p.TypeID!)
+                    .Distinct()
+                    .ToListAsync(ct);
+            }
+
+            if (level.Equals("SubType", StringComparison.OrdinalIgnoreCase))
+            {
+                return await products
+                    .Where(p => p.SubTypeID != null && p.SubTypeID != "")
+                    .Select(p => p.SubTypeID!)
+                    .Distinct()
+                    .ToListAsync(ct);
+            }
+
+            return new List<string>();
+        }
+
+        private IQueryable<ErpProduct> BuildFilteredProductsQuery(
+            string? brand,
+            string? mainTypeId,
+            string? typeId,
+            string? subTypeId)
+        {
+            var query = _storage.SelectAllErpProducts().AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(brand))
+            {
+                var brandTerm = brand.Trim().ToLowerInvariant();
+                query = query.Where(p => p.Brand != null && p.Brand.ToLower() == brandTerm);
+            }
+
+            if (!string.IsNullOrWhiteSpace(subTypeId))
+                query = query.Where(p => p.SubTypeID == subTypeId);
+            else if (!string.IsNullOrWhiteSpace(typeId))
+                query = query.Where(p => p.TypeID == typeId);
+            else if (!string.IsNullOrWhiteSpace(mainTypeId))
+                query = query.Where(p => p.MainTypeID == mainTypeId);
+
+            return query;
         }
 
         [HttpGet("changes")]

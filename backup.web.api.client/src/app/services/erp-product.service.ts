@@ -102,14 +102,27 @@ export class ErpProductService {
     return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-all`, {});
   }
 
-  getBrands(): Observable<ErpBrand[]> {
-    return this.http.get<ErpBrand[]>(`${this.baseUrl}/brands`);
+  getBrands(query: { mainTypeId?: string; typeId?: string; subTypeId?: string } = {}): Observable<ErpBrand[]> {
+    let params = new HttpParams();
+    if (query.mainTypeId) params = params.set('mainTypeId', query.mainTypeId);
+    if (query.typeId) params = params.set('typeId', query.typeId);
+    if (query.subTypeId) params = params.set('subTypeId', query.subTypeId);
+    return this.http.get<ErpBrand[]>(`${this.baseUrl}/brands`, { params });
   }
 
-  getCategories(query: { level?: string; parentId?: number } = {}): Observable<ErpCategory[]> {
+  getCategories(query: {
+    level?: string;
+    parentId?: number;
+    brand?: string;
+    mainTypeId?: string;
+    typeId?: string;
+  } = {}): Observable<ErpCategory[]> {
     let params = new HttpParams();
     if (query.level) params = params.set('level', query.level);
     if (query.parentId != null) params = params.set('parentId', String(query.parentId));
+    if (query.brand) params = params.set('brand', query.brand);
+    if (query.mainTypeId) params = params.set('mainTypeId', query.mainTypeId);
+    if (query.typeId) params = params.set('typeId', query.typeId);
     return this.http.get<ErpCategory[]>(`${this.baseUrl}/categories`, { params });
   }
 

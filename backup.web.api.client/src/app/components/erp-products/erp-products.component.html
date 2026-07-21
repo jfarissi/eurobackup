@@ -21,42 +21,13 @@
       </div>
     </div>
 
-    <div class="catalog-sync-panel">
-      <div class="catalog-sync-header">
-        <span class="catalog-sync-title">Sync catalogue ERP</span>
-        <span class="catalog-sync-hint">Filtrez par marque et/ou catégorie (au moins un critère)</span>
-      </div>
-      <div class="catalog-sync-fields">
-        <select class="filter-select" [(ngModel)]="catalogBrand">
-          <option value="">— Marque —</option>
-          <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
-        </select>
-        <select class="filter-select" [(ngModel)]="catalogMainTypeId" (change)="onCatalogMainTypeChange()">
-          <option value="">— Catégorie mère —</option>
-          <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
-        </select>
-        <select class="filter-select" [(ngModel)]="catalogTypeId" (change)="onCatalogTypeChange()" [disabled]="!catalogMainTypeId">
-          <option value="">— Sous-catégorie —</option>
-          <option *ngFor="let c of catalogTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
-        </select>
-        <select class="filter-select" [(ngModel)]="catalogSubTypeId" [disabled]="!catalogTypeId">
-          <option value="">— Sous-sous-catégorie —</option>
-          <option *ngFor="let c of catalogSubTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
-        </select>
-        <button class="btn-primary btn-sm" type="button"
-                (click)="triggerCatalogSync()"
-                [disabled]="!hasCatalogFilter || syncingAll || syncingId != null">
-          <mat-icon>cloud_download</mat-icon>
-          Sync catalogue
-        </button>
-        <button class="clear-link" type="button" (click)="clearCatalogFilters()">Effacer</button>
-      </div>
-    </div>
-
     <div class="sync-progress-panel" *ngIf="syncingAll || (syncProgress && syncProgress.status === 'Running')">
       <div class="sync-progress-header">
-        <span class="sync-progress-title">Synchronisation ERP en cours</span>
+        <span class="sync-progress-title">{{ syncProgressTitle }}</span>
         <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
+      </div>
+      <div class="sync-progress-scope" *ngIf="syncMode === 'catalog' && syncFilterLabel">
+        Périmètre : {{ syncFilterLabel }}
       </div>
       <div class="sync-progress-track" [class.indeterminate]="syncProgressIndeterminate">
         <div class="sync-progress-fill"
@@ -84,28 +55,36 @@
         <input class="search-input"
                [(ngModel)]="searchQuery"
                (keyup.enter)="applyFilters()"
+               [disabled]="syncingAll"
                placeholder="Nom, réf, EAN, ID ERP, marque…" />
       </div>
-      <select class="filter-select" [(ngModel)]="brandFilter" (change)="applyFilters()">
+      <select class="filter-select" [(ngModel)]="brandFilter" (change)="onBrandFilterChange()" [disabled]="syncingAll">
         <option value="">— Toutes marques —</option>
         <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="filterMainTypeId" (change)="onFilterMainTypeChange()">
-        <option value="">— Catégorie —</option>
+      <select class="filter-select" [(ngModel)]="mainTypeId" (change)="onMainTypeChange()" [disabled]="syncingAll">
+        <option value="">— Catégorie mère —</option>
         <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="filterTypeId" (change)="onFilterTypeChange()" [disabled]="!filterMainTypeId">
+      <select class="filter-select" [(ngModel)]="typeId" (change)="onTypeChange()" [disabled]="syncingAll || !mainTypeId">
         <option value="">— Sous-catégorie —</option>
-        <option *ngFor="let c of filterTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+        <option *ngFor="let c of types" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="filterSubTypeId" (change)="onFilterSubTypeChange()" [disabled]="!filterTypeId">
-        <option value="">— Sous-sous —</option>
-        <option *ngFor="let c of filterSubTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+      <select class="filter-select" [(ngModel)]="subTypeId" (change)="onSubTypeChange()" [disabled]="syncingAll || !typeId">
+        <option value="">— Sous-sous-catégorie —</option>
+        <option *ngFor="let c of subTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()">
+      <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()" [disabled]="syncingAll">
         <option *ngFor="let o of sourceOptions" [value]="o.value">{{ o.label }}</option>
       </select>
-      <button class="btn-primary btn-sm" type="button" (click)="applyFilters()">Filtrer</button>
+      <button class="btn-primary btn-sm filter-action-btn" type="button" (click)="applyFilters()">Filtrer</button>
+      <button class="btn-primary btn-sm filter-action-btn"
+              type="button"
+              (click)="triggerCatalogSync()"
+              [disabled]="!hasSyncFilter || syncingAll || syncingId != null">
+        <mat-icon>cloud_download</mat-icon>
+        Sync catalogue
+      </button>
       <button class="clear-link" type="button" (click)="clearFilters()">Réinitialiser</button>
     </div>
   </section>

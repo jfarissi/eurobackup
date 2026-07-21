@@ -25,28 +25,21 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   syncingId: number | null = null;
   syncingAll = false;
   syncProgress: ErpSyncLog | null = null;
+  syncMode: 'catalog' | 'enrich' | null = null;
+  syncFilterLabel = '';
   private syncPollSub: Subscription | null = null;
 
   searchQuery = '';
   brandFilter = '';
   sourceFilter = '';
+  mainTypeId = '';
+  typeId = '';
+  subTypeId = '';
 
   brands: ErpBrand[] = [];
   mainTypes: ErpCategory[] = [];
-  // pour le filtre tableau (cascade)
-  filterTypes: ErpCategory[] = [];
-  filterSubTypes: ErpCategory[] = [];
-  filterMainTypeId = '';
-  filterTypeId = '';
-  filterSubTypeId = '';
-  // pour le panneau sync catalogue
-  catalogTypes: ErpCategory[] = [];
-  catalogSubTypes: ErpCategory[] = [];
-  catalogBrand = '';
-  catalogMainTypeId = '';
-  catalogTypeId = '';
-  catalogSubTypeId = '';
-  loadingCatalogOptions = false;
+  types: ErpCategory[] = [];
+  subTypes: ErpCategory[] = [];
 
   readonly sourceOptions = [
     { value: '', label: 'Toutes sources' },
@@ -61,145 +54,27 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.loadFilterOptions();
     this.loadProducts();
-    this.loadCatalogOptions();
-  }
-
-  get hasCatalogFilter(): boolean {
-    return !!(
-      this.catalogBrand.trim()
-      || this.catalogMainTypeId
-      || this.catalogTypeId
-      || this.catalogSubTypeId
-    );
-  }
-
-  loadCatalogOptions(): void {
-    this.loadingCatalogOptions = true;
-    this.erpService.getBrands().subscribe({
-      next: (brands) => {
-        this.brands = brands ?? [];
-        this.loadingCatalogOptions = false;
-      },
-      error: () => {
-        this.loadingCatalogOptions = false;
-      }
-    });
-
-    this.erpService.getCategories({ level: 'MainType' }).subscribe({
-      next: (items) => {
-        this.mainTypes = items ?? [];
-      }
-    });
-  }
-
-  // ── Filtre tableau ──────────────────────────────────────────────────────────
-
-  onFilterMainTypeChange(): void {
-    this.filterTypeId = '';
-    this.filterSubTypeId = '';
-    this.filterTypes = [];
-    this.filterSubTypes = [];
-
-    const mainType = this.mainTypes.find(c => c.erpExternalId === this.filterMainTypeId);
-    if (mainType) {
-      this.erpService.getCategories({ level: 'Type', parentId: mainType.id }).subscribe({
-        next: (items) => { this.filterTypes = items ?? []; }
-      });
-    }
-    this.page = 1;
-    this.loadProducts();
-  }
-
-  onFilterTypeChange(): void {
-    this.filterSubTypeId = '';
-    this.filterSubTypes = [];
-
-    const type = this.filterTypes.find(c => c.erpExternalId === this.filterTypeId);
-    if (type) {
-      this.erpService.getCategories({ level: 'SubType', parentId: type.id }).subscribe({
-        next: (items) => { this.filterSubTypes = items ?? []; }
-      });
-    }
-    this.page = 1;
-    this.loadProducts();
-  }
-
-  onFilterSubTypeChange(): void {
-    this.page = 1;
-    this.loadProducts();
-  }
-
-  // ── Panneau Sync catalogue ──────────────────────────────────────────────────
-
-  onCatalogMainTypeChange(): void {
-    this.catalogTypeId = '';
-    this.catalogSubTypeId = '';
-    this.catalogTypes = [];
-    this.catalogSubTypes = [];
-
-    const mainType = this.mainTypes.find(c => c.erpExternalId === this.catalogMainTypeId);
-    if (!mainType) return;
-
-    this.erpService.getCategories({ level: 'Type', parentId: mainType.id }).subscribe({
-      next: (items) => { this.catalogTypes = items ?? []; }
-    });
-  }
-
-  onCatalogTypeChange(): void {
-    this.catalogSubTypeId = '';
-    this.catalogSubTypes = [];
-
-    const type = this.catalogTypes.find(c => c.erpExternalId === this.catalogTypeId);
-    if (!type) return;
-
-    this.erpService.getCategories({ level: 'SubType', parentId: type.id }).subscribe({
-      next: (items) => { this.catalogSubTypes = items ?? []; }
-    });
-  }
-
-  clearCatalogFilters(): void {
-    this.catalogBrand = '';
-    this.catalogMainTypeId = '';
-    this.catalogTypeId = '';
-    this.catalogSubTypeId = '';
-    this.catalogTypes = [];
-    this.catalogSubTypes = [];
-  }
-
-  categoryLabel(category: ErpCategory): string {
-    return category.nameNl || category.nameFr || category.nameEn || category.erpExternalId;
-  }
-
-  triggerCatalogSync(): void {
-    if (!this.hasCatalogFilter || this.syncingAll || this.syncingId != null) return;
-
-    this.syncingAll = true;
-    this.syncProgress = null;
-    this.snack.open('Sync catalogue démarrée…', undefined, { duration: 2500 });
-
-    this.erpService.syncCatalog({
-      brand: this.catalogBrand.trim() || undefined,
-      mainTypeId: this.catalogMainTypeId || undefined,
-      typeId: this.catalogTypeId || undefined,
-      subTypeId: this.catalogSubTypeId || undefined
-    }).subscribe({
-      next: (log) => this.watchSyncJob(log),
-      error: (err) => {
-        this.syncingAll = false;
-        this.syncProgress = null;
-        const detail = err?.error?.detail || err?.error?.message || err?.message;
-        this.snack.open(
-          detail ? `Échec sync catalogue: ${detail}` : 'Échec du démarrage de la sync catalogue',
-          'Fermer',
-          { duration: 8000 }
-        );
-      }
-    });
   }
 
   ngOnDestroy(): void {
     this.stopSyncPoll();
+  }
+
+  get hasSyncFilter(): boolean {
+    return !!(
+      this.brandFilter.trim()
+      || this.mainTypeId
+      || this.typeId
+      || this.subTypeId
+    );
+  }
+
+  get syncProgressTitle(): string {
+    return this.syncMode === 'catalog'
+      ? 'Sync catalogue ERP'
+      : 'Enrichissement ERP (produits locaux)';
   }
 
   get syncProgressPercent(): number {
@@ -218,12 +93,165 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   get syncProgressLabel(): string {
     const log = this.syncProgress;
     if (!log) return '';
-    if (this.syncProgressIndeterminate) {
-      return 'Collecte du catalogue ERP…';
+
+    const details = this.parseSyncDetails(log);
+    if (details.phase === 'collecting' || this.syncProgressIndeterminate) {
+      return this.syncMode === 'catalog'
+        ? 'Collecte des produits ERP pour le périmètre sélectionné…'
+        : 'Préparation de l\'enrichissement…';
     }
+
     const processed = log.processedProducts ?? 0;
-    return `${processed} / ${log.totalProducts} produits`
+    return `${processed} / ${log.totalProducts} produits synchronisés`
       + ` · +${log.newProducts} créés · ${log.updatedProducts} maj · ${log.failedProducts} échecs`;
+  }
+
+  private parseSyncDetails(log: ErpSyncLog): { mode?: string; phase?: string } {
+    if (!log.details) return {};
+    try {
+      return JSON.parse(log.details) as { mode?: string; phase?: string };
+    } catch {
+      return {};
+    }
+  }
+
+  private buildSyncFilterLabel(): string {
+    const parts: string[] = [];
+    if (this.brandFilter.trim()) parts.push(this.brandFilter.trim());
+
+    const main = this.mainTypes.find(c => c.erpExternalId === this.mainTypeId);
+    if (main) parts.push(this.categoryLabel(main));
+
+    const type = this.types.find(c => c.erpExternalId === this.typeId);
+    if (type) parts.push(this.categoryLabel(type));
+
+    const sub = this.subTypes.find(c => c.erpExternalId === this.subTypeId);
+    if (sub) parts.push(this.categoryLabel(sub));
+
+    return parts.join(' / ');
+  }
+
+  private startSyncTracking(mode: 'catalog' | 'enrich'): void {
+    this.syncMode = mode;
+    this.syncFilterLabel = mode === 'catalog' ? this.buildSyncFilterLabel() : '';
+    this.syncingAll = true;
+    this.syncProgress = null;
+  }
+
+  private resetSyncTracking(): void {
+    this.syncingAll = false;
+    this.syncMode = null;
+    this.syncFilterLabel = '';
+    this.syncProgress = null;
+  }
+
+  private currentBrandFilter(): string | undefined {
+    return this.brandFilter.trim() || undefined;
+  }
+
+  private currentCategoryFilter(): { mainTypeId?: string; typeId?: string; subTypeId?: string } {
+    return {
+      subTypeId: this.subTypeId || undefined,
+      typeId: (!this.subTypeId && this.typeId) || undefined,
+      mainTypeId: (!this.subTypeId && !this.typeId && this.mainTypeId) || undefined
+    };
+  }
+
+  loadFilterOptions(): void {
+    this.loadBrands();
+    this.loadMainTypes();
+  }
+
+  loadBrands(): void {
+    this.erpService.getBrands(this.currentCategoryFilter()).subscribe({
+      next: (brands) => {
+        this.brands = brands ?? [];
+        if (this.brandFilter && !this.brands.some(b => b.name === this.brandFilter)) {
+          this.brandFilter = '';
+        }
+      }
+    });
+  }
+
+  loadMainTypes(): void {
+    this.erpService.getCategories({
+      level: 'MainType',
+      brand: this.currentBrandFilter()
+    }).subscribe({
+      next: (items) => {
+        this.mainTypes = items ?? [];
+        if (this.mainTypeId && !this.mainTypes.some(c => c.erpExternalId === this.mainTypeId)) {
+          this.mainTypeId = '';
+          this.typeId = '';
+          this.subTypeId = '';
+          this.types = [];
+          this.subTypes = [];
+        }
+      }
+    });
+  }
+
+  onBrandFilterChange(): void {
+    this.mainTypeId = '';
+    this.typeId = '';
+    this.subTypeId = '';
+    this.types = [];
+    this.subTypes = [];
+    this.loadMainTypes();
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onMainTypeChange(): void {
+    this.typeId = '';
+    this.subTypeId = '';
+    this.types = [];
+    this.subTypes = [];
+
+    const mainType = this.mainTypes.find(c => c.erpExternalId === this.mainTypeId);
+    if (mainType) {
+      this.erpService.getCategories({
+        level: 'Type',
+        parentId: mainType.id,
+        brand: this.currentBrandFilter()
+      }).subscribe({
+        next: (items) => { this.types = items ?? []; }
+      });
+    }
+
+    this.loadBrands();
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onTypeChange(): void {
+    this.subTypeId = '';
+    this.subTypes = [];
+
+    const type = this.types.find(c => c.erpExternalId === this.typeId);
+    if (type) {
+      this.erpService.getCategories({
+        level: 'SubType',
+        parentId: type.id,
+        brand: this.currentBrandFilter()
+      }).subscribe({
+        next: (items) => { this.subTypes = items ?? []; }
+      });
+    }
+
+    this.loadBrands();
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onSubTypeChange(): void {
+    this.loadBrands();
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  categoryLabel(category: ErpCategory): string {
+    return category.nameNl || category.nameFr || category.nameEn || category.erpExternalId;
   }
 
   loadProducts(): void {
@@ -232,11 +260,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       page: this.page,
       pageSize: this.pageSize,
       q: this.searchQuery.trim() || undefined,
-      brand: this.brandFilter.trim() || undefined,
+      brand: this.currentBrandFilter(),
       dataSource: this.sourceFilter || undefined,
-      subTypeId: this.filterSubTypeId || undefined,
-      typeId: (!this.filterSubTypeId && this.filterTypeId) || undefined,
-      mainTypeId: (!this.filterSubTypeId && !this.filterTypeId && this.filterMainTypeId) || undefined,
+      subTypeId: this.subTypeId || undefined,
+      typeId: (!this.subTypeId && this.typeId) || undefined,
+      mainTypeId: (!this.subTypeId && !this.typeId && this.mainTypeId) || undefined,
     }).subscribe({
       next: (res) => {
         this.products = res.items ?? [];
@@ -265,13 +293,58 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.searchQuery = '';
     this.brandFilter = '';
     this.sourceFilter = '';
-    this.filterMainTypeId = '';
-    this.filterTypeId = '';
-    this.filterSubTypeId = '';
-    this.filterTypes = [];
-    this.filterSubTypes = [];
+    this.mainTypeId = '';
+    this.typeId = '';
+    this.subTypeId = '';
+    this.types = [];
+    this.subTypes = [];
     this.page = 1;
+    this.loadFilterOptions();
     this.loadProducts();
+  }
+
+  triggerCatalogSync(): void {
+    if (!this.hasSyncFilter || this.syncingAll || this.syncingId != null) return;
+
+    this.startSyncTracking('catalog');
+    this.snack.open('Sync catalogue démarrée…', undefined, { duration: 2500 });
+
+    const category = this.currentCategoryFilter();
+    this.erpService.syncCatalog({
+      brand: this.currentBrandFilter(),
+      mainTypeId: category.mainTypeId,
+      typeId: category.typeId,
+      subTypeId: category.subTypeId
+    }).subscribe({
+      next: (log) => this.watchSyncJob(log),
+      error: (err) => {
+        this.resetSyncTracking();
+        const detail = err?.error?.detail || err?.error?.message || err?.message;
+        this.snack.open(
+          detail ? `Échec sync catalogue: ${detail}` : 'Échec du démarrage de la sync catalogue',
+          'Fermer',
+          { duration: 8000 }
+        );
+      }
+    });
+  }
+
+  triggerSyncAll(): void {
+    if (this.syncingAll || this.syncingId != null) return;
+    this.startSyncTracking('enrich');
+    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
+    this.erpService.syncAll().subscribe({
+      next: (log) => this.watchSyncJob(log),
+      error: (err) => {
+        this.resetSyncTracking();
+        const detail = err?.error?.detail || err?.error?.message || err?.message;
+        this.snack.open(
+          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la synchronisation ERP',
+          'Fermer',
+          { duration: 8000 }
+        );
+      }
+    });
   }
 
   selectProduct(product: ErpProduct): void {
@@ -311,26 +384,6 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     });
   }
 
-  triggerSyncAll(): void {
-    if (this.syncingAll || this.syncingId != null) return;
-    this.syncingAll = true;
-    this.syncProgress = null;
-    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
-    this.erpService.syncAll().subscribe({
-      next: (log) => this.watchSyncJob(log),
-      error: (err) => {
-        this.syncingAll = false;
-        this.syncProgress = null;
-        const detail = err?.error?.detail || err?.error?.message || err?.message;
-        this.snack.open(
-          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la synchronisation ERP',
-          'Fermer',
-          { duration: 8000 }
-        );
-      }
-    });
-  }
-
   private watchSyncJob(log: ErpSyncLog): void {
     this.syncProgress = log;
     this.stopSyncPoll();
@@ -351,7 +404,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         }
       },
       error: () => {
-        this.syncingAll = false;
+        this.resetSyncTracking();
         this.stopSyncPoll();
         this.snack.open('Impossible de suivre la progression du sync', 'Fermer', { duration: 4000 });
       }
@@ -367,8 +420,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       'OK',
       { duration: 6000 }
     );
+    this.loadFilterOptions();
     this.loadProducts();
-    this.loadCatalogOptions();
+    this.syncMode = null;
+    this.syncFilterLabel = '';
   }
 
   private stopSyncPoll(): void {
