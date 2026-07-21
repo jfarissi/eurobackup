@@ -188,6 +188,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? subTypeId = null,
             [FromQuery] string? brand = null,
             [FromQuery] bool wait = false,
+            [FromQuery] bool cancelPrevious = true,
             CancellationToken ct = default)
         {
             var filter = new ErpCatalogSyncFilter
@@ -214,14 +215,27 @@ namespace Backup.Web.Api.Server.Controllers
                     return Ok(log);
                 }
 
-                var started = await _syncService.StartSyncCatalogAsync(filter, ct);
+                var started = await _syncService.StartSyncCatalogAsync(filter, cancelPrevious, ct);
                 return Accepted(started);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
             }
             catch (Exception ex)
             {
                 var msg = ex.InnerException?.Message ?? ex.Message;
                 return StatusCode(500, new { message = "Sync catalogue échouée", detail = msg });
             }
+        }
+
+        [HttpPost("sync-cancel")]
+        public async Task<IActionResult> CancelRunningSync(CancellationToken ct = default)
+        {
+            var cancelled = await _syncService.CancelRunningSyncAsync(ct);
+            if (cancelled == null)
+                return NotFound(new { message = "Aucune sync en cours" });
+            return Ok(cancelled);
         }
 
         [HttpGet("sync-logs/{jobId}")]

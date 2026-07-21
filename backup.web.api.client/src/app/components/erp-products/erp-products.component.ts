@@ -315,16 +315,29 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       mainTypeId: category.mainTypeId,
       typeId: category.typeId,
       subTypeId: category.subTypeId
-    }).subscribe({
+    }, true).subscribe({
       next: (log) => this.watchSyncJob(log),
       error: (err) => {
         this.resetSyncTracking();
         const detail = err?.error?.detail || err?.error?.message || err?.message;
         this.snack.open(
-          detail ? `Échec sync catalogue: ${detail}` : 'Échec du démarrage de la sync catalogue',
+          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la sync',
           'Fermer',
           { duration: 8000 }
         );
+      }
+    });
+  }
+
+  cancelSync(): void {
+    this.erpService.cancelRunningSync().subscribe({
+      next: () => {
+        this.resetSyncTracking();
+        this.snack.open('Sync annulée', 'OK', { duration: 3000 });
+      },
+      error: () => {
+        this.resetSyncTracking();
+        this.snack.open('Sync arrêtée (ou déjà terminée)', 'OK', { duration: 3000 });
       }
     });
   }
@@ -385,6 +398,20 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   private watchSyncJob(log: ErpSyncLog): void {
+    const details = this.parseSyncDetails(log);
+    if (details.mode === 'CatalogFilter' || (log.totalProducts > this.total * 10 && this.total > 0)) {
+      this.snack.open(
+        'Ancienne sync ERP détectée (import massif). Annulation… Relancez Sync filtrés.',
+        'Fermer',
+        { duration: 10000 }
+      );
+      this.erpService.cancelRunningSync().subscribe({
+        next: () => this.resetSyncTracking(),
+        error: () => this.resetSyncTracking()
+      });
+      return;
+    }
+
     this.syncProgress = log;
     this.stopSyncPoll();
 

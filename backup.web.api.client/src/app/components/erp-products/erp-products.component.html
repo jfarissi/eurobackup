@@ -34,6 +34,11 @@
              [style.width.%]="syncProgressIndeterminate ? 30 : syncProgressPercent"></div>
       </div>
       <div class="sync-progress-meta">{{ syncProgressLabel }}</div>
+      <button class="btn-secondary btn-sm sync-cancel-btn" type="button"
+              *ngIf="syncingAll"
+              (click)="cancelSync()">
+        Annuler
+      </button>
     </div>
 
     <div class="stats-bar">

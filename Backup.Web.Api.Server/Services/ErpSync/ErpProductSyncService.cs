@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -17,6 +18,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 {
     public class ErpProductSyncService : IErpProductSyncService
     {
+        private static readonly ConcurrentDictionary<string, CancellationTokenSource> ActiveJobs = new();
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNameCaseInsensitive = true
@@ -170,7 +173,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         public Task<ErpSyncLog> SyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default) =>
             SyncCatalogAsync(filter, existingJobId: null, ct);
 
-        public async Task<ErpSyncLog> StartSyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default)
+        public async Task<ErpSyncLog> StartSyncCatalogAsync(
+            ErpCatalogSyncFilter filter,
+            bool cancelPrevious = true,
+            CancellationToken ct = default)
         {
             if (filter == null || !filter.HasAnyFilter)
                 throw new ArgumentException("Au moins un filtre requis (brand, mainTypeId, typeId ou subTypeId).");
@@ -178,13 +184,21 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             using var scope = _scopeFactory.CreateScope();
             var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
 
-            var running = await storage.SelectAllErpSyncLogs()
-                .AsNoTracking()
-                .Where(s => s.Status == "Running")
-                .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefaultAsync(ct);
-            if (running != null)
-                return running;
+            if (cancelPrevious)
+                await CancelRunningSyncInternalAsync(storage, ct);
+            else
+            {
+                var existing = await GetRunningSyncLogAsync(storage, ct);
+                if (existing != null)
+                {
+                    throw new InvalidOperationException(
+                        $"Une sync est déjà en cours ({existing.ProcessedProducts}/{existing.TotalProducts}). "
+                        + "Annulez-la ou relancez avec cancelPrevious=true.");
+                }
+            }
+
+            var localCount = await ApplyCatalogFilter(storage.SelectAllErpProducts(), filter)
+                .CountAsync(ct);
 
             var jobId = Guid.NewGuid().ToString("N");
             var syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
@@ -192,6 +206,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 JobId = jobId,
                 Status = "Running",
                 StartedAt = DateTime.UtcNow,
+                TotalProducts = localCount,
+                ProcessedProducts = 0,
                 Details = JsonSerializer.Serialize(new
                 {
                     mode = "FilteredLocal",
@@ -202,7 +218,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                         filter.TypeId,
                         filter.SubTypeId,
                         filter.Brand
-                    }
+                    },
+                    localMatches = localCount
                 })
             });
 
@@ -214,15 +231,22 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 Brand = filter.Brand
             };
 
+            var jobCts = new CancellationTokenSource();
+            ActiveJobs[jobId] = jobCts;
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await SyncCatalogAsync(capturedFilter, jobId, CancellationToken.None);
+                    await SyncCatalogAsync(capturedFilter, jobId, jobCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("ERP filtered sync {JobId} cancelled", jobId);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background ERP catalog sync {JobId} crashed", jobId);
+                    _logger.LogError(ex, "Background ERP filtered sync {JobId} crashed", jobId);
                     try
                     {
                         using var failScope = _scopeFactory.CreateScope();
@@ -239,12 +263,57 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     }
                     catch (Exception updateEx)
                     {
-                        _logger.LogError(updateEx, "Failed to mark catalog sync {JobId} as Failed", jobId);
+                        _logger.LogError(updateEx, "Failed to mark filtered sync {JobId} as Failed", jobId);
                     }
+                }
+                finally
+                {
+                    ActiveJobs.TryRemove(jobId, out var cts);
+                    cts?.Dispose();
                 }
             });
 
             return syncLog;
+        }
+
+        public async Task<ErpSyncLog?> CancelRunningSyncAsync(CancellationToken ct = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+            return await CancelRunningSyncInternalAsync(storage, ct);
+        }
+
+        private static async Task<ErpSyncLog?> GetRunningSyncLogAsync(IStorageBroker storage, CancellationToken ct)
+        {
+            return await storage.SelectAllErpSyncLogs()
+                .AsNoTracking()
+                .Where(s => s.Status == "Running")
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        private async Task<ErpSyncLog?> CancelRunningSyncInternalAsync(IStorageBroker storage, CancellationToken ct)
+        {
+            var running = await storage.SelectAllErpSyncLogs()
+                .Where(s => s.Status == "Running")
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (running == null)
+                return null;
+
+            if (ActiveJobs.TryRemove(running.JobId, out var cts))
+            {
+                cts.Cancel();
+                cts.Dispose();
+            }
+
+            running.Status = "Cancelled";
+            running.CompletedAt = DateTime.UtcNow;
+            running.ErrorMessage = "Annulé";
+            await storage.UpdateErpSyncLogAsync(running);
+            _logger.LogWarning("ERP sync {JobId} cancelled", running.JobId);
+            return running;
         }
 
         public async Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default)

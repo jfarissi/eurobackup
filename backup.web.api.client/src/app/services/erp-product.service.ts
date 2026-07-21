@@ -126,13 +126,17 @@ export class ErpProductService {
     return this.http.get<ErpCategory[]>(`${this.baseUrl}/categories`, { params });
   }
 
-  syncCatalog(filter: ErpCatalogSyncFilter): Observable<ErpSyncLog> {
-    let params = new HttpParams();
+  syncCatalog(filter: ErpCatalogSyncFilter, cancelPrevious = true): Observable<ErpSyncLog> {
+    let params = new HttpParams().set('cancelPrevious', String(cancelPrevious));
     if (filter.mainTypeId) params = params.set('mainTypeId', filter.mainTypeId);
     if (filter.typeId) params = params.set('typeId', filter.typeId);
     if (filter.subTypeId) params = params.set('subTypeId', filter.subTypeId);
     if (filter.brand) params = params.set('brand', filter.brand);
     return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-catalog`, {}, { params });
+  }
+
+  cancelRunningSync(): Observable<ErpSyncLog> {
+    return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-cancel`, {});
   }
 
   getSyncLog(jobId: string): Observable<ErpSyncLog> {

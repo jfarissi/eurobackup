@@ -12,7 +12,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         /// <summary>Démarre le sync en arrière-plan et retourne immédiatement le job (Status=Running).</summary>
         Task<ErpSyncLog> StartSyncAllAsync(CancellationToken ct = default);
         Task<ErpSyncLog> SyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default);
-        Task<ErpSyncLog> StartSyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default);
+        Task<ErpSyncLog> StartSyncCatalogAsync(ErpCatalogSyncFilter filter, bool cancelPrevious = true, CancellationToken ct = default);
+        Task<ErpSyncLog?> CancelRunningSyncAsync(CancellationToken ct = default);
         Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default);
         Task<ErpProduct?> SyncProductByIdAsync(string erpProductId, CancellationToken ct = default);
         Task<ErpProduct?> SyncLocalProductByIdAsync(int localId, CancellationToken ct = default);

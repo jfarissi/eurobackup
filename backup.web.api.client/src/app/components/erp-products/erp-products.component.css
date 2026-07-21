@@ -193,6 +193,10 @@
   color: #464555;
 }
 
+.sync-cancel-btn {
+  margin-top: 10px;
+}
+
 .stats-bar {
   max-width: 1440px;
   margin: 16px auto 0;
