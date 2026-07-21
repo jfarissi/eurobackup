@@ -12,6 +12,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? ActiveProjectDomainLabel { get; set; }
         /// <summary>Mots-clés matériaux accumulés sur le projet (brique, mortier…).</summary>
         public List<string> MaterialHints { get; set; } = new();
+        public decimal? WallLengthM { get; set; }
+        public decimal? WallHeightM { get; set; }
+        public decimal? WallAreaM2 =>
+            WallLengthM is > 0 && WallHeightM is > 0
+                ? Math.Round(WallLengthM.Value * WallHeightM.Value, 2)
+                : null;
         public List<StoreChatHistoryMessage> History { get; set; } = new();
         public List<StoreChatCartItem> Cart { get; set; } = new();
         public Guid? LastOrderId { get; set; }

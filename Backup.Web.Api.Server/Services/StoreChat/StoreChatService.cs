@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
@@ -96,8 +97,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return Ok(session, "Message vide.", "NONE");
 
             DetectDomain(session, text);
+            ParseWallDimensions(session, text);
             CollectMaterialHints(session, text);
             var products = await SearchProductsAsync(text, session, ct);
+            ApplySuggestedQuantities(products, session);
             var catalogContext = BuildCatalogContext(products);
             var aiReply = await _ai.CompleteAsync(session.History, text, catalogContext, ct);
 
@@ -328,6 +331,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 await AddToCartAsync(session, line.ProductId, line.Quantity <= 0 ? 1 : line.Quantity, ct);
         }
 
+        // Estimations magasin (ordre de grandeur) pour un mur plein.
+        private const decimal BricksPerM2 = 55m;
+        private const decimal ParpaingsPerM2 = 12.5m;
+        private const decimal MortarKgPerM2 = 30m;
+        private const decimal DefaultBagKg = 25m;
+
         private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
         {
             "je", "tu", "il", "on", "nous", "vous", "les", "des", "une", "un", "de", "du", "la", "le",
@@ -336,14 +345,16 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             "projet", "svp", "s'il", "sil", "vous", "plait", "ça", "ca", "est", "que", "qui", "quoi",
             "comme", "aussi", "donc", "alors", "mais", "mon", "ma", "mes", "ton", "votre", "notre",
             "mètre", "metre", "metres", "mètres", "cm", "mm", "haut", "haute", "hauteur", "longeur",
-            "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux"
+            "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux", "construire", "mur"
         };
 
         private static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)
         {
             ["brique"] = new[] { "brique", "briques", "briquetage" },
-            ["mortier"] = new[] { "mortier", "ciment", "chaux" },
-            ["parpaing"] = new[] { "parpaing", "parpaings", "agglo", "aggloméré", "agglomere", "bloc" },
+            ["mortier"] = new[] { "mortier", "mortiers" },
+            ["ciment"] = new[] { "ciment", "ciments", "ciment portland" },
+            // Pas de "bloc"/"block" : trop de faux positifs (batteries, abrasifs…).
+            ["parpaing"] = new[] { "parpaing", "parpaings", "agglo", "aggloméré", "agglomere", "hourdis" },
             ["pierre"] = new[] { "pierre", "pierres", "moellon", "moellons" },
             ["ferraillage"] = new[] { "ferraille", "ferraillage", "armature", "treillis" },
             ["sable"] = new[] { "sable", "gravier" },
@@ -353,12 +364,26 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         private static readonly Dictionary<string, string[]> DomainSearchTerms = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["wall_construction"] = new[] { "parpaing", "brique", "mortier", "ciment", "bloc", "agglo" },
+            ["wall_construction"] = new[] { "parpaing", "brique", "mortier", "ciment", "agglo", "moellon" },
             ["painting"] = new[] { "peinture", "rouleau", "enduit", "sous-couche" },
             ["tiling"] = new[] { "carrelage", "colle", "joint", "carreau" },
             ["plumbing"] = new[] { "robinet", "tuyau", "siphon", "pvc" },
             ["electrical"] = new[] { "prise", "interrupteur", "câble", "cable", "led" },
             ["garden_maintenance"] = new[] { "jardin", "tondeuse", "gazon", "haie" },
+        };
+
+        private static readonly string[] MasonryPositive = new[]
+        {
+            "parpaing", "brique", "briques", "mortier", "ciment", "agglo", "agglom", "moellon",
+            "hourdis", "maçon", "macon", "béton", "beton", "chaux", "sable", "gravier",
+            "bouwmaterialen", "bouwmaterial"
+        };
+
+        private static readonly string[] MasonryNoise = new[]
+        {
+            "flexi", "schuur", "sandpaper", "duracell", "battery", "batterij", "trolley",
+            "module", "affuter", "frees", "filter", "kool", "charbon", "bague", "blocage",
+            "trowel floreffe", "humiblock", "hellico", "helico", "bijl", "monoblock", "monobloc"
         };
 
         private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(
@@ -385,7 +410,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(t))
                         || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(t)))
                     .OrderBy(p => p.Name)
-                    .Take(40)
+                    .Take(50)
                     .Select(p => new ScoredProduct
                     {
                         Id = p.Id,
@@ -410,7 +435,20 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 }
             }
 
-            return scores.Values
+            var wallMode = string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase);
+            IEnumerable<ScoredProduct> ranked = scores.Values;
+            if (wallMode)
+            {
+                ranked = ranked
+                    .Where(IsMasonryRelevant)
+                    .Select(p =>
+                    {
+                        p.Score += MasonryBoost(p);
+                        return p;
+                    });
+            }
+
+            return ranked
                 .OrderByDescending(p => p.Score)
                 .ThenBy(p => p.Name)
                 .Take(_options.MaxProductResults)
@@ -425,6 +463,25 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     SuggestedQuantity = 1
                 })
                 .ToList();
+        }
+
+        private static bool IsMasonryRelevant(ScoredProduct p)
+        {
+            var hay = $"{p.Name} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+            if (MasonryNoise.Any(n => hay.Contains(n)))
+                return false;
+            return MasonryPositive.Any(k => hay.Contains(k));
+        }
+
+        private static int MasonryBoost(ScoredProduct p)
+        {
+            var hay = $"{p.Name} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+            var boost = 0;
+            if (hay.Contains("parpaing") || hay.Contains("brique") || hay.Contains("mortier") || hay.Contains("ciment"))
+                boost += 5;
+            if (hay.Contains("bouwmaterial"))
+                boost += 2;
+            return boost;
         }
 
         private sealed class ScoredProduct
@@ -461,8 +518,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 var token = raw.Trim().ToLowerInvariant();
                 if (token.Length < 3 || StopWords.Contains(token) || token.Any(char.IsDigit))
                     continue;
+                if (token is "bloc" or "block" or "blocks")
+                    continue;
                 AddTermWithSynonyms(terms, token);
             }
+
+            terms.Remove("bloc");
+            terms.Remove("block");
+            terms.Remove("blocks");
 
             return terms.Take(12).ToList();
         }
@@ -494,22 +557,110 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 }
             }
 
-            if (lower.Contains("construire") && lower.Contains("mur")
-                && !session.MaterialHints.Contains("parpaing", StringComparer.OrdinalIgnoreCase))
+            if ((lower.Contains("construire") && lower.Contains("mur"))
+                || string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
             {
-                session.MaterialHints.Add("parpaing");
-                session.MaterialHints.Add("mortier");
+                foreach (var hint in new[] { "parpaing", "brique", "mortier", "ciment" })
+                {
+                    if (!session.MaterialHints.Contains(hint, StringComparer.OrdinalIgnoreCase))
+                        session.MaterialHints.Add(hint);
+                }
             }
         }
+
+        private static void ParseWallDimensions(StoreChatSession session, string text)
+        {
+            var lower = text.ToLowerInvariant().Replace(',', '.');
+
+            decimal? length = null;
+            decimal? height = null;
+
+            var lengthMatch = Regex.Match(lower, @"(?:longueur|longeur|long|l)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*m");
+            var heightMatch = Regex.Match(lower, @"(?:hauteur|haut|h)\s*(?:de|:)?\s*(\d+(?:\.\d+)?)\s*m");
+            if (lengthMatch.Success && decimal.TryParse(lengthMatch.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var l1))
+                length = l1;
+            if (heightMatch.Success && decimal.TryParse(heightMatch.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var h1))
+                height = h1;
+
+            if (length is null || height is null)
+            {
+                var pair = Regex.Match(lower, @"(\d+(?:\.\d+)?)\s*m\D{0,24}(\d+(?:\.\d+)?)\s*m");
+                if (pair.Success
+                    && decimal.TryParse(pair.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var a)
+                    && decimal.TryParse(pair.Groups[2].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var b))
+                {
+                    // Convention : première valeur = longueur, seconde = hauteur si non déjà trouvées.
+                    length ??= a;
+                    height ??= b;
+                }
+            }
+
+            if (length is > 0)
+                session.WallLengthM = length;
+            if (height is > 0)
+                session.WallHeightM = height;
+        }
+
+        private static void ApplySuggestedQuantities(
+            List<StoreChatProductSuggestionDto> products,
+            StoreChatSession session)
+        {
+            var area = session.WallAreaM2;
+            foreach (var p in products)
+            {
+                var hay = $"{p.Name} {p.Category}".ToLowerInvariant();
+                p.SuggestedQuantity = EstimateQuantity(hay, area);
+            }
+        }
+
+        private static decimal EstimateQuantity(string hay, decimal? areaM2)
+        {
+            if (areaM2 is null or <= 0)
+                return 1;
+
+            var area = areaM2.Value;
+
+            if (ContainsAny(hay, "brique", "briques", "briquetage"))
+                return Math.Max(1, Math.Ceiling(area * BricksPerM2));
+
+            if (ContainsAny(hay, "parpaing", "agglo", "agglom", "hourdis", "moellon"))
+                return Math.Max(1, Math.Ceiling(area * ParpaingsPerM2));
+
+            if (ContainsAny(hay, "mortier", "ciment", "chaux", "béton", "beton"))
+            {
+                var bagKg = TryParseBagKg(hay) ?? DefaultBagKg;
+                var kgNeeded = area * MortarKgPerM2;
+                return Math.Max(1, Math.Ceiling(kgNeeded / bagKg));
+            }
+
+            if (ContainsAny(hay, "sable", "gravier"))
+                return Math.Max(1, Math.Ceiling(area * 0.05m)); // ~50 L/m² → sacs approx.
+
+            // Outils / accessoires
+            return 1;
+        }
+
+        private static decimal? TryParseBagKg(string hay)
+        {
+            var m = Regex.Match(hay, @"(\d+(?:[.,]\d+)?)\s*kg");
+            if (m.Success
+                && decimal.TryParse(m.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var kg)
+                && kg > 0)
+                return kg;
+            return null;
+        }
+
+        private static bool ContainsAny(string hay, params string[] keys) =>
+            keys.Any(k => hay.Contains(k, StringComparison.OrdinalIgnoreCase));
 
         private static string BuildCatalogContext(IReadOnlyList<StoreChatProductSuggestionDto> products)
         {
             if (products.Count == 0)
                 return "(aucun produit trouvé dans le catalogue local — ne propose aucun produit inventé; demande un autre mot-clé marque/type)";
 
-            return "Produits catalogue à recommander UNIQUEMENT:\n"
+            return "Produits catalogue à recommander UNIQUEMENT (quantités déjà estimées):\n"
                    + string.Join("\n", products.Take(12).Select(p =>
-                       $"- [{p.ProductId}] {p.Name} | {p.Brand} | {p.Category} | {p.Price:N2} €"));
+                       $"- [{p.ProductId}] {p.Name} | qté estimée {p.SuggestedQuantity:0} | {p.Brand} | {p.Category} | {p.Price:N2} €"));
         }
 
         private static string BuildUserFacingReply(
@@ -517,31 +668,55 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             IReadOnlyList<StoreChatProductSuggestionDto> products,
             StoreChatSession session)
         {
+            var calc = BuildCalculationSummary(session);
+
             if (products.Count > 0)
             {
-                var intro = !string.IsNullOrWhiteSpace(aiReply) && aiReply!.Length < 600
-                    ? aiReply.Trim()
-                    : $"Voici {products.Count} produit(s) du catalogue pour votre projet"
-                      + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
-                          ? "."
-                          : $" ({session.ActiveProjectDomainLabel}).");
-
-                if (!intro.Contains("ci-dessous", StringComparison.OrdinalIgnoreCase)
-                    && !intro.Contains("catalogue", StringComparison.OrdinalIgnoreCase)
-                    && !intro.Contains("panier", StringComparison.OrdinalIgnoreCase))
+                var intro = calc;
+                if (string.IsNullOrWhiteSpace(intro))
                 {
-                    intro += "\n\nChoisissez les quantités dans la liste ci-dessous, puis ajoutez au panier / devis / commande.";
+                    intro = $"Voici {products.Count} produit(s) du catalogue"
+                            + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
+                                ? "."
+                                : $" pour {session.ActiveProjectDomainLabel}.");
                 }
 
-                return intro;
+                intro += "\n\nLes quantités dans la liste sont des estimations : ajustez-les puis ajoutez au panier / devis / commande.";
+
+                if (!string.IsNullOrWhiteSpace(aiReply)
+                    && aiReply!.Length < 400
+                    && !LooksLikeInventedProductList(aiReply))
+                {
+                    intro = calc + "\n\n" + aiReply.Trim()
+                            + "\n\nLes quantités proposées sont préremplies dans le tableau.";
+                }
+
+                return intro.Trim();
             }
 
-            if (!string.IsNullOrWhiteSpace(aiReply)
-                && !LooksLikeInventedProductList(aiReply))
+            if (!string.IsNullOrWhiteSpace(calc))
+                return calc + "\n\nJe n'ai pas trouvé de parpaings/briques/mortier/ciment correspondants dans le catalogue. Affinez avec un matériau précis.";
+
+            if (!string.IsNullOrWhiteSpace(aiReply) && !LooksLikeInventedProductList(aiReply))
                 return aiReply!.Trim();
 
             return "Je n'ai pas trouvé de produit correspondant dans le catalogue. "
                    + "Indiquez un matériau ou une marque précise (ex. parpaing, brique, mortier, ciment).";
+        }
+
+        private static string BuildCalculationSummary(StoreChatSession session)
+        {
+            if (session.WallLengthM is not > 0 || session.WallHeightM is not > 0 || session.WallAreaM2 is not > 0)
+                return string.Empty;
+
+            var area = session.WallAreaM2!.Value;
+            var bricks = Math.Ceiling(area * BricksPerM2);
+            var parpaings = Math.Ceiling(area * ParpaingsPerM2);
+            var mortarBags = Math.Ceiling(area * MortarKgPerM2 / DefaultBagKg);
+
+            return $"Mur {session.WallLengthM:0.##} m × {session.WallHeightM:0.##} m → surface ≈ {area:0.##} m².\n"
+                   + $"Estimations (ordre de grandeur) : ~{bricks:0} briques, ou ~{parpaings:0} parpaings, "
+                   + $"et ~{mortarBags:0} sac(s) de mortier/ciment ({DefaultBagKg:0} kg).";
         }
 
         private static bool LooksLikeInventedProductList(string reply)
@@ -583,7 +758,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             }
 
             // Fallback : "mur" + dimensions / construire → maçonnerie
-            if (lower.Contains("mur") && (lower.Contains("construire") || lower.Contains("m ") || lower.Contains("metre") || lower.Contains("mètre")))
+            if (lower.Contains("mur") && (lower.Contains("construire") || Regex.IsMatch(lower, @"\d+\s*m")))
             {
                 session.ActiveProjectDomainId = "wall_construction";
                 session.ActiveProjectDomainLabel = "Construction de mur";
