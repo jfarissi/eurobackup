@@ -163,6 +163,54 @@ namespace Backup.Web.Api.Server.Controllers
             return Accepted(started);
         }
 
+        /// <summary>
+        /// Sync catalogue ERP filtrée par marque et/ou branche de catégories (MainType / Type / SubType).
+        /// Au moins un filtre requis.
+        /// </summary>
+        [HttpPost("sync-catalog")]
+        [RequestTimeout(3_600_000)]
+        public async Task<IActionResult> SyncCatalog(
+            [FromQuery] string? mainTypeId = null,
+            [FromQuery] string? typeId = null,
+            [FromQuery] string? subTypeId = null,
+            [FromQuery] string? brand = null,
+            [FromQuery] bool wait = false,
+            CancellationToken ct = default)
+        {
+            var filter = new ErpCatalogSyncFilter
+            {
+                MainTypeId = mainTypeId,
+                TypeId = typeId,
+                SubTypeId = subTypeId,
+                Brand = brand
+            };
+
+            if (!filter.HasAnyFilter)
+            {
+                return BadRequest(new
+                {
+                    message = "Au moins un filtre requis : brand, mainTypeId, typeId ou subTypeId"
+                });
+            }
+
+            try
+            {
+                if (wait)
+                {
+                    var log = await _syncService.SyncCatalogAsync(filter, ct);
+                    return Ok(log);
+                }
+
+                var started = await _syncService.StartSyncCatalogAsync(filter, ct);
+                return Accepted(started);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Sync catalogue échouée", detail = msg });
+            }
+        }
+
         [HttpGet("sync-logs/{jobId}")]
         public async Task<IActionResult> GetSyncLogByJobId([FromRoute] string jobId, CancellationToken ct = default)
         {

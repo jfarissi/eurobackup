@@ -3,6 +3,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
+  ErpBrand,
+  ErpCatalogSyncFilter,
+  ErpCategory,
   ErpChangesPage,
   ErpChangesQuery,
   ErpProduct,
@@ -94,6 +97,26 @@ export class ErpProductService {
 
   syncAll(): Observable<ErpSyncLog> {
     return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-all`, {});
+  }
+
+  getBrands(): Observable<ErpBrand[]> {
+    return this.http.get<ErpBrand[]>(`${this.baseUrl}/brands`);
+  }
+
+  getCategories(query: { level?: string; parentId?: number } = {}): Observable<ErpCategory[]> {
+    let params = new HttpParams();
+    if (query.level) params = params.set('level', query.level);
+    if (query.parentId != null) params = params.set('parentId', String(query.parentId));
+    return this.http.get<ErpCategory[]>(`${this.baseUrl}/categories`, { params });
+  }
+
+  syncCatalog(filter: ErpCatalogSyncFilter): Observable<ErpSyncLog> {
+    let params = new HttpParams();
+    if (filter.mainTypeId) params = params.set('mainTypeId', filter.mainTypeId);
+    if (filter.typeId) params = params.set('typeId', filter.typeId);
+    if (filter.subTypeId) params = params.set('subTypeId', filter.subTypeId);
+    if (filter.brand) params = params.set('brand', filter.brand);
+    return this.http.post<ErpSyncLog>(`${this.baseUrl}/sync-catalog`, {}, { params });
   }
 
   getSyncLog(jobId: string): Observable<ErpSyncLog> {

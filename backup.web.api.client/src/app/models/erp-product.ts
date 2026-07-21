@@ -132,3 +132,29 @@ export interface ExcelImportResult {
   skipped: number;
   errors: string[];
 }
+
+export interface ErpBrand {
+  id: number;
+  name: string;
+  slug: string;
+  isActive: boolean;
+}
+
+export interface ErpCategory {
+  id: number;
+  erpExternalId: string;
+  level: string;
+  nameNl: string;
+  nameFr: string;
+  nameEn: string;
+  parentId?: number | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface ErpCatalogSyncFilter {
+  mainTypeId?: string;
+  typeId?: string;
+  subTypeId?: string;
+  brand?: string;
+}

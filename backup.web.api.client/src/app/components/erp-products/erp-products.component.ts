@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
-import { ErpProduct, ErpSyncLog } from '../../models/erp-product';
+import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 
@@ -31,6 +31,16 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   brandFilter = '';
   sourceFilter = '';
 
+  brands: ErpBrand[] = [];
+  mainTypes: ErpCategory[] = [];
+  types: ErpCategory[] = [];
+  subTypes: ErpCategory[] = [];
+  catalogBrand = '';
+  catalogMainTypeId = '';
+  catalogTypeId = '';
+  catalogSubTypeId = '';
+  loadingCatalogOptions = false;
+
   readonly sourceOptions = [
     { value: '', label: 'Toutes sources' },
     { value: 'Excel', label: 'Excel' },
@@ -45,6 +55,105 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadProducts();
+    this.loadCatalogOptions();
+  }
+
+  get hasCatalogFilter(): boolean {
+    return !!(
+      this.catalogBrand.trim()
+      || this.catalogMainTypeId
+      || this.catalogTypeId
+      || this.catalogSubTypeId
+    );
+  }
+
+  loadCatalogOptions(): void {
+    this.loadingCatalogOptions = true;
+    this.erpService.getBrands().subscribe({
+      next: (brands) => {
+        this.brands = brands ?? [];
+        this.loadingCatalogOptions = false;
+      },
+      error: () => {
+        this.loadingCatalogOptions = false;
+      }
+    });
+
+    this.erpService.getCategories({ level: 'MainType' }).subscribe({
+      next: (items) => {
+        this.mainTypes = items ?? [];
+      }
+    });
+  }
+
+  onCatalogMainTypeChange(): void {
+    this.catalogTypeId = '';
+    this.catalogSubTypeId = '';
+    this.types = [];
+    this.subTypes = [];
+
+    const mainType = this.mainTypes.find(c => c.erpExternalId === this.catalogMainTypeId);
+    if (!mainType) return;
+
+    this.erpService.getCategories({ level: 'Type', parentId: mainType.id }).subscribe({
+      next: (items) => {
+        this.types = items ?? [];
+      }
+    });
+  }
+
+  onCatalogTypeChange(): void {
+    this.catalogSubTypeId = '';
+    this.subTypes = [];
+
+    const type = this.types.find(c => c.erpExternalId === this.catalogTypeId);
+    if (!type) return;
+
+    this.erpService.getCategories({ level: 'SubType', parentId: type.id }).subscribe({
+      next: (items) => {
+        this.subTypes = items ?? [];
+      }
+    });
+  }
+
+  clearCatalogFilters(): void {
+    this.catalogBrand = '';
+    this.catalogMainTypeId = '';
+    this.catalogTypeId = '';
+    this.catalogSubTypeId = '';
+    this.types = [];
+    this.subTypes = [];
+  }
+
+  categoryLabel(category: ErpCategory): string {
+    return category.nameNl || category.nameFr || category.nameEn || category.erpExternalId;
+  }
+
+  triggerCatalogSync(): void {
+    if (!this.hasCatalogFilter || this.syncingAll || this.syncingId != null) return;
+
+    this.syncingAll = true;
+    this.syncProgress = null;
+    this.snack.open('Sync catalogue démarrée…', undefined, { duration: 2500 });
+
+    this.erpService.syncCatalog({
+      brand: this.catalogBrand.trim() || undefined,
+      mainTypeId: this.catalogMainTypeId || undefined,
+      typeId: this.catalogTypeId || undefined,
+      subTypeId: this.catalogSubTypeId || undefined
+    }).subscribe({
+      next: (log) => this.watchSyncJob(log),
+      error: (err) => {
+        this.syncingAll = false;
+        this.syncProgress = null;
+        const detail = err?.error?.detail || err?.error?.message || err?.message;
+        this.snack.open(
+          detail ? `Échec sync catalogue: ${detail}` : 'Échec du démarrage de la sync catalogue',
+          'Fermer',
+          { duration: 8000 }
+        );
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -209,6 +318,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       { duration: 6000 }
     );
     this.loadProducts();
+    this.loadCatalogOptions();
   }
 
   private stopSyncPoll(): void {

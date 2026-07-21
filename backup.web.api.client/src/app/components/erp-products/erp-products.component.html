@@ -21,9 +21,41 @@
       </div>
     </div>
 
+    <div class="catalog-sync-panel">
+      <div class="catalog-sync-header">
+        <span class="catalog-sync-title">Sync catalogue ERP</span>
+        <span class="catalog-sync-hint">Filtrez par marque et/ou catégorie (au moins un critère)</span>
+      </div>
+      <div class="catalog-sync-fields">
+        <select class="filter-select" [(ngModel)]="catalogBrand">
+          <option value="">— Marque —</option>
+          <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="catalogMainTypeId" (change)="onCatalogMainTypeChange()">
+          <option value="">— Catégorie mère —</option>
+          <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="catalogTypeId" (change)="onCatalogTypeChange()" [disabled]="!catalogMainTypeId">
+          <option value="">— Sous-catégorie —</option>
+          <option *ngFor="let c of types" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="catalogSubTypeId" [disabled]="!catalogTypeId">
+          <option value="">— Sous-sous-catégorie —</option>
+          <option *ngFor="let c of subTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
+        </select>
+        <button class="btn-primary btn-sm" type="button"
+                (click)="triggerCatalogSync()"
+                [disabled]="!hasCatalogFilter || syncingAll || syncingId != null">
+          <mat-icon>cloud_download</mat-icon>
+          Sync catalogue
+        </button>
+        <button class="clear-link" type="button" (click)="clearCatalogFilters()">Effacer</button>
+      </div>
+    </div>
+
     <div class="sync-progress-panel" *ngIf="syncingAll || (syncProgress && syncProgress.status === 'Running')">
       <div class="sync-progress-header">
-        <span class="sync-progress-title">Enrichissement ERP en cours</span>
+        <span class="sync-progress-title">Synchronisation ERP en cours</span>
         <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
       </div>
       <div class="sync-progress-track" [class.indeterminate]="syncProgressIndeterminate">

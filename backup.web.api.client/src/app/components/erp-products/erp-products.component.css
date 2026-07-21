@@ -73,6 +73,53 @@
   box-shadow: var(--shadow-sm);
 }
 
+.catalog-sync-panel {
+  max-width: 1440px;
+  margin: 16px auto 0;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #c7c4d8;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.catalog-sync-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.catalog-sync-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.catalog-sync-hint {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  font-style: italic;
+}
+
+.catalog-sync-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.catalog-sync-fields .filter-select {
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.catalog-sync-fields .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .sync-progress-header {
   display: flex;
   align-items: center;

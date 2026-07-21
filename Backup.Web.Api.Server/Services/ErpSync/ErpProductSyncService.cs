@@ -167,6 +167,86 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             return syncLog;
         }
 
+        public Task<ErpSyncLog> SyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default) =>
+            SyncCatalogAsync(filter, existingJobId: null, ct);
+
+        public async Task<ErpSyncLog> StartSyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default)
+        {
+            if (filter == null || !filter.HasAnyFilter)
+                throw new ArgumentException("Au moins un filtre requis (brand, mainTypeId, typeId ou subTypeId).");
+
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+
+            var running = await storage.SelectAllErpSyncLogs()
+                .AsNoTracking()
+                .Where(s => s.Status == "Running")
+                .OrderByDescending(s => s.StartedAt)
+                .FirstOrDefaultAsync(ct);
+            if (running != null)
+                return running;
+
+            var jobId = Guid.NewGuid().ToString("N");
+            var syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
+            {
+                JobId = jobId,
+                Status = "Running",
+                StartedAt = DateTime.UtcNow,
+                Details = JsonSerializer.Serialize(new
+                {
+                    mode = "CatalogFilter",
+                    phase = "starting",
+                    filter = new
+                    {
+                        filter.MainTypeId,
+                        filter.TypeId,
+                        filter.SubTypeId,
+                        filter.Brand
+                    }
+                })
+            });
+
+            var capturedFilter = new ErpCatalogSyncFilter
+            {
+                MainTypeId = filter.MainTypeId,
+                TypeId = filter.TypeId,
+                SubTypeId = filter.SubTypeId,
+                Brand = filter.Brand
+            };
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await SyncCatalogAsync(capturedFilter, jobId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background ERP catalog sync {JobId} crashed", jobId);
+                    try
+                    {
+                        using var failScope = _scopeFactory.CreateScope();
+                        var failStorage = failScope.ServiceProvider.GetRequiredService<IStorageBroker>();
+                        var log = await failStorage.SelectAllErpSyncLogs()
+                            .FirstOrDefaultAsync(s => s.JobId == jobId);
+                        if (log != null && log.Status == "Running")
+                        {
+                            log.Status = "Failed";
+                            log.ErrorMessage = ex.Message;
+                            log.CompletedAt = DateTime.UtcNow;
+                            await failStorage.UpdateErpSyncLogAsync(log);
+                        }
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "Failed to mark catalog sync {JobId} as Failed", jobId);
+                    }
+                }
+            });
+
+            return syncLog;
+        }
+
         public async Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(jobId))
@@ -609,50 +689,147 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 syncLog.Details = JsonSerializer.Serialize(new { mode = "FullCatalog", phase = "collecting" });
                 await storage.UpdateErpSyncLogAsync(syncLog);
 
-                var productIds = await CollectAllProductIdsAsync(ct);
-                syncLog.TotalProducts = productIds.Count;
-                syncLog.ProcessedProducts = 0;
-                syncLog.Details = JsonSerializer.Serialize(new { mode = "FullCatalog", phase = "upserting" });
-                await storage.UpdateErpSyncLogAsync(syncLog);
-
-                var processed = 0;
-                foreach (var batch in productIds.Chunk(Math.Max(1, _options.BatchSize)))
-                {
-                    foreach (var erpId in batch)
+                var productIds = await CollectProductIdsAsync(filter: null, ct);
+                return await UpsertCollectedProductIdsAsync(
+                    storage, syncLog, jobId, productIds, ct,
+                    finalizeDetails: processed => new
                     {
-                        ct.ThrowIfCancellationRequested();
-                        try
-                        {
-                            var result = await UpsertProductByErpIdAsync(storage, erpId, jobId, preserveExcelFields: true, ct);
-                            if (result == UpsertResult.Created)
-                                syncLog.NewProducts++;
-                            else if (result == UpsertResult.Updated)
-                                syncLog.UpdatedProducts++;
-                        }
-                        catch (Exception ex)
-                        {
-                            syncLog.FailedProducts++;
-                            _logger.LogWarning(ex, "ERP sync {JobId}: failed product {ErpId}", jobId, erpId);
-                        }
-
-                        processed++;
-                        syncLog.ProcessedProducts = processed;
-                    }
-
-                    await storage.UpdateErpSyncLogAsync(syncLog);
-                }
-
-                return await FinalizeSyncLogAsync(storage, syncLog, jobId, new
-                {
-                    mode = "FullCatalog",
-                    productIdsCollected = productIds.Count,
-                    processed
-                }, ct);
+                        mode = "FullCatalog",
+                        productIdsCollected = productIds.Count,
+                        processed
+                    });
             }
             catch (Exception ex)
             {
                 return await FailSyncLogAsync(storage, syncLog, jobId, ex);
             }
+        }
+
+        private async Task<ErpSyncLog> SyncCatalogAsync(
+            ErpCatalogSyncFilter filter,
+            string? existingJobId,
+            CancellationToken ct)
+        {
+            if (filter == null || !filter.HasAnyFilter)
+                throw new ArgumentException("Au moins un filtre requis (brand, mainTypeId, typeId ou subTypeId).");
+
+            var jobId = existingJobId ?? Guid.NewGuid().ToString("N");
+            using var scope = _scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+
+            ErpSyncLog syncLog;
+            if (!string.IsNullOrWhiteSpace(existingJobId))
+            {
+                syncLog = await storage.SelectAllErpSyncLogs()
+                    .FirstAsync(s => s.JobId == jobId, ct);
+            }
+            else
+            {
+                syncLog = await storage.InsertErpSyncLogAsync(new ErpSyncLog
+                {
+                    JobId = jobId,
+                    Status = "Running",
+                    StartedAt = DateTime.UtcNow
+                });
+            }
+
+            try
+            {
+                syncLog.Details = JsonSerializer.Serialize(new
+                {
+                    mode = "CatalogFilter",
+                    phase = "collecting",
+                    filter = new
+                    {
+                        filter.MainTypeId,
+                        filter.TypeId,
+                        filter.SubTypeId,
+                        filter.Brand
+                    }
+                });
+                await storage.UpdateErpSyncLogAsync(syncLog);
+
+                var productIds = await CollectProductIdsAsync(filter, ct);
+                return await UpsertCollectedProductIdsAsync(
+                    storage, syncLog, jobId, productIds, ct,
+                    rebuildCatalog: true,
+                    catalogFilter: filter);
+            }
+            catch (Exception ex)
+            {
+                return await FailSyncLogAsync(storage, syncLog, jobId, ex);
+            }
+        }
+
+        private async Task<ErpSyncLog> UpsertCollectedProductIdsAsync(
+            IStorageBroker storage,
+            ErpSyncLog syncLog,
+            string jobId,
+            HashSet<string> productIds,
+            CancellationToken ct,
+            bool rebuildCatalog = false,
+            ErpCatalogSyncFilter? catalogFilter = null,
+            Func<int, object>? finalizeDetails = null)
+        {
+            syncLog.TotalProducts = productIds.Count;
+            syncLog.ProcessedProducts = 0;
+            syncLog.Details = JsonSerializer.Serialize(new { phase = "upserting", total = productIds.Count });
+            await storage.UpdateErpSyncLogAsync(syncLog);
+
+            var processed = 0;
+            foreach (var batch in productIds.Chunk(Math.Max(1, _options.BatchSize)))
+            {
+                foreach (var erpId in batch)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var result = await UpsertProductByErpIdAsync(storage, erpId, jobId, preserveExcelFields: true, ct);
+                        if (result == UpsertResult.Created)
+                            syncLog.NewProducts++;
+                        else if (result == UpsertResult.Updated)
+                            syncLog.UpdatedProducts++;
+                    }
+                    catch (Exception ex)
+                    {
+                        syncLog.FailedProducts++;
+                        _logger.LogWarning(ex, "ERP sync {JobId}: failed product {ErpId}", jobId, erpId);
+                    }
+
+                    processed++;
+                    syncLog.ProcessedProducts = processed;
+                }
+
+                await storage.UpdateErpSyncLogAsync(syncLog);
+            }
+
+            object details;
+            if (rebuildCatalog && catalogFilter != null)
+            {
+                using var catalogScope = _scopeFactory.CreateScope();
+                var catalogSync = catalogScope.ServiceProvider.GetRequiredService<IErpCatalogSyncService>();
+                var catalogResult = await catalogSync.RebuildFromProductsAsync(ct);
+                details = new
+                {
+                    mode = "CatalogFilter",
+                    filter = new
+                    {
+                        catalogFilter.MainTypeId,
+                        catalogFilter.TypeId,
+                        catalogFilter.SubTypeId,
+                        catalogFilter.Brand
+                    },
+                    productIdsCollected = productIds.Count,
+                    processed,
+                    catalog = catalogResult
+                };
+            }
+            else
+            {
+                details = finalizeDetails?.Invoke(processed) ?? new { processed };
+            }
+
+            return await FinalizeSyncLogAsync(storage, syncLog, jobId, details, ct);
         }
 
         private async Task<UpsertResult> EnrichLocalProductAsync(
@@ -972,11 +1149,39 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             return null;
         }
 
-        private async Task<HashSet<string>> CollectAllProductIdsAsync(CancellationToken ct)
+        private Task<HashSet<string>> CollectAllProductIdsAsync(CancellationToken ct) =>
+            CollectProductIdsAsync(filter: null, ct);
+
+        private async Task<HashSet<string>> CollectProductIdsAsync(ErpCatalogSyncFilter? filter, CancellationToken ct)
         {
             var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var mainTypes = await GetJsonAsync<ErpCatalogItemDto[]>("getProductMainTypes", ct)
+            var brand = filter?.Brand?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(filter?.SubTypeId))
+            {
+                var productsBySubType = await GetJsonAsync<ErpProductDto[]>(
+                    $"getProductsBySubType/{Uri.EscapeDataString(filter.SubTypeId)}/{Uri.EscapeDataString(_options.CustomerId)}",
+                    ct) ?? Array.Empty<ErpProductDto>();
+                AddMatchingProductIds(ids, productsBySubType, brand);
+                return ids;
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter?.TypeId))
+            {
+                await CollectProductsForTypeAsync(ids, filter.TypeId, brand, ct);
+                return ids;
+            }
+
+            IEnumerable<ErpCatalogItemDto> mainTypes;
+            if (!string.IsNullOrWhiteSpace(filter?.MainTypeId))
+            {
+                mainTypes = new[] { new ErpCatalogItemDto { Id = filter.MainTypeId.Trim() } };
+            }
+            else
+            {
+                mainTypes = await GetJsonAsync<ErpCatalogItemDto[]>("getProductMainTypes", ct)
                             ?? Array.Empty<ErpCatalogItemDto>();
+            }
 
             foreach (var mainType in mainTypes)
             {
@@ -992,41 +1197,62 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     if (string.IsNullOrWhiteSpace(type.Id))
                         continue;
 
-                    var productsByType = await GetJsonAsync<ErpProductDto[]>(
-                        $"getProductsByType/{Uri.EscapeDataString(type.Id)}/{Uri.EscapeDataString(_options.CustomerId)}",
-                        ct)
-                        ?? Array.Empty<ErpProductDto>();
-
-                    foreach (var p in productsByType)
-                    {
-                        if (!string.IsNullOrWhiteSpace(p.Id))
-                            ids.Add(p.Id.Trim());
-                    }
-
-                    var subTypes = await GetJsonAsync<ErpCatalogItemDto[]>(
-                        $"getProductSubTypesByProductType/{Uri.EscapeDataString(type.Id)}", ct)
-                        ?? Array.Empty<ErpCatalogItemDto>();
-
-                    foreach (var subType in subTypes)
-                    {
-                        if (string.IsNullOrWhiteSpace(subType.Id))
-                            continue;
-
-                        var productsBySubType = await GetJsonAsync<ErpProductDto[]>(
-                            $"getProductsBySubType/{Uri.EscapeDataString(subType.Id)}/{Uri.EscapeDataString(_options.CustomerId)}",
-                            ct)
-                            ?? Array.Empty<ErpProductDto>();
-
-                        foreach (var p in productsBySubType)
-                        {
-                            if (!string.IsNullOrWhiteSpace(p.Id))
-                                ids.Add(p.Id.Trim());
-                        }
-                    }
+                    await CollectProductsForTypeAsync(ids, type.Id, brand, ct);
                 }
             }
 
             return ids;
+        }
+
+        private async Task CollectProductsForTypeAsync(
+            HashSet<string> ids,
+            string typeId,
+            string? brand,
+            CancellationToken ct)
+        {
+            var productsByType = await GetJsonAsync<ErpProductDto[]>(
+                $"getProductsByType/{Uri.EscapeDataString(typeId)}/{Uri.EscapeDataString(_options.CustomerId)}",
+                ct) ?? Array.Empty<ErpProductDto>();
+            AddMatchingProductIds(ids, productsByType, brand);
+
+            var subTypes = await GetJsonAsync<ErpCatalogItemDto[]>(
+                $"getProductSubTypesByProductType/{Uri.EscapeDataString(typeId)}", ct)
+                ?? Array.Empty<ErpCatalogItemDto>();
+
+            foreach (var subType in subTypes)
+            {
+                if (string.IsNullOrWhiteSpace(subType.Id))
+                    continue;
+
+                var productsBySubType = await GetJsonAsync<ErpProductDto[]>(
+                    $"getProductsBySubType/{Uri.EscapeDataString(subType.Id)}/{Uri.EscapeDataString(_options.CustomerId)}",
+                    ct) ?? Array.Empty<ErpProductDto>();
+                AddMatchingProductIds(ids, productsBySubType, brand);
+            }
+        }
+
+        private static void AddMatchingProductIds(
+            HashSet<string> ids,
+            IEnumerable<ErpProductDto> products,
+            string? brandFilter)
+        {
+            foreach (var p in products)
+            {
+                if (string.IsNullOrWhiteSpace(p.Id))
+                    continue;
+                if (!MatchesBrandFilter(p, brandFilter))
+                    continue;
+                ids.Add(p.Id.Trim());
+            }
+        }
+
+        private static bool MatchesBrandFilter(ErpProductDto product, string? brandFilter)
+        {
+            if (string.IsNullOrWhiteSpace(brandFilter))
+                return true;
+
+            return !string.IsNullOrWhiteSpace(product.Brand)
+                   && string.Equals(product.Brand.Trim(), brandFilter.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<UpsertResult> UpsertProductByErpIdAsync(
