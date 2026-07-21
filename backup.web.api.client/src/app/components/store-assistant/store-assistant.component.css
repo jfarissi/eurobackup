@@ -1,5 +1,14 @@
+:host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
 .assistant-page {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background:
@@ -59,12 +68,6 @@
   padding: 8px 12px;
   border-radius: 999px;
   font-weight: 600;
-}
-
-.admin-link {
-  color: #464555;
-  text-decoration: none;
-  font-size: 0.9rem;
 }
 
 .assistant-messages {

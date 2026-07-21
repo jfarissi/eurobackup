@@ -225,6 +225,13 @@
 
 .page-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content:has(.assistant-page) {
+  overflow: hidden;
 }
