@@ -10,6 +10,11 @@ import { environment } from '../environments/environment';
 
 const routes: Routes = [
   { path: '', redirectTo: '/upload', pathMatch: 'full' },
+  {
+    path: 'assistant',
+    loadComponent: () =>
+      import('./components/store-assistant/store-assistant.component').then(m => m.StoreAssistantComponent)
+  },
   { path: 'upload', component: UploadComponent },
   { path: 'recherche', component: DocumentSearchComponent },
   { path: 'compare', component: CompareComponent },

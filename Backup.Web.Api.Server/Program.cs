@@ -69,6 +69,22 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProduc
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpExcelImportService, Backup.Web.Api.Server.Services.ErpSync.ErpExcelImportService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
+
+builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.StoreChatOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.StoreChat.StoreChatOptions.SectionName));
+builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.AiSettingsOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.StoreChat.AiSettingsOptions.SectionName));
+builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.StripeOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.StoreChat.StripeOptions.SectionName));
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.StoreChat.IStoreChatSessionStore, Backup.Web.Api.Server.Services.StoreChat.InMemoryStoreChatSessionStore>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatPdfService, Backup.Web.Api.Server.Services.StoreChat.StoreChatPdfService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatStripeService, Backup.Web.Api.Server.Services.StoreChat.StoreChatStripeService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatService, Backup.Web.Api.Server.Services.StoreChat.StoreChatService>();
+builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+});
+
 builder.Services.AddDbContext<StorageBroker>();
 builder.Services.AddScoped<IUserManagementBroker, UserManagementBroker>();
 builder.Services.AddScoped<IRoleManagementBroker, RoleManagementBroker>();

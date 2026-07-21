@@ -1,0 +1,122 @@
+<div class="assistant-page">
+  <header class="assistant-header">
+    <div class="assistant-brand">
+      <mat-icon>smart_toy</mat-icon>
+      <div>
+        <h1>Assistant magasin</h1>
+        <p>Conseils produits, devis et commande</p>
+      </div>
+    </div>
+    <div class="assistant-header-actions">
+      <span class="domain-chip" *ngIf="activeProjectDomainLabel">
+        <mat-icon>handyman</mat-icon>
+        Projet : {{ activeProjectDomainLabel }}
+      </span>
+      <a class="admin-link" routerLink="/erp-products">Admin</a>
+    </div>
+  </header>
+
+  <main class="assistant-messages">
+    <div class="new-project-banner" *ngIf="showNewProjectPrompt">
+      <p>Commande terminée. Souhaitez-vous démarrer un autre projet ?</p>
+      <button type="button" class="btn-outline" (click)="startNewProject()">Nouveau projet</button>
+    </div>
+
+    <div class="message-row" *ngFor="let msg of messages" [class.user]="msg.sender === 'user'" [class.bot]="msg.sender === 'bot'">
+      <div class="bubble">
+        <div class="bubble-text">{{ msg.text }}</div>
+
+        <div class="product-table-wrap" *ngIf="msg.sender === 'bot' && msg.productSuggestions?.length">
+          <table class="product-table">
+            <thead>
+              <tr>
+                <th>Produit</th>
+                <th>Prix</th>
+                <th>Qté</th>
+                <th>Panier</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of getPagedProductRows(msg); trackBy: trackProductRow">
+                <td>
+                  <div class="product-name">{{ p.name }}</div>
+                  <div class="product-meta" *ngIf="p.brand || p.category">{{ p.brand }} · {{ p.category }}</div>
+                </td>
+                <td class="price">{{ formatPrice(p) }}</td>
+                <td>
+                  <div class="qty-stepper">
+                    <button type="button" (click)="decLineQty(p)">−</button>
+                    <input type="number" min="1" [ngModel]="getLineQty(p)" (ngModelChange)="setLineQty(p, $event)" (blur)="normalizeLineQty(p)" />
+                    <button type="button" (click)="incLineQty(p)">+</button>
+                  </div>
+                </td>
+                <td>
+                  <button type="button" class="btn-add" [disabled]="isAddingProduct(p)" (click)="toggleCartLineFromList(p)">
+                    {{ isProductInCart(p) ? 'Retirer' : 'Ajouter' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="product-pagination" *ngIf="showProductPagination(msg)">
+            <button type="button" [disabled]="!canPrevProductPage(msg)" (click)="prevProductPage(msg)">‹</button>
+            <span>{{ productListRangeLabel(msg) }}</span>
+            <button type="button" [disabled]="!canNextProductPage(msg)" (click)="nextProductPage(msg)">›</button>
+          </div>
+
+          <div class="commerce-actions">
+            <button type="button" class="btn-outline"
+                    [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
+                    (click)="requestQuote()">
+              Demander un devis
+            </button>
+            <button type="button" class="btn-primary"
+                    [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
+                    (click)="requestOrder()">
+              Commander
+            </button>
+          </div>
+        </div>
+
+        <div class="download-wrap" *ngIf="msg.quotePdf?.pdfBase64 && (msg.actionType === 'QUOTE_PDF' || msg.actionType === 'INVOICE_PDF')">
+          <button type="button" class="btn-primary" (click)="downloadQuotePdf(msg)">
+            {{ msg.actionType === 'INVOICE_PDF' ? 'Télécharger la facture' : 'Télécharger le devis' }}
+          </button>
+          <span class="file-name">{{ msg.quotePdf?.fileName }}</span>
+        </div>
+
+        <div class="payment-wrap" *ngIf="msg.paymentLink?.url">
+          <button type="button" class="btn-primary" (click)="startPayment(msg)">
+            Payer par carte{{ msg.paymentLink?.amount != null ? ' — ' + (msg.paymentLink!.amount | number:'1.2-2') + ' €' : '' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="message-row bot" *ngIf="isTyping">
+      <div class="bubble typing">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="assistant-input">
+    <div class="recording-banner" *ngIf="isRecording">Écoute en cours…</div>
+    <textarea
+      [(ngModel)]="newMessage"
+      (keydown)="onKeydown($event)"
+      rows="2"
+      placeholder="Ex. peinture blanche 10L, ampoule LED, perceuse…"
+      [disabled]="isTyping"></textarea>
+    <div class="input-actions">
+      <button type="button" class="icon-btn" (click)="toggleMic()" [class.active]="isRecording" [disabled]="isTyping">
+        <mat-icon>{{ isRecording ? 'stop' : 'mic' }}</mat-icon>
+      </button>
+      <button type="button" class="btn-primary send-btn" (click)="send()" [disabled]="isTyping || !newMessage.trim()">
+        <mat-icon>send</mat-icon>
+        Envoyer
+      </button>
+    </div>
+  </footer>
+</div>

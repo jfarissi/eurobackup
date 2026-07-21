@@ -200,6 +200,37 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(s => s.ErrorMessage).HasMaxLength(4000);
                 entity.Property(s => s.Details).HasColumnType("longtext");
             });
+
+            modelBuilder.Entity<StoreChatQuote>(entity =>
+            {
+                entity.ToTable("StoreChatQuotes");
+                entity.HasKey(q => q.Id);
+                entity.HasIndex(q => q.SessionId);
+                entity.HasIndex(q => q.CreatedAt);
+                entity.Property(q => q.SessionId).IsRequired().HasMaxLength(64);
+                entity.Property(q => q.Number).IsRequired().HasMaxLength(64);
+                entity.Property(q => q.TotalAmount).HasPrecision(18, 4);
+                entity.Property(q => q.FileName).HasMaxLength(256);
+                entity.Property(q => q.PdfBase64).HasColumnType("longtext");
+                entity.Property(q => q.LinesJson).HasColumnType("longtext");
+            });
+
+            modelBuilder.Entity<StoreChatOrder>(entity =>
+            {
+                entity.ToTable("StoreChatOrders");
+                entity.HasKey(o => o.Id);
+                entity.HasIndex(o => o.SessionId);
+                entity.HasIndex(o => o.Status);
+                entity.HasIndex(o => o.CreatedAt);
+                entity.Property(o => o.SessionId).IsRequired().HasMaxLength(64);
+                entity.Property(o => o.Status).IsRequired().HasMaxLength(32);
+                entity.Property(o => o.StripeSessionId).HasMaxLength(128);
+                entity.Property(o => o.InvoiceNumber).HasMaxLength(64);
+                entity.Property(o => o.TotalAmount).HasPrecision(18, 4);
+                entity.Property(o => o.InvoiceFileName).HasMaxLength(256);
+                entity.Property(o => o.InvoicePdfBase64).HasColumnType("longtext");
+                entity.Property(o => o.LinesJson).HasColumnType("longtext");
+            });
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

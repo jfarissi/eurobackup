@@ -21,6 +21,7 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { path: '/stock', label: 'Stock', tabLabel: 'Stock', icon: 'inventory_2', title: 'Gestion Documents' },
   { path: '/erp-products', label: 'Produits', tabLabel: 'Produits', icon: 'category', title: 'Produits ERP' },
   { path: '/erp-changes', label: 'Changements', tabLabel: 'Changements', icon: 'sync_alt', title: 'Changements ERP' },
+  { path: '/assistant', label: 'Assistant', tabLabel: 'Magasin', icon: 'smart_toy', title: 'Assistant magasin' },
 ];
 
 const PYTHON_TEST_NAV_ITEM: NavItem = {
