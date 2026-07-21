@@ -96,15 +96,13 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return Ok(session, "Message vide.", "NONE");
 
             DetectDomain(session, text);
-            var products = await SearchProductsAsync(text, ct);
+            CollectMaterialHints(session, text);
+            var products = await SearchProductsAsync(text, session, ct);
             var catalogContext = BuildCatalogContext(products);
             var aiReply = await _ai.CompleteAsync(session.History, text, catalogContext, ct);
 
             session.History.Add(new StoreChatHistoryMessage { Role = "user", Content = text });
-            var reply = aiReply
-                ?? (products.Count > 0
-                    ? $"Voici {products.Count} produit(s) correspondant à votre demande."
-                    : "Je n'ai pas trouvé de produit correspondant. Reformulez votre recherche (marque, type, usage).");
+            var reply = BuildUserFacingReply(aiReply, products, session);
 
             session.History.Add(new StoreChatHistoryMessage { Role = "assistant", Content = reply });
             TrimHistory(session);
@@ -330,79 +328,248 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 await AddToCartAsync(session, line.ProductId, line.Quantity <= 0 ? 1 : line.Quantity, ct);
         }
 
-        private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(string text, CancellationToken ct)
+        private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
         {
-            var terms = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(t => t.Length >= 2)
-                .Select(t => t.ToLowerInvariant())
-                .Take(6)
-                .ToList();
+            "je", "tu", "il", "on", "nous", "vous", "les", "des", "une", "un", "de", "du", "la", "le",
+            "et", "ou", "pour", "avec", "sans", "dans", "sur", "par", "pas", "plus", "très", "tres",
+            "veux", "voudrais", "besoin", "cherche", "trouver", "acheter", "faire", "aide", "aider",
+            "projet", "svp", "s'il", "sil", "vous", "plait", "ça", "ca", "est", "que", "qui", "quoi",
+            "comme", "aussi", "donc", "alors", "mais", "mon", "ma", "mes", "ton", "votre", "notre",
+            "mètre", "metre", "metres", "mètres", "cm", "mm", "haut", "haute", "hauteur", "longeur",
+            "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux"
+        };
 
+        private static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["brique"] = new[] { "brique", "briques", "briquetage" },
+            ["mortier"] = new[] { "mortier", "ciment", "chaux" },
+            ["parpaing"] = new[] { "parpaing", "parpaings", "agglo", "aggloméré", "agglomere", "bloc" },
+            ["pierre"] = new[] { "pierre", "pierres", "moellon", "moellons" },
+            ["ferraillage"] = new[] { "ferraille", "ferraillage", "armature", "treillis" },
+            ["sable"] = new[] { "sable", "gravier" },
+            ["carrelage"] = new[] { "carrelage", "carreau", "carreaux", "faïence", "faience" },
+            ["peinture"] = new[] { "peinture", "peintures", "lasurer", "enduit" },
+        };
+
+        private static readonly Dictionary<string, string[]> DomainSearchTerms = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wall_construction"] = new[] { "parpaing", "brique", "mortier", "ciment", "bloc", "agglo" },
+            ["painting"] = new[] { "peinture", "rouleau", "enduit", "sous-couche" },
+            ["tiling"] = new[] { "carrelage", "colle", "joint", "carreau" },
+            ["plumbing"] = new[] { "robinet", "tuyau", "siphon", "pvc" },
+            ["electrical"] = new[] { "prise", "interrupteur", "câble", "cable", "led" },
+            ["garden_maintenance"] = new[] { "jardin", "tondeuse", "gazon", "haie" },
+        };
+
+        private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(
+            string text,
+            StoreChatSession session,
+            CancellationToken ct)
+        {
+            var terms = BuildSearchTerms(text, session);
             if (terms.Count == 0)
                 return new List<StoreChatProductSuggestionDto>();
 
-            var query = _storage.SelectAllErpProducts().AsNoTracking();
-            foreach (var term in terms)
+            var scores = new Dictionary<int, ScoredProduct>();
+            foreach (var term in terms.Take(10))
             {
-                query = query.Where(p =>
-                    (p.Name != null && p.Name.ToLower().Contains(term))
-                    || (p.Name2 != null && p.Name2.ToLower().Contains(term))
-                    || (p.Reference != null && p.Reference.ToLower().Contains(term))
-                    || (p.Brand != null && p.Brand.ToLower().Contains(term))
-                    || (p.TypeName != null && p.TypeName.ToLower().Contains(term))
-                    || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(term))
-                    || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(term)));
+                var t = term;
+                var rows = await _storage.SelectAllErpProducts()
+                    .AsNoTracking()
+                    .Where(p =>
+                        (p.Name != null && p.Name.ToLower().Contains(t))
+                        || (p.Name2 != null && p.Name2.ToLower().Contains(t))
+                        || (p.Reference != null && p.Reference.ToLower().Contains(t))
+                        || (p.Brand != null && p.Brand.ToLower().Contains(t))
+                        || (p.TypeName != null && p.TypeName.ToLower().Contains(t))
+                        || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(t))
+                        || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(t)))
+                    .OrderBy(p => p.Name)
+                    .Take(40)
+                    .Select(p => new ScoredProduct
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Reference = p.Reference,
+                        Brand = p.Brand,
+                        UnitPrice = p.UnitPrice,
+                        PriceHT = p.PriceHT,
+                        MainTypeName = p.MainTypeName,
+                        TypeName = p.TypeName,
+                        SubTypeName = p.SubTypeName,
+                        Score = 1
+                    })
+                    .ToListAsync(ct);
+
+                foreach (var p in rows)
+                {
+                    if (scores.TryGetValue(p.Id, out var existing))
+                        existing.Score++;
+                    else
+                        scores[p.Id] = p;
+                }
             }
 
-            var rows = await query
-                .OrderBy(p => p.Name)
+            return scores.Values
+                .OrderByDescending(p => p.Score)
+                .ThenBy(p => p.Name)
                 .Take(_options.MaxProductResults)
-                .Select(p => new
+                .Select(p => new StoreChatProductSuggestionDto
                 {
-                    p.Id,
-                    p.Name,
-                    p.Reference,
-                    p.Brand,
-                    p.UnitPrice,
-                    p.PriceHT,
-                    p.MainTypeName,
-                    p.TypeName,
-                    p.SubTypeName
+                    ProductId = p.Id.ToString(CultureInfo.InvariantCulture),
+                    Name = p.Name ?? p.Reference ?? $"Produit {p.Id}",
+                    Price = p.UnitPrice ?? p.PriceHT,
+                    Brand = p.Brand,
+                    Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
+                        .Where(x => !string.IsNullOrWhiteSpace(x))),
+                    SuggestedQuantity = 1
                 })
-                .ToListAsync(ct);
+                .ToList();
+        }
 
-            return rows.Select(p => new StoreChatProductSuggestionDto
+        private sealed class ScoredProduct
+        {
+            public int Id { get; set; }
+            public string? Name { get; set; }
+            public string? Reference { get; set; }
+            public string? Brand { get; set; }
+            public decimal? UnitPrice { get; set; }
+            public decimal? PriceHT { get; set; }
+            public string? MainTypeName { get; set; }
+            public string? TypeName { get; set; }
+            public string? SubTypeName { get; set; }
+            public int Score { get; set; }
+        }
+
+        private static List<string> BuildSearchTerms(string text, StoreChatSession session)
+        {
+            var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var hint in session.MaterialHints)
+                AddTermWithSynonyms(terms, hint);
+
+            if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
+                && DomainSearchTerms.TryGetValue(session.ActiveProjectDomainId, out var domainTerms))
             {
-                ProductId = p.Id.ToString(CultureInfo.InvariantCulture),
-                Name = p.Name ?? p.Reference ?? $"Produit {p.Id}",
-                Price = p.UnitPrice ?? p.PriceHT,
-                Brand = p.Brand,
-                Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
-                    .Where(x => !string.IsNullOrWhiteSpace(x))),
-                SuggestedQuantity = 1
-            }).ToList();
+                foreach (var t in domainTerms)
+                    terms.Add(t);
+            }
+
+            foreach (var raw in text.Split(new[] { ' ', ',', ';', '.', '!', '?', '/', '\\', '\n', '\t' },
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var token = raw.Trim().ToLowerInvariant();
+                if (token.Length < 3 || StopWords.Contains(token) || token.Any(char.IsDigit))
+                    continue;
+                AddTermWithSynonyms(terms, token);
+            }
+
+            return terms.Take(12).ToList();
+        }
+
+        private static void AddTermWithSynonyms(HashSet<string> terms, string token)
+        {
+            terms.Add(token);
+            foreach (var kv in MaterialSynonyms)
+            {
+                if (token.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)
+                    || kv.Value.Any(s => token.Contains(s, StringComparison.OrdinalIgnoreCase)))
+                {
+                    foreach (var s in kv.Value)
+                        terms.Add(s);
+                }
+            }
+        }
+
+        private static void CollectMaterialHints(StoreChatSession session, string text)
+        {
+            var lower = text.ToLowerInvariant();
+            foreach (var kv in MaterialSynonyms)
+            {
+                if (kv.Value.Any(s => lower.Contains(s, StringComparison.OrdinalIgnoreCase))
+                    || lower.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!session.MaterialHints.Contains(kv.Key, StringComparer.OrdinalIgnoreCase))
+                        session.MaterialHints.Add(kv.Key);
+                }
+            }
+
+            if (lower.Contains("construire") && lower.Contains("mur")
+                && !session.MaterialHints.Contains("parpaing", StringComparer.OrdinalIgnoreCase))
+            {
+                session.MaterialHints.Add("parpaing");
+                session.MaterialHints.Add("mortier");
+            }
         }
 
         private static string BuildCatalogContext(IReadOnlyList<StoreChatProductSuggestionDto> products)
         {
             if (products.Count == 0)
-                return "(aucun produit trouvé)";
+                return "(aucun produit trouvé dans le catalogue local — ne propose aucun produit inventé; demande un autre mot-clé marque/type)";
 
-            return string.Join("\n", products.Take(12).Select(p =>
-                $"- [{p.ProductId}] {p.Name} | {p.Brand} | {p.Category} | {p.Price:N2} €"));
+            return "Produits catalogue à recommander UNIQUEMENT:\n"
+                   + string.Join("\n", products.Take(12).Select(p =>
+                       $"- [{p.ProductId}] {p.Name} | {p.Brand} | {p.Category} | {p.Price:N2} €"));
+        }
+
+        private static string BuildUserFacingReply(
+            string? aiReply,
+            IReadOnlyList<StoreChatProductSuggestionDto> products,
+            StoreChatSession session)
+        {
+            if (products.Count > 0)
+            {
+                var intro = !string.IsNullOrWhiteSpace(aiReply) && aiReply!.Length < 600
+                    ? aiReply.Trim()
+                    : $"Voici {products.Count} produit(s) du catalogue pour votre projet"
+                      + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
+                          ? "."
+                          : $" ({session.ActiveProjectDomainLabel}).");
+
+                if (!intro.Contains("ci-dessous", StringComparison.OrdinalIgnoreCase)
+                    && !intro.Contains("catalogue", StringComparison.OrdinalIgnoreCase)
+                    && !intro.Contains("panier", StringComparison.OrdinalIgnoreCase))
+                {
+                    intro += "\n\nChoisissez les quantités dans la liste ci-dessous, puis ajoutez au panier / devis / commande.";
+                }
+
+                return intro;
+            }
+
+            if (!string.IsNullOrWhiteSpace(aiReply)
+                && !LooksLikeInventedProductList(aiReply))
+                return aiReply!.Trim();
+
+            return "Je n'ai pas trouvé de produit correspondant dans le catalogue. "
+                   + "Indiquez un matériau ou une marque précise (ex. parpaing, brique, mortier, ciment).";
+        }
+
+        private static bool LooksLikeInventedProductList(string reply)
+        {
+            var lower = reply.ToLowerInvariant();
+            return lower.Contains("voici quelques suggestions")
+                   || lower.Contains("griffes pour murs")
+                   || lower.Contains("griffe pour murs")
+                   || (lower.Contains("matériaux suivants") && lower.Contains("*"));
         }
 
         private static void DetectDomain(StoreChatSession session, string text)
         {
             var lower = text.ToLowerInvariant();
+            // Ordre important : construction mur avant peinture (évite que "mur" déclenche peinture).
             (string id, string label, string[] keys)[] domains =
             {
-                ("painting", "Peinture", new[] { "peinture", "peindre", "mur", "plafond", "rouleau" }),
-                ("tiling", "Carrelage", new[] { "carrelage", "carreau", "colle", "joint" }),
+                ("wall_construction", "Construction de mur", new[]
+                {
+                    "construire un mur", "construction de mur", "mur de séparation", "mur de separation",
+                    "mur de soutènement", "mur de souteinement", "parpaing", "ciment", "mortier", "brique",
+                    "moellon", "agglo", "maçonner", "maconner", "briquetage"
+                }),
+                ("painting", "Peinture", new[] { "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer" }),
+                ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
                 ("plumbing", "Plomberie", new[] { "plomberie", "robinet", "tuyau", "wc", "siphon" }),
                 ("electrical", "Électricité", new[] { "électri", "electri", "prise", "interrupteur", "câble", "cable", "led" }),
                 ("garden_maintenance", "Entretien jardin", new[] { "jardin", "tondeuse", "haie", "gazon" }),
-                ("wall_construction", "Construction de mur", new[] { "parpaing", "ciment", "mortier", "brique" })
             };
 
             foreach (var d in domains)
@@ -413,6 +580,13 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     session.ActiveProjectDomainLabel = d.label;
                     return;
                 }
+            }
+
+            // Fallback : "mur" + dimensions / construire → maçonnerie
+            if (lower.Contains("mur") && (lower.Contains("construire") || lower.Contains("m ") || lower.Contains("metre") || lower.Contains("mètre")))
+            {
+                session.ActiveProjectDomainId = "wall_construction";
+                session.ActiveProjectDomainLabel = "Construction de mur";
             }
         }
 

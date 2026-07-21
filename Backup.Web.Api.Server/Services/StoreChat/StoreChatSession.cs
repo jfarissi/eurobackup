@@ -10,6 +10,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public string? ActiveProjectDomainId { get; set; }
         public string? ActiveProjectDomainLabel { get; set; }
+        /// <summary>Mots-clés matériaux accumulés sur le projet (brique, mortier…).</summary>
+        public List<string> MaterialHints { get; set; } = new();
         public List<StoreChatHistoryMessage> History { get; set; } = new();
         public List<StoreChatCartItem> Cart { get; set; } = new();
         public Guid? LastOrderId { get; set; }

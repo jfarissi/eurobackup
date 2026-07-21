@@ -54,12 +54,23 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             {
                 var endpoint = EnsureOpenAiV1(_ai.Endpoint).TrimEnd('/') + "/chat/completions";
                 var system = _ai.SystemPrompt
-                    ?? $"Tu es l'assistant magasin {_store.BrandName}. Tu aides les clients en français à trouver des produits de bricolage. "
-                       + "Réponds de façon courte et claire. Si des produits catalogue sont fournis, recommande-les.";
+                    ?? $"Tu es l'assistant magasin {_store.BrandName}. "
+                       + "Réponds en français, 2 à 4 phrases max. "
+                       + "Ne propose QUE des produits présents dans le catalogue fourni. "
+                       + "Si le catalogue contient des produits, invite à choisir dans la liste UI (quantité / panier / devis). "
+                       + "N'invente jamais de matériaux ou références absents du catalogue. "
+                       + "Pose au plus UNE question de clarification si le besoin est trop vague.";
 
+                var catalogBlock = string.IsNullOrWhiteSpace(catalogContext)
+                    ? "(aucun produit)"
+                    : catalogContext;
                 var messages = new List<object>
                 {
-                    new { role = "system", content = system + "\n\nCatalogue pertinent:\n" + catalogContext }
+                    new
+                    {
+                        role = "system",
+                        content = system + "\n\n" + catalogBlock
+                    }
                 };
 
                 foreach (var msg in history.TakeLast(Math.Max(2, _store.ChatHistoryLimit)))
