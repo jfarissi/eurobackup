@@ -177,8 +177,8 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         /// <summary>
-        /// Sync catalogue ERP filtrée par marque et/ou branche de catégories (MainType / Type / SubType).
-        /// Au moins un filtre requis.
+        /// Enrichit depuis l'ERP les produits locaux correspondant aux filtres (marque / catégories).
+        /// Même périmètre que le tableau filtré — pas un import complet de la branche ERP.
         /// </summary>
         [HttpPost("sync-catalog")]
         [RequestTimeout(3_600_000)]

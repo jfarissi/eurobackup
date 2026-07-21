@@ -73,7 +73,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   get syncProgressTitle(): string {
     return this.syncMode === 'catalog'
-      ? 'Sync catalogue ERP'
+      ? 'Sync produits filtrés'
       : 'Enrichissement ERP (produits locaux)';
   }
 
@@ -97,12 +97,12 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     const details = this.parseSyncDetails(log);
     if (details.phase === 'collecting' || this.syncProgressIndeterminate) {
       return this.syncMode === 'catalog'
-        ? 'Collecte des produits ERP pour le périmètre sélectionné…'
+        ? 'Préparation de la sync filtrée…'
         : 'Préparation de l\'enrichissement…';
     }
 
     const processed = log.processedProducts ?? 0;
-    return `${processed} / ${log.totalProducts} produits synchronisés`
+    return `${processed} / ${log.totalProducts} produits filtrés synchronisés`
       + ` · +${log.newProducts} créés · ${log.updatedProducts} maj · ${log.failedProducts} échecs`;
   }
 
@@ -307,7 +307,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     if (!this.hasSyncFilter || this.syncingAll || this.syncingId != null) return;
 
     this.startSyncTracking('catalog');
-    this.snack.open('Sync catalogue démarrée…', undefined, { duration: 2500 });
+    this.snack.open(`Sync de ${this.total} produit(s) filtré(s)…`, undefined, { duration: 2500 });
 
     const category = this.currentCategoryFilter();
     this.erpService.syncCatalog({

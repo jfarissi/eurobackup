@@ -194,7 +194,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 StartedAt = DateTime.UtcNow,
                 Details = JsonSerializer.Serialize(new
                 {
-                    mode = "CatalogFilter",
+                    mode = "FilteredLocal",
                     phase = "starting",
                     filter = new
                     {
@@ -735,30 +735,105 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
             try
             {
+                var locals = await ApplyCatalogFilter(
+                        storage.SelectAllErpProducts(),
+                        filter)
+                    .OrderBy(p => p.Id)
+                    .ToListAsync(ct);
+
+                syncLog.TotalProducts = locals.Count;
+                syncLog.ProcessedProducts = 0;
                 syncLog.Details = JsonSerializer.Serialize(new
                 {
-                    mode = "CatalogFilter",
-                    phase = "collecting",
+                    mode = "FilteredLocal",
+                    phase = "enriching",
                     filter = new
                     {
                         filter.MainTypeId,
                         filter.TypeId,
                         filter.SubTypeId,
                         filter.Brand
-                    }
+                    },
+                    localMatches = locals.Count
                 });
                 await storage.UpdateErpSyncLogAsync(syncLog);
 
-                var productIds = await CollectProductIdsAsync(filter, ct);
-                return await UpsertCollectedProductIdsAsync(
-                    storage, syncLog, jobId, productIds, ct,
-                    rebuildCatalog: true,
-                    catalogFilter: filter);
+                _logger.LogInformation(
+                    "ERP filtered sync {JobId}: {Count} local products match filter",
+                    jobId,
+                    locals.Count);
+
+                var processed = 0;
+                foreach (var batch in locals.Chunk(Math.Max(1, _options.BatchSize)))
+                {
+                    foreach (var local in batch)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        try
+                        {
+                            var result = await EnrichLocalProductAsync(storage, local, jobId, ct);
+                            if (result == UpsertResult.Created)
+                                syncLog.NewProducts++;
+                            else if (result == UpsertResult.Updated)
+                                syncLog.UpdatedProducts++;
+                        }
+                        catch (Exception ex)
+                        {
+                            syncLog.FailedProducts++;
+                            _logger.LogWarning(ex, "ERP sync {JobId}: enrich failed for local Id={Id} Ref={Ref}",
+                                jobId, local.Id, local.Reference);
+                        }
+
+                        processed++;
+                        syncLog.ProcessedProducts = processed;
+                    }
+
+                    await storage.UpdateErpSyncLogAsync(syncLog);
+                }
+
+                using var catalogScope = _scopeFactory.CreateScope();
+                var catalogSync = catalogScope.ServiceProvider.GetRequiredService<IErpCatalogSyncService>();
+                var catalogResult = await catalogSync.RebuildFromProductsAsync(ct);
+
+                return await FinalizeSyncLogAsync(storage, syncLog, jobId, new
+                {
+                    mode = "FilteredLocal",
+                    filter = new
+                    {
+                        filter.MainTypeId,
+                        filter.TypeId,
+                        filter.SubTypeId,
+                        filter.Brand
+                    },
+                    localMatches = locals.Count,
+                    processed,
+                    catalog = catalogResult
+                }, ct);
             }
             catch (Exception ex)
             {
                 return await FailSyncLogAsync(storage, syncLog, jobId, ex);
             }
+        }
+
+        private static IQueryable<ErpProduct> ApplyCatalogFilter(
+            IQueryable<ErpProduct> query,
+            ErpCatalogSyncFilter filter)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Brand))
+            {
+                var brandTerm = filter.Brand.Trim().ToLowerInvariant();
+                query = query.Where(p => p.Brand != null && p.Brand.ToLower() == brandTerm);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SubTypeId))
+                query = query.Where(p => p.SubTypeID == filter.SubTypeId);
+            else if (!string.IsNullOrWhiteSpace(filter.TypeId))
+                query = query.Where(p => p.TypeID == filter.TypeId);
+            else if (!string.IsNullOrWhiteSpace(filter.MainTypeId))
+                query = query.Where(p => p.MainTypeID == filter.MainTypeId);
+
+            return query;
         }
 
         private async Task<ErpSyncLog> UpsertCollectedProductIdsAsync(
