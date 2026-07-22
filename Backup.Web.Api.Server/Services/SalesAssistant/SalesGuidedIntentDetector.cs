@@ -152,7 +152,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool IsConfirmComplements(string lower, StoreChatSession session)
         {
-            if (!session.AwaitingComplementConfirm || session.PendingComplementHints.Count == 0)
+            // Après conseil panier / échec recherche, « ok » doit chercher les compléments — pas le mur.
+            var canConfirm = session.AwaitingComplementConfirm
+                             || session.PendingComplementHints.Count > 0
+                             || string.Equals(session.LastActionType, "CART_ADVICE", StringComparison.OrdinalIgnoreCase);
+            if (!canConfirm)
                 return false;
 
             var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();

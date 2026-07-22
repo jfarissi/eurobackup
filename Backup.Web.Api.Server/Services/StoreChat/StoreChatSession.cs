@@ -41,6 +41,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         /// <summary>Compléments proposés en attente d'un « ok / go / oui ».</summary>
         public List<string> PendingComplementHints { get; set; } = new();
         public bool AwaitingComplementConfirm { get; set; }
+        /// <summary>Dernier ActionType renvoyé (CART_ADVICE, SEARCH…).</summary>
+        public string? LastActionType { get; set; }
     }
 
     public class StoreChatHistoryMessage

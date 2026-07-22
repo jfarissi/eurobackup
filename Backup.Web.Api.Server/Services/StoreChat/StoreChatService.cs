@@ -450,6 +450,21 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return packResponse;
             }
 
+            // Garde-fou : confirmation courte ne doit jamais relancer une recherche mur/marque.
+            if (IsBareConfirmation(text)
+                && (session.AwaitingComplementConfirm
+                    || session.PendingComplementHints.Count > 0
+                    || string.Equals(session.LastActionType, "CART_ADVICE", StringComparison.OrdinalIgnoreCase)))
+            {
+                return FinishTextReply(
+                    session,
+                    text,
+                    "Je cherche les compléments… Réessayez « ok », ou un mot précis : treillis, truelle, auge, gants.",
+                    "NONE",
+                    null,
+                    guided);
+            }
+
             var products = await SearchProductsAsync(text, session, searchMeta, ct);
             var budgetAlert = ApplyBudgetFilter(products, session, searchMeta);
             ApplySuggestedQuantities(products, session);
@@ -495,6 +510,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             TrimHistory(session);
             if (products.Count > 0)
                 session.LastSuggestedProducts = products.ToList();
+            session.LastActionType = products.Count > 0 ? "PRODUCT_LIST" : "NONE";
             _sessions.Save(session);
 
             searchMeta.Intent = products.Count > 0 ? "PRODUCT_LIST" : "NONE";
@@ -540,6 +556,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             TrimHistory(session);
             if (products is { Count: > 0 })
                 session.LastSuggestedProducts = products.ToList();
+            session.LastActionType = actionType;
             _sessions.Save(session);
 
             var response = new StoreChatResponseDto
@@ -609,10 +626,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             foreach (var hint in hints.Take(4))
             {
                 var terms = ExpandComplementSearchTerms(hint);
-                var hits = await SearchProductsByTermsAsync(terms, ct);
+                var sqlHits = await SearchProductsByTermsAsync(terms, ct);
+                var hits = sqlHits.ToList();
+                var fromSql = hits.Count > 0;
 
                 // Appoint sémantique si SQL vide.
-                if (hits.Count == 0)
+                if (!fromSql)
                 {
                     foreach (var term in terms.Take(3))
                     {
@@ -621,6 +640,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     }
                 }
 
+                StoreChatProductSuggestionDto? softFallback = null;
                 foreach (var h in hits)
                 {
                     if (complementProducts.Any(p => p.ProductId == h.ProductId))
@@ -631,11 +651,27 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     var hay = $"{h.Name} {h.Category} {h.Brand}".ToLowerInvariant();
                     if (ContainsCartStructureNoise(hay, session))
                         continue;
-                    if (!MatchesComplementHint(hay, hint))
+
+                    softFallback ??= h;
+
+                    // SQL déjà filtré par synonymes : on fait confiance.
+                    // Sémantique : revalider le hint pour éviter des briques hors sujet.
+                    if (!fromSql && !MatchesComplementHint(hay, hint))
                         continue;
 
                     h.SuggestedQuantity ??= 1;
                     complementProducts.Add(h);
+                    if (complementProducts.Count >= 4)
+                        return complementProducts;
+                    break; // 1 produit pertinent par hint
+                }
+
+                // Appoint : 1er hit SQL/semantique non-structure si le filtre hint a tout écarté.
+                if (softFallback != null
+                    && complementProducts.All(p => p.ProductId != softFallback.ProductId))
+                {
+                    softFallback.SuggestedQuantity ??= 1;
+                    complementProducts.Add(softFallback);
                     if (complementProducts.Count >= 4)
                         return complementProducts;
                 }
@@ -649,9 +685,17 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return hint.Trim().ToLowerInvariant() switch
             {
                 "truelle" => new[] { "truelle", "troffel", "truweel", "waterpas", "niveau", "spatel", "metseltroffel" },
-                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "gaas", "mesh", "bewapeningsnet", "raster" },
-                "auge" => new[] { "auge", "mortelkuip", "kuip", "emmer", "seau", "speciekuip", "mengkuip" },
+                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "wapening", "gaas", "mesh", "bewapeningsnet", "raster" },
+                "auge" => new[] { "auge", "mortelkuip", "kuip", "emmer", "seau", "speciekuip", "mengkuip", "bac" },
                 "gants" => new[] { "gants", "handschoen", "handschoenen", "gloves", "werkhandschoen" },
+                "ciment" => new[] { "ciment", "cement", "mortier", "mortel", "metselspecie" },
+                "seau" => new[] { "seau", "auge", "emmer", "kuip", "bac" },
+                "rouleau" => new[] { "rouleau", "roller", "verfroller" },
+                "ruban" => new[] { "ruban", "masking", "schilderstape" },
+                "sous-couche" => new[] { "sous-couche", "primer", "grondverf" },
+                "colle carrelage" => new[] { "colle", "tegellijm", "lijm" },
+                "joint" => new[] { "joint", "voeg", "voegsel" },
+                "primaire" => new[] { "primaire", "primer", "grondverf" },
                 _ => new[] { hint }
             };
         }
@@ -671,6 +715,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     .Where(p =>
                         (p.Name != null && p.Name.ToLower().Contains(needle))
                         || (p.Name2 != null && p.Name2.ToLower().Contains(needle))
+                        || (p.Reference != null && p.Reference.ToLower().Contains(needle))
                         || (p.Brand != null && p.Brand.ToLower().Contains(needle))
                         || (p.TypeName != null && p.TypeName.ToLower().Contains(needle))
                         || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(needle))
@@ -698,11 +743,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     if (!seen.Add(p.Id))
                         continue;
 
-                    var name = string.IsNullOrWhiteSpace(p.Name2) ? (p.Name ?? $"#{p.Id}") : $"{p.Name} — {p.Name2}";
                     results.Add(new StoreChatProductSuggestionDto
                     {
                         ProductId = p.Id.ToString(CultureInfo.InvariantCulture),
-                        Name = name,
+                        Name = FormatProductDisplayName(p.Name, p.Name2, p.Reference, p.Id),
                         Brand = p.Brand,
                         Price = p.UnitPrice ?? p.PriceHT,
                         Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
@@ -725,14 +769,24 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             {
                 "truelle" => ContainsAnyLocal(hay, "truelle", "troffel", "truweel", "niveau", "waterpas", "spatel", "metseltroffel"),
                 "treillis" => ContainsAnyLocal(hay, "treillis", "mesh", "wapen", "gaas", "netting", "bewapen", "raster"),
-                "auge" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac", "specie"),
+                "auge" or "seau" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac", "specie"),
                 "gants" => ContainsAnyLocal(hay, "gant", "glove", "handschoen"),
+                "ciment" => ContainsAnyLocal(hay, "ciment", "cement", "mortier", "mortel"),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase)
             };
         }
 
         private static bool ContainsAnyLocal(string hay, params string[] needles) =>
             needles.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase));
+
+        private static bool IsBareConfirmation(string text)
+        {
+            var trimmed = Regex.Replace((text ?? string.Empty).Trim().ToLowerInvariant(), @"[!?.…]+$", "").Trim();
+            trimmed = Regex.Replace(trimmed, @"\s+", " ");
+            return trimmed is "ok" or "okay" or "oké" or "oke" or "oui" or "ouais" or "yes" or "go"
+                or "d'accord" or "daccord" or "vas-y" or "vas y" or "vasy" or "merci"
+                or "ok go" or "parfait" or "nickel";
+        }
 
         private static string? ApplyBudgetFilter(
             List<StoreChatProductSuggestionDto> products,
