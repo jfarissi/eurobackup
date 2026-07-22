@@ -23,7 +23,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         Style,
         SemanticSearch,
         WallSchema,
-        CartComplements
+        CartComplements,
+        ConfirmComplements
     }
 
     public sealed class GuidedSalesSlots
@@ -55,6 +56,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (IsResume(lower))
                 slots.Intent = GuidedSalesIntent.ResumeProject;
+            else if (IsConfirmComplements(lower, session))
+                slots.Intent = GuidedSalesIntent.ConfirmComplements;
             else if (IsWallSchema(lower, session))
                 slots.Intent = GuidedSalesIntent.WallSchema;
             else if (IsPackRequest(lower))
@@ -146,6 +149,47 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "donnez-moi tout", "donne moi tout", "pack complet", "kit complet",
                 "tout le nécessaire", "tout le necessaire", "pack salle de bain", "pack sdb",
                 "pack peinture", "kit peinture");
+
+        private static bool IsConfirmComplements(string lower, StoreChatSession session)
+        {
+            if (!session.AwaitingComplementConfirm || session.PendingComplementHints.Count == 0)
+                return false;
+
+            var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();
+            trimmed = Regex.Replace(trimmed, @"\s+", " ");
+
+            // Confirmations exactes / quasi exactes
+            if (trimmed is "ok" or "okay" or "oké" or "oke" or "oui" or "ouais" or "ouai" or "yes" or "yep"
+                or "go" or "ok go" or "okgo" or "ok go!" or "let's go" or "lets go"
+                or "vas-y" or "vas y" or "vasy" or "allez" or "allez-y" or "allez y"
+                or "d'accord" or "daccord" or "d accord" or "dac" or "d'ac" or "deal"
+                or "parfait" or "nickel" or "super" or "top" or "bien" or "très bien" or "tres bien"
+                or "volontiers" or "avec plaisir" or "pourquoi pas" or "carrément" or "carrement"
+                or "bien sûr" or "bien sur" or "ok merci" or "oui merci" or "merci" or "thanks"
+                or "cherche" or "cherche-les" or "cherche les" or "cherche ça" or "cherche ca"
+                or "montre" or "montrez" or "montre-les" or "montre les" or "montre moi" or "montrez-moi"
+                or "affiche" or "affiche-les" or "affiche les" or "propose" or "propose-les"
+                or "je veux bien" or "je veux ça" or "je veux ca" or "ça me va" or "ca me va"
+                or "c'est bon" or "cest bon" or "go ahead" or "go on" or "do it"
+                or "ja" or "oké go" or "oke go")
+                return true;
+
+            // Phrase courte de confirmation (max ~8 mots)
+            var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 8
+                && ContainsAny(trimmed,
+                    "d'accord", "daccord", "ok go", "vas-y", "vas y", "allez-y",
+                    "cherche les", "cherche-les", "montre les", "montre-les", "affiche les",
+                    "oui cherche", "oui vas", "oui ok", "ok oui", "oui go",
+                    "les compléments", "les complements", "ces compléments", "ces complements",
+                    "ceux-là", "ceux la", "go pour", "ok pour", "d'accord pour",
+                    "volontiers", "avec plaisir", "pourquoi pas", "ça me va", "ca me va",
+                    "c'est bon", "cest bon", "je veux bien", "parfait go", "nickel go",
+                    "ok cherche", "ok montre", "d'accord cherche", "d'accord montre"))
+                return true;
+
+            return false;
+        }
 
         private static bool IsCartComplements(string lower) =>
             ContainsAny(lower,

@@ -38,6 +38,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public List<StoreChatHistoryMessage> History { get; set; } = new();
         public List<StoreChatCartItem> Cart { get; set; } = new();
         public Guid? LastOrderId { get; set; }
+        /// <summary>Compléments proposés en attente d'un « ok / go / oui ».</summary>
+        public List<string> PendingComplementHints { get; set; } = new();
+        public bool AwaitingComplementConfirm { get; set; }
     }
 
     public class StoreChatHistoryMessage

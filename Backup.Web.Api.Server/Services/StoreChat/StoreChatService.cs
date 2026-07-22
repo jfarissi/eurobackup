@@ -215,31 +215,26 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         Name = c.Name
                     }).ToList());
 
-                // Cherche 1–3 vrais produits pour les compléments manquants (treillis, truelle…).
-                var complementProducts = new List<StoreChatProductSuggestionDto>();
-                foreach (var tip in missing.Where(m => !string.IsNullOrWhiteSpace(m.SearchHint)).Take(3))
-                {
-                    var hits = await _semanticSearch.SearchAsync(tip.SearchHint!, 2, ct);
-                    foreach (var h in hits)
-                    {
-                        if (complementProducts.Any(p => p.ProductId == h.ProductId))
-                            continue;
-                        // Ne pas reproposer ce qui est déjà au panier.
-                        if (session.Cart.Any(c =>
-                                c.ErpProductId.ToString() == h.ProductId
-                                || c.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase)))
-                            continue;
-                        // Évite de renvoyer encore briques/blocs/ciment déjà couverts.
-                        var hay = $"{h.Name} {h.Category}".ToLowerInvariant();
-                        if (ContainsCartStructureNoise(hay, session))
-                            continue;
-                        complementProducts.Add(h);
-                        if (complementProducts.Count >= 3)
-                            break;
-                    }
+                session.PendingComplementHints = missing
+                    .Select(m => m.SearchHint)
+                    .Where(h => !string.IsNullOrWhiteSpace(h))
+                    .Select(h => h!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList();
+                session.AwaitingComplementConfirm = session.PendingComplementHints.Count > 0;
 
-                    if (complementProducts.Count >= 3)
-                        break;
+                // Essaie déjà d'afficher des produits ; sinon « ok go » les chargera.
+                var complementProducts = await SearchComplementProductsAsync(session, session.PendingComplementHints, ct);
+                if (complementProducts.Count > 0)
+                {
+                    session.AwaitingComplementConfirm = false;
+                    session.PendingComplementHints.Clear();
+                    cartReply += "\n\nVoici des références catalogue pour ces compléments :";
+                }
+                else if (session.AwaitingComplementConfirm)
+                {
+                    cartReply += "\n\nRépondez « ok », « d'accord », « oui » ou « vas-y » pour que je cherche ces articles dans le catalogue.";
                 }
 
                 var cartResponse = FinishTextReply(
@@ -251,6 +246,46 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     guided);
                 cartResponse.Recommendations = missing.ToList();
                 return cartResponse;
+            }
+
+            if (guided.Intent == GuidedSalesIntent.ConfirmComplements)
+            {
+                var hints = session.PendingComplementHints.ToList();
+                if (hints.Count == 0)
+                {
+                    // Reconstruit depuis le panier si la session a perdu les hints.
+                    hints = _recommendations.SuggestComplements(
+                            session,
+                            session.Cart.Select(c => new StoreChatProductSuggestionDto
+                            {
+                                ProductId = c.ErpProductId.ToString(),
+                                Name = c.Name
+                            }).ToList())
+                        .Select(m => m.SearchHint)
+                        .Where(h => !string.IsNullOrWhiteSpace(h))
+                        .Select(h => h!)
+                        .Take(5)
+                        .ToList();
+                }
+
+                var complementHits = await SearchComplementProductsAsync(session, hints, ct);
+                session.AwaitingComplementConfirm = false;
+                session.PendingComplementHints.Clear();
+
+                if (complementHits.Count == 0)
+                {
+                    return FinishTextReply(
+                        session,
+                        text,
+                        "Je n'ai pas trouvé de treillis / truelle / auge / gants correspondants. Essayez un mot précis (ex. « treillis »).",
+                        "NONE",
+                        null,
+                        guided);
+                }
+
+                var confirmReply = "Voici les compléments catalogue pour votre panier :\n"
+                            + "Ajoutez ce dont vous avez besoin, puis devis / commande.";
+                return FinishTextReply(session, text, confirmReply, "CART_COMPLEMENTS", complementHits, guided);
             }
 
             if (guided.Intent == GuidedSalesIntent.Hesitation)
@@ -561,6 +596,67 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             return false;
         }
+
+        private async Task<List<StoreChatProductSuggestionDto>> SearchComplementProductsAsync(
+            StoreChatSession session,
+            IReadOnlyList<string> hints,
+            CancellationToken ct)
+        {
+            var complementProducts = new List<StoreChatProductSuggestionDto>();
+            foreach (var hint in hints.Take(4))
+            {
+                var hits = await _semanticSearch.SearchAsync(hint, 3, ct);
+                if (hits.Count == 0)
+                {
+                    var savedDomain = session.ActiveProjectDomainId;
+                    var savedBrand = session.PreferredBrand;
+                    session.ActiveProjectDomainId = null;
+                    session.PreferredBrand = null;
+                    var meta = new ProductSearchFilter { Categories = new List<string> { hint } };
+                    hits = await SearchProductsAsync(hint, session, meta, ct);
+                    session.ActiveProjectDomainId = savedDomain;
+                    session.PreferredBrand = savedBrand;
+                }
+
+                foreach (var h in hits)
+                {
+                    if (complementProducts.Any(p => p.ProductId == h.ProductId))
+                        continue;
+                    if (session.Cart.Any(c =>
+                            c.ErpProductId.ToString() == h.ProductId
+                            || (!string.IsNullOrWhiteSpace(h.Name)
+                                && c.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))))
+                        continue;
+
+                    var hay = $"{h.Name} {h.Category}".ToLowerInvariant();
+                    if (ContainsCartStructureNoise(hay, session))
+                        continue;
+                    if (!MatchesComplementHint(hay, hint))
+                        continue;
+
+                    complementProducts.Add(h);
+                    if (complementProducts.Count >= 4)
+                        return complementProducts;
+                }
+            }
+
+            return complementProducts;
+        }
+
+        private static bool MatchesComplementHint(string hay, string hint)
+        {
+            return hint.Trim().ToLowerInvariant() switch
+            {
+                "truelle" => ContainsAnyLocal(hay, "truelle", "troffel", "niveau", "waterpas", "spatel", "truweel"),
+                "treillis" => ContainsAnyLocal(hay, "treillis", "mesh", "wapen", "gaas", "netting", "bewapen"),
+                "auge" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac"),
+                "gants" => ContainsAnyLocal(hay, "gant", "glove", "handschoen"),
+                _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase)
+            };
+        }
+
+        private static bool ContainsAnyLocal(string hay, params string[] needles) =>
+            needles.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase));
 
         private static string? ApplyBudgetFilter(
             List<StoreChatProductSuggestionDto> products,
