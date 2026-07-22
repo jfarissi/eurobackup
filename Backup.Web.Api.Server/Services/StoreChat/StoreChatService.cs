@@ -269,19 +269,22 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 }
 
                 var complementHits = await SearchComplementProductsAsync(session, hints, ct);
-                session.AwaitingComplementConfirm = false;
-                session.PendingComplementHints.Clear();
-
                 if (complementHits.Count == 0)
                 {
+                    // Garde l'attente : l'utilisateur peut réessayer (ok / treillis…).
+                    session.AwaitingComplementConfirm = true;
+                    session.PendingComplementHints = hints.ToList();
                     return FinishTextReply(
                         session,
                         text,
-                        "Je n'ai pas trouvé de treillis / truelle / auge / gants correspondants. Essayez un mot précis (ex. « treillis »).",
+                        "Je n'ai pas encore trouvé ces compléments. Réessayez « ok », ou un mot précis : treillis, truelle, auge, gants.",
                         "NONE",
                         null,
                         guided);
                 }
+
+                session.AwaitingComplementConfirm = false;
+                session.PendingComplementHints.Clear();
 
                 var confirmReply = "Voici les compléments catalogue pour votre panier :\n"
                             + "Ajoutez ce dont vous avez besoin, puis devis / commande.";
@@ -605,35 +608,33 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var complementProducts = new List<StoreChatProductSuggestionDto>();
             foreach (var hint in hints.Take(4))
             {
-                var hits = await _semanticSearch.SearchAsync(hint, 3, ct);
+                var terms = ExpandComplementSearchTerms(hint);
+                var hits = await SearchProductsByTermsAsync(terms, ct);
+
+                // Appoint sémantique si SQL vide.
                 if (hits.Count == 0)
                 {
-                    var savedDomain = session.ActiveProjectDomainId;
-                    var savedBrand = session.PreferredBrand;
-                    session.ActiveProjectDomainId = null;
-                    session.PreferredBrand = null;
-                    var meta = new ProductSearchFilter { Categories = new List<string> { hint } };
-                    hits = await SearchProductsAsync(hint, session, meta, ct);
-                    session.ActiveProjectDomainId = savedDomain;
-                    session.PreferredBrand = savedBrand;
+                    foreach (var term in terms.Take(3))
+                    {
+                        var sem = await _semanticSearch.SearchAsync(term, 4, ct);
+                        hits.AddRange(sem);
+                    }
                 }
 
                 foreach (var h in hits)
                 {
                     if (complementProducts.Any(p => p.ProductId == h.ProductId))
                         continue;
-                    if (session.Cart.Any(c =>
-                            c.ErpProductId.ToString() == h.ProductId
-                            || (!string.IsNullOrWhiteSpace(h.Name)
-                                && c.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))))
+                    if (session.Cart.Any(c => c.ErpProductId.ToString() == h.ProductId))
                         continue;
 
-                    var hay = $"{h.Name} {h.Category}".ToLowerInvariant();
+                    var hay = $"{h.Name} {h.Category} {h.Brand}".ToLowerInvariant();
                     if (ContainsCartStructureNoise(hay, session))
                         continue;
                     if (!MatchesComplementHint(hay, hint))
                         continue;
 
+                    h.SuggestedQuantity ??= 1;
                     complementProducts.Add(h);
                     if (complementProducts.Count >= 4)
                         return complementProducts;
@@ -643,13 +644,88 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return complementProducts;
         }
 
+        private static IReadOnlyList<string> ExpandComplementSearchTerms(string hint)
+        {
+            return hint.Trim().ToLowerInvariant() switch
+            {
+                "truelle" => new[] { "truelle", "troffel", "truweel", "waterpas", "niveau", "spatel", "metseltroffel" },
+                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "gaas", "mesh", "bewapeningsnet", "raster" },
+                "auge" => new[] { "auge", "mortelkuip", "kuip", "emmer", "seau", "speciekuip", "mengkuip" },
+                "gants" => new[] { "gants", "handschoen", "handschoenen", "gloves", "werkhandschoen" },
+                _ => new[] { hint }
+            };
+        }
+
+        private async Task<List<StoreChatProductSuggestionDto>> SearchProductsByTermsAsync(
+            IReadOnlyList<string> terms,
+            CancellationToken ct)
+        {
+            var results = new List<StoreChatProductSuggestionDto>();
+            var seen = new HashSet<int>();
+
+            foreach (var term in terms.Where(t => t.Length >= 3).Take(8))
+            {
+                var needle = term.ToLowerInvariant();
+                var rows = await _storage.SelectAllErpProducts()
+                    .AsNoTracking()
+                    .Where(p =>
+                        (p.Name != null && p.Name.ToLower().Contains(needle))
+                        || (p.Name2 != null && p.Name2.ToLower().Contains(needle))
+                        || (p.Brand != null && p.Brand.ToLower().Contains(needle))
+                        || (p.TypeName != null && p.TypeName.ToLower().Contains(needle))
+                        || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(needle))
+                        || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(needle)))
+                    .OrderBy(p => p.Name)
+                    .Take(12)
+                    .Select(p => new
+                    {
+                        p.Id,
+                        p.Name,
+                        p.Name2,
+                        p.Brand,
+                        p.UnitPrice,
+                        p.PriceHT,
+                        p.MainTypeName,
+                        p.TypeName,
+                        p.SubTypeName,
+                        p.PicName,
+                        p.Reference
+                    })
+                    .ToListAsync(ct);
+
+                foreach (var p in rows)
+                {
+                    if (!seen.Add(p.Id))
+                        continue;
+
+                    var name = string.IsNullOrWhiteSpace(p.Name2) ? (p.Name ?? $"#{p.Id}") : $"{p.Name} — {p.Name2}";
+                    results.Add(new StoreChatProductSuggestionDto
+                    {
+                        ProductId = p.Id.ToString(CultureInfo.InvariantCulture),
+                        Name = name,
+                        Brand = p.Brand,
+                        Price = p.UnitPrice ?? p.PriceHT,
+                        Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
+                            .Where(x => !string.IsNullOrWhiteSpace(x))),
+                        SuggestedQuantity = 1,
+                        ImageUrl = BuildProductImageUrl(p.PicName)
+                    });
+
+                    if (results.Count >= 8)
+                        return results;
+                }
+            }
+
+            return results;
+        }
+
         private static bool MatchesComplementHint(string hay, string hint)
         {
             return hint.Trim().ToLowerInvariant() switch
             {
-                "truelle" => ContainsAnyLocal(hay, "truelle", "troffel", "niveau", "waterpas", "spatel", "truweel"),
-                "treillis" => ContainsAnyLocal(hay, "treillis", "mesh", "wapen", "gaas", "netting", "bewapen"),
-                "auge" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac"),
+                "truelle" => ContainsAnyLocal(hay, "truelle", "troffel", "truweel", "niveau", "waterpas", "spatel", "metseltroffel"),
+                "treillis" => ContainsAnyLocal(hay, "treillis", "mesh", "wapen", "gaas", "netting", "bewapen", "raster"),
+                "auge" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac", "specie"),
                 "gants" => ContainsAnyLocal(hay, "gant", "glove", "handschoen"),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase)
             };
