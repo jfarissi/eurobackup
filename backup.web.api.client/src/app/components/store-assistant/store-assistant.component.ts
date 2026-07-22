@@ -448,6 +448,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
 
     const products = (res.products
       ?? (res.actionType === 'PRODUCT_LIST' || res.actionType === 'PACK' || res.actionType === 'COMPARE'
+        || res.actionType === 'CART_COMPLEMENTS' || res.actionType === 'SEMANTIC'
         ? (res.actionData as StoreChatProductSuggestion[])
         : null)
       ?? [])

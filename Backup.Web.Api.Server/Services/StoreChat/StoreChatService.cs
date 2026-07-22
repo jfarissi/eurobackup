@@ -204,6 +204,55 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             CollectMaterialHints(session, text);
             UpdateStickySearchFilters(session, text);
 
+            if (guided.Intent == GuidedSalesIntent.CartComplements)
+            {
+                var cartReply = _recommendations.BuildCartComplementsReply(session);
+                var missing = _recommendations.SuggestComplements(
+                    session,
+                    session.Cart.Select(c => new StoreChatProductSuggestionDto
+                    {
+                        ProductId = c.ErpProductId.ToString(),
+                        Name = c.Name
+                    }).ToList());
+
+                // Cherche 1–3 vrais produits pour les compléments manquants (treillis, truelle…).
+                var complementProducts = new List<StoreChatProductSuggestionDto>();
+                foreach (var tip in missing.Where(m => !string.IsNullOrWhiteSpace(m.SearchHint)).Take(3))
+                {
+                    var hits = await _semanticSearch.SearchAsync(tip.SearchHint!, 2, ct);
+                    foreach (var h in hits)
+                    {
+                        if (complementProducts.Any(p => p.ProductId == h.ProductId))
+                            continue;
+                        // Ne pas reproposer ce qui est déjà au panier.
+                        if (session.Cart.Any(c =>
+                                c.ErpProductId.ToString() == h.ProductId
+                                || c.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                        // Évite de renvoyer encore briques/blocs/ciment déjà couverts.
+                        var hay = $"{h.Name} {h.Category}".ToLowerInvariant();
+                        if (ContainsCartStructureNoise(hay, session))
+                            continue;
+                        complementProducts.Add(h);
+                        if (complementProducts.Count >= 3)
+                            break;
+                    }
+
+                    if (complementProducts.Count >= 3)
+                        break;
+                }
+
+                var cartResponse = FinishTextReply(
+                    session,
+                    text,
+                    cartReply,
+                    complementProducts.Count > 0 ? "CART_COMPLEMENTS" : "CART_ADVICE",
+                    complementProducts.Count > 0 ? complementProducts : null,
+                    guided);
+                cartResponse.Recommendations = missing.ToList();
+                return cartResponse;
+            }
+
             if (guided.Intent == GuidedSalesIntent.Hesitation)
             {
                 var hesitateReply = _confidence.BuildAdvisorReply(session);
@@ -489,6 +538,28 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 : "\nVous pouvez ajuster les quantités puis ajouter au panier.";
 
             return $"{pack.Title} — {pack.Lines.Count} lignes :\n{lines}{total}{budget}{skill}";
+        }
+
+        /// <summary>
+        /// Évite de reproposer structure/liant déjà couverts par le panier lors des compléments.
+        /// </summary>
+        private static bool ContainsCartStructureNoise(string hay, StoreChatSession session)
+        {
+            var cart = string.Join(' ', session.Cart.Select(c => c.Name)).ToLowerInvariant();
+            var cartHasStructure = cart.Contains("brique") || cart.Contains("baksteen") || cart.Contains("blok")
+                                   || cart.Contains("steen") || cart.Contains("porotherm") || cart.Contains("silka");
+            var cartHasBinder = cart.Contains("ciment") || cart.Contains("cement") || cart.Contains("mortier")
+                                || cart.Contains("mortel");
+
+            if (cartHasStructure && (hay.Contains("brique") || hay.Contains("baksteen") || hay.Contains("lijmblok")
+                                     || hay.Contains("kalkzand") || hay.Contains("porotherm") || hay.Contains("snelbouw")))
+                return true;
+
+            if (cartHasBinder && (hay.Contains("ciment") || hay.Contains("cement") || hay.Contains("mortier")
+                                  || hay.Contains("mortel")))
+                return true;
+
+            return false;
         }
 
         private static string? ApplyBudgetFilter(

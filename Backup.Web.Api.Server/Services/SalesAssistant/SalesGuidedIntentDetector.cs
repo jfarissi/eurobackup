@@ -22,7 +22,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         ResumeProject,
         Style,
         SemanticSearch,
-        WallSchema
+        WallSchema,
+        CartComplements
     }
 
     public sealed class GuidedSalesSlots
@@ -58,6 +59,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.WallSchema;
             else if (IsPackRequest(lower))
                 slots.Intent = GuidedSalesIntent.PackRequest;
+            else if (IsCartComplements(lower))
+                slots.Intent = GuidedSalesIntent.CartComplements;
             else if (IsCompare(lower, slots))
                 slots.Intent = GuidedSalesIntent.Compare;
             else if (IsSavings(lower))
@@ -143,6 +146,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "donnez-moi tout", "donne moi tout", "pack complet", "kit complet",
                 "tout le nécessaire", "tout le necessaire", "pack salle de bain", "pack sdb",
                 "pack peinture", "kit peinture");
+
+        private static bool IsCartComplements(string lower) =>
+            ContainsAny(lower,
+                "autres produits", "autre produit", "besoin d'autre", "besoin d autre",
+                "aurai besoin", "aurais besoin", "ai besoin d'autre", "ai-je besoin",
+                "il me manque", "me manque", "manquera", "complément", "complement",
+                "pour mon panier", "pour le panier", "pour ces deux", "pour ce que j'ai",
+                "que j'ai ajout", "que j ai ajout",
+                "quoi d'autre", "quoi d autre", "encore besoin", "produits en plus");
 
         private static bool IsCompare(string lower, GuidedSalesSlots slots)
         {
