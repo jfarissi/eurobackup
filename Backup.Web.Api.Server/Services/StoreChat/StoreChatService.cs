@@ -100,16 +100,33 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             if (string.IsNullOrWhiteSpace(text))
                 return Ok(session, "Message vide.", "NONE");
 
+            await DetectBrandAsync(session, text, ct);
             DetectDomain(session, text);
+            if (!string.IsNullOrWhiteSpace(session.PreferredBrand) && !IsExplicitWallIntent(text))
+            {
+                // Évite qu'un ancien projet « mur » pollue une recherche marque.
+                if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                {
+                    session.ActiveProjectDomainId = null;
+                    session.ActiveProjectDomainLabel = null;
+                }
+            }
             ParseWallDimensions(session, text);
             CollectMaterialHints(session, text);
-            var products = await SearchProductsAsync(text, session, ct);
+
+            var searchMeta = new ProductSearchMeta
+            {
+                Brand = session.PreferredBrand,
+                TypeHints = ExtractTypeHints(text)
+            };
+
+            var products = await SearchProductsAsync(text, session, searchMeta, ct);
             ApplySuggestedQuantities(products, session);
-            var catalogContext = BuildCatalogContext(products);
+            var catalogContext = BuildCatalogContext(products, searchMeta);
             var aiReply = await _ai.CompleteAsync(session.History, text, catalogContext, ct);
 
             session.History.Add(new StoreChatHistoryMessage { Role = "user", Content = text });
-            var reply = BuildUserFacingReply(aiReply, products, session);
+            var reply = BuildUserFacingReply(aiReply, products, session, searchMeta);
 
             session.History.Add(new StoreChatHistoryMessage { Role = "assistant", Content = reply });
             TrimHistory(session);
@@ -349,7 +366,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             "projet", "svp", "s'il", "sil", "vous", "plait", "ça", "ca", "est", "que", "qui", "quoi",
             "comme", "aussi", "donc", "alors", "mais", "mon", "ma", "mes", "ton", "votre", "notre",
             "mètre", "metre", "metres", "mètres", "cm", "mm", "haut", "haute", "hauteur", "longeur",
-            "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux", "construire", "mur"
+            "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux", "construire", "mur",
+            "produit", "produits", "marque", "ont", "avoir", "avez", "suis", "cherche", "rechercher",
+            "voudrais", "souhaite", "souhaitez", "donne", "donner", "liste", "voir", "montre", "montrer",
+            "est-ce", "quelque", "chose", "choses", "s'il", "svp", "merci", "bonjour", "salut"
         };
 
         private static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)
@@ -495,22 +515,85 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(
             string text,
             StoreChatSession session,
+            ProductSearchMeta meta,
             CancellationToken ct)
         {
-            var terms = BuildSearchTerms(text, session);
-            if (terms.Count == 0)
+            var brandMode = !string.IsNullOrWhiteSpace(meta.Brand);
+            // Marque demandée → ne jamais basculer en mode mur (évite Silka/Coeck pour « Knauf ciment »).
+            var wallMode = !brandMode
+                && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase);
+
+            var terms = BuildSearchTerms(text, session, brandMode);
+            var scores = new Dictionary<int, ScoredProduct>();
+
+            if (brandMode)
+            {
+                await AccumulateBrandSearchAsync(scores, meta.Brand!, ct);
+                foreach (var typeTerm in meta.TypeHints.SelectMany(ExpandTypeHintTerms).Distinct(StringComparer.OrdinalIgnoreCase).Take(12))
+                    await AccumulateSearchTermAsync(scores, typeTerm, ct);
+            }
+            else
+            {
+                if (terms.Count == 0)
+                    return new List<StoreChatProductSuggestionDto>();
+
+                foreach (var term in terms.Take(24))
+                    await AccumulateSearchTermAsync(scores, term, ct);
+
+                if (wallMode)
+                    await EnrichWallCatalogCandidatesAsync(scores, ct);
+            }
+
+            if (scores.Count == 0)
                 return new List<StoreChatProductSuggestionDto>();
 
-            var scores = new Dictionary<int, ScoredProduct>();
-            foreach (var term in terms.Take(24))
-                await AccumulateSearchTermAsync(scores, term, ct);
-
-            if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
-                await EnrichWallCatalogCandidatesAsync(scores, ct);
-
-            var wallMode = string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase);
             IEnumerable<ScoredProduct> ranked = scores.Values;
-            if (wallMode)
+
+            if (brandMode)
+            {
+                foreach (var p in scores.Values)
+                    p.Score += BrandMatchBoost(p, meta.Brand!);
+
+                var brandMatches = scores.Values
+                    .Where(p => MatchesBrand(p, meta.Brand!))
+                    .ToList();
+
+                if (brandMatches.Count == 0)
+                {
+                    meta.Outcome = ProductSearchOutcome.BrandNotFound;
+                    return new List<StoreChatProductSuggestionDto>();
+                }
+
+                if (meta.TypeHints.Count > 0)
+                {
+                    var typed = brandMatches
+                        .Where(p => MatchesTypeHints(p, meta.TypeHints))
+                        .OrderByDescending(p => p.Score)
+                        .ThenBy(p => p.Name)
+                        .ToList();
+
+                    if (typed.Count > 0)
+                    {
+                        meta.Outcome = ProductSearchOutcome.BrandAndType;
+                        ranked = typed;
+                    }
+                    else
+                    {
+                        meta.Outcome = ProductSearchOutcome.BrandWithoutType;
+                        ranked = brandMatches
+                            .OrderByDescending(p => p.Score)
+                            .ThenBy(p => p.Name);
+                    }
+                }
+                else
+                {
+                    meta.Outcome = ProductSearchOutcome.BrandOnly;
+                    ranked = brandMatches
+                        .OrderByDescending(p => p.Score)
+                        .ThenBy(p => p.Name);
+                }
+            }
+            else if (wallMode)
             {
                 var classified = scores.Values
                     .Select(p =>
@@ -551,6 +634,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     .Select(x => x.Product);
 
                 ranked = blocks.Concat(bricks).Concat(mortars);
+                meta.Outcome = ProductSearchOutcome.Domain;
+            }
+            else
+            {
+                ranked = scores.Values
+                    .OrderByDescending(p => p.Score)
+                    .ThenBy(p => p.Name);
+                meta.Outcome = ProductSearchOutcome.Generic;
             }
 
             return ranked
@@ -566,7 +657,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         Brand = p.Brand,
                         Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
                             .Where(x => !string.IsNullOrWhiteSpace(x))),
-                        SuggestedQuantity = EstimateQuantityForKind(kind, p.Name, p.Name2, session.WallAreaM2),
+                        SuggestedQuantity = wallMode
+                            ? EstimateQuantityForKind(kind, p.Name, p.Name2, session.WallAreaM2)
+                            : 1,
                         ImageUrl = BuildProductImageUrl(p.PicName)
                     };
                 })
@@ -609,6 +702,47 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             foreach (var p in rows)
                 AddOrBumpScore(scores, p, t);
+        }
+
+        private async Task AccumulateBrandSearchAsync(
+            Dictionary<int, ScoredProduct> scores,
+            string brand,
+            CancellationToken ct)
+        {
+            var b = brand.Trim().ToLowerInvariant();
+            if (b.Length < 2)
+                return;
+
+            var rows = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p =>
+                    (p.Brand != null && p.Brand.ToLower().Contains(b))
+                    || (p.Manufacturer != null && p.Manufacturer.ToLower().Contains(b))
+                    || (p.TypeName != null && p.TypeName.ToLower().Contains(b))
+                    || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(b))
+                    || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(b))
+                    || (p.Name != null && p.Name.ToLower().Contains(b))
+                    || (p.Name2 != null && p.Name2.ToLower().Contains(b)))
+                .Take(200)
+                .Select(p => new ScoredProduct
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Name2 = p.Name2,
+                    Reference = p.Reference,
+                    Brand = p.Brand,
+                    UnitPrice = p.UnitPrice,
+                    PriceHT = p.PriceHT,
+                    MainTypeName = p.MainTypeName,
+                    TypeName = p.TypeName,
+                    SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
+                    Score = 5
+                })
+                .ToListAsync(ct);
+
+            foreach (var p in rows)
+                AddOrBumpScore(scores, p, b, bonus: 8);
         }
 
         /// <summary>
@@ -1011,21 +1145,28 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return $"{baseUrl}/{file}";
         }
 
-        private static List<string> BuildSearchTerms(string text, StoreChatSession session)
+        private static List<string> BuildSearchTerms(string text, StoreChatSession session, bool brandMode)
         {
             var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var hint in session.MaterialHints)
-                AddTermWithSynonyms(terms, hint);
-
-            if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
-                && DomainSearchTerms.TryGetValue(session.ActiveProjectDomainId, out var domainTerms))
+            if (!brandMode)
             {
-                foreach (var t in domainTerms)
-                    terms.Add(t);
+                foreach (var hint in session.MaterialHints)
+                    AddTermWithSynonyms(terms, hint);
+
+                if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
+                    && DomainSearchTerms.TryGetValue(session.ActiveProjectDomainId, out var domainTerms))
+                {
+                    foreach (var t in domainTerms)
+                        terms.Add(t);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(session.PreferredBrand))
+            {
+                terms.Add(session.PreferredBrand);
             }
 
-            foreach (var raw in text.Split(new[] { ' ', ',', ';', '.', '!', '?', '/', '\\', '\n', '\t' },
+            foreach (var raw in text.Split(new[] { ' ', ',', ';', '.', '!', '?', '/', '\\', '\n', '\t', '\'', '’' },
                          StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 var token = raw.Trim().ToLowerInvariant();
@@ -1060,6 +1201,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private static void CollectMaterialHints(StoreChatSession session, string text)
         {
             var lower = text.ToLowerInvariant();
+            var brandMode = !string.IsNullOrWhiteSpace(session.PreferredBrand);
+
             foreach (var kv in MaterialSynonyms)
             {
                 if (kv.Value.Any(s => lower.Contains(s, StringComparison.OrdinalIgnoreCase))
@@ -1069,6 +1212,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         session.MaterialHints.Add(kv.Key);
                 }
             }
+
+            // Ne pas injecter automatiquement tout le kit mur si on cherche une marque.
+            if (brandMode)
+                return;
 
             if ((lower.Contains("construire") && lower.Contains("mur"))
                 || string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
@@ -1174,12 +1321,39 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private static bool ContainsAny(string hay, params string[] keys) =>
             keys.Any(k => hay.Contains(k, StringComparison.OrdinalIgnoreCase));
 
-        private static string BuildCatalogContext(IReadOnlyList<StoreChatProductSuggestionDto> products)
+        private static string BuildCatalogContext(
+            IReadOnlyList<StoreChatProductSuggestionDto> products,
+            ProductSearchMeta meta)
         {
             if (products.Count == 0)
-                return "(aucun produit trouvé dans le catalogue local — ne propose aucun produit inventé; demande un autre mot-clé marque/type)";
+            {
+                if (meta.Outcome == ProductSearchOutcome.BrandNotFound && !string.IsNullOrWhiteSpace(meta.Brand))
+                    return $"(aucun produit de la marque {meta.Brand} dans le catalogue — dis-le clairement, n'invente rien)";
 
-            return "Produits catalogue à recommander UNIQUEMENT (quantités déjà estimées):\n"
+                if (meta.Outcome == ProductSearchOutcome.BrandWithoutType
+                    && !string.IsNullOrWhiteSpace(meta.Brand)
+                    && meta.TypeHints.Count > 0)
+                {
+                    return $"(la marque {meta.Brand} existe, mais aucun produit {string.Join('/', meta.TypeHints)} "
+                           + "de cette marque — dis-le clairement, n'invente aucune gamme)";
+                }
+
+                return "(aucun produit trouvé dans le catalogue local — ne propose aucun produit inventé; demande un autre mot-clé marque/type)";
+            }
+
+            var header = meta.Outcome switch
+            {
+                ProductSearchOutcome.BrandAndType =>
+                    $"Produits {meta.Brand} correspondant à la demande ({string.Join('/', meta.TypeHints)}) — UNIQUEMENT ceux-ci:\n",
+                ProductSearchOutcome.BrandWithoutType =>
+                    $"Produits marque {meta.Brand} (aucun {string.Join('/', meta.TypeHints)} Knauf/marque trouvé) — UNIQUEMENT ceux-ci:\n"
+                        .Replace("Knauf/marque", meta.Brand ?? "marque"),
+                ProductSearchOutcome.BrandOnly =>
+                    $"Produits marque {meta.Brand} — UNIQUEMENT ceux-ci:\n",
+                _ => "Produits catalogue à recommander UNIQUEMENT (quantités déjà estimées):\n"
+            };
+
+            return header
                    + string.Join("\n", products.Take(12).Select(p =>
                        $"- [{p.ProductId}] {p.Name} | qté estimée {p.SuggestedQuantity:0} | {p.Brand} | {p.Category} | {p.Price:N2} €"));
         }
@@ -1187,14 +1361,36 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private static string BuildUserFacingReply(
             string? aiReply,
             IReadOnlyList<StoreChatProductSuggestionDto> products,
-            StoreChatSession session)
+            StoreChatSession session,
+            ProductSearchMeta meta)
         {
             var calc = BuildCalculationSummary(session);
+            var brand = meta.Brand;
+            var typeLabel = meta.TypeHints.Count > 0 ? string.Join(" / ", meta.TypeHints) : null;
 
             if (products.Count > 0)
             {
-                var intro = calc;
-                if (string.IsNullOrWhiteSpace(intro))
+                string intro;
+                if (!string.IsNullOrWhiteSpace(calc) && meta.Outcome is ProductSearchOutcome.Domain)
+                {
+                    intro = calc;
+                }
+                else if (meta.Outcome == ProductSearchOutcome.BrandAndType)
+                {
+                    intro = $"Voici {products.Count} produit(s) {brand}"
+                            + (typeLabel != null ? $" liés à « {typeLabel} »" : "")
+                            + " dans le catalogue.";
+                }
+                else if (meta.Outcome == ProductSearchOutcome.BrandWithoutType)
+                {
+                    intro = $"Je n'ai pas trouvé de {typeLabel} de la marque {brand} dans le catalogue. "
+                            + $"Voici d'autres produits {brand} disponibles :";
+                }
+                else if (meta.Outcome == ProductSearchOutcome.BrandOnly)
+                {
+                    intro = $"Voici {products.Count} produit(s) de la marque {brand}.";
+                }
+                else
                 {
                     intro = $"Voici {products.Count} produit(s) du catalogue"
                             + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
@@ -1204,15 +1400,39 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
                 intro += "\n\nLes quantités dans la liste sont des estimations : ajustez-les puis ajoutez au panier / devis / commande.";
 
+                // En mode marque, ne pas laisser l'IA contredire le catalogue.
+                if (meta.Outcome is ProductSearchOutcome.BrandOnly
+                    or ProductSearchOutcome.BrandAndType
+                    or ProductSearchOutcome.BrandWithoutType)
+                {
+                    return intro.Trim();
+                }
+
                 if (!string.IsNullOrWhiteSpace(aiReply)
                     && aiReply!.Length < 400
-                    && !LooksLikeInventedProductList(aiReply))
+                    && !LooksLikeInventedProductList(aiReply)
+                    && !LooksLikeHallucinatedBrandClaim(aiReply, products, brand))
                 {
-                    intro = calc + "\n\n" + aiReply.Trim()
+                    intro = (!string.IsNullOrWhiteSpace(calc) ? calc + "\n\n" : "")
+                            + aiReply.Trim()
                             + "\n\nLes quantités proposées sont préremplies dans le tableau.";
                 }
 
                 return intro.Trim();
+            }
+
+            if (meta.Outcome == ProductSearchOutcome.BrandNotFound && !string.IsNullOrWhiteSpace(brand))
+            {
+                return $"Je n'ai trouvé aucun produit de la marque {brand} dans le catalogue. "
+                       + "Vérifiez l'orthographe ou essayez une autre marque / un type de produit.";
+            }
+
+            if (meta.Outcome == ProductSearchOutcome.BrandWithoutType
+                && !string.IsNullOrWhiteSpace(brand)
+                && typeLabel != null)
+            {
+                return $"La marque {brand} est présente, mais je n'ai pas de {typeLabel} {brand} dans le catalogue. "
+                       + "Précisez un autre type (plâtre, plaque, colle…) ou une autre marque.";
             }
 
             if (!string.IsNullOrWhiteSpace(calc))
@@ -1222,7 +1442,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return aiReply!.Trim();
 
             return "Je n'ai pas trouvé de produit correspondant dans le catalogue. "
-                   + "Indiquez un matériau ou une marque précise (ex. parpaing, brique, mortier, ciment).";
+                   + "Indiquez un matériau ou une marque précise (ex. Knauf, parpaing, brique, mortier, ciment).";
         }
 
         private static string BuildCalculationSummary(StoreChatSession session)
@@ -1246,22 +1466,283 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return lower.Contains("voici quelques suggestions")
                    || lower.Contains("griffes pour murs")
                    || lower.Contains("griffe pour murs")
-                   || (lower.Contains("matériaux suivants") && lower.Contains("*"));
+                   || lower.Contains("gamme de produits qui incluent")
+                   || lower.Contains("ciments pour plâtre")
+                   || lower.Contains("ciments pour mortier")
+                   || lower.Contains("ciments pour béton")
+                   || lower.Contains("ciments pour beton")
+                   || (lower.Contains("matériaux suivants") && lower.Contains("*"))
+                   || (lower.Contains("tels que") && lower.Contains("*"));
         }
+
+        private static bool LooksLikeHallucinatedBrandClaim(
+            string reply,
+            IReadOnlyList<StoreChatProductSuggestionDto> products,
+            string? brand)
+        {
+            if (string.IsNullOrWhiteSpace(brand))
+                return false;
+
+            var lower = reply.ToLowerInvariant();
+            var brandLower = brand.ToLowerInvariant();
+            if (!lower.Contains(brandLower))
+                return false;
+
+            // L'IA affirme une offre marque + produit alors que la liste ne le confirme pas.
+            if ((lower.Contains("ciment") || lower.Contains("cement"))
+                && products.All(p => !MatchesTypeHints(
+                    new ScoredProduct
+                    {
+                        Name = p.Name,
+                        Brand = p.Brand,
+                        MainTypeName = p.Category,
+                        TypeName = p.Category,
+                        SubTypeName = p.Category
+                    },
+                    new List<string> { "ciment" })))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>Typos fréquents seulement — les vraies marques viennent de ErpBrands.</summary>
+        private static readonly Dictionary<string, string> BrandTypoAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["knau"] = "Knauf",
+            ["knauff"] = "Knauf",
+            ["silka"] = "Silka",
+            ["poroterm"] = "Porotherm",
+        };
+
+        private static List<string>? _cachedBrandNames;
+        private static DateTime _cachedBrandNamesAtUtc = DateTime.MinValue;
+        private static readonly TimeSpan BrandCacheTtl = TimeSpan.FromMinutes(10);
+
+        private static bool IsExplicitWallIntent(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return lower.Contains("construire un mur")
+                   || lower.Contains("construction de mur")
+                   || lower.Contains("mur de séparation")
+                   || lower.Contains("mur de separation")
+                   || lower.Contains("faire un mur")
+                   || lower.Contains("monter un mur")
+                   || lower.Contains("muur bouwen")
+                   || lower.Contains("build a wall")
+                   || lower.Contains("brick wall")
+                   || (lower.Contains("mur") && (lower.Contains("construire") || Regex.IsMatch(lower, @"\d+\s*m")));
+        }
+
+        private async Task DetectBrandAsync(StoreChatSession session, string text, CancellationToken ct)
+        {
+            var lower = text.ToLowerInvariant();
+            var brands = await GetCatalogBrandNamesAsync(ct);
+            if (brands.Count == 0)
+                return;
+
+            // 1) Correspondance exacte (mot entier), marques les plus longues d'abord
+            //    (évite qu'un sous-mot court gagne sur une marque composée).
+            foreach (var brand in brands.OrderByDescending(b => b.Length))
+            {
+                var needle = brand.ToLowerInvariant();
+                if (needle.Length < 2)
+                    continue;
+
+                if (Regex.IsMatch(lower, $@"\b{Regex.Escape(needle)}\b", RegexOptions.IgnoreCase)
+                    || lower.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                {
+                    session.PreferredBrand = brand;
+                    return;
+                }
+            }
+
+            // 2) Typos connus → marque catalogue si elle existe
+            foreach (var alias in BrandTypoAliases.OrderByDescending(kv => kv.Key.Length))
+            {
+                if (!Regex.IsMatch(lower, $@"\b{Regex.Escape(alias.Key)}\b", RegexOptions.IgnoreCase)
+                    && !lower.Contains(alias.Key, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var resolved = brands.FirstOrDefault(b =>
+                    b.Equals(alias.Value, StringComparison.OrdinalIgnoreCase)
+                    || b.StartsWith(alias.Value, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(resolved))
+                {
+                    session.PreferredBrand = resolved;
+                    return;
+                }
+            }
+
+            // 3) Préfixe : « knau » → Knauf si une seule marque catalogue commence ainsi
+            var tokens = Regex.Matches(lower, @"[a-z0-9][\w-]{2,}")
+                .Select(m => m.Value)
+                .Where(t => !StopWords.Contains(t) && !MaterialSynonyms.ContainsKey(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var token in tokens.OrderByDescending(t => t.Length))
+            {
+                var startsWith = brands
+                    .Where(b => b.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (startsWith.Count == 1)
+                {
+                    session.PreferredBrand = startsWith[0];
+                    return;
+                }
+            }
+
+            // 4) « marque X »
+            var marqueMatch = Regex.Match(lower, @"\b(?:marque|brand)\s+([a-z0-9][\w-]{2,})\b");
+            if (marqueMatch.Success)
+            {
+                var token = marqueMatch.Groups[1].Value;
+                var hit = brands.FirstOrDefault(b =>
+                    b.Equals(token, StringComparison.OrdinalIgnoreCase)
+                    || b.StartsWith(token, StringComparison.OrdinalIgnoreCase)
+                    || b.Contains(token, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(hit))
+                    session.PreferredBrand = hit;
+            }
+        }
+
+        private async Task<List<string>> GetCatalogBrandNamesAsync(CancellationToken ct)
+        {
+            if (_cachedBrandNames != null
+                && DateTime.UtcNow - _cachedBrandNamesAtUtc < BrandCacheTtl)
+            {
+                return _cachedBrandNames;
+            }
+
+            var fromTable = await _storage.SelectAllErpBrands()
+                .AsNoTracking()
+                .Where(b => b.IsActive && b.Name != null && b.Name != "")
+                .Select(b => b.Name)
+                .ToListAsync(ct);
+
+            List<string> names;
+            if (fromTable.Count > 0)
+            {
+                names = fromTable
+                    .Select(n => n.Trim())
+                    .Where(n => n.Length >= 2)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(n => n.Length)
+                    .ToList();
+            }
+            else
+            {
+                // Fallback si ErpBrands pas encore reconstruit
+                names = await _storage.SelectAllErpProducts()
+                    .AsNoTracking()
+                    .Where(p => p.Brand != null && p.Brand != "")
+                    .Select(p => p.Brand!)
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                names = names
+                    .Select(n => n.Trim())
+                    .Where(n => n.Length >= 2)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(n => n.Length)
+                    .ToList();
+            }
+
+            _cachedBrandNames = names;
+            _cachedBrandNamesAtUtc = DateTime.UtcNow;
+            return names;
+        }
+
+        private static List<string> ExtractTypeHints(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            var hints = new List<string>();
+            foreach (var kv in MaterialSynonyms)
+            {
+                if (kv.Value.Any(s => lower.Contains(s, StringComparison.OrdinalIgnoreCase))
+                    || lower.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    hints.Add(kv.Key);
+                }
+            }
+
+            return hints;
+        }
+
+        private static IEnumerable<string> ExpandTypeHintTerms(string hint)
+        {
+            yield return hint;
+            if (MaterialSynonyms.TryGetValue(hint, out var syns))
+            {
+                foreach (var s in syns)
+                    yield return s;
+            }
+        }
+
+        private static bool MatchesBrand(ScoredProduct p, string brand)
+        {
+            var b = brand.Trim();
+            if (b.Length == 0)
+                return false;
+
+            return ContainsIgnoreCase(p.Brand, b)
+                   || ContainsIgnoreCase(p.Name, b)
+                   || ContainsIgnoreCase(p.Name2, b)
+                   || ContainsIgnoreCase(p.TypeName, b)
+                   || ContainsIgnoreCase(p.SubTypeName, b)
+                   || ContainsIgnoreCase(p.MainTypeName, b);
+        }
+
+        private static int BrandMatchBoost(ScoredProduct p, string brand)
+        {
+            if (ContainsIgnoreCase(p.Brand, brand))
+                return 20;
+            if (ContainsIgnoreCase(p.TypeName, brand) || ContainsIgnoreCase(p.SubTypeName, brand))
+                return 12;
+            if (ContainsIgnoreCase(p.Name, brand))
+                return 8;
+            return 0;
+        }
+
+        private static bool MatchesTypeHints(ScoredProduct p, IReadOnlyList<string> typeHints)
+        {
+            if (typeHints.Count == 0)
+                return true;
+
+            var hay = $"{p.Name} {p.Name2} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}"
+                .ToLowerInvariant();
+
+            foreach (var hint in typeHints)
+            {
+                var keys = ExpandTypeHintTerms(hint).Select(x => x.ToLowerInvariant()).ToList();
+                if (keys.Any(k => hay.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ContainsIgnoreCase(string? hay, string needle) =>
+            !string.IsNullOrWhiteSpace(hay)
+            && hay.Contains(needle, StringComparison.OrdinalIgnoreCase);
 
         private static void DetectDomain(StoreChatSession session, string text)
         {
             var lower = text.ToLowerInvariant();
-            // Ordre important : construction mur avant peinture (évite que "mur" déclenche peinture).
+            var brandQuery = !string.IsNullOrWhiteSpace(session.PreferredBrand);
+
+            // Intention mur EXPLICITE uniquement (pas « ciment » / « brique » seuls —
+            // sinon « Knauf ciment » bascule à tort sur Construction de mur).
             (string id, string label, string[] keys)[] domains =
             {
                 ("wall_construction", "Construction de mur", new[]
                 {
                     "construire un mur", "construction de mur", "mur de séparation", "mur de separation",
-                    "mur de soutènement", "mur de souteinement", "parpaing", "ciment", "mortier", "brique",
-                    "moellon", "agglo", "maçonner", "maconner", "briquetage",
-                    "muur bouwen", "metselwerk", "baksteen", "betonblok", "mortel", "cement",
-                    "build a wall", "brick wall", "masonry"
+                    "mur de soutènement", "mur de souteinement", "briquetage", "maçonner un mur", "maconner un mur",
+                    "muur bouwen", "metselwerk", "build a wall", "brick wall", "masonry wall",
+                    "je construis un mur", "faire un mur", "monter un mur"
                 }),
                 ("painting", "Peinture", new[] { "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer" }),
                 ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
@@ -1274,18 +1755,41 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             {
                 if (d.keys.Any(k => lower.Contains(k)))
                 {
+                    // Recherche marque + matériau : ne pas écraser avec un autre domaine.
+                    if (brandQuery && d.id == "wall_construction")
+                        continue;
+
                     session.ActiveProjectDomainId = d.id;
                     session.ActiveProjectDomainLabel = d.label;
                     return;
                 }
             }
 
-            // Fallback : "mur" + dimensions / construire → maçonnerie
-            if (lower.Contains("mur") && (lower.Contains("construire") || Regex.IsMatch(lower, @"\d+\s*m")))
+            // Fallback : "mur" + dimensions / construire → maçonnerie (sauf requête marque)
+            if (!brandQuery
+                && lower.Contains("mur")
+                && (lower.Contains("construire") || Regex.IsMatch(lower, @"\d+\s*m")))
             {
                 session.ActiveProjectDomainId = "wall_construction";
                 session.ActiveProjectDomainLabel = "Construction de mur";
             }
+        }
+
+        private sealed class ProductSearchMeta
+        {
+            public string? Brand { get; set; }
+            public List<string> TypeHints { get; set; } = new();
+            public ProductSearchOutcome Outcome { get; set; } = ProductSearchOutcome.Generic;
+        }
+
+        private enum ProductSearchOutcome
+        {
+            Generic,
+            Domain,
+            BrandOnly,
+            BrandAndType,
+            BrandWithoutType,
+            BrandNotFound
         }
 
         private void TrimHistory(StoreChatSession session)

@@ -12,6 +12,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? ActiveProjectDomainLabel { get; set; }
         /// <summary>Mots-clés matériaux accumulés sur le projet (brique, mortier…).</summary>
         public List<string> MaterialHints { get; set; } = new();
+        /// <summary>Marque demandée (ex. Knauf) — prioritaire sur le domaine projet.</summary>
+        public string? PreferredBrand { get; set; }
         public decimal? WallLengthM { get; set; }
         public decimal? WallHeightM { get; set; }
         public decimal? WallAreaM2 =>
