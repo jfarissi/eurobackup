@@ -25,7 +25,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         WallSchema,
         CartComplements,
         ConfirmComplements,
-        DirectComplement
+        DirectComplement,
+        MoreProducts
     }
 
     public sealed class GuidedSalesSlots
@@ -69,6 +70,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.WallSchema;
             else if (IsPackRequest(lower))
                 slots.Intent = GuidedSalesIntent.PackRequest;
+            else if (IsMoreProducts(lower))
+                slots.Intent = GuidedSalesIntent.MoreProducts;
             else if (IsCartComplements(lower))
                 slots.Intent = GuidedSalesIntent.CartComplements;
             else if (IsCompare(lower, slots))
@@ -202,9 +205,21 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return false;
         }
 
+        private static bool IsMoreProducts(string lower)
+        {
+            var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();
+            trimmed = Regex.Replace(trimmed, @"\s+", " ");
+            return trimmed is "autres produits" or "autre produit" or "autres" or "autre chose"
+                or "d'autres" or "d autres" or "montre autre" or "montre autres"
+                or "encore des produits" or "autres suggestions" or "autre suggestion"
+                || ContainsAny(trimmed,
+                    "autres produits", "autre produit", "d'autres produits", "d autres produits",
+                    "montre autre", "montre d'autres", "encore des idées", "autre chose pour");
+        }
+
         private static bool IsCartComplements(string lower) =>
             ContainsAny(lower,
-                "autres produits", "autre produit", "autres pour", "autre pour",
+                "autres pour", "autre pour",
                 "besoin d'autre", "besoin d autre",
                 "aurai besoin", "aurais besoin", "ai besoin d'autre", "ai-je besoin",
                 "il me manque", "me manque", "manquera", "complément", "complement",
@@ -212,7 +227,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "pour mon panier", "pour le panier", "pour mon projet", "pour le projet",
                 "pour ces deux", "pour ce que j'ai",
                 "que j'ai ajout", "que j ai ajout",
-                "quoi d'autre", "quoi d autre", "encore besoin", "produits en plus");
+                "quoi d'autre", "quoi d autre", "encore besoin", "produits en plus",
+                "qu'est-ce qui manque", "quest ce qui manque", "ce qui manque");
 
         /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
         private static bool IsDirectComplementKeyword(string lower, out string? hint)

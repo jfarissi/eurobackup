@@ -479,6 +479,45 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return packResponse;
             }
 
+            if (guided.Intent == GuidedSalesIntent.MoreProducts)
+            {
+                var moreMeta = BuildSearchMeta(session, text);
+                moreMeta.SkillLevel = session.SkillLevel;
+                if (session.BudgetMax is > 0)
+                    moreMeta.MaxUnitPrice = session.BudgetMax;
+
+                var excludeIds = session.LastSuggestedProducts
+                    .Select(p => p.ProductId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                // Relance avec le contexte domaine (aménager jardin…), sans le texte « autres produits ».
+                var seed = !string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
+                    ? session.ActiveProjectDomainLabel!
+                    : (session.History.LastOrDefault(h => h.Role == "user"
+                                                         && !h.Content.Contains("autre", StringComparison.OrdinalIgnoreCase)
+                                                         && h.Content.Length > 8)?.Content
+                       ?? "jardin");
+
+                var moreProducts = await SearchProductsAsync(seed, session, moreMeta, ct, excludeIds);
+                ApplySuggestedQuantities(moreProducts, session);
+                var moreBudgetAlert = ApplyBudgetFilter(moreProducts, session, moreMeta);
+                var moreReply = moreProducts.Count == 0
+                    ? "Je n'ai pas d'autres références pertinentes pour l'instant. Précisez (bordure, clôture, gravier…)."
+                    : $"Voici d'autres produits"
+                      + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
+                          ? " :"
+                          : $" pour {session.ActiveProjectDomainLabel} :");
+                if (!string.IsNullOrWhiteSpace(moreBudgetAlert))
+                    moreReply = moreReply.TrimEnd() + "\n\n" + moreBudgetAlert;
+
+                var moreResponse = FinishTextReply(session, text, moreReply, "PRODUCT_LIST", moreProducts, guided);
+                moreResponse.SearchFilter = moreMeta;
+                moreResponse.BudgetAlert = moreBudgetAlert;
+                moreResponse.Recommendations = _recommendations.SuggestComplements(session, moreProducts).ToList();
+                return moreResponse;
+            }
+
             // Garde-fou : confirmation courte ne doit jamais relancer une recherche mur/marque.
             if (IsBareConfirmation(text)
                 && (session.AwaitingComplementConfirm
@@ -712,6 +751,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 "colle carrelage" => new[] { "tegellijm", "colle carrelage", "colle" },
                 "joint" => new[] { "voegsel", "voeg", "joint" },
                 "primaire" => new[] { "primaire", "primer", "grondverf" },
+                "bordure" => new[] { "bordure", "opsluitband", "border", "kantopsluiting" },
+                "geotextile" => new[] { "geotextile", "géotextile", "anti-wortel", "worteldoek" },
+                "sable" => new[] { "sable", "zand", "gravier", "grind", "stabilisé", "stabilise" },
+                "cloture" => new[] { "cloture", "clôture", "schutting", "brise-vue", "gaas" },
+                "souffleur" => new[] { "souffleur", "bladblazer", "blower", "balai" },
                 _ => new[] { hint }
             };
         }
@@ -806,6 +850,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 "auge" or "seau" => ScoreAuge(hay),
                 "gants" => ScoreGloves(hay),
                 "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),
+                "bordure" => ScoreAny(hay, ("bordure", 100), ("opsluitband", 100), ("kantopsluiting", 90), ("border", 70)),
+                "geotextile" => ScoreAny(hay, ("geotextile", 100), ("géotextile", 100), ("worteldoek", 90), ("anti-wortel", 80)),
+                "sable" => ScoreAny(hay, ("sable", 100), ("zand", 100), ("gravier", 80), ("grind", 80)),
+                "cloture" => ScoreAny(hay, ("clôture", 100), ("cloture", 100), ("schutting", 100), ("brise", 70)),
+                "souffleur" => ScoreAny(hay, ("souffleur", 100), ("bladblazer", 100), ("blower", 80), ("balai", 60)),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase) ? 50 : 0
             };
         }
@@ -1342,7 +1391,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             string text,
             StoreChatSession session,
             ProductSearchFilter meta,
-            CancellationToken ct)
+            CancellationToken ct,
+            HashSet<string>? excludeProductIds = null)
         {
             var brandMode = !string.IsNullOrWhiteSpace(meta.Brand);
             // Marque demandée → ne jamais basculer en mode mur (évite Silka/Coeck pour « Knauf ciment »).
@@ -1515,6 +1565,15 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 : wallMode
                     ? Math.Max(6, Math.Min(9, Math.Max(_options.MaxProductResults, 6)))
                     : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
+
+            if (excludeProductIds is { Count: > 0 })
+            {
+                filtered = filtered
+                    .Where(p => !excludeProductIds.Contains(p.Id.ToString(CultureInfo.InvariantCulture)))
+                    .ToList();
+                // Prendre un peu plus pour compenser les exclus.
+                take = Math.Max(take, Math.Min(6, take + 3));
+            }
 
             return filtered
                 .Take(take)

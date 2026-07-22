@@ -140,6 +140,25 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     AddIfMissing("primer", "Primaire", "Prépare le support.", "primaire",
                         "primer", "primaire");
                     break;
+                case "garden_landscaping":
+                case "garden_cleaning":
+                case "garden_maintenance":
+                case "Garden":
+                    AddIfMissing("border", "Bordures", "Délimite allées / massifs.", "bordure",
+                        "bordure", "border", "opsluitband");
+                    AddIfMissing("geo", "Géotextile", "Anti-mauvaises herbes sous dalles/gravier.", "geotextile",
+                        "géotextile", "geotextile", "anti-wortel");
+                    AddIfMissing("sand", "Sable / graviers", "Lit de pose et drainage.", "sable",
+                        "sable", "zand", "gravier", "grind");
+                    AddIfMissing("fence", "Clôture / brise-vue", "Délimitation et intimité.", "cloture",
+                        "clôture", "cloture", "schutting", "brise");
+                    if (domain is "garden_cleaning" or "Garden")
+                    {
+                        AddIfMissing("blower", "Souffleur / balai", "Ramassage feuilles et déchets.", "souffleur",
+                            "souffleur", "bladblazer", "balai");
+                    }
+
+                    break;
                 default:
                     if (session.SearchTypeHints.Any(h => h.Equals("ciment", StringComparison.OrdinalIgnoreCase))
                         || ContainsAny(present, "ciment", "cement"))
@@ -170,6 +189,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 return "painting";
             if (ContainsAny(hay, "carrel", "tegel"))
                 return "tiling";
+            if (ContainsAny(hay, "jardin", "tuin", "terrasse", "dalle", "bordure", "tondeuse", "gazon"))
+                return "garden_landscaping";
             return "Other";
         }
 
