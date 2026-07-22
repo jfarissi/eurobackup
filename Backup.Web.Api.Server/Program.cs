@@ -80,6 +80,13 @@ builder.Services.AddSingleton<Backup.Web.Api.Server.Services.StoreChat.IStoreCha
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatPdfService, Backup.Web.Api.Server.Services.StoreChat.StoreChatPdfService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatStripeService, Backup.Web.Api.Server.Services.StoreChat.StoreChatStripeService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatService, Backup.Web.Api.Server.Services.StoreChat.StoreChatService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesProjectService, Backup.Web.Api.Server.Services.SalesAssistant.SalesProjectService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesGuidedIntentDetector, Backup.Web.Api.Server.Services.SalesAssistant.SalesGuidedIntentDetector>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesPackEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesPackEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesRecommendationEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesRecommendationEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCompareEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesCompareEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesJustificationService, Backup.Web.Api.Server.Services.SalesAssistant.SalesJustificationService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesAssistantFacade, Backup.Web.Api.Server.Services.SalesAssistant.SalesAssistantFacade>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);

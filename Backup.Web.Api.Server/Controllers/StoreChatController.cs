@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Backup.Web.Api.Server.Services.SalesAssistant;
 using Backup.Web.Api.Server.Services.StoreChat;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
@@ -11,11 +12,11 @@ namespace Backup.Web.Api.Server.Controllers
     [Route("api/store-chat")]
     public class StoreChatController : ControllerBase
     {
-        private readonly IStoreChatService _chat;
+        private readonly ISalesAssistantFacade _assistant;
 
-        public StoreChatController(IStoreChatService chat)
+        public StoreChatController(ISalesAssistantFacade assistant)
         {
-            _chat = chat;
+            _assistant = assistant;
         }
 
         [HttpPost("message")]
@@ -37,7 +38,7 @@ namespace Backup.Web.Api.Server.Controllers
                 request.SessionId = headerSession.ToString();
             }
 
-            var response = await _chat.ProcessMessageAsync(request, ct);
+            var response = await _assistant.ProcessMessageAsync(request, ct);
             Response.Headers["X-Store-Chat-Session"] = response.SessionId;
             return Ok(response);
         }
@@ -48,7 +49,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (orderId == Guid.Empty)
                 return BadRequest(new { message = "Commande invalide" });
 
-            var result = await _chat.GetPaymentResultAsync(orderId, ct);
+            var result = await _assistant.GetPaymentResultAsync(orderId, ct);
             if (result == null)
                 return NotFound();
             return Ok(result);
@@ -62,7 +63,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (request == null || request.OrderId == Guid.Empty)
                 return BadRequest(new { message = "Commande invalide" });
 
-            var result = await _chat.ConfirmPaymentAsync(request.OrderId, request.SessionId, ct);
+            var result = await _assistant.ConfirmPaymentAsync(request.OrderId, request.SessionId, ct);
             if (result == null)
                 return NotFound();
             return Ok(result);

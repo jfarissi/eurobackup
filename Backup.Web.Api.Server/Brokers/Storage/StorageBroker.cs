@@ -231,6 +231,41 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(o => o.InvoicePdfBase64).HasColumnType("longtext");
                 entity.Property(o => o.LinesJson).HasColumnType("longtext");
             });
+
+            modelBuilder.Entity<SalesProject>(entity =>
+            {
+                entity.ToTable("SalesProjects");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.SessionId);
+                entity.HasIndex(p => p.Status);
+                entity.Property(p => p.SessionId).IsRequired().HasMaxLength(64);
+                entity.Property(p => p.Status).IsRequired().HasMaxLength(32);
+                entity.Property(p => p.ProjectType).IsRequired().HasMaxLength(64);
+                entity.Property(p => p.Title).HasMaxLength(256);
+                entity.Property(p => p.SurfaceM2).HasPrecision(18, 4);
+                entity.Property(p => p.LengthM).HasPrecision(18, 4);
+                entity.Property(p => p.HeightM).HasPrecision(18, 4);
+                entity.Property(p => p.BudgetMax).HasPrecision(18, 4);
+                entity.Property(p => p.PreferredBrand).HasMaxLength(128);
+                entity.Property(p => p.PreferredCategoriesJson).HasMaxLength(1024);
+                entity.Property(p => p.PreferredWeightKg).HasPrecision(18, 4);
+                entity.Property(p => p.SkillLevel).HasMaxLength(32);
+                entity.Property(p => p.Notes).HasMaxLength(2000);
+            });
+
+            modelBuilder.Entity<SalesProjectChecklistItem>(entity =>
+            {
+                entity.ToTable("SalesProjectChecklistItems");
+                entity.HasKey(i => i.Id);
+                entity.HasIndex(i => i.SalesProjectId);
+                entity.Property(i => i.Code).IsRequired().HasMaxLength(64);
+                entity.Property(i => i.Label).IsRequired().HasMaxLength(256);
+                entity.Property(i => i.Status).IsRequired().HasMaxLength(32);
+                entity.HasOne(i => i.SalesProject)
+                    .WithMany(p => p.ChecklistItems)
+                    .HasForeignKey(i => i.SalesProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

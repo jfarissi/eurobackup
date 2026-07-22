@@ -62,6 +62,16 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public object? ActionData { get; set; }
         public string? ActiveProjectDomainId { get; set; }
         public string? ActiveProjectDomainLabel { get; set; }
+        public Guid? SalesProjectId { get; set; }
+        public string? SalesProjectTitle { get; set; }
+        /// <summary>Filtre métier appliqué (audit / UI).</summary>
+        public SalesAssistant.ProductSearchFilter? SearchFilter { get; set; }
+        public string? BudgetAlert { get; set; }
+        public string? SkillLevel { get; set; }
+        public decimal? BudgetMax { get; set; }
+        public SalesAssistant.SalesPackDto? Pack { get; set; }
+        public List<SalesAssistant.SalesCompareRowDto>? CompareRows { get; set; }
+        public List<SalesAssistant.SalesRecommendationDto>? Recommendations { get; set; }
         public List<StoreChatProductSuggestionDto>? Products { get; set; }
         public StoreChatQuotePdfDto? QuotePdf { get; set; }
         public StoreChatPaymentLinkDto? PaymentLink { get; set; }

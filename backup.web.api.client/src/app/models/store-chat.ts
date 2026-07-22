@@ -53,6 +53,43 @@ export interface StoreChatResponse {
   actionData?: unknown;
   activeProjectDomainId?: string | null;
   activeProjectDomainLabel?: string | null;
+  salesProjectId?: string | null;
+  salesProjectTitle?: string | null;
+  searchFilter?: {
+    brand?: string | null;
+    categories?: string[];
+    weightKg?: number | null;
+    maxUnitPrice?: number | null;
+    skillLevel?: string | null;
+    outcome?: string;
+  } | null;
+  budgetAlert?: string | null;
+  skillLevel?: string | null;
+  budgetMax?: number | null;
+  pack?: {
+    packType: string;
+    title: string;
+    lines: Array<{
+      code: string;
+      label: string;
+      productId?: string | null;
+      productName?: string | null;
+      unitPrice?: number | null;
+      suggestedQuantity: number;
+      status: string;
+    }>;
+    estimatedTotal?: number | null;
+    budgetNote?: string | null;
+  } | null;
+  compareRows?: Array<{
+    productId: string;
+    name: string;
+    brand?: string | null;
+    category?: string | null;
+    price?: number | null;
+    weightHint?: string | null;
+  }> | null;
+  recommendations?: Array<{ code: string; label: string; reason: string }> | null;
   products?: StoreChatProductSuggestion[];
   quotePdf?: StoreChatQuotePdf;
   paymentLink?: StoreChatPaymentLink;

@@ -6,7 +6,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         public string BrandName { get; set; } = "EuroBrico";
         public string ReturnBaseUrl { get; set; } = "http://localhost";
-        public int MaxProductResults { get; set; } = 20;
+        public int MaxProductResults { get; set; } = 5;
+        /// <summary>Nombre de produits montrés d'emblée (style vendeur).</summary>
+        public int InitialProductResults { get; set; } = 3;
         public int ChatHistoryLimit { get; set; } = 12;
     }
 

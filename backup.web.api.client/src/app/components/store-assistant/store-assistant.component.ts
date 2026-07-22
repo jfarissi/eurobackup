@@ -35,9 +35,12 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isGeneratingQuote = false;
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
+  salesProjectTitle: string | null = null;
+  skillLevel: string | null = null;
+  budgetMax: number | null = null;
   showNewProjectPrompt = false;
   cartPanelOpen = false;
-  readonly productTablePageSize = 5;
+  readonly productTablePageSize = 3;
 
   private routeSub?: Subscription;
   private pollSub?: Subscription;
@@ -321,6 +324,9 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       timestamp: new Date()
     }];
     this.activeProjectDomainLabel = null;
+    this.salesProjectTitle = null;
+    this.skillLevel = null;
+    this.budgetMax = null;
     this.callApi({ text: 'Nouveau projet', clientIntent: 'NewProject' });
   }
 
@@ -389,12 +395,24 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   }
 
   private applyBotResponse(res: StoreChatResponse): void {
-    if (res.activeProjectDomainLabel) {
+    if (res.salesProjectTitle) {
+      this.salesProjectTitle = res.salesProjectTitle;
+      this.activeProjectDomainLabel = res.salesProjectTitle;
+    } else if (res.activeProjectDomainLabel) {
       this.activeProjectDomainLabel = res.activeProjectDomainLabel;
     }
 
+    if (res.skillLevel) {
+      this.skillLevel = res.skillLevel;
+    }
+    if (res.budgetMax != null) {
+      this.budgetMax = res.budgetMax;
+    }
+
     const products = (res.products
-      ?? (res.actionType === 'PRODUCT_LIST' ? (res.actionData as StoreChatProductSuggestion[]) : null)
+      ?? (res.actionType === 'PRODUCT_LIST' || res.actionType === 'PACK' || res.actionType === 'COMPARE'
+        ? (res.actionData as StoreChatProductSuggestion[])
+        : null)
       ?? [])
       .map((p, index) => ({
         ...p,

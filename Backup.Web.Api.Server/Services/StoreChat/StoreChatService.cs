@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Services.ErpSync;
+using Backup.Web.Api.Server.Services.SalesAssistant;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,6 +35,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private readonly IStoreChatAiClient _ai;
         private readonly IStoreChatPdfService _pdf;
         private readonly IStoreChatStripeService _stripe;
+        private readonly ISalesGuidedIntentDetector _guidedIntent;
+        private readonly ISalesPackEngine _packEngine;
+        private readonly ISalesRecommendationEngine _recommendations;
+        private readonly ISalesCompareEngine _compareEngine;
+        private readonly ISalesJustificationService _justification;
         private readonly StoreChatOptions _options;
         private readonly ErpSyncOptions _erpOptions;
         private readonly ILogger<StoreChatService> _logger;
@@ -44,6 +50,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             IStoreChatAiClient ai,
             IStoreChatPdfService pdf,
             IStoreChatStripeService stripe,
+            ISalesGuidedIntentDetector guidedIntent,
+            ISalesPackEngine packEngine,
+            ISalesRecommendationEngine recommendations,
+            ISalesCompareEngine compareEngine,
+            ISalesJustificationService justification,
             IOptions<StoreChatOptions> options,
             IOptions<ErpSyncOptions> erpOptions,
             ILogger<StoreChatService> logger)
@@ -53,6 +64,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             _ai = ai;
             _pdf = pdf;
             _stripe = stripe;
+            _guidedIntent = guidedIntent;
+            _packEngine = packEngine;
+            _recommendations = recommendations;
+            _compareEngine = compareEngine;
+            _justification = justification;
             _options = options.Value ?? new StoreChatOptions();
             _erpOptions = erpOptions.Value ?? new ErpSyncOptions();
             _logger = logger;
@@ -65,8 +81,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase))
             {
-                _sessions.Reset(session.SessionId);
-                session = _sessions.GetOrCreate(session.SessionId);
+                var keepSessionId = session.SessionId;
+                _sessions.Reset(keepSessionId);
+                session = _sessions.GetOrCreate(keepSessionId);
+                session.ActiveSalesProjectId = null;
+                _sessions.Save(session);
                 return Ok(session, "Nouveau projet démarré. Comment puis-je vous aider ?", "NONE");
             }
 
@@ -100,7 +119,18 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             if (string.IsNullOrWhiteSpace(text))
                 return Ok(session, "Message vide.", "NONE");
 
+            var guided = _guidedIntent.Detect(text, session);
+
+            var previousBrand = session.PreferredBrand;
             await DetectBrandAsync(session, text, ct);
+            if (!string.IsNullOrWhiteSpace(session.PreferredBrand)
+                && !string.IsNullOrWhiteSpace(previousBrand)
+                && !string.Equals(previousBrand, session.PreferredBrand, StringComparison.OrdinalIgnoreCase))
+            {
+                session.SearchTypeHints.Clear();
+                session.PreferredWeightKg = null;
+            }
+
             DetectDomain(session, text);
             if (!string.IsNullOrWhiteSpace(session.PreferredBrand) && !IsExplicitWallIntent(text))
             {
@@ -113,24 +143,140 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             }
             ParseWallDimensions(session, text);
             CollectMaterialHints(session, text);
+            UpdateStickySearchFilters(session, text);
 
-            var searchMeta = new ProductSearchMeta
+            if (guided.Intent == GuidedSalesIntent.Hesitation)
             {
-                Brand = session.PreferredBrand,
-                TypeHints = ExtractTypeHints(text)
-            };
+                var hesitateReply = string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase)
+                    ? "Pas de souci. Objectif chantier ou devis rapide ? Intérieur / extérieur ?"
+                    : "Pas de souci — on avance pas à pas. Votre projet est plutôt intérieur ou extérieur ?";
+                hesitateReply = SalesSkillTone.AdaptReply(hesitateReply, session);
+                return FinishTextReply(session, text, hesitateReply, "NONE", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.WhyProduct)
+            {
+                var why = _justification.Justify(text, session, session.LastSuggestedProducts);
+                why = SalesSkillTone.AdaptReply(why, session);
+                return FinishTextReply(session, text, why, "WHY_PRODUCT", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Compare)
+            {
+                var source = session.LastSuggestedProducts.Count >= 2
+                    ? session.LastSuggestedProducts
+                    : await SearchProductsAsync(text, session, BuildSearchMeta(session, text), ct);
+                var (compareReply, rows) = _compareEngine.BuildComparison(source, guided.CompareBrands);
+                compareReply = SalesSkillTone.AdaptReply(compareReply, session);
+                var compareProducts = rows.Select(r => new StoreChatProductSuggestionDto
+                {
+                    ProductId = r.ProductId,
+                    Name = r.Name,
+                    Brand = r.Brand,
+                    Category = r.Category,
+                    Price = r.Price
+                }).ToList();
+                var compareResponse = FinishTextReply(session, text, compareReply, "COMPARE", compareProducts, guided);
+                compareResponse.CompareRows = rows;
+                return compareResponse;
+            }
+
+            var searchMeta = BuildSearchMeta(session, text);
+            searchMeta.SkillLevel = session.SkillLevel;
+            if (session.BudgetMax is > 0)
+                searchMeta.MaxUnitPrice = session.BudgetMax;
+
+            if (guided.Intent == GuidedSalesIntent.PackRequest)
+            {
+                var packType = _packEngine.ResolvePackType(text, session);
+                switch (packType)
+                {
+                    case "Painting":
+                        session.ActiveProjectDomainId = "painting";
+                        session.ActiveProjectDomainLabel = "Peinture";
+                        break;
+                    case "Bathroom":
+                        session.ActiveProjectDomainId = "tiling";
+                        session.ActiveProjectDomainLabel = "Carrelage";
+                        break;
+                    default:
+                        session.ActiveProjectDomainId = "wall_construction";
+                        session.ActiveProjectDomainLabel = "Construction de mur";
+                        break;
+                }
+
+                // Pack = kit chantier : ne pas restreindre à une marque sticky.
+                var savedBrand = session.PreferredBrand;
+                session.PreferredBrand = null;
+                var packMeta = BuildSearchMeta(session, text);
+                packMeta.SkillLevel = session.SkillLevel;
+                if (session.BudgetMax is > 0)
+                    packMeta.MaxUnitPrice = session.BudgetMax;
+                var packHits = await SearchProductsAsync(text, session, packMeta, ct);
+                session.PreferredBrand = savedBrand;
+                ApplySuggestedQuantities(packHits, session);
+                var pack = _packEngine.BuildPack(packType, session, packHits);
+                var packProducts = pack.Lines
+                    .Where(l => !string.IsNullOrWhiteSpace(l.ProductId))
+                    .Select(l => new StoreChatProductSuggestionDto
+                    {
+                        ProductId = l.ProductId!,
+                        Name = l.ProductName ?? l.Label,
+                        Price = l.UnitPrice,
+                        SuggestedQuantity = l.SuggestedQuantity,
+                        Category = l.Label
+                    })
+                    .ToList();
+
+                var packReply = BuildPackReply(pack, session);
+                packReply = SalesSkillTone.AdaptReply(packReply, session);
+                var packResponse = FinishTextReply(session, text, packReply, "PACK", packProducts, guided);
+                packResponse.Pack = pack;
+                packResponse.BudgetAlert = pack.BudgetNote;
+                packResponse.Recommendations = _recommendations.SuggestComplements(session, packProducts).ToList();
+                packMeta.Intent = "PACK";
+                packResponse.SearchFilter = packMeta;
+                return packResponse;
+            }
 
             var products = await SearchProductsAsync(text, session, searchMeta, ct);
+            var budgetAlert = ApplyBudgetFilter(products, session, searchMeta);
             ApplySuggestedQuantities(products, session);
             var catalogContext = BuildCatalogContext(products, searchMeta);
             var aiReply = await _ai.CompleteAsync(session.History, text, catalogContext, ct);
 
             session.History.Add(new StoreChatHistoryMessage { Role = "user", Content = text });
             var reply = BuildUserFacingReply(aiReply, products, session, searchMeta);
+            if (!string.IsNullOrWhiteSpace(budgetAlert))
+                reply = reply.TrimEnd() + "\n\n" + budgetAlert;
+            if (guided.BudgetMentioned && session.BudgetMax is > 0 && string.IsNullOrWhiteSpace(budgetAlert))
+                reply = reply.TrimEnd() + $"\n\nBudget enregistré : {session.BudgetMax:N2} € (filtre prix unitaire).";
+            if (guided.SkillMentioned && !string.IsNullOrWhiteSpace(session.SkillLevel))
+                reply = reply.TrimEnd() + $"\n\nProfil : {session.SkillLevel}.";
+
+            var recos = _recommendations.SuggestComplements(session, products);
+            if (recos.Count > 0 && products.Count > 0
+                && !string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase))
+            {
+                reply = reply.TrimEnd()
+                        + "\n\nCompléments utiles : "
+                        + string.Join(" · ", recos.Take(3).Select(r => $"{r.Label} ({r.Reason})"));
+            }
+
+            if (guided.SkillMentioned
+                || guided.Intent != GuidedSalesIntent.None
+                || guided.BudgetMentioned)
+            {
+                reply = SalesSkillTone.AdaptReply(reply, session);
+            }
 
             session.History.Add(new StoreChatHistoryMessage { Role = "assistant", Content = reply });
             TrimHistory(session);
+            if (products.Count > 0)
+                session.LastSuggestedProducts = products.ToList();
             _sessions.Save(session);
+
+            searchMeta.Intent = products.Count > 0 ? "PRODUCT_LIST" : "NONE";
 
             if (products.Count > 0)
             {
@@ -143,11 +289,103 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     ActionData = products,
                     Products = products,
                     ActiveProjectDomainId = session.ActiveProjectDomainId,
-                    ActiveProjectDomainLabel = session.ActiveProjectDomainLabel
+                    ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                    SearchFilter = searchMeta,
+                    BudgetAlert = budgetAlert,
+                    SkillLevel = session.SkillLevel,
+                    BudgetMax = session.BudgetMax,
+                    Recommendations = recos.ToList()
                 };
             }
 
-            return Ok(session, reply, "NONE");
+            var empty = Ok(session, reply, "NONE");
+            empty.SearchFilter = searchMeta;
+            empty.BudgetAlert = budgetAlert;
+            empty.SkillLevel = session.SkillLevel;
+            empty.BudgetMax = session.BudgetMax;
+            return empty;
+        }
+
+        private StoreChatResponseDto FinishTextReply(
+            StoreChatSession session,
+            string userText,
+            string reply,
+            string actionType,
+            List<StoreChatProductSuggestionDto>? products,
+            GuidedSalesSlots guided)
+        {
+            session.History.Add(new StoreChatHistoryMessage { Role = "user", Content = userText });
+            session.History.Add(new StoreChatHistoryMessage { Role = "assistant", Content = reply });
+            TrimHistory(session);
+            if (products is { Count: > 0 })
+                session.LastSuggestedProducts = products.ToList();
+            _sessions.Save(session);
+
+            var response = new StoreChatResponseDto
+            {
+                SessionId = session.SessionId,
+                ReplyText = reply,
+                HasAction = !string.Equals(actionType, "NONE", StringComparison.OrdinalIgnoreCase),
+                ActionType = actionType,
+                ActionData = products,
+                Products = products,
+                ActiveProjectDomainId = session.ActiveProjectDomainId,
+                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                SkillLevel = session.SkillLevel,
+                BudgetMax = session.BudgetMax
+            };
+
+            if (guided.BudgetMentioned || session.BudgetMax is > 0)
+                response.BudgetMax = session.BudgetMax;
+            return response;
+        }
+
+        private static string BuildPackReply(SalesPackDto pack, StoreChatSession session)
+        {
+            var lines = string.Join("\n", pack.Lines.Select(l =>
+                l.ProductName != null
+                    ? $"• {l.Label} : {l.ProductName} × {l.SuggestedQuantity:0.##}"
+                      + (l.UnitPrice is > 0 ? $" ({l.UnitPrice:N2} €)" : "")
+                    : $"• {l.Label} : à choisir (qté ~{l.SuggestedQuantity:0.##})"));
+
+            var total = pack.EstimatedTotal is > 0 ? $"\nTotal estimé : {pack.EstimatedTotal:N2} €." : "";
+            var budget = string.IsNullOrWhiteSpace(pack.BudgetNote) ? "" : "\n" + pack.BudgetNote;
+            var skill = string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase)
+                ? "\nValidez le pack puis devis PDF."
+                : "\nVous pouvez ajuster les quantités puis ajouter au panier.";
+
+            return $"{pack.Title} — {pack.Lines.Count} lignes :\n{lines}{total}{budget}{skill}";
+        }
+
+        private static string? ApplyBudgetFilter(
+            List<StoreChatProductSuggestionDto> products,
+            StoreChatSession session,
+            ProductSearchFilter meta)
+        {
+            if (session.BudgetMax is not > 0 || products.Count == 0)
+                return null;
+
+            var budget = session.BudgetMax.Value;
+            meta.MaxUnitPrice = budget;
+
+            var over = products.Where(p => p.Price.HasValue && p.Price.Value > budget).ToList();
+            var within = products.Where(p => !p.Price.HasValue || p.Price.Value <= budget).ToList();
+
+            if (within.Count == 0)
+            {
+                // Garder la liste mais alerter : aucune reco unitaire dans le budget.
+                return $"Alerte budget : aucune référence unitaire ≤ {budget:N2} €. "
+                       + $"Les propositions affichées dépassent le budget unitaire.";
+            }
+
+            if (over.Count > 0)
+            {
+                products.Clear();
+                products.AddRange(within);
+                return $"Alerte budget : {over.Count} référence(s) exclue(s) car prix unitaire > {budget:N2} €.";
+            }
+
+            return null;
         }
 
         public async Task<StoreChatPaymentResultDto?> GetPaymentResultAsync(Guid orderId, CancellationToken ct = default)
@@ -515,7 +753,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private async Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(
             string text,
             StoreChatSession session,
-            ProductSearchMeta meta,
+            ProductSearchFilter meta,
             CancellationToken ct)
         {
             var brandMode = !string.IsNullOrWhiteSpace(meta.Brand);
@@ -568,7 +806,18 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 {
                     var typed = brandMatches
                         .Where(p => MatchesTypeHints(p, meta.TypeHints))
-                        .OrderByDescending(p => p.Score)
+                        .ToList();
+
+                    // Ciment : préférer les vrais ciments (pas colles/joints seuls).
+                    if (meta.TypeHints.Any(t => t.Equals("ciment", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var strictCement = typed.Where(IsCementProduct).ToList();
+                        if (strictCement.Count > 0)
+                            typed = strictCement;
+                    }
+
+                    typed = typed
+                        .OrderByDescending(p => p.Score + TypeExactBoost(p, meta.TypeHints))
                         .ThenBy(p => p.Name)
                         .ToList();
 
@@ -644,8 +893,32 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 meta.Outcome = ProductSearchOutcome.Generic;
             }
 
-            return ranked
-                .Take(_options.MaxProductResults)
+            var filtered = ranked.ToList();
+            if (meta.WeightKg is > 0)
+            {
+                var byWeight = filtered.Where(p => MatchesWeightKg(p, meta.WeightKg.Value)).ToList();
+                if (byWeight.Count > 0)
+                {
+                    filtered = byWeight;
+                    meta.WeightApplied = true;
+                }
+                else
+                {
+                    meta.Outcome = ProductSearchOutcome.WeightNotFound;
+                    meta.WeightApplied = true;
+                    // Garder le contexte marque/type pour le message, sans polluer avec d'autres poids.
+                    filtered = new List<ScoredProduct>();
+                }
+            }
+
+            meta.TotalMatches = filtered.Count;
+            // P0 : max 3 en mode marque ; mur/domaine peut monter jusqu'à MaxProductResults.
+            var take = brandMode
+                ? Math.Max(1, Math.Min(3, _options.InitialProductResults > 0 ? _options.InitialProductResults : 3))
+                : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
+
+            return filtered
+                .Take(take)
                 .Select(p =>
                 {
                     var kind = ClassifyWallProduct(p);
@@ -1323,7 +1596,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         private static string BuildCatalogContext(
             IReadOnlyList<StoreChatProductSuggestionDto> products,
-            ProductSearchMeta meta)
+            ProductSearchFilter meta)
         {
             if (products.Count == 0)
             {
@@ -1362,11 +1635,24 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             string? aiReply,
             IReadOnlyList<StoreChatProductSuggestionDto> products,
             StoreChatSession session,
-            ProductSearchMeta meta)
+            ProductSearchFilter meta)
         {
             var calc = BuildCalculationSummary(session);
             var brand = meta.Brand;
             var typeLabel = meta.TypeHints.Count > 0 ? string.Join(" / ", meta.TypeHints) : null;
+            var weightLabel = meta.WeightKg is > 0 ? $"{meta.WeightKg:0.##} kg" : null;
+
+            if (meta.Outcome == ProductSearchOutcome.WeightNotFound)
+            {
+                return $"Je n'ai pas trouvé de"
+                       + (typeLabel != null ? $" {typeLabel}" : " produit")
+                       + (brand != null ? $" {brand}" : "")
+                       + (weightLabel != null ? $" en {weightLabel}" : "")
+                       + " dans le catalogue."
+                       + (brand != null && typeLabel != null
+                           ? $" Souhaitez-vous voir d'autres formats {brand} ({typeLabel}) ?"
+                           : " Affinez marque, type ou poids.");
+            }
 
             if (products.Count > 0)
             {
@@ -1375,20 +1661,34 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 {
                     intro = calc;
                 }
+                else if (meta.IsYesNoBrandQuestion
+                         && meta.Outcome is ProductSearchOutcome.BrandAndType or ProductSearchOutcome.BrandOnly)
+                {
+                    var samples = string.Join(", ", products.Take(2).Select(p => p.Name));
+                    intro = $"Oui. {brand} propose "
+                            + (typeLabel != null ? $"du {typeLabel} " : "ces produits ")
+                            + "dans notre catalogue"
+                            + (samples.Length > 0 ? $", notamment : {samples}." : ".");
+
+                    if (meta.WeightKg is null or <= 0)
+                        intro += "\n\nCherchez-vous un petit format (ex. 5 kg) ou un sac chantier (25 kg) ?";
+                }
                 else if (meta.Outcome == ProductSearchOutcome.BrandAndType)
                 {
-                    intro = $"Voici {products.Count} produit(s) {brand}"
-                            + (typeLabel != null ? $" liés à « {typeLabel} »" : "")
-                            + " dans le catalogue.";
+                    intro = weightLabel != null
+                        ? $"Voici {products.Count} référence(s) {brand} — {typeLabel} — {weightLabel}."
+                        : $"Voici {products.Count} référence(s) {brand} liées à « {typeLabel} ».";
                 }
                 else if (meta.Outcome == ProductSearchOutcome.BrandWithoutType)
                 {
                     intro = $"Je n'ai pas trouvé de {typeLabel} de la marque {brand} dans le catalogue. "
-                            + $"Voici d'autres produits {brand} disponibles :";
+                            + $"Voici d'autres produits {brand} :";
                 }
                 else if (meta.Outcome == ProductSearchOutcome.BrandOnly)
                 {
-                    intro = $"Voici {products.Count} produit(s) de la marque {brand}.";
+                    intro = weightLabel != null
+                        ? $"Voici {products.Count} produit(s) {brand} en {weightLabel}."
+                        : $"Voici {products.Count} produit(s) de la marque {brand}.";
                 }
                 else
                 {
@@ -1398,15 +1698,36 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                                 : $" pour {session.ActiveProjectDomainLabel}.");
                 }
 
-                intro += "\n\nLes quantités dans la liste sont des estimations : ajustez-les puis ajoutez au panier / devis / commande.";
+                if (meta.TotalMatches > products.Count)
+                    intro += $"\n(Affichage des {products.Count} meilleures sur {meta.TotalMatches} — précisez pour affiner.)";
 
-                // En mode marque, ne pas laisser l'IA contredire le catalogue.
-                if (meta.Outcome is ProductSearchOutcome.BrandOnly
+                var isBrandPath = meta.Outcome is ProductSearchOutcome.BrandOnly
                     or ProductSearchOutcome.BrandAndType
-                    or ProductSearchOutcome.BrandWithoutType)
+                    or ProductSearchOutcome.BrandWithoutType
+                    || meta.IsYesNoBrandQuestion;
+
+                if (isBrandPath)
                 {
+                    if (meta.IsYesNoBrandQuestion)
+                    {
+                        // La question de suivi (poids) est déjà dans l'intro si besoin.
+                        return intro.Trim();
+                    }
+
+                    if (meta.WeightKg is null or <= 0
+                        && meta.Outcome is ProductSearchOutcome.BrandAndType or ProductSearchOutcome.BrandOnly)
+                    {
+                        intro += "\n\nCherchez-vous un petit format (ex. 5 kg) ou un sac chantier (25 kg) ?";
+                    }
+                    else
+                    {
+                        intro += "\n\nAjustez les quantités puis ajoutez au panier / devis / commande.";
+                    }
+
                     return intro.Trim();
                 }
+
+                intro += "\n\nAjustez les quantités puis ajoutez au panier / devis / commande.";
 
                 if (!string.IsNullOrWhiteSpace(aiReply)
                     && aiReply!.Length < 400
@@ -1655,6 +1976,96 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return names;
         }
 
+        private static void UpdateStickySearchFilters(StoreChatSession session, string text)
+        {
+            var weight = ParseWeightKgFromText(text);
+            if (weight is > 0)
+                session.PreferredWeightKg = weight;
+
+            foreach (var hint in ExtractTypeHints(text))
+            {
+                if (!session.SearchTypeHints.Contains(hint, StringComparer.OrdinalIgnoreCase))
+                    session.SearchTypeHints.Add(hint);
+            }
+        }
+
+        private static ProductSearchFilter BuildSearchMeta(StoreChatSession session, string text)
+        {
+            var fromText = ExtractTypeHints(text);
+            var types = fromText.Count > 0
+                ? fromText
+                : session.SearchTypeHints.ToList();
+
+            return new ProductSearchFilter
+            {
+                Brand = session.PreferredBrand,
+                Categories = types,
+                WeightKg = ParseWeightKgFromText(text) ?? session.PreferredWeightKg,
+                IsYesNoBrandQuestion = IsYesNoBrandQuestion(text)
+            };
+        }
+
+        private static bool IsYesNoBrandQuestion(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return lower.Contains("est-ce que")
+                   || lower.Contains("est ce que")
+                   || lower.Contains("avez-vous")
+                   || lower.Contains("a-t-il")
+                   || lower.Contains("a t il")
+                   || Regex.IsMatch(lower, @"\b(ont|a)\s+du\b")
+                   || lower.Contains("propose") && (lower.Contains("?") || lower.Contains("ciment") || lower.Contains("produit"));
+        }
+
+        private static decimal? ParseWeightKgFromText(string text)
+        {
+            var lower = text.ToLowerInvariant().Replace(',', '.');
+            var m = Regex.Match(lower, @"(\d+(?:\.\d+)?)\s*kg");
+            if (m.Success
+                && decimal.TryParse(m.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var kg)
+                && kg > 0)
+                return kg;
+
+            // « sacs de 25 » / « sac 25 »
+            m = Regex.Match(lower, @"\b(?:sacs?|zakken?|bags?)\s*(?:de|van|of)?\s*(\d+(?:\.\d+)?)\b");
+            if (m.Success
+                && decimal.TryParse(m.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var sac)
+                && sac >= 1 && sac <= 100)
+                return sac;
+
+            return null;
+        }
+
+        private static bool MatchesWeightKg(ScoredProduct p, decimal kg)
+        {
+            var hay = $"{p.Name} {p.Name2}";
+            var parsed = TryParseBagKg(hay);
+            if (parsed.HasValue)
+                return Math.Abs(parsed.Value - kg) < 0.05m;
+
+            // Formats fréquents sans espace : 25kg, 25KG
+            var token = kg == Math.Truncate(kg)
+                ? ((int)kg).ToString(CultureInfo.InvariantCulture)
+                : kg.ToString("0.##", CultureInfo.InvariantCulture);
+            return Regex.IsMatch(hay, $@"\b{Regex.Escape(token)}\s*kg\b", RegexOptions.IgnoreCase)
+                   || hay.Contains(token + "kg", StringComparison.OrdinalIgnoreCase)
+                   || hay.Contains(token + " kg", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsCementProduct(ScoredProduct p)
+        {
+            var hay = $"{p.Name} {p.Name2} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+            return ContainsAny(hay, "cement", "ciment", "portlandcement")
+                   && !ContainsAny(hay, "tegellijm", "voegmortel", "voegen", "lijm ", "blokkenlijm");
+        }
+
+        private static int TypeExactBoost(ScoredProduct p, IReadOnlyList<string> typeHints)
+        {
+            if (typeHints.Any(t => t.Equals("ciment", StringComparison.OrdinalIgnoreCase)) && IsCementProduct(p))
+                return 30;
+            return MatchesTypeHints(p, typeHints) ? 5 : 0;
+        }
+
         private static List<string> ExtractTypeHints(string text)
         {
             var lower = text.ToLowerInvariant();
@@ -1773,23 +2184,6 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 session.ActiveProjectDomainId = "wall_construction";
                 session.ActiveProjectDomainLabel = "Construction de mur";
             }
-        }
-
-        private sealed class ProductSearchMeta
-        {
-            public string? Brand { get; set; }
-            public List<string> TypeHints { get; set; } = new();
-            public ProductSearchOutcome Outcome { get; set; } = ProductSearchOutcome.Generic;
-        }
-
-        private enum ProductSearchOutcome
-        {
-            Generic,
-            Domain,
-            BrandOnly,
-            BrandAndType,
-            BrandWithoutType,
-            BrandNotFound
         }
 
         private void TrimHistory(StoreChatSession session)

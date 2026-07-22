@@ -12,6 +12,14 @@
         <mat-icon>handyman</mat-icon>
         Projet : {{ activeProjectDomainLabel }}
       </span>
+      <span class="domain-chip" *ngIf="skillLevel">
+        <mat-icon>school</mat-icon>
+        {{ skillLevel }}
+      </span>
+      <span class="domain-chip" *ngIf="budgetMax != null">
+        <mat-icon>account_balance_wallet</mat-icon>
+        Budget {{ budgetMax | number:'1.0-0' }} €
+      </span>
       <button type="button"
               class="cart-toggle"
               [class.has-items]="cartItemCount > 0"
