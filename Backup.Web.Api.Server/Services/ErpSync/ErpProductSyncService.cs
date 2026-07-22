@@ -566,6 +566,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var idsToDelete = priceLogs
                 .Where(c =>
                     DecimalValuesEquivalent(c.OldValue, c.NewValue)
+                    || IsEmptyOrZeroDecimalFalsePositive(c)
                     || IsExcelCostVsSaleHtFalsePositive(c)
                     || IsPackVsUnitPriceFalsePositive(c, byReference))
                 .Select(c => c.Id)
@@ -1586,9 +1587,9 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 nameof(ErpProduct.PriceHT) => existing.PriceHT == incoming.PriceHT,
                 nameof(ErpProduct.CPrice) => existing.CPrice == incoming.CPrice,
                 nameof(ErpProduct.RPrice) => existing.RPrice == incoming.RPrice,
-                nameof(ErpProduct.DiscountPrice) => existing.DiscountPrice == incoming.DiscountPrice,
+                nameof(ErpProduct.DiscountPrice) => OptionalPriceValuesEqual(existing.DiscountPrice, incoming.DiscountPrice),
                 nameof(ErpProduct.StockQuantity) => existing.StockQuantity == incoming.StockQuantity,
-                nameof(ErpProduct.PromoPrice) => existing.PromoPrice == incoming.PromoPrice,
+                nameof(ErpProduct.PromoPrice) => OptionalPriceValuesEqual(existing.PromoPrice, incoming.PromoPrice),
                 nameof(ErpProduct.PromoActive) => existing.PromoActive == incoming.PromoActive,
                 nameof(ErpProduct.Archived) => existing.Archived == incoming.Archived,
                 _ => string.Equals(
@@ -1606,10 +1607,36 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             var newDecimal = ParseDecimal(newValue);
             if (!oldDecimal.HasValue && !newDecimal.HasValue)
                 return true;
+            if (IsEmptyOrZero(oldDecimal) && IsEmptyOrZero(newDecimal))
+                return true;
             if (oldDecimal.HasValue != newDecimal.HasValue)
                 return false;
 
             return oldDecimal.Value == newDecimal.Value;
+        }
+
+        /// <summary>
+        /// Prix promo / remisé : null, vide ou 0 = pas de promo (équivalents).
+        /// </summary>
+        private static bool OptionalPriceValuesEqual(decimal? left, decimal? right) =>
+            left == right || (IsEmptyOrZero(left) && IsEmptyOrZero(right));
+
+        private static bool IsEmptyOrZero(decimal? value) =>
+            !value.HasValue || value.Value == 0m;
+
+        /// <summary>
+        /// Faux positif historique : PromoPrice / DiscountPrice — → 0.
+        /// </summary>
+        private static bool IsEmptyOrZeroDecimalFalsePositive(ErpProductChangeLog change)
+        {
+            if (change.FieldName is not (
+                nameof(ErpProduct.PromoPrice) or nameof(ErpProduct.DiscountPrice)))
+            {
+                return false;
+            }
+
+            return IsEmptyOrZero(ParseDecimal(change.OldValue))
+                && IsEmptyOrZero(ParseDecimal(change.NewValue));
         }
 
         private static string? GetFieldValue(ErpProduct product, string fieldName) =>

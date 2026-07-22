@@ -149,7 +149,8 @@
                 <td class="product-cell">
                   <div class="product-name">{{ productTitle(change) }}</div>
                   <div class="product-meta font-mono" *ngIf="change.product as p">
-                    <span *ngIf="p.reference">{{ p.reference }}</span>
+                    <span *ngIf="p.erpProductId">{{ p.erpProductId }}</span>
+                    <span *ngIf="p.reference"> · {{ p.reference }}</span>
                     <span *ngIf="p.ean"> · {{ p.ean }}</span>
                     <span *ngIf="p.brand"> · {{ p.brand }}</span>
                   </div>
