@@ -30,6 +30,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? Brand { get; set; }
         public string? Category { get; set; }
         public decimal? SuggestedQuantity { get; set; }
+        /// <summary>URL absolue de l'image (port 15022 + PicName).</summary>
+        public string? ImageUrl { get; set; }
     }
 
     public class StoreChatQuotePdfDto

@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Services.ErpSync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,6 +35,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private readonly IStoreChatPdfService _pdf;
         private readonly IStoreChatStripeService _stripe;
         private readonly StoreChatOptions _options;
+        private readonly ErpSyncOptions _erpOptions;
         private readonly ILogger<StoreChatService> _logger;
 
         public StoreChatService(
@@ -43,6 +45,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             IStoreChatPdfService pdf,
             IStoreChatStripeService stripe,
             IOptions<StoreChatOptions> options,
+            IOptions<ErpSyncOptions> erpOptions,
             ILogger<StoreChatService> logger)
         {
             _storage = storage;
@@ -51,6 +54,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             _pdf = pdf;
             _stripe = stripe;
             _options = options.Value ?? new StoreChatOptions();
+            _erpOptions = erpOptions.Value ?? new ErpSyncOptions();
             _logger = logger;
         }
 
@@ -562,7 +566,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         Brand = p.Brand,
                         Category = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }
                             .Where(x => !string.IsNullOrWhiteSpace(x))),
-                        SuggestedQuantity = EstimateQuantityForKind(kind, p.Name, p.Name2, session.WallAreaM2)
+                        SuggestedQuantity = EstimateQuantityForKind(kind, p.Name, p.Name2, session.WallAreaM2),
+                        ImageUrl = BuildProductImageUrl(p.PicName)
                     };
                 })
                 .ToList();
@@ -597,6 +602,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     MainTypeName = p.MainTypeName,
                     TypeName = p.TypeName,
                     SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
                     Score = 1
                 })
                 .ToListAsync(ct);
@@ -641,6 +647,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     MainTypeName = p.MainTypeName,
                     TypeName = p.TypeName,
                     SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
                     Score = 3
                 })
                 .ToListAsync(ct);
@@ -687,6 +694,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     MainTypeName = p.MainTypeName,
                     TypeName = p.TypeName,
                     SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
                     Score = 3
                 })
                 .ToListAsync(ct);
@@ -724,7 +732,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var hitScore = (inProductName ? 2 : 1) + bonus;
 
             if (scores.TryGetValue(p.Id, out var existing))
+            {
                 existing.Score += hitScore;
+                if (string.IsNullOrWhiteSpace(existing.PicName) && !string.IsNullOrWhiteSpace(p.PicName))
+                    existing.PicName = p.PicName;
+            }
             else
             {
                 p.Score = hitScore;
@@ -973,7 +985,30 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             public string? MainTypeName { get; set; }
             public string? TypeName { get; set; }
             public string? SubTypeName { get; set; }
+            public string? PicName { get; set; }
             public int Score { get; set; }
+        }
+
+        private string? BuildProductImageUrl(string? picName)
+        {
+            if (string.IsNullOrWhiteSpace(picName))
+                return null;
+
+            var file = picName.Trim().Replace('\\', '/');
+            if (file.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || file.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return file;
+            }
+
+            var baseUrl = (_erpOptions.ImageBaseUrl ?? string.Empty).TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                return null;
+
+            while (file.StartsWith('/'))
+                file = file[1..];
+
+            return $"{baseUrl}/{file}";
         }
 
         private static List<string> BuildSearchTerms(string text, StoreChatSession session)

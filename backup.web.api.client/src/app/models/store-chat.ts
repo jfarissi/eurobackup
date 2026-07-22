@@ -5,6 +5,7 @@ export interface StoreChatProductSuggestion {
   brand?: string | null;
   category?: string | null;
   suggestedQuantity?: number | null;
+  imageUrl?: string | null;
   tableRowKey?: string;
   lineQty?: number;
   lineCartState?: 'idle' | 'adding' | 'added' | 'error';

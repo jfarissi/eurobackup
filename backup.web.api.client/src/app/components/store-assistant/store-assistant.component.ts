@@ -139,6 +139,19 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     return p.price.toLocaleString('fr-BE', { style: 'currency', currency: 'EUR' });
   }
 
+  onProductImageError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img) return;
+    img.style.display = 'none';
+    const parent = img.parentElement;
+    if (parent && !parent.querySelector('.product-thumb.placeholder')) {
+      const ph = document.createElement('div');
+      ph.className = 'product-thumb placeholder';
+      ph.textContent = '—';
+      parent.appendChild(ph);
+    }
+  }
+
   getLineQty(p: StoreChatProductSuggestion): number {
     return p.lineQty ?? p.suggestedQuantity ?? 1;
   }

@@ -71,6 +71,7 @@
           <table class="product-table">
             <thead>
               <tr>
+                <th></th>
                 <th>Produit</th>
                 <th>Prix</th>
                 <th>Qté</th>
@@ -79,6 +80,13 @@
             </thead>
             <tbody>
               <tr *ngFor="let p of getPagedProductRows(msg); trackBy: trackProductRow">
+                <td class="thumb-cell">
+                  <img *ngIf="p.imageUrl" class="product-thumb" [src]="p.imageUrl" [alt]="p.name" loading="lazy"
+                       (error)="onProductImageError($event)" />
+                  <div *ngIf="!p.imageUrl" class="product-thumb placeholder">
+                    <mat-icon>image_not_supported</mat-icon>
+                  </div>
+                </td>
                 <td>
                   <div class="product-name">{{ p.name }}</div>
                   <div class="product-meta" *ngIf="p.brand || p.category">{{ p.brand }} · {{ p.category }}</div>
