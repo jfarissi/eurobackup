@@ -57,7 +57,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             foreach (var line in session.Cart)
                 sb.AppendLine($"• {line.Name} × {line.Quantity:0.##}");
 
-            var hasStructure = ContainsAny(present, "brique", "baksteen", "blok", "bloc", "parpaing", "porotherm", "silka", "steen");
+            var hasStructure = ContainsAny(present,
+                "brique", "baksteen", "blok", "bloc", "parpaing", "porotherm", "silka", "steen",
+                "snelbouw", "boerkes", "kalkzand", "lijmblok", "gaten", "parpaing");
             var hasBinder = ContainsAny(present, "ciment", "cement", "mortier", "mortel", "lijm");
 
             if (domain is "wall_construction" or "Wall")
@@ -161,7 +163,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 return session.ActiveProjectDomainId!;
 
             var hay = string.Join(' ', products.Select(p => $"{p.Name} {p.Category}")).ToLowerInvariant();
-            if (ContainsAny(hay, "ciment", "cement", "brique", "bloc", "mortier", "baksteen", "steen"))
+            if (ContainsAny(hay, "ciment", "cement", "brique", "bloc", "mortier", "baksteen", "steen",
+                    "snelbouw", "boerkes", "kalkzand", "lijmblok"))
                 return "wall_construction";
             if (ContainsAny(hay, "peinture", "verf", "paint"))
                 return "painting";

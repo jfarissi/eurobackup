@@ -626,75 +626,62 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             foreach (var hint in hints.Take(4))
             {
                 var terms = ExpandComplementSearchTerms(hint);
-                var sqlHits = await SearchProductsByTermsAsync(terms, ct);
-                var hits = sqlHits.ToList();
-                var fromSql = hits.Count > 0;
+                var hits = await SearchProductsByTermsAsync(terms, ct);
 
-                // Appoint sémantique si SQL vide.
-                if (!fromSql)
+                // Appoint sémantique uniquement si SQL vide — puis filtre strict.
+                if (hits.Count == 0)
                 {
-                    foreach (var term in terms.Take(3))
+                    foreach (var term in terms.Take(2))
                     {
-                        var sem = await _semanticSearch.SearchAsync(term, 4, ct);
+                        var sem = await _semanticSearch.SearchAsync(term, 6, ct);
                         hits.AddRange(sem);
                     }
                 }
 
-                StoreChatProductSuggestionDto? softFallback = null;
-                foreach (var h in hits)
-                {
-                    if (complementProducts.Any(p => p.ProductId == h.ProductId))
-                        continue;
-                    if (session.Cart.Any(c => c.ErpProductId.ToString() == h.ProductId))
-                        continue;
+                var best = hits
+                    .Where(h => complementProducts.All(p => p.ProductId != h.ProductId))
+                    .Where(h => session.Cart.All(c => c.ErpProductId.ToString() != h.ProductId))
+                    .Select(h =>
+                    {
+                        var hay = $"{h.Name} {h.Category} {h.Brand}".ToLowerInvariant();
+                        return new { Product = h, Hay = hay, Score = ScoreComplementHit(hay, hint) };
+                    })
+                    .Where(x => x.Score > 0)
+                    .Where(x => !ContainsCartStructureNoise(x.Hay, session))
+                    .OrderByDescending(x => x.Score)
+                    .ThenBy(x => x.Product.Name)
+                    .Select(x => x.Product)
+                    .FirstOrDefault();
 
-                    var hay = $"{h.Name} {h.Category} {h.Brand}".ToLowerInvariant();
-                    if (ContainsCartStructureNoise(hay, session))
-                        continue;
+                if (best == null)
+                    continue;
 
-                    softFallback ??= h;
-
-                    // SQL déjà filtré par synonymes : on fait confiance.
-                    // Sémantique : revalider le hint pour éviter des briques hors sujet.
-                    if (!fromSql && !MatchesComplementHint(hay, hint))
-                        continue;
-
-                    h.SuggestedQuantity ??= 1;
-                    complementProducts.Add(h);
-                    if (complementProducts.Count >= 4)
-                        return complementProducts;
-                    break; // 1 produit pertinent par hint
-                }
-
-                // Appoint : 1er hit SQL/semantique non-structure si le filtre hint a tout écarté.
-                if (softFallback != null
-                    && complementProducts.All(p => p.ProductId != softFallback.ProductId))
-                {
-                    softFallback.SuggestedQuantity ??= 1;
-                    complementProducts.Add(softFallback);
-                    if (complementProducts.Count >= 4)
-                        return complementProducts;
-                }
+                best.SuggestedQuantity ??= 1;
+                complementProducts.Add(best);
+                if (complementProducts.Count >= 4)
+                    return complementProducts;
             }
 
             return complementProducts;
         }
 
+        /// <summary>Termes SQL stricts (pas de synonymes trop larges type « niveau »).</summary>
         private static IReadOnlyList<string> ExpandComplementSearchTerms(string hint)
         {
             return hint.Trim().ToLowerInvariant() switch
             {
-                "truelle" => new[] { "truelle", "troffel", "truweel", "waterpas", "niveau", "spatel", "metseltroffel" },
-                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "wapening", "gaas", "mesh", "bewapeningsnet", "raster" },
-                "auge" => new[] { "auge", "mortelkuip", "kuip", "emmer", "seau", "speciekuip", "mengkuip", "bac" },
-                "gants" => new[] { "gants", "handschoen", "handschoenen", "gloves", "werkhandschoen" },
+                "truelle" => new[] { "truelle", "troffel", "truweel", "metseltroffel", "waterpas" },
+                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "bewapeningsnet", "wapening", "mesh" },
+                "auge" => new[] { "auge", "mortelkuip", "speciekuip", "mengkuip", "emmer", "seau", "kuip" },
+                // handschoen en tête : existe en base NL, prioritaire sur "gants" FR / gloves USAG.
+                "gants" => new[] { "handschoen", "handschoenen", "werkhandschoen", "gants", "gloves" },
                 "ciment" => new[] { "ciment", "cement", "mortier", "mortel", "metselspecie" },
-                "seau" => new[] { "seau", "auge", "emmer", "kuip", "bac" },
+                "seau" => new[] { "seau", "auge", "emmer", "mortelkuip", "kuip" },
                 "rouleau" => new[] { "rouleau", "roller", "verfroller" },
                 "ruban" => new[] { "ruban", "masking", "schilderstape" },
                 "sous-couche" => new[] { "sous-couche", "primer", "grondverf" },
-                "colle carrelage" => new[] { "colle", "tegellijm", "lijm" },
-                "joint" => new[] { "joint", "voeg", "voegsel" },
+                "colle carrelage" => new[] { "tegellijm", "colle carrelage", "colle" },
+                "joint" => new[] { "voegsel", "voeg", "joint" },
                 "primaire" => new[] { "primaire", "primer", "grondverf" },
                 _ => new[] { hint }
             };
@@ -707,6 +694,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var results = new List<StoreChatProductSuggestionDto>();
             var seen = new HashSet<int>();
 
+            // Ne pas couper trop tôt : chaque terme (ex. handschoen) doit pouvoir remonter.
             foreach (var term in terms.Where(t => t.Length >= 3).Take(8))
             {
                 var needle = term.ToLowerInvariant();
@@ -721,7 +709,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         || (p.SubTypeName != null && p.SubTypeName.ToLower().Contains(needle))
                         || (p.MainTypeName != null && p.MainTypeName.ToLower().Contains(needle)))
                     .OrderBy(p => p.Name)
-                    .Take(12)
+                    .Take(20)
                     .Select(p => new
                     {
                         p.Id,
@@ -754,26 +742,75 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                         SuggestedQuantity = 1,
                         ImageUrl = BuildProductImageUrl(p.PicName)
                     });
-
-                    if (results.Count >= 8)
-                        return results;
                 }
+
+                if (results.Count >= 40)
+                    break;
             }
 
             return results;
         }
 
-        private static bool MatchesComplementHint(string hay, string hint)
+        /// <summary>Score &gt; 0 = accepté. Pénalise les faux positifs (Fuel Gauge, niveau hors outil…).</summary>
+        private static int ScoreComplementHit(string hay, string hint)
         {
+            if (string.IsNullOrWhiteSpace(hay))
+                return 0;
+
+            // Bruit hors chantier (faux positifs sémantiques / synonymes larges).
+            if (ContainsAnyLocal(hay, "fuel gauge", "flotteur", "remover", "bagues du"))
+                return 0;
+
             return hint.Trim().ToLowerInvariant() switch
             {
-                "truelle" => ContainsAnyLocal(hay, "truelle", "troffel", "truweel", "niveau", "waterpas", "spatel", "metseltroffel"),
-                "treillis" => ContainsAnyLocal(hay, "treillis", "mesh", "wapen", "gaas", "netting", "bewapen", "raster"),
-                "auge" or "seau" => ContainsAnyLocal(hay, "auge", "seau", "emmer", "kuip", "bac", "specie"),
-                "gants" => ContainsAnyLocal(hay, "gant", "glove", "handschoen"),
-                "ciment" => ContainsAnyLocal(hay, "ciment", "cement", "mortier", "mortel"),
-                _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase)
+                "truelle" => ScoreAny(hay,
+                    ("truelle", 100), ("troffel", 100), ("truweel", 100), ("metseltroffel", 100),
+                    ("waterpas", 70), ("spatel", 40)),
+                "treillis" => ScoreAny(hay,
+                    ("bewapeningsnet", 100), ("wapeningsnet", 100), ("wapeningsgaas", 100),
+                    ("treillis", 90), ("wapening", 80), ("mesh", 60)),
+                "auge" or "seau" => ScoreAny(hay,
+                    ("mortelkuip", 100), ("speciekuip", 100), ("mengkuip", 100),
+                    ("auge", 90), ("emmer", 80), ("seau", 80), ("kuip", 70)),
+                "gants" => ScoreGloves(hay),
+                "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),
+                _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase) ? 50 : 0
             };
+        }
+
+        private static int ScoreGloves(string hay)
+        {
+            // Exige un vrai marqueur gant — évite "bagues", etc.
+            if (!ContainsAnyLocal(hay, "handschoen", "gant", "glove"))
+                return 0;
+
+            var score = 0;
+            if (hay.Contains("handschoen", StringComparison.OrdinalIgnoreCase))
+                score += 100;
+            if (hay.Contains("werkhandschoen", StringComparison.OrdinalIgnoreCase))
+                score += 30;
+            if (hay.Contains("gant", StringComparison.OrdinalIgnoreCase))
+                score += 40;
+            if (hay.Contains("glove", StringComparison.OrdinalIgnoreCase))
+                score += 30;
+
+            // Gants isolés électriques : moins adaptés au malaxage ciment.
+            if (ContainsAnyLocal(hay, "isolé", "isole", "insulated", "éléctrique", "electrique"))
+                score -= 50;
+
+            return score > 0 ? score : 0;
+        }
+
+        private static int ScoreAny(string hay, params (string Needle, int Score)[] scored)
+        {
+            var best = 0;
+            foreach (var (needle, score) in scored)
+            {
+                if (hay.Contains(needle, StringComparison.OrdinalIgnoreCase) && score > best)
+                    best = score;
+            }
+
+            return best;
         }
 
         private static bool ContainsAnyLocal(string hay, params string[] needles) =>
