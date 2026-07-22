@@ -13,6 +13,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         Task<ErpSyncLog> StartSyncAllAsync(CancellationToken ct = default);
         Task<ErpSyncLog> SyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default);
         Task<ErpSyncLog> StartSyncCatalogAsync(ErpCatalogSyncFilter filter, bool cancelPrevious = true, CancellationToken ct = default);
+        /// <summary>Importe les catégories principales ERP (GetProductMainTypes) dans ErpCategories.</summary>
+        Task<ErpCatalogRebuildResult> SyncMainTypesFromErpAsync(bool includeTypes = true, CancellationToken ct = default);
         Task<ErpSyncLog?> CancelRunningSyncAsync(CancellationToken ct = default);
         Task<ErpSyncLog?> GetSyncLogByJobIdAsync(string jobId, CancellationToken ct = default);
         Task<ErpProduct?> SyncProductByIdAsync(string erpProductId, CancellationToken ct = default);

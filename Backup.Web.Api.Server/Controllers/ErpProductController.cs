@@ -277,8 +277,31 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         /// <summary>
+        /// Importe GetProductMainTypes (+ Types) depuis l'ERP dans ErpCategories.
+        /// Les MainTypes absents des produits locaux apparaissent ainsi dans la table.
+        /// </summary>
+        [HttpPost("sync-main-types")]
+        [RequestTimeout(600_000)]
+        public async Task<IActionResult> SyncMainTypes(
+            [FromQuery] bool includeTypes = true,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var result = await _syncService.SyncMainTypesFromErpAsync(includeTypes, ct);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Sync MainTypes ERP échoué", detail = msg });
+            }
+        }
+
+        /// <summary>
         /// Reconstruit ErpBrands + ErpCategories depuis les produits existants
         /// et rattache BrandId / CategoryId.
+        /// Préfixe : sync MainTypes depuis l'API ERP pour ne manquer aucune catégorie racine.
         /// </summary>
         [HttpPost("rebuild-catalog")]
         [RequestTimeout(3_600_000)]
@@ -286,8 +309,13 @@ namespace Backup.Web.Api.Server.Controllers
         {
             try
             {
+                var fromErp = await _syncService.SyncMainTypesFromErpAsync(includeTypes: true, ct);
                 var result = await _catalogSync.RebuildFromProductsAsync(ct);
-                return Ok(result);
+                return Ok(new
+                {
+                    fromErp,
+                    fromProducts = result
+                });
             }
             catch (Exception ex)
             {

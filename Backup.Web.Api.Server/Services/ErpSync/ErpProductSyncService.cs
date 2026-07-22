@@ -183,6 +183,69 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         public Task<ErpSyncLog> SyncCatalogAsync(ErpCatalogSyncFilter filter, CancellationToken ct = default) =>
             SyncCatalogAsync(filter, existingJobId: null, ct);
 
+        public async Task<ErpCatalogRebuildResult> SyncMainTypesFromErpAsync(
+            bool includeTypes = true,
+            CancellationToken ct = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var catalogSync = scope.ServiceProvider.GetRequiredService<IErpCatalogSyncService>();
+
+            var mainTypes = await GetJsonAsync<ErpCatalogItemDto[]>("getProductMainTypes", ct)
+                            ?? Array.Empty<ErpCatalogItemDto>();
+
+            var mainItems = mainTypes
+                .Where(m => !string.IsNullOrWhiteSpace(m.Id) && !string.IsNullOrWhiteSpace(m.Name))
+                .Select(m => (m.Id!.Trim(), m.Name!.Trim(), (string?)null, (string?)null))
+                .ToList();
+
+            var result = await catalogSync.UpsertErpLevelAsync("MainType", mainItems, ct);
+            _logger.LogInformation(
+                "ERP MainTypes sync: {Count} from API → created={Created} updated={Updated}",
+                mainItems.Count, result.CategoriesCreated, result.CategoriesUpdated);
+
+            if (!includeTypes)
+            {
+                result.Completed = true;
+                return result;
+            }
+
+            var typesCreated = 0;
+            var typesUpdated = 0;
+            foreach (var main in mainItems)
+            {
+                ct.ThrowIfCancellationRequested();
+                var types = await GetJsonAsync<ErpCatalogItemDto[]>(
+                    $"getProductTypesByMainType/{Uri.EscapeDataString(main.Item1)}", ct)
+                    ?? Array.Empty<ErpCatalogItemDto>();
+
+                var typeItems = types
+                    .Where(t => !string.IsNullOrWhiteSpace(t.Id) && !string.IsNullOrWhiteSpace(t.Name))
+                    .Select(t => (t.Id!.Trim(), t.Name!.Trim(), (string?)"MainType", (string?)main.Item1))
+                    .ToList();
+
+                if (typeItems.Count == 0)
+                    continue;
+
+                var typeResult = await catalogSync.UpsertErpLevelAsync("Type", typeItems, ct);
+                typesCreated += typeResult.CategoriesCreated;
+                typesUpdated += typeResult.CategoriesUpdated;
+            }
+
+            result.CategoriesCreated += typesCreated;
+            result.CategoriesUpdated += typesUpdated;
+            result.Completed = true;
+            result.CategoriesTotal = await scope.ServiceProvider
+                .GetRequiredService<IStorageBroker>()
+                .SelectAllErpCategories()
+                .CountAsync(ct);
+
+            _logger.LogInformation(
+                "ERP Types sync under MainTypes: created={Created} updated={Updated}; categoriesTotal={Total}",
+                typesCreated, typesUpdated, result.CategoriesTotal);
+
+            return result;
+        }
+
         public async Task<ErpSyncLog> StartSyncCatalogAsync(
             ErpCatalogSyncFilter filter,
             bool cancelPrevious = true,

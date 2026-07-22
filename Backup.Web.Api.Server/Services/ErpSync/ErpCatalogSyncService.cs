@@ -29,6 +29,14 @@ namespace Backup.Web.Api.Server.Services.ErpSync
     public interface IErpCatalogSyncService
     {
         Task<ErpCatalogRebuildResult> RebuildFromProductsAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// Upsert des catégories d'un niveau (ex. MainType depuis GetProductMainTypes).
+        /// </summary>
+        Task<ErpCatalogRebuildResult> UpsertErpLevelAsync(
+            string level,
+            IReadOnlyList<(string ExternalId, string Name, string? ParentLevel, string? ParentExternalId)> items,
+            CancellationToken ct = default);
     }
 
     public class ErpCatalogSyncService : IErpCatalogSyncService
@@ -42,6 +50,47 @@ namespace Backup.Web.Api.Server.Services.ErpSync
         {
             _storage = storage;
             _logger = logger;
+        }
+
+        public async Task<ErpCatalogRebuildResult> UpsertErpLevelAsync(
+            string level,
+            IReadOnlyList<(string ExternalId, string Name, string? ParentLevel, string? ParentExternalId)> items,
+            CancellationToken ct = default)
+        {
+            var result = new ErpCatalogRebuildResult();
+            if (items.Count == 0)
+                return result;
+
+            var categories = await _storage.SelectAllErpCategories().ToListAsync(ct);
+            var catsByKey = categories.ToDictionary(
+                c => CatKey(c.Level, c.ErpExternalId),
+                StringComparer.OrdinalIgnoreCase);
+
+            var dirty = false;
+            foreach (var item in items)
+            {
+                if (IsEmptyErpId(item.ExternalId) || string.IsNullOrWhiteSpace(item.Name))
+                    continue;
+
+                var node = new PendingCategory
+                {
+                    Level = level,
+                    ExternalId = item.ExternalId.Trim(),
+                    Name = item.Name.Trim(),
+                    ParentLevel = item.ParentLevel,
+                    ParentExternalId = item.ParentExternalId
+                };
+
+                if (await UpsertCategoryStagedAsync(node, catsByKey, result))
+                    dirty = true;
+            }
+
+            if (dirty)
+                await _storage.FlushChangesAsync(ct);
+
+            result.Completed = true;
+            result.CategoriesTotal = await _storage.SelectAllErpCategories().CountAsync(ct);
+            return result;
         }
 
         public async Task<ErpCatalogRebuildResult> RebuildFromProductsAsync(CancellationToken ct = default)
