@@ -1324,9 +1324,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             },
             ["electrical"] = new[]
             {
-                "prise", "interrupteur", "câble", "cable", "led",
-                "stopcontact", "schakelaar", "draad",
-                "socket", "switch", "wire"
+                // Pas de « wire » : matche trop de Wire Stripper USAG.
+                "prise", "interrupteur", "câble", "cable", "led", "ampoule", "lampe",
+                "stopcontact", "schakelaar", "draad", "lampje", "gloeilamp",
+                "socket", "switch", "bulb"
             },
             ["garden_cleaning"] = new[]
             {
@@ -1424,6 +1425,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return new List<StoreChatProductSuggestionDto>();
 
             ApplyGardenIntentFilter(scores, session.ActiveProjectDomainId);
+            ApplyLightingIntentFilter(scores, text);
+            DemoteClearanceNoise(scores, session.ActiveProjectDomainId);
 
             IEnumerable<ScoredProduct> ranked = scores.Values;
 
@@ -2126,6 +2129,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private static List<string> BuildSearchTerms(string text, StoreChatSession session, bool brandMode)
         {
             var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var lighting = IsLightingQuery(text);
 
             if (!brandMode)
             {
@@ -2136,6 +2140,21 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     && DomainSearchTerms.TryGetValue(session.ActiveProjectDomainId, out var domainTerms))
                 {
                     foreach (var t in domainTerms)
+                    {
+                        // Requête ampoules : ne pas injecter câble/draad (→ dénudeurs).
+                        if (lighting && t is "câble" or "cable" or "draad" or "wire")
+                            continue;
+                        terms.Add(t);
+                    }
+                }
+
+                if (lighting)
+                {
+                    foreach (var t in new[]
+                             {
+                                 "ampoule", "ampoules", "lampe", "lampes", "lamp", "bulb",
+                                 "gloeilamp", "spaarlamp", "lampje", "led"
+                             })
                         terms.Add(t);
                 }
             }
@@ -2160,6 +2179,23 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             terms.Remove("blocks");
 
             return terms.Take(24).ToList();
+        }
+
+        private static bool IsLightingQuery(string text)
+        {
+            var lower = (text ?? string.Empty).ToLowerInvariant();
+            return ContainsIgnoreCase(lower, "ampoule")
+                   || ContainsIgnoreCase(lower, "lampe")
+                   || ContainsIgnoreCase(lower, "lampes")
+                   || ContainsIgnoreCase(lower, "bulb")
+                   || ContainsIgnoreCase(lower, "gloeilamp")
+                   || ContainsIgnoreCase(lower, "spaarlamp")
+                   || ContainsIgnoreCase(lower, "lampje")
+                   || ContainsIgnoreCase(lower, "e27")
+                   || ContainsIgnoreCase(lower, "e14")
+                   || ContainsIgnoreCase(lower, "gu10")
+                   || ContainsIgnoreCase(lower, "halogène")
+                   || ContainsIgnoreCase(lower, "halogene");
         }
 
         private static void AddTermWithSynonyms(HashSet<string> terms, string token)
@@ -2863,7 +2899,11 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 ("painting", "Peinture", new[] { "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer" }),
                 ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
                 ("plumbing", "Plomberie", new[] { "plomberie", "robinet", "tuyau", "wc", "siphon" }),
-                ("electrical", "Électricité", new[] { "électri", "electri", "prise", "interrupteur", "câble", "cable", "led" }),
+                ("electrical", "Électricité", new[]
+                {
+                    "électri", "electri", "prise", "interrupteur", "câble", "cable", "led",
+                    "ampoule", "ampoules", "lampe", "lampes", "e27", "e14"
+                }),
                 // Jardin : du plus spécifique au plus large (évite tondeuses pour « nettoyer / aménager »).
                 ("garden_cleaning", "Nettoyage jardin", new[]
                 {
@@ -2946,6 +2986,62 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     p.Score += 12;
                 if (domainId == "garden_landscaping" && landscapeBoost.Any(m => hay.Contains(m, StringComparison.OrdinalIgnoreCase)))
                     p.Score += 12;
+            }
+        }
+
+        /// <summary>« ampoules » ne doit pas remonter des Wire Stripper via le domaine Électricité.</summary>
+        private static void ApplyLightingIntentFilter(Dictionary<int, ScoredProduct> scores, string text)
+        {
+            if (!IsLightingQuery(text) || scores.Count == 0)
+                return;
+
+            var noise = new[]
+            {
+                "wire strip", "stripper", "dénudeur", "denudeur", "dégainer", "degainer",
+                "outil à dégainer", "outil a degainer"
+            };
+            var boost = new[]
+            {
+                "ampoule", "lampe", "lamp", "bulb", "gloeilamp", "spaarlamp", "lampje",
+                "e27", "e14", "gu10", "led"
+            };
+
+            foreach (var p in scores.Values.ToList())
+            {
+                var hay = $"{p.Name} {p.Name2} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+                if (noise.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase)))
+                {
+                    scores.Remove(p.Id);
+                    continue;
+                }
+
+                if (boost.Any(b => hay.Contains(b, StringComparison.OrdinalIgnoreCase)))
+                    p.Score += 20;
+            }
+        }
+
+        /// <summary>Pénalise les soldes / Winkel (oud) quand un rayon métier existe.</summary>
+        private static void DemoteClearanceNoise(Dictionary<int, ScoredProduct> scores, string? domainId)
+        {
+            if (scores.Count == 0)
+                return;
+            if (domainId is not ("electrical" or "plumbing" or "painting" or "tiling"
+                or "garden_cleaning" or "garden_landscaping" or "garden_maintenance"
+                or "wall_construction"))
+                return;
+
+            foreach (var p in scores.Values)
+            {
+                var hay = $"{p.MainTypeName} {p.TypeName} {p.SubTypeName} {p.Name}".ToLowerInvariant();
+                if (hay.Contains("winkel (oud)", StringComparison.OrdinalIgnoreCase)
+                    || hay.Contains("uitverkoop", StringComparison.OrdinalIgnoreCase))
+                    p.Score -= 15;
+
+                if (domainId == "electrical"
+                    && (hay.Contains("elektriciteit", StringComparison.OrdinalIgnoreCase)
+                        || hay.Contains("eko lampen", StringComparison.OrdinalIgnoreCase)
+                        || hay.Contains("lamp", StringComparison.OrdinalIgnoreCase)))
+                    p.Score += 8;
             }
         }
 
