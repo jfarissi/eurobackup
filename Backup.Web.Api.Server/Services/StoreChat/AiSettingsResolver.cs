@@ -22,7 +22,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             var model = configuration[$"{section}:Model"]
                 ?? configuration["AISettings:Model"]
-                ?? "llama3.2";
+                ?? "qwen2.5:14b";
 
             var endpoint = configuration[$"{section}:Endpoint"]
                 ?? configuration["AISettings:Endpoint"]

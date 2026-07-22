@@ -18,7 +18,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         public string Provider { get; set; } = "Ollama";
         public string ApiKey { get; set; } = string.Empty;
-        public string Model { get; set; } = "llama3.2";
+        public string Model { get; set; } = "qwen2.5:14b";
         public string Endpoint { get; set; } = "http://host.docker.internal:11434";
         public string? SystemPrompt { get; set; }
         public string EmbeddingModel { get; set; } = "nomic-embed-text";
