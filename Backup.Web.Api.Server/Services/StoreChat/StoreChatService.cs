@@ -1033,29 +1033,36 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 var mortarSlots = Math.Min(6, Math.Max(4, max / 3));
                 var blockSlots = Math.Max(4, max - brickSlots - mortarSlots);
 
-                var blocks = classified
-                    .Where(x => x.Kind == WallProductKind.Block)
-                    .OrderByDescending(x => x.Product.Score)
-                    .ThenBy(x => x.Product.Name)
+                var blocks = DeduplicateWallVariants(
+                        classified
+                            .Where(x => x.Kind == WallProductKind.Block)
+                            .OrderByDescending(x => x.Product.Score)
+                            .ThenBy(x => x.Product.Name)
+                            .Select(x => x.Product))
                     .Take(blockSlots)
-                    .Select(x => x.Product);
+                    .ToList();
 
-                var bricks = classified
-                    .Where(x => x.Kind == WallProductKind.Brick)
-                    .OrderByDescending(x => x.Product.Score)
-                    .ThenBy(x => x.Product.Name)
+                var bricks = DeduplicateWallVariants(
+                        classified
+                            .Where(x => x.Kind == WallProductKind.Brick)
+                            .OrderByDescending(x => x.Product.Score)
+                            .ThenBy(x => x.Product.Name)
+                            .Select(x => x.Product))
                     .Take(brickSlots)
-                    .Select(x => x.Product);
+                    .ToList();
 
-                var mortars = classified
-                    .Where(x => x.Kind == WallProductKind.Mortar)
-                    .OrderByDescending(x => MortarPriority(x.Product))
-                    .ThenByDescending(x => x.Product.Score)
-                    .ThenBy(x => x.Product.Name)
+                var mortars = DeduplicateWallVariants(
+                        classified
+                            .Where(x => x.Kind == WallProductKind.Mortar)
+                            .OrderByDescending(x => MortarPriority(x.Product))
+                            .ThenByDescending(x => x.Product.Score)
+                            .ThenBy(x => x.Product.Name)
+                            .Select(x => x.Product))
                     .Take(mortarSlots)
-                    .Select(x => x.Product);
+                    .ToList();
 
-                ranked = blocks.Concat(bricks).Concat(mortars);
+                // Round-robin : 1 bloc, 1 brique, 1 mortier… (évite 5 Silka identiques en tête).
+                ranked = InterleaveWallKinds(blocks, bricks, mortars);
                 meta.Outcome = ProductSearchOutcome.Domain;
             }
             else
@@ -1085,10 +1092,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             }
 
             meta.TotalMatches = filtered.Count;
-            // P0 : max 3 en mode marque ; mur/domaine peut monter jusqu'à MaxProductResults.
+            // Marque : max 3. Mur : au moins 6 pour montrer blocs + briques + mortier.
             var take = brandMode
                 ? Math.Max(1, Math.Min(3, _options.InitialProductResults > 0 ? _options.InitialProductResults : 3))
-                : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
+                : wallMode
+                    ? Math.Max(6, Math.Min(9, Math.Max(_options.MaxProductResults, 6)))
+                    : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
 
             return filtered
                 .Take(take)
@@ -1346,6 +1355,53 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             if (ContainsAny(name, "voegmortel", "filler"))
                 return 5 + bagBonus;
             return 10 + bagBonus;
+        }
+
+        private static List<ScoredProduct> InterleaveWallKinds(
+            IReadOnlyList<ScoredProduct> blocks,
+            IReadOnlyList<ScoredProduct> bricks,
+            IReadOnlyList<ScoredProduct> mortars)
+        {
+            var result = new List<ScoredProduct>();
+            var max = Math.Max(blocks.Count, Math.Max(bricks.Count, mortars.Count));
+            for (var i = 0; i < max; i++)
+            {
+                if (i < blocks.Count)
+                    result.Add(blocks[i]);
+                if (i < bricks.Count)
+                    result.Add(bricks[i]);
+                if (i < mortars.Count)
+                    result.Add(mortars[i]);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Une seule variante par famille (ex. 3 Silka 100/150/198 mm → garde le meilleur score).
+        /// </summary>
+        private static IEnumerable<ScoredProduct> DeduplicateWallVariants(IEnumerable<ScoredProduct> products)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in products)
+            {
+                var key = WallVariantFamilyKey(p);
+                if (!seen.Add(key))
+                    continue;
+                yield return p;
+            }
+        }
+
+        private static string WallVariantFamilyKey(ScoredProduct p)
+        {
+            var raw = $"{p.Brand} {p.Name}".ToLowerInvariant();
+            // Retire dimensions / formats fréquents pour regrouper les variants.
+            raw = Regex.Replace(raw, @"\d+\s*[x×*]\s*\d+(?:\s*[x×*]\s*\d+)?\s*(?:mm|cm|m)?", " ");
+            raw = Regex.Replace(raw, @"\b\d+\s*(?:mm|cm)\b", " ");
+            raw = Regex.Replace(raw, @"\s+", " ").Trim();
+            if (raw.Length < 8)
+                raw = $"{p.Brand}|{p.Id}";
+            return raw;
         }
 
         private enum WallProductKind
