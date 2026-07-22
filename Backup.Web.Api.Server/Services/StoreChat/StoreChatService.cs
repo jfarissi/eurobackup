@@ -103,6 +103,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var session = _sessions.GetOrCreate(request.SessionId);
             var intent = (request.ClientIntent ?? string.Empty).Trim();
 
+            var clientReturn = ResolveClientReturnBaseUrl(request.ReturnBaseUrl);
+            if (clientReturn != null)
+                session.ReturnBaseUrl = clientReturn;
+
             if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase)
                 || IsNewProjectText(request.Text))
             {
@@ -871,6 +875,21 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 or "ok go" or "parfait" or "nickel";
         }
 
+        /// <summary>Accepte uniquement une origine http(s) absolue (anti open-redirect).</summary>
+        private static string? ResolveClientReturnBaseUrl(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+            if (!Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri))
+                return null;
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+                return null;
+            if (string.IsNullOrWhiteSpace(uri.Host))
+                return null;
+
+            return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+        }
+
         private static string? ApplyBudgetFilter(
             List<StoreChatProductSuggestionDto> products,
             StoreChatSession session,
@@ -1023,7 +1042,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             if (_stripe.IsEnabled)
             {
-                var link = await _stripe.CreateCheckoutAsync(order.Id, session.Cart, session.SessionId, ct);
+                var link = await _stripe.CreateCheckoutAsync(
+                    order.Id,
+                    session.Cart,
+                    session.SessionId,
+                    session.ReturnBaseUrl,
+                    ct);
                 if (link != null)
                 {
                     order.StripeSessionId = link.Source; // Stripe Checkout Session Id

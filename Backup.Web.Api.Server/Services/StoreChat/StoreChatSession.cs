@@ -43,6 +43,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public bool AwaitingComplementConfirm { get; set; }
         /// <summary>Dernier ActionType renvoyé (CART_ADVICE, SEARCH…).</summary>
         public string? LastActionType { get; set; }
+        /// <summary>Origine front pour Stripe success/cancel (ex. http://localhost:4200).</summary>
+        public string? ReturnBaseUrl { get; set; }
     }
 
     public class StoreChatHistoryMessage

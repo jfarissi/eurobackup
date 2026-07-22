@@ -17,6 +17,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             Guid orderId,
             IReadOnlyList<StoreChatCartItem> items,
             string sessionId,
+            string? returnBaseUrl = null,
             CancellationToken ct = default);
         Task<string?> GetCheckoutSessionStatusAsync(string stripeSessionId, CancellationToken ct = default);
     }
@@ -45,6 +46,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             Guid orderId,
             IReadOnlyList<StoreChatCartItem> items,
             string sessionId,
+            string? returnBaseUrl = null,
             CancellationToken ct = default)
         {
             if (!_stripe.Enabled || items.Count == 0)
@@ -52,7 +54,17 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             try
             {
-                var baseUrl = _store.ReturnBaseUrl.TrimEnd('/');
+                var baseUrl = (!string.IsNullOrWhiteSpace(returnBaseUrl)
+                        ? returnBaseUrl
+                        : _store.ReturnBaseUrl)
+                    .TrimEnd('/');
+                // Évite le piège IIS :80 sans SPA (http://localhost → wwwroot).
+                if (string.Equals(baseUrl, "http://localhost", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(baseUrl, "https://localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    baseUrl = "http://localhost:4200";
+                }
+
                 var successUrl = $"{baseUrl}/assistant?payment=success&orderId={orderId:D}&session_id={{CHECKOUT_SESSION_ID}}";
                 var cancelUrl = $"{baseUrl}/assistant?payment=cancel&orderId={orderId:D}";
 

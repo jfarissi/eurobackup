@@ -35,10 +35,12 @@ export class StoreChatService {
       ? new HttpHeaders({ 'X-Store-Chat-Session': sessionId })
       : undefined;
 
+    const returnBaseUrl = message.returnBaseUrl || (typeof window !== 'undefined' ? window.location.origin : undefined);
+
     return this.http
       .post<StoreChatResponse>(
         `${this.baseUrl}/message`,
-        { ...message, sessionId },
+        { ...message, sessionId, returnBaseUrl },
         { headers }
       )
       .pipe(tap(res => {

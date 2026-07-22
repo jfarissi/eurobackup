@@ -92,7 +92,7 @@ services:
       Database__ApplyMigrationsOnStartup: "true"
       UseHttpsRedirection: "false"
       ErpSync__ExcelProductPath: ${EXCEL_PRODUCT_CONTAINER_PATH:-/data/eurobrico-product}
-      StoreChat__ReturnBaseUrl: ${STORE_CHAT_RETURN_BASE_URL:-http://localhost}
+      StoreChat__ReturnBaseUrl: ${STORE_CHAT_RETURN_BASE_URL:-http://localhost:4200}
       Stripe__SecretKey: ${STRIPE_SECRET_KEY:-}
       Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY:-}
     volumes:

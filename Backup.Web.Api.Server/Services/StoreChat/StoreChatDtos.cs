@@ -18,6 +18,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? ImageBase64 { get; set; }
         public string? ImageFileName { get; set; }
         public string? ImageCaption { get; set; }
+        /// <summary>Origine du front (ex. http://localhost:4200) pour les retours Stripe.</summary>
+        public string? ReturnBaseUrl { get; set; }
     }
 
     public class StoreChatTableCartLineDto

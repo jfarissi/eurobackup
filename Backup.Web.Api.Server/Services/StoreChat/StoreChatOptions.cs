@@ -5,7 +5,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public const string SectionName = "StoreChat";
 
         public string BrandName { get; set; } = "EuroBrico";
-        public string ReturnBaseUrl { get; set; } = "http://localhost";
+        public string ReturnBaseUrl { get; set; } = "http://localhost:4200";
         public int MaxProductResults { get; set; } = 5;
         /// <summary>Nombre de produits montrés d'emblée (style vendeur).</summary>
         public int InitialProductResults { get; set; } = 3;

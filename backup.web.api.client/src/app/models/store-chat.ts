@@ -29,6 +29,8 @@ export interface StoreChatMessageRequest {
   imageBase64?: string;
   imageFileName?: string;
   imageCaption?: string;
+  /** Origine du navigateur pour le retour Stripe (ex. http://localhost:4200). */
+  returnBaseUrl?: string;
 }
 
 export interface StoreChatQuotePdf {
