@@ -151,7 +151,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             "tiling" => "Tiling",
             "plumbing" => "Plumbing",
             "electrical" => "Electrical",
-            "garden_maintenance" => "Garden",
+            "garden_maintenance" or "garden_cleaning" or "garden_landscaping" => "Garden",
             _ => "Other"
         };
 

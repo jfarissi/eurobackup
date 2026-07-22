@@ -1279,11 +1279,22 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 "stopcontact", "schakelaar", "draad",
                 "socket", "switch", "wire"
             },
+            ["garden_cleaning"] = new[]
+            {
+                "souffleur", "bladblazer", "rateau", "râteau", "balai",
+                "hogedruk", "nettoyeur", "haute pression", "tuinafval",
+                "blad", "bladeren", "afvalzak", "sac jardin", "blower"
+            },
+            ["garden_landscaping"] = new[]
+            {
+                "terrasse", "dalle", "bordure", "cloture", "clôture",
+                "schutting", "tegel", "tegels", "grind", "gravier",
+                "pot", "plante", "tuin", "jardin", "gazon artificiel"
+            },
             ["garden_maintenance"] = new[]
             {
-                "jardin", "tondeuse", "gazon", "haie",
-                "tuin", "grasmaaier", "gazon", "haag",
-                "garden", "lawnmower", "hedge"
+                "tondeuse", "grasmaaier", "haie", "haag", "gazon",
+                "heggenschaar", "taille-haie", "lawnmower", "hedge"
             },
         };
 
@@ -1361,6 +1372,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             if (scores.Count == 0)
                 return new List<StoreChatProductSuggestionDto>();
+
+            ApplyGardenIntentFilter(scores, session.ActiveProjectDomainId);
 
             IEnumerable<ScoredProduct> ranked = scores.Values;
 
@@ -2792,9 +2805,26 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
                 ("plumbing", "Plomberie", new[] { "plomberie", "robinet", "tuyau", "wc", "siphon" }),
                 ("electrical", "Électricité", new[] { "électri", "electri", "prise", "interrupteur", "câble", "cable", "led" }),
-                ("garden_maintenance", "Entretien jardin", new[] { "jardin", "tondeuse", "haie", "gazon" }),
+                // Jardin : du plus spécifique au plus large (évite tondeuses pour « nettoyer / aménager »).
+                ("garden_cleaning", "Nettoyage jardin", new[]
+                {
+                    "nettoyer mon jardin", "nettoyer le jardin", "nettoyer jardin", "nettoyage jardin",
+                    "nettoyer mon tuin", "ramasser les feuilles", "feuilles mortes", "souffler les feuilles",
+                    "nettoyer", "nettoyage", "bladblazer", "souffleur"
+                }),
+                ("garden_maintenance", "Entretien jardin", new[]
+                {
+                    "tondeuse", "tondre", "grasmaaier", "haie", "haag", "taille-haie", "heggenschaar", "gazon"
+                }),
+                ("garden_landscaping", "Aménagement jardin", new[]
+                {
+                    "aménager mon jardin", "amenager mon jardin", "aménager le jardin", "amenager le jardin",
+                    "aménagement jardin", "amenagement jardin", "aménager", "amenager", "aménagement", "amenagement",
+                    "jardin", "tuin", "garden"
+                }),
             };
 
+            string? previousDomain = session.ActiveProjectDomainId;
             foreach (var d in domains)
             {
                 if (d.keys.Any(k => lower.Contains(k)))
@@ -2805,6 +2835,16 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
                     session.ActiveProjectDomainId = d.id;
                     session.ActiveProjectDomainLabel = d.label;
+                    // Changement de sous-domaine jardin : ne pas garder des hints tondeuse.
+                    if (!string.Equals(previousDomain, d.id, StringComparison.OrdinalIgnoreCase)
+                        && IsGardenDomain(d.id))
+                    {
+                        session.MaterialHints.RemoveAll(h =>
+                            h.Contains("tondeuse", StringComparison.OrdinalIgnoreCase)
+                            || h.Contains("grasmaaier", StringComparison.OrdinalIgnoreCase)
+                            || h.Contains("gazon", StringComparison.OrdinalIgnoreCase));
+                    }
+
                     return;
                 }
             }
@@ -2816,6 +2856,37 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             {
                 session.ActiveProjectDomainId = "wall_construction";
                 session.ActiveProjectDomainLabel = "Construction de mur";
+            }
+        }
+
+        private static bool IsGardenDomain(string? domainId) =>
+            domainId is "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
+
+        /// <summary>
+        /// Évite de proposer des tondeuses pour « nettoyer / aménager » le jardin.
+        /// </summary>
+        private static void ApplyGardenIntentFilter(Dictionary<int, ScoredProduct> scores, string? domainId)
+        {
+            if (domainId is not ("garden_cleaning" or "garden_landscaping"))
+                return;
+
+            var mowerMarkers = new[] { "tondeuse", "grasmaaier", "lawnmower", "maaier" };
+            var cleanBoost = new[] { "souffleur", "bladblazer", "rateau", "râteau", "balai", "nettoyeur", "hogedruk", "blower", "afval" };
+            var landscapeBoost = new[] { "terrasse", "dalle", "bordure", "cloture", "clôture", "schutting", "tegel", "grind", "pot", "plante" };
+
+            foreach (var p in scores.Values.ToList())
+            {
+                var hay = $"{p.Name} {p.Name2} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+                if (mowerMarkers.Any(m => hay.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                {
+                    scores.Remove(p.Id);
+                    continue;
+                }
+
+                if (domainId == "garden_cleaning" && cleanBoost.Any(m => hay.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                    p.Score += 12;
+                if (domainId == "garden_landscaping" && landscapeBoost.Any(m => hay.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                    p.Score += 12;
             }
         }
 
