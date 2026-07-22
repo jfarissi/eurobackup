@@ -12,8 +12,50 @@
         <mat-icon>handyman</mat-icon>
         Projet : {{ activeProjectDomainLabel }}
       </span>
+      <button type="button"
+              class="cart-toggle"
+              [class.has-items]="cartItemCount > 0"
+              [class.open]="cartPanelOpen"
+              (click)="toggleCartPanel()"
+              [attr.aria-expanded]="cartPanelOpen"
+              title="Panier">
+        <mat-icon>shopping_cart</mat-icon>
+        <span class="cart-badge" *ngIf="cartItemCount > 0">{{ cartItemCount }}</span>
+      </button>
     </div>
   </header>
+
+  <aside class="cart-panel" *ngIf="cartPanelOpen">
+    <div class="cart-panel-header">
+      <h2>Panier</h2>
+      <button type="button" class="icon-btn cart-close" (click)="cartPanelOpen = false" title="Fermer">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="cart-empty" *ngIf="cartLines.length === 0">
+      Aucun produit dans le panier.
+    </div>
+
+    <ul class="cart-lines" *ngIf="cartLines.length > 0">
+      <li *ngFor="let line of cartLines">
+        <div class="cart-line-info">
+          <div class="cart-line-name">{{ line.name }}</div>
+          <div class="cart-line-meta">
+            Qté {{ line.quantity }}
+            <span *ngIf="line.price != null"> · {{ formatCartLinePrice(line) }}</span>
+          </div>
+        </div>
+        <button type="button"
+                class="icon-btn cart-remove"
+                [disabled]="line.removing"
+                (click)="removeCartLine(line)"
+                title="Retirer du panier">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </li>
+    </ul>
+  </aside>
 
   <main class="assistant-messages">
     <div class="new-project-banner" *ngIf="showNewProjectPrompt">
@@ -49,9 +91,22 @@
                     <button type="button" (click)="incLineQty(p)">+</button>
                   </div>
                 </td>
-                <td>
-                  <button type="button" class="btn-add" [disabled]="isAddingProduct(p)" (click)="toggleCartLineFromList(p)">
-                    {{ isProductInCart(p) ? 'Retirer' : 'Ajouter' }}
+                <td class="cart-cell">
+                  <button type="button"
+                          class="cart-line-btn"
+                          [class.in-cart]="isProductInCart(p)"
+                          [disabled]="isAddingProduct(p)"
+                          (click)="toggleCartLineFromList(p)"
+                          [title]="isProductInCart(p) ? 'Retirer du panier' : 'Ajouter au panier'">
+                    <mat-icon>{{ isAddingProduct(p) ? 'hourglass_empty' : (isProductInCart(p) ? 'shopping_cart' : 'add_shopping_cart') }}</mat-icon>
+                  </button>
+                  <button type="button"
+                          class="cart-line-btn remove"
+                          *ngIf="isProductInCart(p)"
+                          [disabled]="isAddingProduct(p)"
+                          (click)="removeProductFromCart(p); $event.stopPropagation()"
+                          title="Supprimer du panier">
+                    <mat-icon>delete_outline</mat-icon>
                   </button>
                 </td>
               </tr>

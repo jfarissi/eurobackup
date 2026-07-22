@@ -36,6 +36,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
   showNewProjectPrompt = false;
+  cartPanelOpen = false;
   readonly productTablePageSize = 5;
 
   private routeSub?: Subscription;
@@ -167,25 +168,100 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     return p.lineCartState === 'adding';
   }
 
+  get cartItemCount(): number {
+    return this.cartLines.length;
+  }
+
+  get cartLines(): Array<{
+    productId: string;
+    name: string;
+    quantity: number;
+    price?: number | null;
+    removing?: boolean;
+  }> {
+    const map = new Map<string, {
+      productId: string;
+      name: string;
+      quantity: number;
+      price?: number | null;
+      removing?: boolean;
+    }>();
+
+    for (const msg of this.messages) {
+      for (const p of msg.productSuggestions ?? []) {
+        if (p.lineCartState !== 'added' && p.lineCartState !== 'adding') continue;
+        const existing = map.get(p.productId);
+        const qty = this.getLineQty(p);
+        if (!existing || qty >= existing.quantity) {
+          map.set(p.productId, {
+            productId: p.productId,
+            name: p.name,
+            quantity: qty,
+            price: p.price,
+            removing: p.lineCartState === 'adding'
+          });
+        }
+      }
+    }
+
+    return [...map.values()];
+  }
+
+  toggleCartPanel(): void {
+    this.cartPanelOpen = !this.cartPanelOpen;
+  }
+
+  formatCartLinePrice(line: { quantity: number; price?: number | null }): string {
+    if (line.price == null) return '';
+    const total = line.price * line.quantity;
+    return total.toLocaleString('fr-BE', { style: 'currency', currency: 'EUR' });
+  }
+
   toggleCartLineFromList(p: StoreChatProductSuggestion): void {
     if (this.isAddingProduct(p)) return;
-    const inCart = this.isProductInCart(p);
-    p.lineCartState = 'adding';
+    if (this.isProductInCart(p)) {
+      this.removeProductFromCart(p);
+      return;
+    }
+    this.setProductCartState(p.productId, 'adding');
     this.callApi({
-      text: inCart ? `Retirer ${p.name}` : `Ajouter ${p.name}`,
-      clientIntent: inCart ? 'RemoveFromCartFromList' : 'AddToCartFromList',
+      text: `Ajouter ${p.name}`,
+      clientIntent: 'AddToCartFromList',
       targetProductId: p.productId,
       targetQuantity: this.getLineQty(p)
     }, () => {
-      p.lineCartState = inCart ? 'idle' : 'added';
+      this.setProductCartState(p.productId, 'added');
+      this.cartPanelOpen = true;
     }, () => {
-      p.lineCartState = 'error';
+      this.setProductCartState(p.productId, 'error');
     });
   }
 
+  removeProductFromCart(p: StoreChatProductSuggestion): void {
+    if (this.isAddingProduct(p)) return;
+    this.setProductCartState(p.productId, 'adding');
+    this.callApi({
+      text: `Retirer ${p.name}`,
+      clientIntent: 'RemoveFromCartFromList',
+      targetProductId: p.productId
+    }, () => {
+      this.setProductCartState(p.productId, 'idle');
+    }, () => {
+      this.setProductCartState(p.productId, 'added');
+    });
+  }
+
+  removeCartLine(line: { productId: string; name: string }): void {
+    const stub: StoreChatProductSuggestion = {
+      productId: line.productId,
+      name: line.name,
+      lineCartState: 'added'
+    };
+    this.removeProductFromCart(stub);
+  }
+
   hasTableCartSelection(): boolean {
-    return this.messages.some(m =>
-      (m.productSuggestions ?? []).some(p => p.lineCartState === 'added'));
+    return this.cartItemCount > 0;
   }
 
   requestQuote(): void {
@@ -245,6 +321,19 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       }
     }
     return [...map.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  }
+
+  private setProductCartState(
+    productId: string,
+    state: StoreChatProductSuggestion['lineCartState']
+  ): void {
+    for (const msg of this.messages) {
+      for (const p of msg.productSuggestions ?? []) {
+        if (p.productId === productId) {
+          p.lineCartState = state;
+        }
+      }
+    }
   }
 
   private callApi(
