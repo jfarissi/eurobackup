@@ -24,7 +24,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         SemanticSearch,
         WallSchema,
         CartComplements,
-        ConfirmComplements
+        ConfirmComplements,
+        DirectComplement
     }
 
     public sealed class GuidedSalesSlots
@@ -36,6 +37,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public bool BudgetMentioned { get; set; }
         public bool SkillMentioned { get; set; }
         public string? Style { get; set; }
+        public string? DirectComplementHint { get; set; }
     }
 
     public interface ISalesGuidedIntentDetector
@@ -58,6 +60,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.ResumeProject;
             else if (IsConfirmComplements(lower, session))
                 slots.Intent = GuidedSalesIntent.ConfirmComplements;
+            else if (IsDirectComplementKeyword(lower, out var complementHint))
+            {
+                slots.Intent = GuidedSalesIntent.DirectComplement;
+                slots.DirectComplementHint = complementHint;
+            }
             else if (IsWallSchema(lower, session))
                 slots.Intent = GuidedSalesIntent.WallSchema;
             else if (IsPackRequest(lower))
@@ -197,12 +204,57 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool IsCartComplements(string lower) =>
             ContainsAny(lower,
-                "autres produits", "autre produit", "besoin d'autre", "besoin d autre",
+                "autres produits", "autre produit", "autres pour", "autre pour",
+                "besoin d'autre", "besoin d autre",
                 "aurai besoin", "aurais besoin", "ai besoin d'autre", "ai-je besoin",
                 "il me manque", "me manque", "manquera", "complément", "complement",
-                "pour mon panier", "pour le panier", "pour ces deux", "pour ce que j'ai",
+                "compléments utiles", "complements utiles",
+                "pour mon panier", "pour le panier", "pour mon projet", "pour le projet",
+                "pour ces deux", "pour ce que j'ai",
                 "que j'ai ajout", "que j ai ajout",
                 "quoi d'autre", "quoi d autre", "encore besoin", "produits en plus");
+
+        /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
+        private static bool IsDirectComplementKeyword(string lower, out string? hint)
+        {
+            hint = null;
+            var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();
+            // Libellé reco collé : « Gants — Protection lors du malaxage. »
+            var head = trimmed.Split(new[] { '—', '-', '–', ':' }, 2)[0].Trim();
+
+            if (ContainsAny(head, "handschoen", "gants", "gant ", "gloves", "werkhandschoen")
+                || head is "gant" or "gants")
+            {
+                hint = "gants";
+                return true;
+            }
+
+            if (ContainsAny(head, "treillis", "wapening", "bewapeningsnet", "mesh")
+                || head is "treillis")
+            {
+                hint = "treillis";
+                return true;
+            }
+
+            if (ContainsAny(head, "truelle", "troffel", "truweel", "waterpas")
+                || head is "truelle" or "troffel")
+            {
+                hint = "truelle";
+                return true;
+            }
+
+            if (ContainsAny(head, "auge", "mortelkuip", "seau", "emmer", "mengkuip")
+                || head is "auge" or "seau" or "emmer")
+            {
+                // « gauge » contient « auge » en sous-chaîne.
+                if (head.Contains("gauge", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                hint = "auge";
+                return true;
+            }
+
+            return false;
+        }
 
         private static bool IsCompare(string lower, GuidedSalesSlots slots)
         {

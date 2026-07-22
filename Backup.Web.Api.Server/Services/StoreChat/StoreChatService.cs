@@ -291,6 +291,31 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return FinishTextReply(session, text, confirmReply, "CART_COMPLEMENTS", complementHits, guided);
             }
 
+            if (guided.Intent == GuidedSalesIntent.DirectComplement
+                && !string.IsNullOrWhiteSpace(guided.DirectComplementHint))
+            {
+                var hint = guided.DirectComplementHint!;
+                var hits = await SearchComplementProductsAsync(session, new[] { hint }, ct);
+                if (hits.Count == 0)
+                {
+                    return FinishTextReply(
+                        session,
+                        text,
+                        $"Je n'ai pas trouvé de produit pour « {hint} ». Essayez un autre mot (ex. handschoen, truelle, auge).",
+                        "NONE",
+                        null,
+                        guided);
+                }
+
+                return FinishTextReply(
+                    session,
+                    text,
+                    $"Voici des références pour « {hint} » :",
+                    "CART_COMPLEMENTS",
+                    hits,
+                    guided);
+            }
+
             if (guided.Intent == GuidedSalesIntent.Hesitation)
             {
                 var hesitateReply = _confidence.BuildAdvisorReply(session);
@@ -751,14 +776,19 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             return results;
         }
 
-        /// <summary>Score &gt; 0 = accepté. Pénalise les faux positifs (Fuel Gauge, niveau hors outil…).</summary>
+        /// <summary>Score &gt; 0 = accepté. Pénalise les faux positifs (Gauge⊃auge, Fuel Gauge…).</summary>
         private static int ScoreComplementHit(string hay, string hint)
         {
             if (string.IsNullOrWhiteSpace(hay))
                 return 0;
 
             // Bruit hors chantier (faux positifs sémantiques / synonymes larges).
-            if (ContainsAnyLocal(hay, "fuel gauge", "flotteur", "remover", "bagues du"))
+            if (ContainsAnyLocal(hay, "fuel gauge", "flotteur", "remover", "bagues du", "blow gun", "gonflage"))
+                return 0;
+
+            // « gauge » contient la sous-chaîne « auge » → faux positif classique.
+            if (hay.Contains("gauge", StringComparison.OrdinalIgnoreCase)
+                && hint.Trim().Equals("auge", StringComparison.OrdinalIgnoreCase))
                 return 0;
 
             return hint.Trim().ToLowerInvariant() switch
@@ -769,14 +799,30 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 "treillis" => ScoreAny(hay,
                     ("bewapeningsnet", 100), ("wapeningsnet", 100), ("wapeningsgaas", 100),
                     ("treillis", 90), ("wapening", 80), ("mesh", 60)),
-                "auge" or "seau" => ScoreAny(hay,
-                    ("mortelkuip", 100), ("speciekuip", 100), ("mengkuip", 100),
-                    ("auge", 90), ("emmer", 80), ("seau", 80), ("kuip", 70)),
+                "auge" or "seau" => ScoreAuge(hay),
                 "gants" => ScoreGloves(hay),
                 "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase) ? 50 : 0
             };
         }
+
+        private static int ScoreAuge(string hay)
+        {
+            var score = ScoreAny(hay,
+                ("mortelkuip", 100), ("speciekuip", 100), ("mengkuip", 100),
+                ("emmer", 80), ("seau", 80));
+
+            // « auge » / « kuip » : mot entier uniquement (évite gauge ⊃ auge).
+            if (HasWord(hay, "auge"))
+                score = Math.Max(score, 90);
+            if (HasWord(hay, "kuip") || hay.Contains("kuip", StringComparison.OrdinalIgnoreCase))
+                score = Math.Max(score, 70);
+
+            return score;
+        }
+
+        private static bool HasWord(string hay, string word) =>
+            Regex.IsMatch(hay, $@"\b{Regex.Escape(word)}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private static int ScoreGloves(string hay)
         {
