@@ -79,14 +79,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var session = _sessions.GetOrCreate(request.SessionId);
             var intent = (request.ClientIntent ?? string.Empty).Trim();
 
-            if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase))
+            if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase)
+                || IsNewProjectText(request.Text))
             {
-                var keepSessionId = session.SessionId;
-                _sessions.Reset(keepSessionId);
-                session = _sessions.GetOrCreate(keepSessionId);
-                session.ActiveSalesProjectId = null;
-                _sessions.Save(session);
-                return Ok(session, "Nouveau projet démarré. Comment puis-je vous aider ?", "NONE");
+                return await ResetToNewProjectAsync(session, ct);
             }
 
             if (intent.Equals("AddToCartFromList", StringComparison.OrdinalIgnoreCase))
@@ -542,6 +538,33 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             };
         }
 
+        private async Task<StoreChatResponseDto> ResetToNewProjectAsync(
+            StoreChatSession session,
+            CancellationToken ct)
+        {
+            var keepSessionId = session.SessionId;
+            _sessions.Reset(keepSessionId);
+            session = _sessions.GetOrCreate(keepSessionId);
+            session.ActiveSalesProjectId = null;
+            session.LastSuggestedProducts.Clear();
+            _sessions.Save(session);
+            await Task.CompletedTask;
+            return Ok(session, "Nouveau projet démarré. Comment puis-je vous aider ?", "NONE");
+        }
+
+        private static bool IsNewProjectText(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            var lower = text.Trim().ToLowerInvariant();
+            if (lower is "nouveau projet" or "new project" or "nieuw project" or "reset" or "recommencer")
+                return true;
+
+            return Regex.IsMatch(lower, @"^(bonjour[,!]?\s+)?(je\s+(veux|voudrais)\s+)?(démarrer|demarrer|commencer|lancer)?\s*(un\s+)?nouveau\s+projet\b")
+                   || Regex.IsMatch(lower, @"\b(start|new)\s+project\b");
+        }
+
         private async Task AddToCartAsync(StoreChatSession session, string? productId, decimal qty, CancellationToken ct)
         {
             if (!int.TryParse(productId, out var id) || qty <= 0)
@@ -607,7 +630,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             "longueur", "large", "largeur", "de", "d", "l", "à", "a", "au", "aux", "construire", "mur",
             "produit", "produits", "marque", "ont", "avoir", "avez", "suis", "cherche", "rechercher",
             "voudrais", "souhaite", "souhaitez", "donne", "donner", "liste", "voir", "montre", "montrer",
-            "est-ce", "quelque", "chose", "choses", "s'il", "svp", "merci", "bonjour", "salut"
+            "est-ce", "quelque", "chose", "choses", "s'il", "svp", "merci", "bonjour", "salut",
+            "nouveau", "nouvelle", "nouveaux", "nouvelles", "new", "nieuw", "nieuwe", "démarré", "demarre",
+            "démarrer", "demarrer", "commencer", "start"
         };
 
         private static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)

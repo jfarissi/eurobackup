@@ -42,8 +42,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             CancellationToken ct = default)
         {
             var intent = (request.ClientIntent ?? string.Empty).Trim();
-            if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(request.SessionId))
+            var isNewProject = intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase)
+                || IsNewProjectPhrase(request.Text);
+
+            if (isNewProject && !string.IsNullOrWhiteSpace(request.SessionId))
             {
                 var existing = _sessions.Get(request.SessionId!);
                 if (existing != null)
@@ -56,7 +58,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (session == null)
                 return response;
 
-            if (intent.Equals("NewProject", StringComparison.OrdinalIgnoreCase))
+            if (isNewProject)
                 return response;
 
             // Commerce intents : pas de sync projet obligatoire
@@ -128,6 +130,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 filter?.Outcome.ToString(),
                 string.Join(',', productIds),
                 response.SalesProjectId);
+        }
+
+        private static bool IsNewProjectPhrase(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+            var lower = text.Trim().ToLowerInvariant();
+            return lower is "nouveau projet" or "new project" or "nieuw project" or "reset" or "recommencer"
+                   || lower.Contains("nouveau projet", StringComparison.Ordinal);
         }
     }
 }
