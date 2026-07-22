@@ -12,6 +12,10 @@
         <mat-icon>handyman</mat-icon>
         Projet : {{ activeProjectDomainLabel }}
       </span>
+      <span class="domain-chip" *ngIf="salesProjectId" [title]="salesProjectId">
+        <mat-icon>tag</mat-icon>
+        #{{ salesProjectIdShort }}
+      </span>
       <span class="domain-chip" *ngIf="skillLevel">
         <mat-icon>school</mat-icon>
         {{ skillLevel }}
@@ -180,6 +184,10 @@
       placeholder="Ex. peinture blanche 10L, ampoule LED, perceuse…"
       [disabled]="isTyping"></textarea>
     <div class="input-actions">
+      <input #photoInput type="file" accept="image/*" hidden (change)="onPhotoSelected($event)" />
+      <button type="button" class="icon-btn" (click)="photoInput.click()" [disabled]="isTyping" title="Joindre une photo">
+        <mat-icon>photo_camera</mat-icon>
+      </button>
       <button type="button" class="icon-btn" (click)="toggleMic()" [class.active]="isRecording" [disabled]="isTyping">
         <mat-icon>{{ isRecording ? 'stop' : 'mic' }}</mat-icon>
       </button>

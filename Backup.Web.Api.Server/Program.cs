@@ -86,6 +86,14 @@ builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesP
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesRecommendationEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesRecommendationEngine>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCompareEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesCompareEngine>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesJustificationService, Backup.Web.Api.Server.Services.SalesAssistant.SalesJustificationService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesConfidenceEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesConfidenceEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesPromoService, Backup.Web.Api.Server.Services.SalesAssistant.SalesPromoService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesLogisticsEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesLogisticsEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesPlanningEngine, Backup.Web.Api.Server.Services.SalesAssistant.SalesPlanningEngine>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesProjectResumeService, Backup.Web.Api.Server.Services.SalesAssistant.SalesProjectResumeService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesPhotoClassifier, Backup.Web.Api.Server.Services.SalesAssistant.SalesPhotoClassifier>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesWallSchemaParser, Backup.Web.Api.Server.Services.SalesAssistant.SalesWallSchemaParser>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesSemanticSearch, Backup.Web.Api.Server.Services.SalesAssistant.SalesBagOfWordsSearch>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesAssistantFacade, Backup.Web.Api.Server.Services.SalesAssistant.SalesAssistantFacade>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>
 {

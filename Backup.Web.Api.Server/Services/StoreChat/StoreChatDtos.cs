@@ -14,6 +14,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? TargetProductId { get; set; }
         public decimal? TargetQuantity { get; set; }
         public List<StoreChatTableCartLineDto>? TableCartLines { get; set; }
+        /// <summary>Photo optionnelle (base64) — P4.</summary>
+        public string? ImageBase64 { get; set; }
+        public string? ImageFileName { get; set; }
+        public string? ImageCaption { get; set; }
     }
 
     public class StoreChatTableCartLineDto
@@ -72,6 +76,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public SalesAssistant.SalesPackDto? Pack { get; set; }
         public List<SalesAssistant.SalesCompareRowDto>? CompareRows { get; set; }
         public List<SalesAssistant.SalesRecommendationDto>? Recommendations { get; set; }
+        public List<SalesAssistant.SalesPromoLineDto>? Promos { get; set; }
+        public SalesAssistant.SalesSavingsDto? Savings { get; set; }
+        public SalesAssistant.SalesLogisticsDto? Logistics { get; set; }
         public List<StoreChatProductSuggestionDto>? Products { get; set; }
         public StoreChatQuotePdfDto? QuotePdf { get; set; }
         public StoreChatPaymentLinkDto? PaymentLink { get; set; }

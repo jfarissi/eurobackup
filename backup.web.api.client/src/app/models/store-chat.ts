@@ -26,6 +26,9 @@ export interface StoreChatMessageRequest {
   targetProductId?: string;
   targetQuantity?: number;
   tableCartLines?: StoreChatTableCartLine[];
+  imageBase64?: string;
+  imageFileName?: string;
+  imageCaption?: string;
 }
 
 export interface StoreChatQuotePdf {

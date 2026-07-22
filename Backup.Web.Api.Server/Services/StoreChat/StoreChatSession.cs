@@ -15,6 +15,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         /// <summary>Beginner | Diy | Pro</summary>
         public string? SkillLevel { get; set; }
         public decimal? BudgetMax { get; set; }
+        public string? PreferredStyle { get; set; }
+        public string? CustomerId { get; set; }
+        public string? ProjectTypeHint { get; set; }
+        public bool AdvisorMode { get; set; }
         /// <summary>Dernière liste produits (compare / why).</summary>
         public List<StoreChatProductSuggestionDto> LastSuggestedProducts { get; set; } = new();
         /// <summary>Mots-clés matériaux accumulés sur le projet (brique, mortier…).</summary>

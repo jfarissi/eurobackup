@@ -134,6 +134,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             project.PreferredWeightKg = session.PreferredWeightKg;
             project.SkillLevel = session.SkillLevel;
             project.BudgetMax = session.BudgetMax;
+            project.Style = session.PreferredStyle;
+            project.CustomerId = session.CustomerId;
             project.PreferredCategoriesJson = session.SearchTypeHints.Count > 0
                 ? JsonSerializer.Serialize(session.SearchTypeHints, JsonOptions)
                 : null;

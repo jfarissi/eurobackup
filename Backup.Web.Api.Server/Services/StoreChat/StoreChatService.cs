@@ -40,6 +40,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private readonly ISalesRecommendationEngine _recommendations;
         private readonly ISalesCompareEngine _compareEngine;
         private readonly ISalesJustificationService _justification;
+        private readonly ISalesConfidenceEngine _confidence;
+        private readonly ISalesPromoService _promos;
+        private readonly ISalesLogisticsEngine _logistics;
+        private readonly ISalesPlanningEngine _planning;
+        private readonly ISalesProjectResumeService _resume;
+        private readonly ISalesPhotoClassifier _photoClassifier;
+        private readonly ISalesWallSchemaParser _wallSchema;
+        private readonly ISalesSemanticSearch _semanticSearch;
         private readonly StoreChatOptions _options;
         private readonly ErpSyncOptions _erpOptions;
         private readonly ILogger<StoreChatService> _logger;
@@ -55,6 +63,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             ISalesRecommendationEngine recommendations,
             ISalesCompareEngine compareEngine,
             ISalesJustificationService justification,
+            ISalesConfidenceEngine confidence,
+            ISalesPromoService promos,
+            ISalesLogisticsEngine logistics,
+            ISalesPlanningEngine planning,
+            ISalesProjectResumeService resume,
+            ISalesPhotoClassifier photoClassifier,
+            ISalesWallSchemaParser wallSchema,
+            ISalesSemanticSearch semanticSearch,
             IOptions<StoreChatOptions> options,
             IOptions<ErpSyncOptions> erpOptions,
             ILogger<StoreChatService> logger)
@@ -69,6 +85,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             _recommendations = recommendations;
             _compareEngine = compareEngine;
             _justification = justification;
+            _confidence = confidence;
+            _promos = promos;
+            _logistics = logistics;
+            _planning = planning;
+            _resume = resume;
+            _photoClassifier = photoClassifier;
+            _wallSchema = wallSchema;
+            _semanticSearch = semanticSearch;
             _options = options.Value ?? new StoreChatOptions();
             _erpOptions = erpOptions.Value ?? new ErpSyncOptions();
             _logger = logger;
@@ -112,10 +136,49 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             }
 
             var text = (request.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(request.ImageCaption) && string.IsNullOrWhiteSpace(request.ImageBase64))
+                return Ok(session, "Message vide.", "NONE");
+
+            // P4 photo
+            if (!string.IsNullOrWhiteSpace(request.ImageBase64) || !string.IsNullOrWhiteSpace(request.ImageCaption))
+            {
+                var photo = _photoClassifier.Classify(request.ImageCaption ?? text, request.ImageFileName);
+                if (!string.IsNullOrWhiteSpace(photo.DomainId))
+                {
+                    session.ActiveProjectDomainId = photo.DomainId;
+                    session.ActiveProjectDomainLabel = photo.DomainLabel;
+                    session.ProjectTypeHint = photo.ProjectHint;
+                }
+
+                var photoReply = photo.Summary;
+                if (!string.IsNullOrWhiteSpace(text) && text.Length > 3)
+                    photoReply += "\n\n" + "Légende prise en compte : " + text;
+
+                return FinishTextReply(session, text.Length > 0 ? text : "(photo)", photoReply, "PHOTO", null,
+                    new GuidedSalesSlots { Intent = GuidedSalesIntent.None });
+            }
+
             if (string.IsNullOrWhiteSpace(text))
                 return Ok(session, "Message vide.", "NONE");
 
             var guided = _guidedIntent.Detect(text, session);
+            _confidence.DetectStyle(text, session);
+
+            if (guided.Intent == GuidedSalesIntent.ResumeProject)
+            {
+                var (ok, resumeReply, project) = await _resume.TryResumeAsync(text, session, ct);
+                if (ok)
+                {
+                    var res = FinishTextReply(session, text, resumeReply, "RESUME_PROJECT", null, guided);
+                    if (project != null)
+                    {
+                        res.SalesProjectId = project.Id;
+                        res.SalesProjectTitle = project.Title;
+                    }
+
+                    return res;
+                }
+            }
 
             var previousBrand = session.PreferredBrand;
             await DetectBrandAsync(session, text, ct);
@@ -143,11 +206,76 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             if (guided.Intent == GuidedSalesIntent.Hesitation)
             {
-                var hesitateReply = string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase)
-                    ? "Pas de souci. Objectif chantier ou devis rapide ? Intérieur / extérieur ?"
-                    : "Pas de souci — on avance pas à pas. Votre projet est plutôt intérieur ou extérieur ?";
-                hesitateReply = SalesSkillTone.AdaptReply(hesitateReply, session);
-                return FinishTextReply(session, text, hesitateReply, "NONE", null, guided);
+                var hesitateReply = _confidence.BuildAdvisorReply(session);
+                return FinishTextReply(session, text, hesitateReply, "ADVISOR", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Style)
+            {
+                var styleReply = _confidence.StyleAdvice(session) ?? "Style enregistré.";
+                return FinishTextReply(session, text, styleReply, "STYLE", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.WallSchema
+                && _wallSchema.TryParse(text, session, out var schema))
+            {
+                return FinishTextReply(session, text, schema.Summary, "WALL_SCHEMA", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Tips)
+            {
+                var tips = _confidence.BuildTips(session, session.LastSuggestedProducts);
+                return FinishTextReply(session, text, tips, "TIPS", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Savings)
+            {
+                var savings = _confidence.BuildSavings(session.LastSuggestedProducts);
+                var savingsReply = savings?.Summary
+                    ?? "Affichez d'abord 2 produits (recherche ou compare), puis redemandez l'économie A vs B.";
+                var savingsResponse = FinishTextReply(session, text, savingsReply, "SAVINGS", null, guided);
+                savingsResponse.Savings = savings;
+                return savingsResponse;
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Promos)
+            {
+                var promoLines = await _promos.GetPromosForCartAsync(session.Cart, ct);
+                var promoReply = promoLines.Count == 0
+                    ? (session.Cart.Count == 0
+                        ? "Panier vide — ajoutez des produits pour voir les promos liées au panier."
+                        : "Aucune promo active sur les lignes actuelles du panier.")
+                    : "Promos liées à votre panier :\n"
+                      + string.Join("\n", promoLines.Select(p =>
+                          $"• {p.Name} : {p.PromoPrice:N2} €"
+                          + (p.Savings.HasValue && p.Savings.Value > 0 ? $" (−{p.Savings:N2} €)" : "")));
+                var promoResponse = FinishTextReply(session, text, promoReply, "PROMOS", null, guided);
+                promoResponse.Promos = promoLines;
+                return promoResponse;
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Logistics)
+            {
+                var log = _logistics.Evaluate(session);
+                var logResponse = FinishTextReply(session, text, log.Summary, "LOGISTICS", null, guided);
+                logResponse.Logistics = log;
+                return logResponse;
+            }
+
+            if (guided.Intent == GuidedSalesIntent.Planning)
+            {
+                var plan = _planning.BuildPlan(session);
+                return FinishTextReply(session, text, plan, "PLANNING", null, guided);
+            }
+
+            if (guided.Intent == GuidedSalesIntent.SemanticSearch)
+            {
+                var semantic = await _semanticSearch.SearchAsync(text, 5, ct);
+                var semReply = semantic.Count == 0
+                    ? "Aucun produit proche trouvé (recherche sémantique légère)."
+                    : "Produits proches (similarité libellés) :";
+                var semResponse = FinishTextReply(session, text, semReply, "SEMANTIC", semantic, guided);
+                return semResponse;
             }
 
             if (guided.Intent == GuidedSalesIntent.WhyProduct)
@@ -249,6 +377,16 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 reply = reply.TrimEnd() + $"\n\nBudget enregistré : {session.BudgetMax:N2} € (filtre prix unitaire).";
             if (guided.SkillMentioned && !string.IsNullOrWhiteSpace(session.SkillLevel))
                 reply = reply.TrimEnd() + $"\n\nProfil : {session.SkillLevel}.";
+
+            var styleAdvice = _confidence.StyleAdvice(session);
+            if (!string.IsNullOrWhiteSpace(styleAdvice) && guided.Intent == GuidedSalesIntent.Style)
+                reply = reply.TrimEnd() + "\n\n" + styleAdvice;
+            else if (!string.IsNullOrWhiteSpace(session.PreferredStyle)
+                     && products.Count > 0
+                     && (session.ActiveProjectDomainId is "tiling" or "painting"))
+            {
+                reply = reply.TrimEnd() + "\n\n" + styleAdvice;
+            }
 
             var recos = _recommendations.SuggestComplements(session, products);
             if (recos.Count > 0 && products.Count > 0
@@ -461,20 +599,29 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 TotalAmount = pdf.Total ?? 0,
                 PdfBase64 = pdf.PdfBase64,
                 FileName = pdf.FileName,
-                LinesJson = JsonSerializer.Serialize(session.Cart, JsonOptions)
+                LinesJson = JsonSerializer.Serialize(session.Cart, JsonOptions),
+                SalesProjectId = session.ActiveSalesProjectId
             };
             await _storage.InsertStoreChatQuoteAsync(quote);
             _sessions.Save(session);
 
+            var logistics = _logistics.Evaluate(session);
+            var quoteReply = $"Devis prêt ({pdf.Total:N2} €). Vous pouvez le télécharger.";
+            if (session.ActiveSalesProjectId is Guid pid)
+                quoteReply += $"\nRattaché au projet {pid:D}.";
+            quoteReply += "\n" + logistics.Summary;
+
             return new StoreChatResponseDto
             {
                 SessionId = session.SessionId,
-                ReplyText = $"Devis prêt ({pdf.Total:N2} €). Vous pouvez le télécharger.",
+                ReplyText = quoteReply,
                 HasAction = true,
                 ActionType = "QUOTE_PDF",
                 QuotePdf = pdf,
                 ActiveProjectDomainId = session.ActiveProjectDomainId,
-                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel
+                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                SalesProjectId = session.ActiveSalesProjectId,
+                Logistics = logistics
             };
         }
 
@@ -488,7 +635,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 SessionId = session.SessionId,
                 Status = "pending",
                 TotalAmount = session.Cart.Sum(c => c.TotalPrice),
-                LinesJson = JsonSerializer.Serialize(session.Cart, JsonOptions)
+                LinesJson = JsonSerializer.Serialize(session.Cart, JsonOptions),
+                SalesProjectId = session.ActiveSalesProjectId
             };
             await _storage.InsertStoreChatOrderAsync(order);
             session.LastOrderId = order.Id;

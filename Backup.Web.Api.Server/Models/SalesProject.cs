@@ -19,6 +19,9 @@ namespace Backup.Web.Api.Server.Models
         public string? PreferredCategoriesJson { get; set; }
         public decimal? PreferredWeightKg { get; set; }
         public string? SkillLevel { get; set; }
+        public string? Style { get; set; }
+        public string? CustomerId { get; set; }
+        public string? PlanningText { get; set; }
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

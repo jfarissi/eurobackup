@@ -22,17 +22,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
     {
         private readonly IStoreChatService _storeChat;
         private readonly ISalesProjectService _projects;
+        private readonly ISalesProjectResumeService _resume;
         private readonly IStoreChatSessionStore _sessions;
         private readonly ILogger<SalesAssistantFacade> _logger;
 
         public SalesAssistantFacade(
             IStoreChatService storeChat,
             ISalesProjectService projects,
+            ISalesProjectResumeService resume,
             IStoreChatSessionStore sessions,
             ILogger<SalesAssistantFacade> logger)
         {
             _storeChat = storeChat;
             _projects = projects;
+            _resume = resume;
             _sessions = sessions;
             _logger = logger;
         }
@@ -61,7 +64,6 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (isNewProject)
                 return response;
 
-            // Commerce intents : pas de sync projet obligatoire
             if (IsCommerceIntent(intent))
             {
                 AttachProjectFields(response, session);
@@ -69,6 +71,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }
 
             var project = await _projects.SyncFromSessionAsync(session, ct);
+            if (!string.IsNullOrWhiteSpace(session.CustomerId))
+                await _resume.UpsertCustomerProfileAsync(session, ct);
+
             _sessions.Save(session);
 
             response.SalesProjectId = project?.Id ?? session.ActiveSalesProjectId;

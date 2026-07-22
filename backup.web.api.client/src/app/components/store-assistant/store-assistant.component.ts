@@ -36,9 +36,14 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
   salesProjectTitle: string | null = null;
+  salesProjectId: string | null = null;
   skillLevel: string | null = null;
   budgetMax: number | null = null;
   showNewProjectPrompt = false;
+
+  get salesProjectIdShort(): string {
+    return this.salesProjectId ? this.salesProjectId.slice(0, 8) : '';
+  }
   cartPanelOpen = false;
   readonly productTablePageSize = 3;
 
@@ -78,6 +83,30 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     this.newMessage = '';
     this.pushUser(text);
     this.callApi({ text, interactionType: 'text' });
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || this.isTyping) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      const caption = this.newMessage.trim() || file.name;
+      this.newMessage = '';
+      this.pushUser(`📷 ${caption}`);
+      this.callApi({
+        text: caption,
+        imageBase64: base64,
+        imageFileName: file.name,
+        imageCaption: caption,
+        interactionType: 'text'
+      });
+      input.value = '';
+    };
+    reader.readAsDataURL(file);
   }
 
   onKeydown(event: KeyboardEvent): void {
@@ -325,6 +354,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }];
     this.activeProjectDomainLabel = null;
     this.salesProjectTitle = null;
+    this.salesProjectId = null;
     this.skillLevel = null;
     this.budgetMax = null;
     this.callApi({ text: 'Nouveau projet', clientIntent: 'NewProject' });
@@ -363,6 +393,9 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       targetQuantity?: number;
       tableCartLines?: { productId: string; quantity: number }[];
       interactionType?: 'text' | 'voice';
+      imageBase64?: string;
+      imageFileName?: string;
+      imageCaption?: string;
     },
     onOk?: () => void,
     onErr?: () => void,
@@ -400,6 +433,10 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       this.activeProjectDomainLabel = res.salesProjectTitle;
     } else if (res.activeProjectDomainLabel) {
       this.activeProjectDomainLabel = res.activeProjectDomainLabel;
+    }
+
+    if (res.salesProjectId) {
+      this.salesProjectId = res.salesProjectId;
     }
 
     if (res.skillLevel) {

@@ -207,6 +207,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasKey(q => q.Id);
                 entity.HasIndex(q => q.SessionId);
                 entity.HasIndex(q => q.CreatedAt);
+                entity.HasIndex(q => q.SalesProjectId);
                 entity.Property(q => q.SessionId).IsRequired().HasMaxLength(64);
                 entity.Property(q => q.Number).IsRequired().HasMaxLength(64);
                 entity.Property(q => q.TotalAmount).HasPrecision(18, 4);
@@ -222,6 +223,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasIndex(o => o.SessionId);
                 entity.HasIndex(o => o.Status);
                 entity.HasIndex(o => o.CreatedAt);
+                entity.HasIndex(o => o.SalesProjectId);
                 entity.Property(o => o.SessionId).IsRequired().HasMaxLength(64);
                 entity.Property(o => o.Status).IsRequired().HasMaxLength(32);
                 entity.Property(o => o.StripeSessionId).HasMaxLength(128);
@@ -250,6 +252,9 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(p => p.PreferredCategoriesJson).HasMaxLength(1024);
                 entity.Property(p => p.PreferredWeightKg).HasPrecision(18, 4);
                 entity.Property(p => p.SkillLevel).HasMaxLength(32);
+                entity.Property(p => p.Style).HasMaxLength(64);
+                entity.Property(p => p.CustomerId).HasMaxLength(64);
+                entity.Property(p => p.PlanningText).HasMaxLength(4000);
                 entity.Property(p => p.Notes).HasMaxLength(2000);
             });
 
@@ -265,6 +270,17 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                     .WithMany(p => p.ChecklistItems)
                     .HasForeignKey(i => i.SalesProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SalesCustomerProfile>(entity =>
+            {
+                entity.ToTable("SalesCustomerProfiles");
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.CustomerId).IsUnique();
+                entity.Property(p => p.CustomerId).IsRequired().HasMaxLength(64);
+                entity.Property(p => p.PreferredBrandsJson).HasMaxLength(1024);
+                entity.Property(p => p.AverageBudget).HasPrecision(18, 4);
+                entity.Property(p => p.Notes).HasMaxLength(2000);
             });
         }
 

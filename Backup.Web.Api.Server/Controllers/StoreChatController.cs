@@ -29,8 +29,10 @@ namespace Backup.Web.Api.Server.Controllers
                 return BadRequest(new { message = "Message requis" });
 
             var hasIntent = !string.IsNullOrWhiteSpace(request.ClientIntent);
-            if (string.IsNullOrWhiteSpace(request.Text) && !hasIntent)
-                return BadRequest(new { message = "Message ou intent requis" });
+            var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64)
+                           || !string.IsNullOrWhiteSpace(request.ImageCaption);
+            if (string.IsNullOrWhiteSpace(request.Text) && !hasIntent && !hasImage)
+                return BadRequest(new { message = "Message, intent ou photo requis" });
 
             if (string.IsNullOrWhiteSpace(request.SessionId)
                 && Request.Headers.TryGetValue("X-Store-Chat-Session", out var headerSession))

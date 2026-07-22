@@ -12,6 +12,7 @@ namespace Backup.Web.Api.Server.Models
         public string? PdfBase64 { get; set; }
         public string? FileName { get; set; }
         public string LinesJson { get; set; } = "[]";
+        public Guid? SalesProjectId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -26,6 +27,7 @@ namespace Backup.Web.Api.Server.Models
         public string? InvoicePdfBase64 { get; set; }
         public string? InvoiceFileName { get; set; }
         public string LinesJson { get; set; } = "[]";
+        public Guid? SalesProjectId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? PaidAt { get; set; }
     }
