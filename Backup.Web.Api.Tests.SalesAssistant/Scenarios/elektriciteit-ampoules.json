@@ -1,0 +1,20 @@
+{
+  "id": "elektriciteit-ampoules",
+  "title": "Elektriciteit — ampoules jardin (pas sticky mur / Ytong)",
+  "mainType": "Elektriciteit",
+  "mainTypeId": "1",
+  "domainId": "electrical",
+  "expectedCategoryHints": ["lamp", "LED", "ampoule", "Elektriciteit"],
+  "forbiddenProductHints": ["ytong", "porotherm", "cement", "lijmblok"],
+  "notes": "Régression sticky wall → ampoules.",
+  "turns": [
+    {
+      "user": "je cherche des ampoules pour mon jardin",
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["lamp", "LED", "ampoule", "E27", "E14", "Lampen"],
+        "productMustNotMatch": ["ytong", "porotherm", "cement", "snelbouw"]
+      }
+    }
+  ]
+}

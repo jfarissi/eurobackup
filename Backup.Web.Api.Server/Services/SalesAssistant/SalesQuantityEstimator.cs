@@ -13,6 +13,29 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             List<StoreChatProductSuggestionDto> products,
             StoreChatSession session)
         {
+            if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                && session.PaintAreaM2 is > 0)
+            {
+                var litersNeeded = Math.Max(1, Math.Ceiling(session.PaintAreaM2.Value / 5m));
+                foreach (var product in products)
+                {
+                    var hay = (product.Name ?? string.Empty).ToLowerInvariant();
+                    if (ContainsAny(hay, "kwast", "pinceau", "roller", "ruban", "tape", "masking"))
+                    {
+                        product.SuggestedQuantity = 1;
+                        continue;
+                    }
+
+                    var packL = TryParsePaintLiters(hay);
+                    if (packL is > 0)
+                        product.SuggestedQuantity = Math.Max(1, Math.Ceiling(litersNeeded / packL.Value));
+                    else if (product.SuggestedQuantity is null or <= 0)
+                        product.SuggestedQuantity = 1;
+                }
+
+                return;
+            }
+
             // Quantités mur uniquement en projet construction — sinon qté = 1.
             if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase)
                 || session.WallAreaM2 is null or <= 0)
@@ -65,6 +88,23 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var hay = $"{name} {name2}".ToLowerInvariant();
             var bagKg = TryParseBagKg(hay) ?? SalesWallEstimates.DefaultBagKg;
             return Math.Max(1, Math.Ceiling(area * SalesWallEstimates.MortarKgPerM2 / bagKg));
+        }
+
+        private static decimal? TryParsePaintLiters(string hay)
+        {
+            var liters = Regex.Match(hay, @"(\d+(?:[.,]\d+)?)\s*l\b");
+            if (liters.Success
+                && decimal.TryParse(liters.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var l)
+                && l > 0 && l <= 40)
+                return l;
+
+            var ml = Regex.Match(hay, @"(\d+(?:[.,]\d+)?)\s*ml\b");
+            if (ml.Success
+                && decimal.TryParse(ml.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var milli)
+                && milli > 0)
+                return milli / 1000m;
+
+            return null;
         }
 
         private static decimal? TryParseBagKg(string hay)

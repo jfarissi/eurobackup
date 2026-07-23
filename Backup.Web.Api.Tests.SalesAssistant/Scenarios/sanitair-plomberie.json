@@ -1,0 +1,18 @@
+{
+  "id": "sanitair-plomberie",
+  "title": "Sanitair — plomberie / siphon",
+  "mainType": "Sanitair",
+  "mainTypeId": "3",
+  "domainId": "plumbing",
+  "expectedCategoryHints": ["Sanitair", "siphon", "PVC", "afvoer"],
+  "forbiddenProductHints": ["muurverf", "snelbouw"],
+  "turns": [
+    {
+      "user": "il me faut un siphon pour mon lavabo",
+      "expect": {
+        "domainId": "plumbing",
+        "categoryMustMatchAny": ["siphon", "Sanitair", "afvoer", "sifon"]
+      }
+    }
+  ]
+}

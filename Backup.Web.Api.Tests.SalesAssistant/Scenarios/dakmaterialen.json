@@ -1,0 +1,16 @@
+{
+  "id": "dakmaterialen",
+  "title": "Dakmaterialen — toiture",
+  "mainType": "Dakmaterialen",
+  "mainTypeId": "45",
+  "expectedCategoryHints": ["Dak", "dakpan", "toiture", "gouttière"],
+  "forbiddenProductHints": ["muurverf", "ampoule"],
+  "turns": [
+    {
+      "user": "il me faut des matériaux pour réparer mon toit",
+      "expect": {
+        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot"]
+      }
+    }
+  ]
+}

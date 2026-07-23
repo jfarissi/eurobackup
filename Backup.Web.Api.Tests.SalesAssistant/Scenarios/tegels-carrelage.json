@@ -1,0 +1,18 @@
+{
+  "id": "tegels-carrelage",
+  "title": "Tegels — carrelage sol / mur",
+  "mainType": "Tegels",
+  "mainTypeId": "21",
+  "domainId": "tiling",
+  "expectedCategoryHints": ["Tegels", "tegel", "carrelage"],
+  "forbiddenProductHints": ["hammerite", "porotherm"],
+  "turns": [
+    {
+      "user": "je veux du carrelage pour ma salle de bain",
+      "expect": {
+        "domainId": "tiling",
+        "categoryMustMatchAny": ["Tegel", "carrel", "Tegels"]
+      }
+    }
+  ]
+}

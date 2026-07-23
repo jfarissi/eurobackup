@@ -1,0 +1,16 @@
+{
+  "id": "radiatoren",
+  "title": "Radiatoren — radiateurs",
+  "mainType": "Radiatoren",
+  "mainTypeId": "8",
+  "expectedCategoryHints": ["Radiator", "Radiatoren"],
+  "forbiddenProductHints": ["cement", "tegel"],
+  "turns": [
+    {
+      "user": "il me faut un radiateur pour le salon",
+      "expect": {
+        "categoryMustMatchAny": ["radiator", "Radiatoren"]
+      }
+    }
+  ]
+}

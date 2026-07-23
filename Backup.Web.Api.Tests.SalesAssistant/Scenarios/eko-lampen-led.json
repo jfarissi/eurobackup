@@ -1,0 +1,18 @@
+{
+  "id": "eko-lampen-led",
+  "title": "EKO Lampen — éclairage LED",
+  "mainType": "EKO Lampen",
+  "mainTypeId": "50",
+  "domainId": "electrical",
+  "expectedCategoryHints": ["Lampen", "LED", "EKO"],
+  "forbiddenProductHints": ["cement", "tegel"],
+  "turns": [
+    {
+      "user": "je veux des lampes LED E27 pour la maison",
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["LED", "lamp", "E27", "Lampen"]
+      }
+    }
+  ]
+}

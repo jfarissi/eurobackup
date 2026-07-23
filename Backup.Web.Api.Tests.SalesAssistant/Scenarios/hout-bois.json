@@ -1,0 +1,16 @@
+{
+  "id": "hout-bois",
+  "title": "Hout — bois / planches",
+  "mainType": "Hout",
+  "mainTypeId": "24",
+  "expectedCategoryHints": ["Hout", "plank", "bois"],
+  "forbiddenProductHints": ["hammerite"],
+  "turns": [
+    {
+      "user": "je cherche des planches de bois pour une étagère",
+      "expect": {
+        "categoryMustMatchAny": ["Hout", "plank", "bois", "lat"]
+      }
+    }
+  ]
+}

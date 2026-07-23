@@ -1,0 +1,16 @@
+{
+  "id": "kleding-epi",
+  "title": "Kleding — EPI / gants chantier",
+  "mainType": "Kleding",
+  "mainTypeId": "61",
+  "expectedCategoryHints": ["Kleding", "handschoen", "gants"],
+  "forbiddenProductHints": ["porotherm"],
+  "turns": [
+    {
+      "user": "il me faut des gants de travail pour le chantier",
+      "expect": {
+        "categoryMustMatchAny": ["handschoen", "gant", "Kleding", "werk"]
+      }
+    }
+  ]
+}

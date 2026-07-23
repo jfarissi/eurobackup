@@ -1,0 +1,75 @@
+{
+  "id": "bouwmaterialen-wall-guided",
+  "title": "Bouwmaterialen — parcours mur guidé (structure → ciment → treillis → outils)",
+  "mainType": "Bouwmaterialen",
+  "mainTypeId": "7",
+  "domainId": "wall_construction",
+  "expectedCategoryHints": [
+    "Stenen",
+    "Snelbouwstenen",
+    "Cement en Mortels",
+    "Net, IJzer en Toebehoren",
+    "Zind",
+    "Murfor"
+  ],
+  "forbiddenProductHints": ["gipsplaat", "hammerite", "ampoule"],
+  "notes": "Régression logs : ne pas sauter au treillis au 1er message ; pas de filet plâtre.",
+  "turns": [
+    {
+      "user": "je veux construire un mur de 7m de longeur et 2m de hateur",
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Structure",
+        "wallAreaMin": 13,
+        "replyMustContain": [
+          "m²",
+          "briques",
+          "1. Structure (briques / blocs)",
+          "← à choisir maintenant",
+          "Étape « structure (briques / blocs) »"
+        ],
+        "replyMustNotContain": [
+          "3. Treillis / ferraillage — rayon : Zind & Grid · Net, IJzer en Toebehoren ← à choisir maintenant",
+          "2. Ciment / mortier — rayon : Cement en Mortels ← à choisir maintenant"
+        ],
+        "categoryMustMatchAny": ["Stenen", "Snelbouw", "Lijmblok", "baksteen", "Porotherm"]
+      }
+    },
+    {
+      "user": "autres produits",
+      "cartBefore": ["Snelbouw Porotherm Thermobrick 29x09"],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Binder",
+        "categoryMustMatchAny": ["Cement", "Mortel", "Mixem"]
+      }
+    },
+    {
+      "user": "ok produit suivant",
+      "cartBefore": [
+        "Snelbouw Porotherm Thermobrick 29x09",
+        "Cement Wit - 20kg"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Reinforcement",
+        "projectBaseComplete": true,
+        "categoryMustMatchAny": ["Murfor", "IJzer", "Net", "Wapening", "Zind"],
+        "productMustNotMatch": ["gipsplaat", "gipsplaten"]
+      }
+    },
+    {
+      "user": "autres produits",
+      "cartBefore": [
+        "Snelbouw Porotherm",
+        "Cement Wit",
+        "Murfor Plat 04cm"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Tools",
+        "categoryMustMatchAny": ["troffel", "truelle", "handschoen", "Emmer"]
+      }
+    }
+  ]
+}

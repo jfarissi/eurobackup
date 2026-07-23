@@ -123,6 +123,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
         public decimal? WallAreaM2 => Project.WallAreaM2;
 
+        public decimal? PaintAreaM2
+        {
+            get => Project.PaintAreaM2;
+            set => Project.PaintAreaM2 = value;
+        }
+
         public List<string> PendingComplementHints
         {
             get => Project.PendingComplementHints;

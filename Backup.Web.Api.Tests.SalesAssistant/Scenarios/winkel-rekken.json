@@ -1,0 +1,17 @@
+{
+  "id": "winkel-rekken",
+  "title": "Winkel (Rekken) — rayon magasin",
+  "mainType": "Winkel (Rekken)",
+  "mainTypeId": "58",
+  "expectedCategoryHints": ["Winkel", "Rekken"],
+  "forbiddenProductHints": [],
+  "notes": "Rayon magasin mixte — test de détection requête générique boutique.",
+  "turns": [
+    {
+      "user": "qu'avez-vous dans le rayon magasin en promo ?",
+      "expect": {
+        "guidedIntent": "Promos"
+      }
+    }
+  ]
+}

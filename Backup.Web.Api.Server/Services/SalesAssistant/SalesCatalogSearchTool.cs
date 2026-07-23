@@ -56,10 +56,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             },
             ["painting"] = new[]
             {
-                // Pas de « verf » / « paint » / « peinture » seuls : matchent des milliers de Name2.
-                "muurverf", "latexverf", "grondverf", "acrylverf",
-                "kwast", "pinceau", "verfroller", "verfborstel",
-                "sous-couche", "primer"
+                // Pas de « verf » / « paint » / « grondverf » seuls (→ Hammerite antirouille…).
+                "muurverf", "latexverf", "acrylverf", "muurverf mat",
+                "kwast", "pinceau", "verfroller", "verfborstel"
             },
             ["tiling"] = new[]
             {
@@ -169,6 +168,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
                 if (wallMode)
                     await EnrichWallCatalogCandidatesAsync(scores, ct);
+
+                if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase))
+                    await EnrichPaintingWallPaintCandidatesAsync(scores, ct);
             }
 
             if (scores.Count == 0)
@@ -176,6 +178,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             ApplyGardenIntentFilter(scores, session.ActiveProjectDomainId);
             ApplyLightingIntentFilter(scores, text);
+            ApplyPaintingIntentFilter(scores, session.ActiveProjectDomainId);
             DemoteClearanceNoise(scores, session.ActiveProjectDomainId);
 
             IEnumerable<ScoredProduct> ranked = scores.Values;
@@ -318,7 +321,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }
 
             meta.TotalMatches = filtered.Count;
-            // Marque : max 3. Mur : une famille à la fois, plus de choix dans le rayon.
+            // Marque : max 3. Mur : une famille à la fois. Peinture : plus de choix muurverf.
+            var paintingMode = string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase);
             var take = brandMode
                 ? Math.Max(1, Math.Min(3, _options.InitialProductResults > 0 ? _options.InitialProductResults : 3))
                 : wallMode
@@ -329,7 +333,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                         WallGuideFamily.Tools => Math.Max(5, Math.Min(8, Math.Max(_options.MaxProductResults, 5))),
                         _ => Math.Max(6, Math.Min(10, Math.Max(_options.MaxProductResults, 6)))
                     }
-                    : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
+                    : paintingMode
+                        ? Math.Max(5, Math.Min(8, Math.Max(_options.MaxProductResults, 5)))
+                        : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
 
             if (excludeProductIds is { Count: > 0 })
             {
@@ -1294,6 +1300,81 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             && hay.Contains(needle, StringComparison.OrdinalIgnoreCase);
         private static bool IsGardenDomain(string? domainId) =>
             domainId is "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
+
+        /// <summary>Peinture maison : muurverf / latex — pas Hammerite métal / antirouille.</summary>
+        private static void ApplyPaintingIntentFilter(Dictionary<int, ScoredProduct> scores, string? domainId)
+        {
+            if (!string.Equals(domainId, "painting", StringComparison.OrdinalIgnoreCase) || scores.Count == 0)
+                return;
+
+            foreach (var p in scores.Values.ToList())
+            {
+                var hay = $"{p.Name} {p.Name2} {p.Brand} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+                if (IsMetalOrSpecialtyPaintNoise(hay))
+                {
+                    scores.Remove(p.Id);
+                    continue;
+                }
+
+                if (ContainsAny(hay, "muurverf", "latexverf", "acrylverf", "latex ", "muur verf"))
+                    p.Score += 18;
+                else if (ContainsAny(hay, "kwast", "pinceau", "verfroller", "verfborstel", "roller"))
+                    p.Score += 6;
+                else if (ContainsAny(hay, "verf") && !ContainsAny(hay, "hammerite", "antiroest", "metaal"))
+                    p.Score += 2;
+            }
+        }
+
+        private static bool IsMetalOrSpecialtyPaintNoise(string hay) =>
+            ContainsAny(hay,
+                "antiroest", "anti-roest", "anti roest", "hammerite", "metaallak", "metaalverf",
+                "radiatorverf", "vloerverf", "tegelverf", "dakverf", "autolak", "spuitbus");
+
+        private async Task EnrichPaintingWallPaintCandidatesAsync(
+            Dictionary<int, ScoredProduct> scores,
+            CancellationToken ct)
+        {
+            var rows = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p =>
+                    (p.TypeName != null && (
+                        p.TypeName.ToLower().Contains("muurverf")
+                        || p.TypeName.ToLower().Contains("latex")
+                        || p.TypeName.ToLower().Contains("binnenverf")))
+                    || (p.SubTypeName != null && (
+                        p.SubTypeName.ToLower().Contains("muurverf")
+                        || p.SubTypeName.ToLower().Contains("latexverf")
+                        || p.SubTypeName.ToLower().Contains("acryl")))
+                    || (p.Name != null && (
+                        p.Name.ToLower().Contains("muurverf")
+                        || p.Name.ToLower().Contains("latexverf")
+                        || p.Name.ToLower().Contains("acrylverf"))))
+                .Take(80)
+                .Select(p => new ScoredProduct
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Name2 = p.Name2,
+                    Reference = p.Reference,
+                    Brand = p.Brand,
+                    UnitPrice = p.UnitPrice,
+                    PriceHT = p.PriceHT,
+                    MainTypeName = p.MainTypeName,
+                    TypeName = p.TypeName,
+                    SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
+                    Score = 5
+                })
+                .ToListAsync(ct);
+
+            foreach (var p in rows)
+            {
+                var hay = $"{p.Name} {p.Brand} {p.TypeName}".ToLowerInvariant();
+                if (IsMetalOrSpecialtyPaintNoise(hay))
+                    continue;
+                AddOrBumpScore(scores, p, "muurverf", bonus: 14);
+            }
+        }
 
         /// <summary>
         /// Évite de proposer des tondeuses pour « nettoyer / aménager » le jardin.

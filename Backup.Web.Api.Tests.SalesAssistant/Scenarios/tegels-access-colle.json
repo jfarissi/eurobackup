@@ -1,0 +1,18 @@
+{
+  "id": "tegels-access-colle-joint",
+  "title": "Tegels Access. — colle et joints",
+  "mainType": "Tegels Access.",
+  "mainTypeId": "42",
+  "domainId": "tiling",
+  "expectedCategoryHints": ["tegellijm", "voegsel", "colle", "joint"],
+  "forbiddenProductHints": ["snelbouwsteen"],
+  "turns": [
+    {
+      "user": "il me faut de la colle carrelage et du joint",
+      "expect": {
+        "domainId": "tiling",
+        "categoryMustMatchAny": ["lijm", "voeg", "colle", "joint", "tegellijm"]
+      }
+    }
+  ]
+}

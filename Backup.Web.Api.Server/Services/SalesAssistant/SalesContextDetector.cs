@@ -17,6 +17,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         void DetectDomain(StoreChatSession session, string text);
         void CollectMaterialHints(StoreChatSession session, string text);
         void ParseWallDimensions(StoreChatSession session, string text);
+        void ParsePaintSurfaces(StoreChatSession session, string text);
         void UpdateStickySearchFilters(StoreChatSession session, string text);
         ProductSearchFilter BuildSearchMeta(StoreChatSession session, string text);
         Task EnrichSessionAsync(StoreChatSession session, string text, CancellationToken ct = default);
@@ -44,9 +45,26 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             await DetectBrandAsync(session, text, ct);
             DetectDomain(session, text);
-            ParseWallDimensions(session, text);
+            if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                || LooksLikePaintProject(text))
+            {
+                ParsePaintSurfaces(session, text);
+            }
+            else
+            {
+                ParseWallDimensions(session, text);
+            }
             CollectMaterialHints(session, text);
             UpdateStickySearchFilters(session, text);
+        }
+
+        private static bool LooksLikePaintProject(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return ContainsIgnoreCase(lower, "peindre")
+                   || ContainsIgnoreCase(lower, "peinture")
+                   || ContainsIgnoreCase(lower, "chambre")
+                      && (ContainsIgnoreCase(lower, "peindre") || ContainsIgnoreCase(lower, "peinture"));
         }
 
         public async Task DetectBrandAsync(StoreChatSession session, string text, CancellationToken ct = default)
@@ -223,6 +241,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     session.SearchTypeHints.RemoveAll(IsMasonryMaterialHint);
                 }
             }
+
+            if (string.Equals(fromDomain, "painting", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(toDomain, "painting", StringComparison.OrdinalIgnoreCase))
+            {
+                session.PaintAreaM2 = null;
+            }
         }
 
         private static bool IsLightingOrNonMasonryDomain(string domainId) =>
@@ -259,6 +283,153 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (brandMode)
                 return;
+        }
+
+        public void ParsePaintSurfaces(StoreChatSession session, string text)
+        {
+            // Normalise fautes fréquentes FR.
+            var lower = text.ToLowerInvariant()
+                .Replace(',', '.')
+                .Replace("hauteru", "hauteur")
+                .Replace("longeur", "longueur")
+                .Replace("couloires", "couloir")
+                .Replace("couloirs", "couloir");
+
+            decimal total = 0;
+            var parts = new List<string>();
+
+            // « 6 chambre(s) … 2m haut … 2m long »
+            var rooms = Regex.Match(lower,
+                @"(\d+)\s*chambres?\b.{0,80}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b|"
+                + @"(\d+)\s*chambres?\b.{0,80}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b",
+                RegexOptions.IgnoreCase);
+            if (rooms.Success)
+            {
+                var count = ParseDec(rooms.Groups[1].Success ? rooms.Groups[1].Value : rooms.Groups[4].Value) ?? 0;
+                decimal h, l;
+                if (rooms.Groups[2].Success)
+                {
+                    h = ParseDec(rooms.Groups[2].Value) ?? 0;
+                    l = ParseDec(rooms.Groups[3].Value) ?? 0;
+                }
+                else
+                {
+                    l = ParseDec(rooms.Groups[5].Value) ?? 0;
+                    h = ParseDec(rooms.Groups[6].Value) ?? 0;
+                }
+
+                if (count > 0 && h > 0 && l > 0)
+                {
+                    // Pièce ~ carrée côté L : 4 murs.
+                    var area = Math.Round(count * 4m * l * h, 1);
+                    total += area;
+                    parts.Add($"{count:0} chambre(s) ≈ {area:0.#} m²");
+                }
+            }
+
+            // Salle de bain
+            var bath = Regex.Match(lower,
+                @"salle\s*de\s*bain.{0,60}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b|"
+                + @"salle\s*de\s*bain.{0,60}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b",
+                RegexOptions.IgnoreCase);
+            if (bath.Success)
+            {
+                decimal h, l;
+                if (bath.Groups[1].Success)
+                {
+                    h = ParseDec(bath.Groups[1].Value) ?? 0;
+                    l = ParseDec(bath.Groups[2].Value) ?? 0;
+                }
+                else
+                {
+                    l = ParseDec(bath.Groups[3].Value) ?? 0;
+                    h = ParseDec(bath.Groups[4].Value) ?? 0;
+                }
+
+                if (h > 0 && l > 0)
+                {
+                    var area = Math.Round(4m * l * h, 1);
+                    total += area;
+                    parts.Add($"salle de bain ≈ {area:0.#} m²");
+                }
+            }
+
+            // Couloir : 2 longs murs
+            var hall = Regex.Match(lower,
+                @"couloir.{0,60}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b|"
+                + @"couloir.{0,60}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:haut(?:eur)?|h)\b.{0,40}?(\d+(?:\.\d+)?)\s*m?\s*(?:de\s+)?(?:long(?:ueur)?|l)\b",
+                RegexOptions.IgnoreCase);
+            if (hall.Success)
+            {
+                decimal h, l;
+                if (hall.Groups[1].Success)
+                {
+                    l = ParseDec(hall.Groups[1].Value) ?? 0;
+                    h = ParseDec(hall.Groups[2].Value) ?? 0;
+                }
+                else
+                {
+                    h = ParseDec(hall.Groups[3].Value) ?? 0;
+                    l = ParseDec(hall.Groups[4].Value) ?? 0;
+                }
+
+                if (h > 0 && l > 0)
+                {
+                    var area = Math.Round(2m * l * h, 1);
+                    total += area;
+                    parts.Add($"couloir ≈ {area:0.#} m²");
+                }
+            }
+
+            if (total <= 0)
+            {
+                // Fallback : première paire L×H × 4 (une pièce).
+                var pair = Regex.Match(lower,
+                    @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l)|"
+                    + @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h)");
+                if (pair.Success)
+                {
+                    decimal a, b;
+                    if (pair.Groups[1].Success)
+                    {
+                        a = ParseDec(pair.Groups[1].Value) ?? 0;
+                        b = ParseDec(pair.Groups[2].Value) ?? 0;
+                    }
+                    else
+                    {
+                        b = ParseDec(pair.Groups[3].Value) ?? 0;
+                        a = ParseDec(pair.Groups[4].Value) ?? 0;
+                    }
+
+                    if (a > 0 && b > 0)
+                    {
+                        total = Math.Round(4m * a * b, 1);
+                        parts.Add($"pièce ≈ {total:0.#} m²");
+                    }
+                }
+            }
+
+            if (total > 0)
+            {
+                session.PaintAreaM2 = total;
+                session.ProjectTypeHint = parts.Count > 0
+                    ? string.Join(" · ", parts)
+                    : session.ProjectTypeHint;
+                if (string.IsNullOrWhiteSpace(session.ActiveProjectDomainId))
+                {
+                    session.ActiveProjectDomainId = "painting";
+                    session.ActiveProjectDomainLabel = "Peinture";
+                }
+            }
+        }
+
+        private static decimal? ParseDec(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+            return decimal.TryParse(raw.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var v)
+                ? v
+                : null;
         }
 
         public void ParseWallDimensions(StoreChatSession session, string text)

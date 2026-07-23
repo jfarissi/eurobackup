@@ -34,6 +34,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ? Math.Round(WallLengthM.Value * WallHeightM.Value, 2)
                 : null;
 
+        /// <summary>Surface murs à peindre (somme pièces), indépendante du mur maçonnerie.</summary>
+        public decimal? PaintAreaM2 { get; set; }
+
         public List<StoreChatProductSuggestionDto> LastSuggestedProducts { get; set; } = new();
         public List<string> PendingComplementHints { get; set; } = new();
         public bool AwaitingComplementConfirm { get; set; }
@@ -65,6 +68,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             MaterialHints.Clear();
             WallLengthM = null;
             WallHeightM = null;
+            PaintAreaM2 = null;
             LastSuggestedProducts.Clear();
             PendingComplementHints.Clear();
             AwaitingComplementConfirm = false;
@@ -75,7 +79,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(DomainLabel))
                 parts.Add(DomainLabel!);
-            if (WallAreaM2 is > 0)
+            if (PaintAreaM2 is > 0)
+                parts.Add($"peinture ~{PaintAreaM2:0.##} m²");
+            else if (WallAreaM2 is > 0)
                 parts.Add($"~{WallAreaM2:0.##} m²");
             if (!string.IsNullOrWhiteSpace(PreferredBrand))
                 parts.Add(PreferredBrand!);

@@ -1,0 +1,18 @@
+{
+  "id": "verwarming-chauffage",
+  "title": "Verwarming — demande chauffage",
+  "mainType": "Verwarming",
+  "mainTypeId": "2",
+  "domainId": null,
+  "expectedCategoryHints": ["Verwarming", "ketel", "chauffage"],
+  "forbiddenProductHints": ["snelbouw", "muurverf"],
+  "notes": "Domaine chatbot pas encore mappé — scénario documente l'attente catalogue.",
+  "turns": [
+    {
+      "user": "je cherche une chaudière ou système de chauffage",
+      "expect": {
+        "categoryMustMatchAny": ["Verwarming", "ketel", "chauffage", "cv"]
+      }
+    }
+  ]
+}

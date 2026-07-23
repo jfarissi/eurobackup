@@ -1,0 +1,16 @@
+{
+  "id": "skylux-dakramen",
+  "title": "Skylux + Dakramen — fenêtres de toit",
+  "mainType": "Skylux + Dakramen",
+  "mainTypeId": "46",
+  "expectedCategoryHints": ["Skylux", "dakraam", "velux"],
+  "forbiddenProductHints": ["snelbouw"],
+  "turns": [
+    {
+      "user": "je veux une fenêtre de toit Skylux",
+      "expect": {
+        "categoryMustMatchAny": ["Skylux", "dakraam", "dakramen"]
+      }
+    }
+  ]
+}

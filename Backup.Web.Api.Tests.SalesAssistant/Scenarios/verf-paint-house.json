@@ -1,0 +1,32 @@
+{
+  "id": "verf-paint-house",
+  "title": "Verf — peindre maison multi-pièces (pas Hammerite métal)",
+  "mainType": "Verf",
+  "mainTypeId": "22",
+  "domainId": "painting",
+  "expectedCategoryHints": ["muurverf", "latex", "Verf", "kwast", "verfroller"],
+  "forbiddenProductHints": ["hammerite", "antiroest", "metaalverf", "ultima"],
+  "notes": "Régression : 6 chambres + SDB + couloir → surface + muurverf, jamais antirouille.",
+  "turns": [
+    {
+      "user": "j'ai besoin de peindre ma maison 6 chambre de 2m de haut et 2m de longeur , salle de bain 2m de haut et 1.5 de longeur couloires 6m de longeur et 2m de hauteru",
+      "expect": {
+        "domainId": "painting",
+        "paintAreaMin": 80,
+        "paintAreaMax": 200,
+        "replyMustContain": ["m²", "L", "peindre", "couches"],
+        "replyMustNotContain": ["briques", "parpaings", "Hammerite"],
+        "categoryMustMatchAny": ["muurverf", "latex", "acryl", "Verf"],
+        "productMustNotMatch": ["hammerite", "antiroest", "anti-roest"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Muurverf Latex Mat Blanc 10L"],
+      "expect": {
+        "domainId": "painting",
+        "categoryMustMatchAny": ["rouleau", "roller", "kwast", "primer", "grondverf", "masking", "ruban"]
+      }
+    }
+  ]
+}

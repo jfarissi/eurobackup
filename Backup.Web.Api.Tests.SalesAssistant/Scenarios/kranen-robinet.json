@@ -1,0 +1,18 @@
+{
+  "id": "kranen-robinet",
+  "title": "Kranen — robinetterie",
+  "mainType": "Kranen",
+  "mainTypeId": "47",
+  "domainId": "plumbing",
+  "expectedCategoryHints": ["Kranen", "kraan", "robinet"],
+  "forbiddenProductHints": ["cement", "tegel"],
+  "turns": [
+    {
+      "user": "je cherche un robinet pour la cuisine",
+      "expect": {
+        "domainId": "plumbing",
+        "categoryMustMatchAny": ["kraan", "robinet", "Kranen", "mengkraan"]
+      }
+    }
+  ]
+}

@@ -206,10 +206,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 return null;
 
             if (domain == "painting"
-                && (ContainsIgnoreCase(text, "acryl")
+                && (session.PaintAreaM2 is > 0
+                    || ContainsIgnoreCase(text, "acryl")
                     || ContainsIgnoreCase(text, "latex")
                     || ContainsIgnoreCase(text, "sous-couche")
                     || ContainsIgnoreCase(text, "rouleau")
+                    || ContainsIgnoreCase(text, "muurverf")
                     || ContainsIgnoreCase(text, "blanc")))
                 return null;
 
@@ -236,7 +238,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "electrical" =>
                     "Le rayon électricité est large. Que cherchez-vous exactement : ampoules / LED, prises & interrupteurs, câbles, ou tableaux / disjoncteurs ?",
                 "painting" =>
-                    "Pour la peinture : intérieur ou extérieur ? Peinture murale, sous-couche, lasure, ou outils (rouleau / pinceaux) ?",
+                    "Pour peindre : intérieur ou extérieur ? Peinture murale (muurverf / latex), sous-couche, ou outils (rouleau / pinceaux) ?",
                 "tiling" =>
                     "Carrelage : sol ou mur ? Format / couleur, ou plutôt colle et joints ?",
                 "plumbing" =>
@@ -251,15 +253,31 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         public string BuildCalculationSummary(StoreChatSession session)
         {
+            if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                && session.PaintAreaM2 is > 0)
+            {
+                var area = session.PaintAreaM2.Value;
+                // ~10 m²/L/couche, 2 couches.
+                var liters = Math.Max(1, Math.Ceiling(area / 5m));
+                var detail = !string.IsNullOrWhiteSpace(session.ProjectTypeHint)
+                    ? session.ProjectTypeHint + "\n"
+                    : "";
+                return $"{detail}Surface murs à peindre ≈ {area:0.#} m².\n"
+                       + $"Estimation (2 couches, ~10 m²/L) : ≈ {liters:0} L de peinture murale (+ sous-couche si support neuf).";
+            }
+
+            if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
             if (session.WallLengthM is not > 0 || session.WallHeightM is not > 0 || session.WallAreaM2 is not > 0)
                 return string.Empty;
 
-            var area = session.WallAreaM2!.Value;
-            var bricks = Math.Ceiling(area * SalesWallEstimates.BricksPerM2);
-            var parpaings = Math.Ceiling(area * SalesWallEstimates.ParpaingsPerM2);
-            var mortarBags = Math.Ceiling(area * SalesWallEstimates.MortarKgPerM2 / SalesWallEstimates.DefaultBagKg);
+            var wallArea = session.WallAreaM2!.Value;
+            var bricks = Math.Ceiling(wallArea * SalesWallEstimates.BricksPerM2);
+            var parpaings = Math.Ceiling(wallArea * SalesWallEstimates.ParpaingsPerM2);
+            var mortarBags = Math.Ceiling(wallArea * SalesWallEstimates.MortarKgPerM2 / SalesWallEstimates.DefaultBagKg);
 
-            return $"Mur {session.WallLengthM:0.##} m × {session.WallHeightM:0.##} m → surface ≈ {area:0.##} m².\n"
+            return $"Mur {session.WallLengthM:0.##} m × {session.WallHeightM:0.##} m → surface ≈ {wallArea:0.##} m².\n"
                    + $"Estimations (ordre de grandeur) : ~{bricks:0} briques, ou ~{parpaings:0} parpaings, "
                    + $"et ~{mortarBags:0} sac(s) de mortier/ciment ({SalesWallEstimates.DefaultBagKg:0} kg).";
         }

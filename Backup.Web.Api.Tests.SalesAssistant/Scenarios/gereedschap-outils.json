@@ -1,0 +1,16 @@
+{
+  "id": "gereedschap-outils",
+  "title": "Gereedschap — outillage",
+  "mainType": "Gereedschap",
+  "mainTypeId": "27",
+  "expectedCategoryHints": ["Gereedschap", "boor", "zaag", "outil"],
+  "forbiddenProductHints": ["muurverf"],
+  "turns": [
+    {
+      "user": "il me faut une perceuse et des forets",
+      "expect": {
+        "categoryMustMatchAny": ["boor", "perceuse", "Gereedschap", "drill"]
+      }
+    }
+  ]
+}

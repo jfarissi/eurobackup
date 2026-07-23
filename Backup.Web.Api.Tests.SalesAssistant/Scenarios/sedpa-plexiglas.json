@@ -1,0 +1,16 @@
+{
+  "id": "sedpa-plexiglas",
+  "title": "Sedpa _ Plexiglas — plexi / polycarbonate",
+  "mainType": "Sedpa _ Plexiglas",
+  "mainTypeId": "26",
+  "expectedCategoryHints": ["Plexiglas", "Sedpa", "polycarbonaat"],
+  "forbiddenProductHints": ["cement"],
+  "turns": [
+    {
+      "user": "je cherche du plexiglas pour un abri",
+      "expect": {
+        "categoryMustMatchAny": ["plexi", "Sedpa", "polycarbonaat", "acryl"]
+      }
+    }
+  ]
+}
