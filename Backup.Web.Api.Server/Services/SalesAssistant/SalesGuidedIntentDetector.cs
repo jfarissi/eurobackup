@@ -59,6 +59,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (IsResume(lower))
                 slots.Intent = GuidedSalesIntent.ResumeProject;
+            else if (IsCartReview(lower))
+                slots.Intent = GuidedSalesIntent.Tips;
             else if (IsConfirmComplements(lower, session))
                 slots.Intent = GuidedSalesIntent.ConfirmComplements;
             else if (IsDirectComplementKeyword(lower, out var complementHint))
@@ -104,6 +106,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (SalesComplementRules.ShouldRedirectMoreProductsToComplements(slots.Intent, text, session))
                 slots.Intent = GuidedSalesIntent.CartComplements;
 
+            // Suite mur après base : rester sur le parcours (treillis → outils), pas le mode texte compléments.
+            if (slots.Intent == GuidedSalesIntent.CartComplements
+                && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase)
+                && SalesProjectGuide.ShouldContinueWallGuide(session)
+                && IsWallNextStepPhrase(lower))
+            {
+                slots.Intent = GuidedSalesIntent.None;
+            }
+
             // Mur incomplet : « autres produits » → recherche famille suivante (ciment…), pas plus de briques.
             if (slots.Intent == GuidedSalesIntent.MoreProducts
                 && SalesProjectGuide.ShouldAdvanceIncompleteWall(text, session))
@@ -113,6 +124,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return slots;
         }
+
+        private static bool IsCartReview(string lower) =>
+            ContainsAny(lower,
+                "que pensez", "qu'en pensez", "quen pensez", "votre avis", "ton avis",
+                "avis sur mon panier", "avis sur le panier", "évaluer mon panier", "evaluer mon panier",
+                "mon panier est-il", "panier est bon", "panier est-il bon", "critique mon panier",
+                "opinion sur mon panier", "review my cart", "what do you think of my cart");
+
+        private static bool IsWallNextStepPhrase(string lower) =>
+            ContainsAny(lower,
+                "produit suivant", "étape suivante", "etape suivante", "suivant",
+                "ok suivant", "suite", "ensuite", "après", "apres",
+                "reste d", "reste autre", "autres produit", "autre chose", "quoi d");
 
         private static void DetectCustomer(string lower, StoreChatSession session)
         {

@@ -223,16 +223,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return hint.Trim().ToLowerInvariant() switch
             {
-                "truelle" => ScoreAny(hay,
-                    ("truelle", 100), ("troffel", 100), ("truweel", 100), ("metseltroffel", 100),
-                    ("waterpas", 70), ("spatel", 40)),
-                "treillis" => ScoreAny(hay,
-                    ("bewapeningsnet", 100), ("wapeningsnet", 100), ("wapeningsgaas", 100),
-                    ("treillis", 90), ("wapening", 80), ("betonijzer", 75),
-                    ("zind", 70), ("grid", 70), ("gaas", 55), ("mesh", 50)),
+                "treillis" => ScoreMesh(hay),
                 "auge" or "seau" => ScoreAuge(hay),
                 "gants" => ScoreGloves(hay),
                 "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),
+                "truelle" => ScoreTruelle(hay),
                 "bordure" => ScoreAny(hay, ("bordure", 100), ("opsluitband", 100), ("kantopsluiting", 90), ("border", 70)),
                 "geotextile" => ScoreAny(hay, ("geotextile", 100), ("géotextile", 100), ("worteldoek", 90), ("anti-wortel", 80)),
                 "sable" => ScoreAny(hay, ("sable", 100), ("zand", 100), ("gravier", 80), ("grind", 80)),
@@ -240,6 +235,28 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "souffleur" => ScoreAny(hay, ("souffleur", 100), ("bladblazer", 100), ("blower", 80), ("balai", 60)),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase) ? 50 : 0
             };
+        }
+
+        private static int ScoreMesh(string hay)
+        {
+            if (ContainsAnyLocal(hay, "gipsplaat", "gipsplaten", "pladur", "drywall", "tape & banden"))
+                return 0;
+
+            return ScoreAny(hay,
+                ("murfor", 110), ("betonijzer", 100), ("betonnet", 100),
+                ("bewapeningsnet", 95), ("wapeningsnet", 95), ("wapeningsgaas", 70),
+                ("lintvoeg", 90), ("treillis", 90), ("zind", 85), ("grid", 80),
+                ("metselwapen", 85), ("wapening", 50), ("gaas", 40), ("mesh", 40));
+        }
+
+        private static int ScoreTruelle(string hay)
+        {
+            if (ContainsAnyLocal(hay, "haakklem", "universeelmes", "cutter", "stanley", "mesblad"))
+                return 0;
+
+            return ScoreAny(hay,
+                ("truelle", 100), ("troffel", 100), ("truweel", 100), ("metseltroffel", 100),
+                ("waterpas", 70), ("poliertruweel", 90));
         }
 
         private static int ScoreAuge(string hay)

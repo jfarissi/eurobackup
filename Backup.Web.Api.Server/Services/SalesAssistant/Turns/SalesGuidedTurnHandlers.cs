@@ -78,10 +78,29 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
     }
     public sealed class TipsHandler : ISalesGuidedTurnHandler
     {
-        private readonly ISalesConfidenceEngine _confidence; private readonly ISalesTurnResponder _turn;
-        public TipsHandler(ISalesConfidenceEngine confidence, ISalesTurnResponder turn) { _confidence = confidence; _turn = turn; }
+        private readonly ISalesConfidenceEngine _confidence;
+        private readonly ISalesRecommendationEngine _recommendations;
+        private readonly ISalesTurnResponder _turn;
+        public TipsHandler(ISalesConfidenceEngine confidence, ISalesRecommendationEngine recommendations, ISalesTurnResponder turn)
+        {
+            _confidence = confidence;
+            _recommendations = recommendations;
+            _turn = turn;
+        }
         public GuidedSalesIntent Intent => GuidedSalesIntent.Tips;
-        public Task<StoreChatResponseDto?> HandleAsync(SalesGuidedTurnContext ctx, CancellationToken ct = default) => Task.FromResult<StoreChatResponseDto?>(_turn.Finish(ctx.Session, ctx.Text, _confidence.BuildTips(ctx.Session, ctx.Session.LastSuggestedProducts), "TIPS", null, ctx.Guided));
+        public Task<StoreChatResponseDto?> HandleAsync(SalesGuidedTurnContext ctx, CancellationToken ct = default)
+        {
+            var lower = (ctx.Text ?? string.Empty).ToLowerInvariant();
+            var reply = ContainsAny(lower,
+                    "panier", "cart", "que pensez", "avis", "opinion", "qu'en pense")
+                ? _recommendations.BuildCartReviewReply(ctx.Session)
+                : _confidence.BuildTips(ctx.Session, ctx.Session.LastSuggestedProducts);
+            return Task.FromResult<StoreChatResponseDto?>(
+                _turn.Finish(ctx.Session, ctx.Text, reply, "TIPS", null, ctx.Guided));
+        }
+
+        private static bool ContainsAny(string hay, params string[] needles) =>
+            needles.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase));
     }
     public sealed class SavingsHandler : ISalesGuidedTurnHandler
     {

@@ -835,16 +835,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool IsMeshProduct(string name, string name2, string category)
         {
-            if (ContainsAny(name, "wapeningsnet", "bewapeningsnet", "wapeningsgaas", "treillis",
-                    "betonijzer", "wapeningsdraad", "draadgaas"))
+            if (ContainsAny(name, "gipsplaat", "gipsplaten") || ContainsAny(category, "gipsplaat", "tape & banden"))
+                return false;
+
+            if (ContainsAny(name, "murfor", "wapeningsnet", "bewapeningsnet", "wapeningsgaas", "treillis",
+                    "betonijzer", "betonnet", "wapeningsdraad", "draadgaas", "lintvoeg"))
                 return true;
-            if (ContainsAny(name2, "wapening", "bewapen", "treillis"))
+            if (ContainsAny(name2, "wapening", "bewapen", "treillis", "murfor"))
                 return true;
-            if (ContainsAny(category, "zind", "grid", "wapening", "bewapen")
+            if (ContainsAny(category, "zind", "grid", "murfor", "betonnet", "betonijzer")
                 && !ContainsAny(name, "verf", "kit ", "silicon"))
                 return true;
             if (ContainsAny(category, "ijzer", "net, ijzer", "net ijzer")
-                && ContainsAny(name, "net", "gaas", "draad", "wapen", "ijzer", "mesh"))
+                && ContainsAny(name, "net", "gaas", "draad", "wapen", "ijzer", "mesh", "murfor"))
                 return true;
             return false;
         }

@@ -21,6 +21,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             IReadOnlyList<StoreChatProductSuggestionDto> currentProducts);
 
         string BuildCartComplementsReply(StoreChatSession session);
+        string BuildCartReviewReply(StoreChatSession session);
     }
 
     public class SalesRecommendationEngine : ISalesRecommendationEngine
@@ -32,6 +33,66 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var domain = session.ActiveProjectDomainId ?? InferDomain(session, currentProducts);
             var present = string.Join(' ', currentProducts.Select(p => $"{p.Name} {p.Category}")).ToLowerInvariant();
             return BuildTipsForDomain(domain, present, session);
+        }
+
+        public string BuildCartReviewReply(StoreChatSession session)
+        {
+            if (session.Cart.Count == 0)
+                return "Votre panier est vide. Ajoutez d'abord des produits pour que je puisse le commenter.";
+
+            var cart = SalesProjectGuide.CartOnlyHay(session);
+            var sb = new StringBuilder();
+            sb.AppendLine("Voici mon avis sur votre panier :");
+            foreach (var line in session.Cart)
+                sb.AppendLine($"• {line.Name} × {line.Quantity:0.##}");
+
+            if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase)
+                || session.WallAreaM2 is > 0)
+            {
+                sb.AppendLine();
+                if (SalesProjectGuide.HasStructure(cart) && SalesProjectGuide.HasBinder(cart))
+                    sb.AppendLine("✓ Base OK : structure + liant présents.");
+                else if (SalesProjectGuide.HasStructure(cart))
+                    sb.AppendLine("⚠ Il manque encore un liant (ciment / mortier / colle blocs) adapté.");
+                else
+                    sb.AppendLine("⚠ Il manque encore le matériau de structure (briques / blocs).");
+
+                if (ContainsAny(cart, "gipsplaat", "gipsplaten"))
+                    sb.AppendLine("⚠ Le filet « gipsplaten » sert aux cloisons plâtre — pour un mur maçonné, préférez Murfor / treillis de lit de pose (Zind & Grid, Net IJzer).");
+
+                if (ContainsAny(cart, "lijmblok", "lijmblokken") && ContainsAny(cart, "cement wit", "cement cem")
+                    && !ContainsAny(cart, "lijmmortel", "blokkenlijm", "dunbed"))
+                    sb.AppendLine("💡 Blocs collés (lijmblok) : un mortier-colle / dunbed est souvent plus adapté qu’un ciment classique — vérifiez la fiche produit.");
+
+                if (!SalesProjectGuide.HasReinforcement(cart))
+                    sb.AppendLine("○ Treillis / ferraillage mur encore absent (Murfor, bétonnet…).");
+                else
+                    sb.AppendLine("✓ Renforcement présent.");
+
+                if (!SalesProjectGuide.HasTools(cart))
+                    sb.AppendLine("○ Outillage pose (truelle, niveau, auge, gants) encore partiel ou absent.");
+
+                if (session.WallAreaM2 is > 0)
+                    sb.AppendLine($"Surface projet ~{session.WallAreaM2:0.##} m² — contrôlez les quantités avant devis.");
+            }
+
+            var missing = SuggestComplements(session, session.Cart.Select(c => new StoreChatProductSuggestionDto
+            {
+                ProductId = c.ErpProductId.ToString(),
+                Name = c.Name
+            }).ToList());
+            if (missing.Count > 0)
+            {
+                sb.AppendLine("\nProchaines familles utiles :");
+                foreach (var m in missing.Take(3))
+                    sb.AppendLine($"• {m.Label} — {m.Reason}");
+            }
+            else
+            {
+                sb.AppendLine("\nRien d’essentiel ne manque pour passer au devis / commande.");
+            }
+
+            return sb.ToString().Trim();
         }
 
         public string BuildCartComplementsReply(StoreChatSession session)

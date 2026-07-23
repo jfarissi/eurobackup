@@ -99,6 +99,18 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             _ => "matériaux"
         };
 
+        public static bool ShouldContinueWallGuide(StoreChatSession session)
+        {
+            if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var cart = CartOnlyHay(session);
+            if (!HasStructure(cart) || !HasBinder(cart))
+                return true; // étapes 1-2
+
+            return !HasReinforcement(cart) || !HasTools(cart);
+        }
+
         /// <summary>
         /// Demande de suite alors que la base (structure+liant) n’est pas complète
         /// → enchaîner sur la famille manquante, pas « plus de briques ».
@@ -119,7 +131,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return ContainsAny(lower,
                 "autre", "autres", "encore", "suite", "ensuite", "après", "apres",
                 "quoi d", "manque", "ajouter", "complement", "complément",
-                "ciment", "cement", "mortier", "mortel", "treillis", "outil");
+                "suivant", "ciment", "cement", "mortier", "mortel", "treillis", "outil");
         }
 
         /// <summary>Panier uniquement — pour l’avancement du parcours.</summary>
@@ -136,10 +148,18 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public static bool HasBinder(string hay) =>
             ContainsAny(hay, "ciment", "cement", "mortier", "mortel");
 
-        public static bool HasReinforcement(string hay) =>
-            ContainsAny(hay,
-                "treillis", "wapening", "bewapeningsnet", "wapeningsnet", "wapeningsgaas",
-                "mesh", "zind", "grid", "gaas", "ferraill", "betonijzer", "draad");
+        public static bool HasReinforcement(string hay)
+        {
+            // Filets plâtre / cloison ≠ ferraillage mur maçonnerie.
+            if (ContainsAny(hay, "gipsplaat", "gipsplaten", "pladur", "drywall"))
+                return false;
+
+            return ContainsAny(hay,
+                "murfor", "betonijzer", "betonnet", "wapeningsnet", "bewapeningsnet",
+                "wapeningsgaas", "treillis", "zind", "metselwapen", "lintvoeg")
+                   || (ContainsAny(hay, "wapening", "gaas", "mesh")
+                       && ContainsAny(hay, "murfor", "ytong", "metsel", "beton", "zind", "ijzer", "net,"));
+        }
 
         public static bool HasTools(string hay) =>
             ContainsAny(hay,
