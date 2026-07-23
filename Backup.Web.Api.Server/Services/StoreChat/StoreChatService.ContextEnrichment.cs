@@ -33,8 +33,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 }
             }
 
-            _context.ParseWallDimensions(session, text);
-            if (session.WallAreaM2 is > 0)
+            // Peinture (m² / L) ou mur (briques) — pas seulement ParseWallDimensions
+            // (sinon « peindre ma maison … chambres » → produits sans calcul).
+            _context.ParseProjectDimensions(session, text);
+            if (session.PaintAreaM2 is > 0 || session.WallAreaM2 is > 0)
                 _workflow.ApplyTransition(session, WorkflowActions.CalculateSurface);
             _context.CollectMaterialHints(session, text);
             _context.UpdateStickySearchFilters(session, text);

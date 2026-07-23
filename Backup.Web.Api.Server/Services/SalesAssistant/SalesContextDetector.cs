@@ -18,6 +18,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         void CollectMaterialHints(StoreChatSession session, string text);
         void ParseWallDimensions(StoreChatSession session, string text);
         void ParsePaintSurfaces(StoreChatSession session, string text);
+        void ParseProjectDimensions(StoreChatSession session, string text);
         void UpdateStickySearchFilters(StoreChatSession session, string text);
         ProductSearchFilter BuildSearchMeta(StoreChatSession session, string text);
         Task EnrichSessionAsync(StoreChatSession session, string text, CancellationToken ct = default);
@@ -45,6 +46,17 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             await DetectBrandAsync(session, text, ct);
             DetectDomain(session, text);
+            ParseProjectDimensions(session, text);
+            CollectMaterialHints(session, text);
+            UpdateStickySearchFilters(session, text);
+        }
+
+        /// <summary>
+        /// Peinture → surfaces pièces (PaintAreaM2) ; sinon dimensions mur maçonnerie.
+        /// Doit être appelé depuis le pipeline StoreChat (pas seulement les tests).
+        /// </summary>
+        public void ParseProjectDimensions(StoreChatSession session, string text)
+        {
             if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
                 || LooksLikePaintProject(text))
             {
@@ -54,11 +66,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 ParseWallDimensions(session, text);
             }
-            CollectMaterialHints(session, text);
-            UpdateStickySearchFilters(session, text);
         }
 
-        private static bool LooksLikePaintProject(string text)
+        public static bool LooksLikePaintProject(string text)
         {
             var lower = text.ToLowerInvariant();
             return ContainsIgnoreCase(lower, "peindre")
