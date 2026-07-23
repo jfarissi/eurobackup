@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
+import { environment } from '../../../environments/environment';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 
 @Component({
@@ -515,5 +516,34 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   isSynced(product: ErpProduct): boolean {
     return !!product.lastSyncAt;
+  }
+
+  /** Même règle que le chatbot (SalesCatalogSearchTool.BuildProductImageUrl). */
+  productImageUrl(product: ErpProduct | null | undefined): string | null {
+    const picName = product?.picName?.trim();
+    if (!picName) return null;
+
+    if (/^https?:\/\//i.test(picName)) return picName;
+
+    const base = (environment.erpImageBaseUrl ?? '').replace(/\/+$/, '');
+    if (!base) return null;
+
+    const file = picName.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `${base}/${file}`;
+  }
+
+  onProductImageError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img) return;
+    img.style.display = 'none';
+    const parent = img.parentElement;
+    if (parent && !parent.querySelector('.product-thumb.placeholder')) {
+      const ph = document.createElement('div');
+      ph.className = img.classList.contains('detail')
+        ? 'product-thumb detail placeholder'
+        : 'product-thumb placeholder';
+      ph.textContent = '—';
+      parent.appendChild(ph);
+    }
   }
 }

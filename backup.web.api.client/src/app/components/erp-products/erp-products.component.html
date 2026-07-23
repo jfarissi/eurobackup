@@ -114,6 +114,7 @@
             <table class="data-table products-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Produit</th>
                   <th>Réf / EAN</th>
                   <th>Marque</th>
@@ -128,6 +129,14 @@
                 <tr *ngFor="let p of products"
                     [class.row-selected]="selected?.id === p.id"
                     (click)="selectProduct(p)">
+                  <td class="thumb-cell">
+                    <img *ngIf="productImageUrl(p) as imgUrl" class="product-thumb" [src]="imgUrl"
+                         [alt]="p.name || p.reference || ''" loading="lazy"
+                         (error)="onProductImageError($event)" />
+                    <div *ngIf="!productImageUrl(p)" class="product-thumb placeholder">
+                      <mat-icon>image_not_supported</mat-icon>
+                    </div>
+                  </td>
                   <td class="product-cell">
                     <div class="product-name">{{ p.name || '—' }}</div>
                     <div class="product-meta font-mono">ID {{ p.erpProductId }}</div>
@@ -175,6 +184,15 @@
           <button type="button" class="icon-btn" (click)="closeDetail()" aria-label="Fermer">
             <mat-icon>close</mat-icon>
           </button>
+        </div>
+
+        <div class="detail-image">
+          <img *ngIf="productImageUrl(p) as imgUrl" class="product-thumb detail" [src]="imgUrl"
+               [alt]="p.name || p.reference || ''" loading="lazy"
+               (error)="onProductImageError($event)" />
+          <div *ngIf="!productImageUrl(p)" class="product-thumb detail placeholder">
+            <mat-icon>image_not_supported</mat-icon>
+          </div>
         </div>
 
         <div class="detail-actions">

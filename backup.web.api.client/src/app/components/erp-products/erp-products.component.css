@@ -449,6 +449,74 @@
   width: 48px;
 }
 
+.thumb-cell {
+  width: 56px;
+  padding-right: 4px !important;
+  position: relative;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.product-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--surface-container-low);
+  border: 1px solid rgba(199, 196, 216, 0.45);
+  display: block;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transform-origin: left center;
+  cursor: zoom-in;
+}
+
+.products-table tbody tr:hover .product-thumb:not(.placeholder):not(.detail),
+.product-thumb:not(.placeholder):not(.detail):hover {
+  position: relative;
+  z-index: 20;
+  transform: scale(3.2);
+  box-shadow: 0 12px 28px rgba(25, 28, 30, 0.22);
+  background: #fff;
+  border-color: #c7c4d8;
+}
+
+.product-thumb.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--outline);
+  cursor: default;
+  font-size: 12px;
+}
+
+.product-thumb.placeholder:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.product-thumb.placeholder mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.product-thumb.detail {
+  width: 100%;
+  height: 180px;
+  cursor: default;
+  transform-origin: center;
+  margin-bottom: 12px;
+}
+
+.product-thumb.detail:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.detail-image {
+  margin-bottom: 4px;
+}
+
 .btn-sync,
 .icon-btn {
   border: none;
