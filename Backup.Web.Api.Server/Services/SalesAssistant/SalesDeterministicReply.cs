@@ -52,7 +52,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 {
                     intro = vagueFollowUp + "\n\nVoici quelques exemples en attendant :";
                 }
-                else if (!string.IsNullOrWhiteSpace(calc) && meta.Outcome is ProductSearchOutcome.Domain)
+                // Calcul C# (peinture m²/L, mur briques…) = voix métier : toujours prioritaire sur
+                // « Voici N produits », y compris Outcome Generic (recherche peinture ≠ Domain mur).
+                else if (!string.IsNullOrWhiteSpace(calc))
                 {
                     intro = calc;
                 }
