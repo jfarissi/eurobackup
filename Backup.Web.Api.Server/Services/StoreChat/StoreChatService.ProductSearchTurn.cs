@@ -49,7 +49,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             var recos = _recommendations.SuggestComplements(session, products);
             if (recos.Count > 0 && products.Count > 0
-                && !string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase)
+                && searchMeta.WallGuideFamily is null)
             {
                 reply = reply.TrimEnd()
                         + "\n\nCompléments utiles : "

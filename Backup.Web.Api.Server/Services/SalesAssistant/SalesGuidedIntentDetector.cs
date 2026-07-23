@@ -104,6 +104,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (SalesComplementRules.ShouldRedirectMoreProductsToComplements(slots.Intent, text, session))
                 slots.Intent = GuidedSalesIntent.CartComplements;
 
+            // Mur incomplet : « autres produits » → recherche famille suivante (ciment…), pas plus de briques.
+            if (slots.Intent == GuidedSalesIntent.MoreProducts
+                && SalesProjectGuide.ShouldAdvanceIncompleteWall(text, session))
+            {
+                slots.Intent = GuidedSalesIntent.None;
+            }
+
             return slots;
         }
 

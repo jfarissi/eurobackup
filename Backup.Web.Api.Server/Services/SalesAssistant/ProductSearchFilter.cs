@@ -16,6 +16,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public ProductSearchOutcome Outcome { get; set; } = ProductSearchOutcome.Generic;
         public string? Intent { get; set; }
 
+        /// <summary>Étape parcours mur (structure / liant / treillis / outils).</summary>
+        public WallGuideFamily? WallGuideFamily { get; set; }
+
         /// <summary>Alias historique — TypeHints = Categories.</summary>
         public List<string> TypeHints
         {

@@ -174,7 +174,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             SalesQuantityEstimator.ApplySuggestedQuantities(products, session);
             var budgetAlert = SalesBudgetFilter.Apply(products, session, meta);
             var reply = products.Count == 0 ? "Je n'ai pas d'autres références pertinentes pour l'instant. Précisez (bordure, clôture, gravier…)."
-                : "Voici d'autres produits" + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel) ? " :" : $" pour {session.ActiveProjectDomainLabel} :");
+                : meta.WallGuideFamily is { } family
+                    ? $"Étape suivante — {SalesProjectGuide.FocusLabel(family)} :"
+                    : "Voici d'autres produits" + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel) ? " :" : $" pour {session.ActiveProjectDomainLabel} :");
+            if (meta.WallGuideFamily is { } wallFamily
+                && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                reply = reply.TrimEnd() + "\n\n" + SalesProjectGuide.BuildWallChecklist(session, wallFamily);
             if (!string.IsNullOrWhiteSpace(budgetAlert)) reply = reply.TrimEnd() + "\n\n" + budgetAlert;
             var response = _turn.Finish(session, ctx.Text, reply, "PRODUCT_LIST", products, ctx.Guided);
             response.SearchFilter = meta; response.BudgetAlert = budgetAlert; response.Recommendations = _recommendations.SuggestComplements(session, products).ToList(); return response;

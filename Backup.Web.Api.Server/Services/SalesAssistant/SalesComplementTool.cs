@@ -58,7 +58,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     }
                 }
 
-                var best = hits
+                var takeForHint = ProductsPerComplementHint(hint);
+                var ranked = hits
                     .Where(h => complementProducts.All(p => p.ProductId != h.ProductId))
                     .Where(h => session.Cart.All(c => c.ErpProductId.ToString() != h.ProductId))
                     .Select(h =>
@@ -71,19 +72,29 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     .OrderByDescending(x => x.Score)
                     .ThenBy(x => x.Product.Name)
                     .Select(x => x.Product)
-                    .FirstOrDefault();
+                    .Take(takeForHint)
+                    .ToList();
 
-                if (best == null)
-                    continue;
-
-                best.SuggestedQuantity ??= 1;
-                complementProducts.Add(best);
-                if (complementProducts.Count >= 4)
-                    return complementProducts;
+                foreach (var best in ranked)
+                {
+                    best.SuggestedQuantity ??= 1;
+                    complementProducts.Add(best);
+                    if (complementProducts.Count >= 10)
+                        return complementProducts;
+                }
             }
 
             return complementProducts;
         }
+
+        private static int ProductsPerComplementHint(string hint) =>
+            hint.Trim().ToLowerInvariant() switch
+            {
+                "treillis" => 4,
+                "ciment" => 3,
+                "truelle" => 2,
+                _ => 1
+            };
 
         /// <summary>
         /// Évite de reproposer structure/liant déjà couverts par le panier lors des compléments.
@@ -110,7 +121,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return hint.Trim().ToLowerInvariant() switch
             {
                 "truelle" => new[] { "truelle", "troffel", "truweel", "metseltroffel", "waterpas" },
-                "treillis" => new[] { "treillis", "wapeningsnet", "wapeningsgaas", "bewapeningsnet", "wapening", "mesh" },
+                "treillis" => new[]
+                {
+                    "treillis", "wapeningsnet", "wapeningsgaas", "bewapeningsnet", "wapening", "mesh",
+                    "zind", "grid", "betonijzer", "gaas"
+                },
                 "auge" => new[] { "auge", "mortelkuip", "speciekuip", "mengkuip", "emmer", "seau", "kuip" },
                 "gants" => new[] { "handschoen", "handschoenen", "werkhandschoen", "gants", "gloves" },
                 "ciment" => new[] { "ciment", "cement", "mortier", "mortel", "metselspecie" },
@@ -213,7 +228,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     ("waterpas", 70), ("spatel", 40)),
                 "treillis" => ScoreAny(hay,
                     ("bewapeningsnet", 100), ("wapeningsnet", 100), ("wapeningsgaas", 100),
-                    ("treillis", 90), ("wapening", 80), ("mesh", 60)),
+                    ("treillis", 90), ("wapening", 80), ("betonijzer", 75),
+                    ("zind", 70), ("grid", 70), ("gaas", 55), ("mesh", 50)),
                 "auge" or "seau" => ScoreAuge(hay),
                 "gants" => ScoreGloves(hay),
                 "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),

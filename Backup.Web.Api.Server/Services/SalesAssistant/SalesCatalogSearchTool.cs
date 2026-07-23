@@ -236,6 +236,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }
             else if (wallMode)
             {
+                var focus = SalesProjectGuide.ResolveWallFamily(session, text, meta);
+                meta.WallGuideFamily = focus;
+
+                if (focus == WallGuideFamily.Reinforcement)
+                    await EnrichWallReinforcementCandidatesAsync(scores, ct);
+                else if (focus == WallGuideFamily.Tools)
+                    await EnrichWallToolCandidatesAsync(scores, ct);
+                else if (focus == WallGuideFamily.Binder)
+                    await EnrichWallCatalogCandidatesAsync(scores, ct);
+
                 var classified = scores.Values
                     .Select(p =>
                     {
@@ -243,45 +253,41 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                         p.Score += MasonryBoost(p);
                         return (Product: p, Kind: kind);
                     })
-                    .Where(x => x.Kind is WallProductKind.Block or WallProductKind.Brick or WallProductKind.Mortar)
                     .ToList();
 
-                // Quotas : moins de variants Silka, plus de briques + ciment.
-                var max = Math.Max(12, _options.MaxProductResults);
-                var brickSlots = Math.Min(7, Math.Max(4, max / 3));
-                var mortarSlots = Math.Min(6, Math.Max(4, max / 3));
-                var blockSlots = Math.Max(4, max - brickSlots - mortarSlots);
+                ranked = focus switch
+                {
+                    WallGuideFamily.Binder => DeduplicateWallVariants(
+                            classified
+                                .Where(x => x.Kind == WallProductKind.Mortar)
+                                .OrderByDescending(x => MortarPriority(x.Product))
+                                .ThenByDescending(x => x.Product.Score)
+                                .ThenBy(x => x.Product.Name)
+                                .Select(x => x.Product))
+                        .Take(Math.Max(12, _options.MaxProductResults))
+                        .ToList(),
 
-                var blocks = DeduplicateWallVariants(
-                        classified
-                            .Where(x => x.Kind == WallProductKind.Block)
-                            .OrderByDescending(x => x.Product.Score)
-                            .ThenBy(x => x.Product.Name)
-                            .Select(x => x.Product))
-                    .Take(blockSlots)
-                    .ToList();
+                    WallGuideFamily.Reinforcement => DeduplicateWallVariants(
+                            classified
+                                .Where(x => x.Kind == WallProductKind.Mesh)
+                                .OrderByDescending(x => x.Product.Score)
+                                .ThenBy(x => x.Product.Name)
+                                .Select(x => x.Product))
+                        .Take(Math.Max(10, _options.MaxProductResults))
+                        .ToList(),
 
-                var bricks = DeduplicateWallVariants(
-                        classified
-                            .Where(x => x.Kind == WallProductKind.Brick)
-                            .OrderByDescending(x => x.Product.Score)
-                            .ThenBy(x => x.Product.Name)
-                            .Select(x => x.Product))
-                    .Take(brickSlots)
-                    .ToList();
+                    WallGuideFamily.Tools => DeduplicateWallVariants(
+                            classified
+                                .Where(x => x.Kind == WallProductKind.Tool)
+                                .OrderByDescending(x => x.Product.Score)
+                                .ThenBy(x => x.Product.Name)
+                                .Select(x => x.Product))
+                        .Take(Math.Max(8, _options.MaxProductResults))
+                        .ToList(),
 
-                var mortars = DeduplicateWallVariants(
-                        classified
-                            .Where(x => x.Kind == WallProductKind.Mortar)
-                            .OrderByDescending(x => MortarPriority(x.Product))
-                            .ThenByDescending(x => x.Product.Score)
-                            .ThenBy(x => x.Product.Name)
-                            .Select(x => x.Product))
-                    .Take(mortarSlots)
-                    .ToList();
+                    _ => BuildWallStructureSelection(classified, Math.Max(12, _options.MaxProductResults))
+                };
 
-                // Round-robin : 1 bloc, 1 brique, 1 mortier… (évite 5 Silka identiques en tête).
-                ranked = InterleaveWallKinds(blocks, bricks, mortars);
                 meta.Outcome = ProductSearchOutcome.Domain;
             }
             else
@@ -311,11 +317,17 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }
 
             meta.TotalMatches = filtered.Count;
-            // Marque : max 3. Mur : au moins 6 pour montrer blocs + briques + mortier.
+            // Marque : max 3. Mur : une famille à la fois, plus de choix dans le rayon.
             var take = brandMode
                 ? Math.Max(1, Math.Min(3, _options.InitialProductResults > 0 ? _options.InitialProductResults : 3))
                 : wallMode
-                    ? Math.Max(6, Math.Min(9, Math.Max(_options.MaxProductResults, 6)))
+                    ? meta.WallGuideFamily switch
+                    {
+                        WallGuideFamily.Binder => Math.Max(8, Math.Min(12, Math.Max(_options.MaxProductResults, 8))),
+                        WallGuideFamily.Reinforcement => Math.Max(6, Math.Min(10, Math.Max(_options.MaxProductResults, 6))),
+                        WallGuideFamily.Tools => Math.Max(5, Math.Min(8, Math.Max(_options.MaxProductResults, 5))),
+                        _ => Math.Max(6, Math.Min(10, Math.Max(_options.MaxProductResults, 6)))
+                    }
                     : Math.Max(1, Math.Min(_options.MaxProductResults, Math.Max(3, _options.InitialProductResults)));
 
             if (excludeProductIds is { Count: > 0 })
@@ -605,6 +617,130 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return result;
         }
 
+        /// <summary>Étape structure : briques + blocs seulement (pas de ciment mélangé).</summary>
+        private static List<ScoredProduct> BuildWallStructureSelection(
+            IReadOnlyList<(ScoredProduct Product, WallProductKind Kind)> classified,
+            int max)
+        {
+            var brickSlots = Math.Min(6, Math.Max(4, max / 2));
+            var blockSlots = Math.Max(4, max - brickSlots);
+
+            var blocks = DeduplicateWallVariants(
+                    classified
+                        .Where(x => x.Kind == WallProductKind.Block)
+                        .OrderByDescending(x => x.Product.Score)
+                        .ThenBy(x => x.Product.Name)
+                        .Select(x => x.Product))
+                .Take(blockSlots)
+                .ToList();
+
+            var bricks = DeduplicateWallVariants(
+                    classified
+                        .Where(x => x.Kind == WallProductKind.Brick)
+                        .OrderByDescending(x => x.Product.Score)
+                        .ThenBy(x => x.Product.Name)
+                        .Select(x => x.Product))
+                .Take(brickSlots)
+                .ToList();
+
+            return InterleaveWallKinds(blocks, bricks, Array.Empty<ScoredProduct>());
+        }
+
+        private async Task EnrichWallReinforcementCandidatesAsync(
+            Dictionary<int, ScoredProduct> scores,
+            CancellationToken ct)
+        {
+            var rows = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p =>
+                    (p.TypeName != null && (
+                        p.TypeName.ToLower().Contains("zind")
+                        || p.TypeName.ToLower().Contains("grid")
+                        || p.TypeName.ToLower().Contains("wapening")
+                        || p.TypeName.ToLower().Contains("ijzer")
+                        || p.TypeName.ToLower().Contains("net")))
+                    || (p.SubTypeName != null && (
+                        p.SubTypeName.ToLower().Contains("zind")
+                        || p.SubTypeName.ToLower().Contains("grid")
+                        || p.SubTypeName.ToLower().Contains("wapening")
+                        || p.SubTypeName.ToLower().Contains("bewapen")
+                        || p.SubTypeName.ToLower().Contains("gaas")
+                        || p.SubTypeName.ToLower().Contains("net")))
+                    || (p.Name != null && (
+                        p.Name.ToLower().Contains("wapeningsnet")
+                        || p.Name.ToLower().Contains("bewapeningsnet")
+                        || p.Name.ToLower().Contains("wapeningsgaas")
+                        || p.Name.ToLower().Contains("treillis")
+                        || p.Name.ToLower().Contains("betonijzer"))))
+                .Take(120)
+                .Select(p => new ScoredProduct
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Name2 = p.Name2,
+                    Reference = p.Reference,
+                    Brand = p.Brand,
+                    UnitPrice = p.UnitPrice,
+                    PriceHT = p.PriceHT,
+                    MainTypeName = p.MainTypeName,
+                    TypeName = p.TypeName,
+                    SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
+                    Score = 4
+                })
+                .ToListAsync(ct);
+
+            foreach (var p in rows)
+            {
+                if (ClassifyWallProduct(p) == WallProductKind.Mesh)
+                    AddOrBumpScore(scores, p, "wapening", bonus: 12);
+            }
+        }
+
+        private async Task EnrichWallToolCandidatesAsync(
+            Dictionary<int, ScoredProduct> scores,
+            CancellationToken ct)
+        {
+            var rows = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p =>
+                    (p.Name != null && (
+                        p.Name.ToLower().Contains("troffel")
+                        || p.Name.ToLower().Contains("truelle")
+                        || p.Name.ToLower().Contains("waterpas")
+                        || p.Name.ToLower().Contains("mortelkuip")
+                        || p.Name.ToLower().Contains("speciekuip")
+                        || p.Name.ToLower().Contains("mengkuip")
+                        || p.Name.ToLower().Contains("handschoen")
+                        || p.Name.ToLower().Contains("metseltroffel")))
+                    || (p.SubTypeName != null && (
+                        p.SubTypeName.ToLower().Contains("troffel")
+                        || p.SubTypeName.ToLower().Contains("handschoen"))))
+                .Take(80)
+                .Select(p => new ScoredProduct
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Name2 = p.Name2,
+                    Reference = p.Reference,
+                    Brand = p.Brand,
+                    UnitPrice = p.UnitPrice,
+                    PriceHT = p.PriceHT,
+                    MainTypeName = p.MainTypeName,
+                    TypeName = p.TypeName,
+                    SubTypeName = p.SubTypeName,
+                    PicName = p.PicName,
+                    Score = 3
+                })
+                .ToListAsync(ct);
+
+            foreach (var p in rows)
+            {
+                if (ClassifyWallProduct(p) == WallProductKind.Tool)
+                    AddOrBumpScore(scores, p, "troffel", bonus: 10);
+            }
+        }
+
         /// <summary>
         /// Une seule variante par famille (ex. 3 Silka 100/150/198 mm → garde le meilleur score).
         /// </summary>
@@ -638,6 +774,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             Block,
             Brick,
             Mortar,
+            Mesh,
+            Tool,
             Other
         }
 
@@ -651,8 +789,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var name2 = (p.Name2 ?? string.Empty).ToLowerInvariant();
             var category = $"{p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
 
-            if (IsToolProduct(p))
+            // Outillage maçonnerie (truelle…) avant les lames/perceuses exclues du parcours.
+            if (IsMasonryHandTool(name, category))
+                return WallProductKind.Tool;
+
+            if (IsCuttingOrPowerToolNoise(p))
                 return WallProductKind.Exclude;
+
+            // Treillis / ferraillage (Zind & Grid, Net IJzer…).
+            if (IsMeshProduct(name, name2, category))
+                return WallProductKind.Mesh;
 
             // Finitions / colles / étanchéité : hors structure mur.
             if (ContainsAny(name, "epoxy", "plamuur", "polyfilla", "varioflex", "tegellijm", "primer",
@@ -686,6 +832,36 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return WallProductKind.Other;
         }
+
+        private static bool IsMeshProduct(string name, string name2, string category)
+        {
+            if (ContainsAny(name, "wapeningsnet", "bewapeningsnet", "wapeningsgaas", "treillis",
+                    "betonijzer", "wapeningsdraad", "draadgaas"))
+                return true;
+            if (ContainsAny(name2, "wapening", "bewapen", "treillis"))
+                return true;
+            if (ContainsAny(category, "zind", "grid", "wapening", "bewapen")
+                && !ContainsAny(name, "verf", "kit ", "silicon"))
+                return true;
+            if (ContainsAny(category, "ijzer", "net, ijzer", "net ijzer")
+                && ContainsAny(name, "net", "gaas", "draad", "wapen", "ijzer", "mesh"))
+                return true;
+            return false;
+        }
+
+        private static bool IsMasonryHandTool(string name, string category)
+        {
+            if (ContainsAny(name,
+                    "troffel", "truelle", "metseltroffel", "waterpas", "niveau",
+                    "mortelkuip", "speciekuip", "mengkuip", "auge",
+                    "handschoen", "werkhandschoen"))
+                return true;
+            if (ContainsAny(category, "troffel", "handschoen") && !ContainsAny(name, "zaag", "boor"))
+                return true;
+            return false;
+        }
+
+        private static bool IsCuttingOrPowerToolNoise(ScoredProduct p) => IsToolProduct(p);
 
         private static bool IsBrickProduct(string name, string name2, string category)
         {
@@ -825,6 +1001,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 WallProductKind.Block => 10,
                 WallProductKind.Brick => 10,
                 WallProductKind.Mortar => 6,
+                WallProductKind.Mesh => 8,
+                WallProductKind.Tool => 5,
                 _ => 0
             };
             if (name.Contains("lijmblok") || name.Contains("kalkzandsteen") || name.Contains("snelbouwsteen"))

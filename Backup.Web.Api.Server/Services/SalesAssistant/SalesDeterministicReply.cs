@@ -94,7 +94,17 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 }
 
                 if (meta.TotalMatches > products.Count && string.IsNullOrWhiteSpace(vagueFollowUp))
-                    intro += $"\n(Affichage des {products.Count} meilleures sur {meta.TotalMatches} — précisez pour affiner.)";
+                {
+                    if (meta.WallGuideFamily is { } family)
+                    {
+                        intro += $"\n(Étape « {SalesProjectGuide.FocusLabel(family)} » : {products.Count} refs affichées"
+                                 + $" sur {meta.TotalMatches} dans ce rayon — précisez marque / type pour affiner.)";
+                    }
+                    else
+                    {
+                        intro += $"\n(Affichage des {products.Count} meilleures sur {meta.TotalMatches} — précisez pour affiner.)";
+                    }
+                }
 
                 var isBrandPath = meta.Outcome is ProductSearchOutcome.BrandOnly
                     or ProductSearchOutcome.BrandAndType
@@ -133,6 +143,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     intro = (!string.IsNullOrWhiteSpace(calc) ? calc + "\n\n" : "")
                             + aiReply.Trim()
                             + "\n\nLes quantités proposées sont préremplies dans le tableau.";
+                }
+
+                if (meta.WallGuideFamily is { } wallFamily
+                    && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                {
+                    intro = intro.TrimEnd()
+                            + "\n\n"
+                            + SalesProjectGuide.BuildWallChecklist(session, wallFamily);
                 }
 
                 return intro.Trim();

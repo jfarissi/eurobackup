@@ -111,16 +111,25 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 case "wall_construction":
                 case "Wall":
-                    AddIfMissing("mortar", "Mortier / ciment", "Pour lier les blocs/briques.", "ciment",
-                        "ciment", "cement", "mortier", "mortel");
-                    AddIfMissing("mesh", "Treillis", "Renforce les joints / enduit.", "treillis",
-                        "treillis", "mesh", "wapening");
+                    AddIfMissing("mesh", "Treillis / ferraillage", "Rayons Zind & Grid · Net, IJzer en Toebehoren.", "treillis",
+                        "treillis", "mesh", "wapening", "zind", "grid", "gaas", "betonijzer");
                     AddIfMissing("tools", "Truelle + niveau", "Pose plus précise, moins de reprise.", "truelle",
                         "truelle", "niveau", "troffel", "waterpas");
                     AddIfMissing("tub", "Auge / seau", "Pour gâcher le mortier.", "auge",
                         "auge", "seau", "emmer", "kuip");
                     AddIfMissing("gloves", "Gants", "Protection lors du malaxage.", "gants",
                         "gant", "gloves", "handschoen");
+                    // Ne pas proposer « mortier » si déjà en panier (parcours étape 2).
+                    if (!ContainsAny(present, "ciment", "cement", "mortier", "mortel"))
+                    {
+                        tips.Insert(0, new SalesRecommendationDto
+                        {
+                            Code = "mortar",
+                            Label = "Mortier / ciment",
+                            Reason = "Rayon Cement en Mortels — choisir le liant adapté.",
+                            SearchHint = "ciment"
+                        });
+                    }
                     break;
                 case "painting":
                 case "Painting":
