@@ -1,20 +1,40 @@
 {
   "id": "dakmaterialen",
-  "title": "Dakmaterialen — toiture",
+  "title": "Dakmaterialen — toiture (réparer → Aquaplan → compléments)",
   "mainType": "Dakmaterialen",
   "mainTypeId": "45",
   "domainId": "roofing",
-  "expectedCategoryHints": ["Dak", "dakpan", "toiture", "gouttière"],
+  "expectedCategoryHints": ["Dak", "dakpan", "toiture", "gouttière", "Aquaplan"],
   "forbiddenProductHints": ["muurverf", "ampoule", "tronçon", "disque", "ribimex", "winkel (oud)"],
-  "notes": "Régression : « matériaux pour réparer mon toit » ≠ disques à tronçonner.",
+  "notes": "Régression : « matériaux pour réparer mon toit » ≠ disques à tronçonner ; multi-tours étanchéité.",
   "turns": [
     {
       "user": "il me faut des matériaux pour réparer mon toit",
       "expect": {
         "domainId": "roofing",
         "guidedIntent": "None",
-        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot", "toit", "toiture", "tuile", "gouttière"],
+        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot", "toit", "toiture", "tuile", "gouttière", "Aquaplan"],
         "productMustNotMatch": ["tronçon", "disque", "ribimex", "ribimix"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    },
+    {
+      "user": "plutôt de l'étanchéité aquaplan pour le toit",
+      "expect": {
+        "domainId": "roofing",
+        "guidedIntent": "None",
+        "categoryMustMatchAny": ["Aquaplan", "Dak", "étanchéité", "afdichting", "bitum", "dak"],
+        "productMustNotMatch": ["tronçon", "disque", "ribimex", "ribimix"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Aquaplan Dakcoating 4kg"],
+      "expect": {
+        "domainId": "roofing",
+        "categoryMustMatchAny": ["Dak", "Aquaplan", "goot", "gouttière", "dakpan", "vis", "schroef", "complément", "panier"],
+        "productMustNotMatch": ["tronçon", "disque", "ribimex"],
         "replyMustNotContain": ["panier est vide"]
       }
     }

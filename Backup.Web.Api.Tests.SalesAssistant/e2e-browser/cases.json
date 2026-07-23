@@ -32,7 +32,7 @@
   {
     "id": "dakmaterialen",
     "mainType": "Dakmaterialen",
-    "title": "Dakmaterialen — toiture",
+    "title": "Dakmaterialen — toiture (réparer → Aquaplan → compléments)",
     "user": "il me faut des matériaux pour réparer mon toit",
     "mustContainAny": [
       "Dak",
@@ -43,11 +43,18 @@
       "toit",
       "toiture",
       "tuile",
-      "gouttière"
+      "gouttière",
+      "Aquaplan"
     ],
     "mustNotContain": [
+      "panier est vide",
+      "tronçon",
+      "disque",
+      "ribimex",
+      "ribimix",
       "muurverf",
-      "ampoule"
+      "ampoule",
+      "winkel (oud)"
     ]
   },
   {
@@ -70,7 +77,7 @@
   {
     "id": "eko-lampen-led",
     "mainType": "EKO Lampen",
-    "title": "EKO Lampen — éclairage LED",
+    "title": "EKO Lampen — LED E27 puis affinage / compléments",
     "user": "je veux des lampes LED E27 pour la maison",
     "mustContainAny": [
       "LED",
@@ -87,7 +94,7 @@
   {
     "id": "elektriciteit-ampoules",
     "mainType": "Elektriciteit",
-    "title": "Elektriciteit — ampoules jardin (pas sticky mur / Ytong)",
+    "title": "Elektriciteit — ampoules jardin puis compléments",
     "user": "je cherche des ampoules pour mon jardin",
     "mustContainAny": [
       "lamp",
@@ -109,7 +116,7 @@
   {
     "id": "gereedschap-outils",
     "mainType": "Gereedschap",
-    "title": "Gereedschap — outillage",
+    "title": "Gereedschap — perceuse puis forets / accessoires",
     "user": "il me faut une perceuse et des forets",
     "mustContainAny": [
       "boor",
@@ -120,13 +127,14 @@
       "outil"
     ],
     "mustNotContain": [
+      "panier est vide",
       "muurverf"
     ]
   },
   {
     "id": "hout-bois",
     "mainType": "Hout",
-    "title": "Hout — bois / planches",
+    "title": "Hout — planches étagère puis visserie",
     "user": "je cherche des planches de bois pour une étagère",
     "mustContainAny": [
       "Hout",
@@ -173,7 +181,7 @@
   {
     "id": "ladders",
     "mainType": "Ladders",
-    "title": "Ladders — échelles",
+    "title": "Ladders — échelle puis accessoires",
     "user": "je cherche une échelle aluminium pour le plafond",
     "mustContainAny": [
       "ladder",
@@ -204,7 +212,7 @@
   {
     "id": "radiatoren",
     "mainType": "Radiatoren",
-    "title": "Radiatoren — radiateurs",
+    "title": "Radiatoren — radiateur salon puis accessoires",
     "user": "il me faut un radiateur pour le salon",
     "mustContainAny": [
       "radiator",
@@ -215,6 +223,7 @@
       "Radiator"
     ],
     "mustNotContain": [
+      "panier est vide",
       "cement",
       "tegel"
     ]
@@ -222,7 +231,7 @@
   {
     "id": "sanitair-plomberie",
     "mainType": "Sanitair",
-    "title": "Sanitair — plomberie / siphon",
+    "title": "Sanitair — siphon puis compléments plomberie",
     "user": "il me faut un siphon pour mon lavabo",
     "mustContainAny": [
       "siphon",
@@ -232,6 +241,7 @@
       "PVC"
     ],
     "mustNotContain": [
+      "panier est vide",
       "muurverf",
       "snelbouw"
     ]
@@ -270,7 +280,7 @@
   {
     "id": "tegels-access-colle-joint",
     "mainType": "Tegels Access.",
-    "title": "Tegels Access. — colle et joints",
+    "title": "Tegels Access. — colle / joints puis outils pose",
     "user": "il me faut de la colle carrelage et du joint",
     "mustContainAny": [
       "lijm",
@@ -281,13 +291,14 @@
       "voegsel"
     ],
     "mustNotContain": [
+      "panier est vide",
       "snelbouwsteen"
     ]
   },
   {
     "id": "tegels-carrelage",
     "mainType": "Tegels",
-    "title": "Tegels — carrelage sol / mur",
+    "title": "Tegels — carrelage puis colle / joints",
     "user": "je veux du carrelage pour ma salle de bain",
     "mustContainAny": [
       "Tegel",

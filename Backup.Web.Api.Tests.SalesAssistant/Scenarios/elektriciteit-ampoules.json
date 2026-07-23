@@ -1,12 +1,12 @@
 {
   "id": "elektriciteit-ampoules",
-  "title": "Elektriciteit — ampoules jardin (pas sticky mur / Ytong)",
+  "title": "Elektriciteit — ampoules jardin puis compléments",
   "mainType": "Elektriciteit",
   "mainTypeId": "1",
   "domainId": "electrical",
   "expectedCategoryHints": ["lamp", "LED", "ampoule", "Elektriciteit"],
   "forbiddenProductHints": ["ytong", "porotherm", "cement", "lijmblok"],
-  "notes": "Régression sticky wall → ampoules.",
+  "notes": "Régression sticky wall → ampoules ; suite panier hors maçonnerie.",
   "turns": [
     {
       "user": "je cherche des ampoules pour mon jardin",
@@ -14,6 +14,24 @@
         "domainId": "electrical",
         "categoryMustMatchAny": ["lamp", "LED", "ampoule", "E27", "E14", "Lampen"],
         "productMustNotMatch": ["ytong", "porotherm", "cement", "snelbouw"]
+      }
+    },
+    {
+      "user": "plutôt des LED E27 étanches",
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["LED", "E27", "lamp", "ampoule", "Lampen", "IP"],
+        "productMustNotMatch": ["ytong", "porotherm", "cement"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["LED Lamp E27 10W"],
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["lamp", "LED", "douille", "fitting", "cable", "kabel", "panier", "complément"],
+        "productMustNotMatch": ["ytong", "porotherm", "snelbouw"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

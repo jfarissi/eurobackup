@@ -1,0 +1,764 @@
+[
+  {
+    "id": "bouwmaterialen-wall-guided",
+    "mainType": "Bouwmaterialen",
+    "title": "Bouwmaterialen — parcours mur guidé (structure → ciment → treillis → outils)",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je veux construire un mur de 7m de longeur et 2m de hateur",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "m²",
+          "briques",
+          "1. Structure (briques / blocs)",
+          "← à choisir maintenant",
+          "Étape « structure (briques / blocs) »",
+          "Stenen",
+          "Snelbouw",
+          "Lijmblok",
+          "baksteen",
+          "Porotherm",
+          "Snelbouwstenen",
+          "Cement en Mortels",
+          "Net, IJzer en Toebehoren",
+          "Zind",
+          "Murfor"
+        ],
+        "mustNotContain": [
+          "3. Treillis / ferraillage — rayon : Zind & Grid · Net, IJzer en Toebehoren ← à choisir maintenant",
+          "2. Ciment / mortier — rayon : Cement en Mortels ← à choisir maintenant",
+          "gipsplaat",
+          "hammerite",
+          "ampoule"
+        ],
+        "wallGuideFamily": "Structure"
+      },
+      {
+        "index": 1,
+        "user": "autres produits",
+        "cartBefore": [
+          "Snelbouw Porotherm Thermobrick 29x09"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Cement",
+          "Mortel",
+          "Mixem"
+        ],
+        "mustNotContain": [
+          "gipsplaat",
+          "hammerite",
+          "ampoule"
+        ],
+        "wallGuideFamily": "Binder"
+      },
+      {
+        "index": 2,
+        "user": "ok produit suivant",
+        "cartBefore": [
+          "Snelbouw Porotherm Thermobrick 29x09",
+          "Cement Wit - 20kg"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Murfor",
+          "IJzer",
+          "Net",
+          "Wapening",
+          "Zind"
+        ],
+        "mustNotContain": [
+          "gipsplaat",
+          "gipsplaten",
+          "hammerite",
+          "ampoule"
+        ],
+        "wallGuideFamily": "Reinforcement"
+      },
+      {
+        "index": 3,
+        "user": "autres produits",
+        "cartBefore": [
+          "Snelbouw Porotherm",
+          "Cement Wit",
+          "Murfor Plat 04cm"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "troffel",
+          "truelle",
+          "handschoen",
+          "Emmer"
+        ],
+        "mustNotContain": [
+          "gipsplaat",
+          "hammerite",
+          "ampoule"
+        ],
+        "wallGuideFamily": "Tools"
+      }
+    ]
+  },
+  {
+    "id": "dakmaterialen",
+    "mainType": "Dakmaterialen",
+    "title": "Dakmaterialen — toiture (réparer → Aquaplan → compléments)",
+    "turns": [
+      {
+        "index": 0,
+        "user": "il me faut des matériaux pour réparer mon toit",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "Dak",
+          "dakpan",
+          "dakmateriaal",
+          "gouttiere",
+          "goot",
+          "toit",
+          "toiture",
+          "tuile",
+          "gouttière",
+          "Aquaplan"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "tronçon",
+          "disque",
+          "ribimex",
+          "ribimix",
+          "muurverf",
+          "ampoule",
+          "winkel (oud)"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "plutôt de l'étanchéité aquaplan pour le toit",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "Aquaplan",
+          "Dak",
+          "étanchéité",
+          "afdichting",
+          "bitum",
+          "dak"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "tronçon",
+          "disque",
+          "ribimex",
+          "ribimix",
+          "muurverf",
+          "ampoule",
+          "winkel (oud)"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Aquaplan Dakcoating 4kg"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Dak",
+          "Aquaplan",
+          "goot",
+          "gouttière",
+          "dakpan",
+          "vis",
+          "schroef",
+          "complément",
+          "panier"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "tronçon",
+          "disque",
+          "ribimex",
+          "muurverf",
+          "ampoule",
+          "winkel (oud)"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "eko-lampen-led",
+    "mainType": "EKO Lampen",
+    "title": "EKO Lampen — LED E27 puis affinage / compléments",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je veux des lampes LED E27 pour la maison",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "LED",
+          "lamp",
+          "E27",
+          "Lampen",
+          "EKO"
+        ],
+        "mustNotContain": [
+          "cement",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "en 10 watts blanc chaud",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "LED",
+          "lamp",
+          "E27",
+          "10",
+          "watt",
+          "Lampen",
+          "warm"
+        ],
+        "mustNotContain": [
+          "cement",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "EKO LED E27 10W"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "LED",
+          "lamp",
+          "douille",
+          "fitting",
+          "panier",
+          "complément"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "cement",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "elektriciteit-ampoules",
+    "mainType": "Elektriciteit",
+    "title": "Elektriciteit — ampoules jardin puis compléments",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je cherche des ampoules pour mon jardin",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "lamp",
+          "LED",
+          "ampoule",
+          "E27",
+          "E14",
+          "Lampen",
+          "Elektriciteit"
+        ],
+        "mustNotContain": [
+          "ytong",
+          "porotherm",
+          "cement",
+          "snelbouw",
+          "lijmblok"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "plutôt des LED E27 étanches",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "LED",
+          "E27",
+          "lamp",
+          "ampoule",
+          "Lampen",
+          "IP"
+        ],
+        "mustNotContain": [
+          "ytong",
+          "porotherm",
+          "cement",
+          "lijmblok"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "LED Lamp E27 10W"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "lamp",
+          "LED",
+          "douille",
+          "fitting",
+          "cable",
+          "kabel",
+          "panier",
+          "complément"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "ytong",
+          "porotherm",
+          "snelbouw",
+          "cement",
+          "lijmblok"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "gereedschap-outils",
+    "mainType": "Gereedschap",
+    "title": "Gereedschap — perceuse puis forets / accessoires",
+    "turns": [
+      {
+        "index": 0,
+        "user": "il me faut une perceuse et des forets",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "boor",
+          "perceuse",
+          "Gereedschap",
+          "drill",
+          "zaag",
+          "outil"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "muurverf"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Bosch Perceuse"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "boor",
+          "foret",
+          "bit",
+          "accu",
+          "batterie",
+          "panier",
+          "complément",
+          "Gereedschap"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "muurverf"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "hout-bois",
+    "mainType": "Hout",
+    "title": "Hout — planches étagère puis visserie",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je cherche des planches de bois pour une étagère",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "Hout",
+          "plank",
+          "bois",
+          "lat"
+        ],
+        "mustNotContain": [
+          "hammerite"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Plank vuren 18x140"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "vis",
+          "schroef",
+          "hoek",
+          "équerre",
+          "panier",
+          "complément",
+          "Hout",
+          "plank"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "hammerite"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "ladders",
+    "mainType": "Ladders",
+    "title": "Ladders — échelle puis accessoires",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je cherche une échelle aluminium pour le plafond",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "ladder",
+          "échelle",
+          "escabeau",
+          "trap",
+          "Ladder"
+        ],
+        "mustNotContain": [
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Ladder aluminium 3x10"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "ladder",
+          "échelle",
+          "panier",
+          "complément",
+          "trap",
+          "plateforme"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "radiatoren",
+    "mainType": "Radiatoren",
+    "title": "Radiatoren — radiateur salon puis accessoires",
+    "turns": [
+      {
+        "index": 0,
+        "user": "il me faut un radiateur pour le salon",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "radiator",
+          "Radiatoren",
+          "radiateur",
+          "chauffage",
+          "verwarming",
+          "Radiator"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "cement",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Radiateur panneau 600x1000"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "radiator",
+          "vanne",
+          "kraan",
+          "console",
+          "beugel",
+          "panier",
+          "complément",
+          "thermostat"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "cement",
+          "tegel"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "sanitair-plomberie",
+    "mainType": "Sanitair",
+    "title": "Sanitair — siphon puis compléments plomberie",
+    "turns": [
+      {
+        "index": 0,
+        "user": "il me faut un siphon pour mon lavabo",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "siphon",
+          "Sanitair",
+          "afvoer",
+          "sifon",
+          "PVC"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "muurverf",
+          "snelbouw"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Siphon lavabo 32mm"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "PVC",
+          "joint",
+          "manchon",
+          "afvoer",
+          "siphon",
+          "panier",
+          "complément",
+          "tuyau"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "muurverf",
+          "snelbouw"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "tegels-access-colle-joint",
+    "mainType": "Tegels Access.",
+    "title": "Tegels Access. — colle / joints puis outils pose",
+    "turns": [
+      {
+        "index": 0,
+        "user": "il me faut de la colle carrelage et du joint",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "lijm",
+          "voeg",
+          "colle",
+          "joint",
+          "tegellijm",
+          "voegsel"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "snelbouwsteen"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Tegellijm C2 25kg",
+          "Voegsel grijs 5kg"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "croisillon",
+          "spatule",
+          "emmer",
+          "panier",
+          "complément",
+          "lijm",
+          "voeg"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "snelbouwsteen"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "tegels-carrelage",
+    "mainType": "Tegels",
+    "title": "Tegels — carrelage puis colle / joints",
+    "turns": [
+      {
+        "index": 0,
+        "user": "je veux du carrelage pour ma salle de bain",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "Tegel",
+          "carrel",
+          "Tegels",
+          "tegel",
+          "carrelage"
+        ],
+        "mustNotContain": [
+          "hammerite",
+          "porotherm"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Tegel wit 30x60"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "lijm",
+          "voeg",
+          "colle",
+          "joint",
+          "tegellijm",
+          "croisillon",
+          "panier",
+          "complément"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "porotherm",
+          "snelbouw",
+          "hammerite"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "verf-paint-house",
+    "mainType": "Verf",
+    "title": "Verf — peindre maison multi-pièces (pas Hammerite métal)",
+    "turns": [
+      {
+        "index": 0,
+        "user": "j'ai besoin de peindre ma maison 6 chambre de 2m de haut et 2m de longeur , salle de bain 2m de haut et 1.5 de longeur couloires 6m de longeur et 2m de hauteru",
+        "cartBefore": [],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "m²",
+          "peindre",
+          "couches",
+          "muurverf",
+          "latex",
+          "acryl",
+          "Verf",
+          "kwast",
+          "verfroller"
+        ],
+        "mustNotContain": [
+          "briques",
+          "parpaings",
+          "Hammerite",
+          "hammerite",
+          "antiroest",
+          "anti-roest",
+          "metaalverf",
+          "ultima"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "autres produits a ajouter a mon panier ?",
+        "cartBefore": [
+          "Muurverf Latex Mat Blanc 10L"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "rouleau",
+          "roller",
+          "kwast",
+          "primer",
+          "grondverf",
+          "masking",
+          "ruban"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "hammerite",
+          "antiroest",
+          "metaalverf",
+          "ultima"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "que pensez vous de mon panier ?",
+        "cartBefore": [
+          "Muurverf Latex Mat Blanc 10L",
+          "Verfroller"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "panier",
+          "avis",
+          "Muurverf",
+          "Verfroller",
+          "rouleau",
+          "roller"
+        ],
+        "mustNotContain": [
+          "panier est vide",
+          "hammerite",
+          "antiroest",
+          "metaalverf",
+          "ultima"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  }
+]

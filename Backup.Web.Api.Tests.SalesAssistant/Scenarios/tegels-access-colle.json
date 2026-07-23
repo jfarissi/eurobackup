@@ -1,6 +1,6 @@
 {
   "id": "tegels-access-colle-joint",
-  "title": "Tegels Access. — colle et joints",
+  "title": "Tegels Access. — colle / joints puis outils pose",
   "mainType": "Tegels Access.",
   "mainTypeId": "42",
   "domainId": "tiling",
@@ -11,7 +11,18 @@
       "user": "il me faut de la colle carrelage et du joint",
       "expect": {
         "domainId": "tiling",
-        "categoryMustMatchAny": ["lijm", "voeg", "colle", "joint", "tegellijm"]
+        "guidedIntent": "None",
+        "categoryMustMatchAny": ["lijm", "voeg", "colle", "joint", "tegellijm"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Tegellijm C2 25kg", "Voegsel grijs 5kg"],
+      "expect": {
+        "domainId": "tiling",
+        "categoryMustMatchAny": ["croisillon", "spatule", "emmer", "panier", "complément", "lijm", "voeg"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

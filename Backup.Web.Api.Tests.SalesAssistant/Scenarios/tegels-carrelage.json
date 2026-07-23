@@ -1,6 +1,6 @@
 {
   "id": "tegels-carrelage",
-  "title": "Tegels — carrelage sol / mur",
+  "title": "Tegels — carrelage puis colle / joints",
   "mainType": "Tegels",
   "mainTypeId": "21",
   "domainId": "tiling",
@@ -12,6 +12,16 @@
       "expect": {
         "domainId": "tiling",
         "categoryMustMatchAny": ["Tegel", "carrel", "Tegels"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Tegel wit 30x60"],
+      "expect": {
+        "domainId": "tiling",
+        "categoryMustMatchAny": ["lijm", "voeg", "colle", "joint", "tegellijm", "croisillon", "panier", "complément"],
+        "productMustNotMatch": ["porotherm", "snelbouw"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

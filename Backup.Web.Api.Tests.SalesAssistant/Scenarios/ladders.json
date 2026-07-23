@@ -1,6 +1,6 @@
 {
   "id": "ladders",
-  "title": "Ladders — échelles",
+  "title": "Ladders — échelle puis accessoires",
   "mainType": "Ladders",
   "mainTypeId": "25",
   "expectedCategoryHints": ["Ladder", "échelle", "trap"],
@@ -10,6 +10,14 @@
       "user": "je cherche une échelle aluminium pour le plafond",
       "expect": {
         "categoryMustMatchAny": ["ladder", "échelle", "escabeau", "trap", "Ladder"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Ladder aluminium 3x10"],
+      "expect": {
+        "categoryMustMatchAny": ["ladder", "échelle", "panier", "complément", "trap", "plateforme"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

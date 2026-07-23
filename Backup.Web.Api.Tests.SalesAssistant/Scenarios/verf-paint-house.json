@@ -25,7 +25,18 @@
       "cartBefore": ["Muurverf Latex Mat Blanc 10L"],
       "expect": {
         "domainId": "painting",
-        "categoryMustMatchAny": ["rouleau", "roller", "kwast", "primer", "grondverf", "masking", "ruban"]
+        "categoryMustMatchAny": ["rouleau", "roller", "kwast", "primer", "grondverf", "masking", "ruban"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    },
+    {
+      "user": "que pensez vous de mon panier ?",
+      "cartBefore": ["Muurverf Latex Mat Blanc 10L", "Verfroller"],
+      "expect": {
+        "domainId": "painting",
+        "guidedIntent": "Tips",
+        "categoryMustMatchAny": ["panier", "avis", "Muurverf", "Verfroller", "rouleau", "roller"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

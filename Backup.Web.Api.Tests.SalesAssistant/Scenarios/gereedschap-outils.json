@@ -1,15 +1,26 @@
 {
   "id": "gereedschap-outils",
-  "title": "Gereedschap — outillage",
+  "title": "Gereedschap — perceuse puis forets / accessoires",
   "mainType": "Gereedschap",
   "mainTypeId": "27",
   "expectedCategoryHints": ["Gereedschap", "boor", "zaag", "outil"],
   "forbiddenProductHints": ["muurverf"],
+  "notes": "Régression « il me faut » ≠ panier vide.",
   "turns": [
     {
       "user": "il me faut une perceuse et des forets",
       "expect": {
-        "categoryMustMatchAny": ["boor", "perceuse", "Gereedschap", "drill"]
+        "guidedIntent": "None",
+        "categoryMustMatchAny": ["boor", "perceuse", "Gereedschap", "drill"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["Bosch Perceuse"],
+      "expect": {
+        "categoryMustMatchAny": ["boor", "foret", "bit", "accu", "batterie", "panier", "complément", "Gereedschap"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]
