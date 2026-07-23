@@ -449,7 +449,10 @@
           "Ladder"
         ],
         "mustNotContain": [
-          "tegel"
+          "snelbouw",
+          "porotherm",
+          "muurverf",
+          "ampoule"
         ],
         "wallGuideFamily": null
       },
@@ -470,7 +473,10 @@
         ],
         "mustNotContain": [
           "panier est vide",
-          "tegel"
+          "snelbouw",
+          "porotherm",
+          "muurverf",
+          "ampoule"
         ],
         "wallGuideFamily": null
       }

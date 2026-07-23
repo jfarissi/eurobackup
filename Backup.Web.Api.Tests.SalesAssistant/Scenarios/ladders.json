@@ -4,7 +4,7 @@
   "mainType": "Ladders",
   "mainTypeId": "25",
   "expectedCategoryHints": ["Ladder", "échelle", "trap"],
-  "forbiddenProductHints": ["tegel"],
+  "forbiddenProductHints": ["snelbouw", "porotherm", "muurverf", "ampoule"],
   "turns": [
     {
       "user": "je cherche une échelle aluminium pour le plafond",

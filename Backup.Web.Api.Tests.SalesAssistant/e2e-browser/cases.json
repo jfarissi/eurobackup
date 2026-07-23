@@ -191,7 +191,10 @@
       "Ladder"
     ],
     "mustNotContain": [
-      "tegel"
+      "snelbouw",
+      "porotherm",
+      "muurverf",
+      "ampoule"
     ]
   },
   {
