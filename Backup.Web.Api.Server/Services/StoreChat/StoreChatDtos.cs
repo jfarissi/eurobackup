@@ -84,6 +84,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public List<StoreChatProductSuggestionDto>? Products { get; set; }
         public StoreChatQuotePdfDto? QuotePdf { get; set; }
         public StoreChatPaymentLinkDto? PaymentLink { get; set; }
+        /// <summary>Étape parcours vendeur (Idle, CartBuilding, Quoting…).</summary>
+        public string? WorkflowState { get; set; }
+        /// <summary>Résumé ProjectContext (domaine · m² · marque · budget…).</summary>
+        public string? ProjectSummary { get; set; }
+        /// <summary>Structure + liant présents (hints projet).</summary>
+        public bool ProjectBaseComplete { get; set; }
     }
 
     public class StoreChatConfirmPaymentDto

@@ -20,6 +20,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             string userMessage,
             string catalogContext,
             CancellationToken ct = default);
+
+        /// <summary>Appel bas niveau : system + user (ReplyComposer).</summary>
+        Task<string?> CompleteSystemUserAsync(
+            string systemPrompt,
+            string userMessage,
+            CancellationToken ct = default);
     }
 
     public class StoreChatAiClient : IStoreChatAiClient
@@ -47,41 +53,56 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             string catalogContext,
             CancellationToken ct = default)
         {
+            var system = _ai.SystemPrompt
+                ?? $"Tu es l'assistant magasin {_store.BrandName}. "
+                   + "Réponds en français, 2 à 4 phrases max. "
+                   + "Le catalogue produits est multilingue (français, néerlandais, anglais) : "
+                   + "accepte les libellés NL/EN et ne les considère pas comme hors sujet. "
+                   + "Ne propose QUE des produits présents dans le catalogue fourni. "
+                   + "Si le catalogue contient des produits, invite à choisir dans la liste UI (quantité / panier / devis). "
+                   + "N'invente jamais de matériaux ou références absents du catalogue. "
+                   + "Pose au plus UNE question de clarification si le besoin est trop vague.";
+
+            var catalogBlock = string.IsNullOrWhiteSpace(catalogContext)
+                ? "(aucun produit)"
+                : catalogContext;
+
+            var messages = new List<object>
+            {
+                new { role = "system", content = system + "\n\n" + catalogBlock }
+            };
+
+            foreach (var msg in history.TakeLast(Math.Max(2, _store.ChatHistoryLimit)))
+                messages.Add(new { role = msg.Role, content = msg.Content });
+
+            messages.Add(new { role = "user", content = userMessage });
+            return await SendChatAsync(messages, temperature: 0.3, ct);
+        }
+
+        public Task<string?> CompleteSystemUserAsync(
+            string systemPrompt,
+            string userMessage,
+            CancellationToken ct = default)
+        {
+            var messages = new List<object>
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userMessage }
+            };
+            return SendChatAsync(messages, temperature: 0.2, ct);
+        }
+
+        private async Task<string?> SendChatAsync(
+            List<object> messages,
+            double temperature,
+            CancellationToken ct)
+        {
             if (string.IsNullOrWhiteSpace(_ai.Endpoint) || string.IsNullOrWhiteSpace(_ai.Model))
                 return null;
 
             try
             {
                 var endpoint = EnsureOpenAiV1(_ai.Endpoint).TrimEnd('/') + "/chat/completions";
-                var system = _ai.SystemPrompt
-                    ?? $"Tu es l'assistant magasin {_store.BrandName}. "
-                       + "Réponds en français, 2 à 4 phrases max. "
-                       + "Le catalogue produits est multilingue (français, néerlandais, anglais) : "
-                       + "accepte les libellés NL/EN et ne les considère pas comme hors sujet. "
-                       + "Ne propose QUE des produits présents dans le catalogue fourni. "
-                       + "Si le catalogue contient des produits, invite à choisir dans la liste UI (quantité / panier / devis). "
-                       + "N'invente jamais de matériaux ou références absents du catalogue. "
-                       + "Pose au plus UNE question de clarification si le besoin est trop vague.";
-
-                var catalogBlock = string.IsNullOrWhiteSpace(catalogContext)
-                    ? "(aucun produit)"
-                    : catalogContext;
-                var messages = new List<object>
-                {
-                    new
-                    {
-                        role = "system",
-                        content = system + "\n\n" + catalogBlock
-                    }
-                };
-
-                foreach (var msg in history.TakeLast(Math.Max(2, _store.ChatHistoryLimit)))
-                {
-                    messages.Add(new { role = msg.Role, content = msg.Content });
-                }
-
-                messages.Add(new { role = "user", content = userMessage });
-
                 using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
                 var apiKey = string.IsNullOrWhiteSpace(_ai.ApiKey) && IsOllama(_ai.Provider)
                     ? "ollama"
@@ -92,7 +113,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 var body = new
                 {
                     model = _ai.Model,
-                    temperature = 0.3,
+                    temperature,
                     messages
                 };
 

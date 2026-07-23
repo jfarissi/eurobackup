@@ -98,6 +98,12 @@ export interface StoreChatResponse {
   products?: StoreChatProductSuggestion[];
   quotePdf?: StoreChatQuotePdf;
   paymentLink?: StoreChatPaymentLink;
+  /** Étape parcours vendeur (Idle, CartBuilding, Quoting…). */
+  workflowState?: string | null;
+  /** Résumé ProjectContext (domaine · m² · marque · budget…). */
+  projectSummary?: string | null;
+  /** Structure + liant présents (hints projet). */
+  projectBaseComplete?: boolean;
 }
 
 export interface StoreChatPaymentResult {

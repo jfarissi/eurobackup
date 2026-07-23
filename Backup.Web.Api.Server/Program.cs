@@ -79,6 +79,10 @@ builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.StripeOption
 builder.Services.AddSingleton<Backup.Web.Api.Server.Services.StoreChat.IStoreChatSessionStore, Backup.Web.Api.Server.Services.StoreChat.InMemoryStoreChatSessionStore>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatPdfService, Backup.Web.Api.Server.Services.StoreChat.StoreChatPdfService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatStripeService, Backup.Web.Api.Server.Services.StoreChat.StoreChatStripeService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesContextDetector, Backup.Web.Api.Server.Services.SalesAssistant.SalesContextDetector>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCatalogSearchTool, Backup.Web.Api.Server.Services.SalesAssistant.SalesCatalogSearchTool>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCommerceTool, Backup.Web.Api.Server.Services.SalesAssistant.SalesCommerceTool>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesComplementTool, Backup.Web.Api.Server.Services.SalesAssistant.SalesComplementTool>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatService, Backup.Web.Api.Server.Services.StoreChat.StoreChatService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesProjectService, Backup.Web.Api.Server.Services.SalesAssistant.SalesProjectService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesGuidedIntentDetector, Backup.Web.Api.Server.Services.SalesAssistant.SalesGuidedIntentDetector>();
@@ -94,6 +98,27 @@ builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesP
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesPhotoClassifier, Backup.Web.Api.Server.Services.SalesAssistant.SalesPhotoClassifier>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesWallSchemaParser, Backup.Web.Api.Server.Services.SalesAssistant.SalesWallSchemaParser>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesSemanticSearch, Backup.Web.Api.Server.Services.SalesAssistant.SalesBagOfWordsSearch>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesWorkflowGuard, Backup.Web.Api.Server.Services.SalesAssistant.SalesWorkflowGuard>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesTurnResponder, Backup.Web.Api.Server.Services.SalesAssistant.SalesTurnResponder>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnDispatcher, Backup.Web.Api.Server.Services.SalesAssistant.Turns.SalesGuidedTurnDispatcher>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.CartComplementsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.ConfirmComplementsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.DirectComplementHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.HesitationHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.StyleHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.WallSchemaHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.TipsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.SavingsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.PromosHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.LogisticsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.PlanningHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.SemanticSearchHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.WhyProductHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.CompareHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.PackRequestHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.MoreProductsHandler>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesReplyComposer, Backup.Web.Api.Server.Services.SalesAssistant.SalesReplyComposer>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesDeterministicReply, Backup.Web.Api.Server.Services.SalesAssistant.SalesDeterministicReply>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesAssistantFacade, Backup.Web.Api.Server.Services.SalesAssistant.SalesAssistantFacade>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>
 {
@@ -224,3 +249,4 @@ static void ApplyDockerMySqlConnectionString(IConfiguration configuration)
 
     configuration["ConnectionStrings:DefaultConnection"] = csb.ConnectionString;
 }
+
