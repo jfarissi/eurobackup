@@ -38,12 +38,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (LooksLikeStructure(hay))
                 return WallGuideFamily.Structure;
 
-            var cart = CartHay(session);
+            var cart = CartOnlyHay(session);
             var hasStructure = HasStructure(cart);
             var hasBinder = HasBinder(cart);
             var hasMesh = HasReinforcement(cart);
 
-            // Suite naturelle après ajout panier.
+            // Suite naturelle après ajout panier (panier réel, pas MaterialHints).
             if (hasStructure && !hasBinder)
                 return WallGuideFamily.Binder;
             if (hasStructure && hasBinder && !hasMesh)
@@ -59,7 +59,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         /// </summary>
         public static string BuildWallChecklist(StoreChatSession session, WallGuideFamily focus)
         {
-            var cart = CartHay(session);
+            var cart = CartOnlyHay(session);
             var hasStructure = HasStructure(cart);
             var hasBinder = HasBinder(cart);
             var hasMesh = HasReinforcement(cart);
@@ -122,12 +122,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "ciment", "cement", "mortier", "mortel", "treillis", "outil");
         }
 
-        public static string CartHay(StoreChatSession session)
-        {
-            var cart = string.Join(' ', session.Cart.Select(c => $"{c.Name} {c.Reference}"));
-            var hints = string.Join(' ', session.MaterialHints);
-            return $"{cart} {hints}".ToLowerInvariant();
-        }
+        /// <summary>Panier uniquement — pour l’avancement du parcours.</summary>
+        public static string CartOnlyHay(StoreChatSession session) =>
+            string.Join(' ', session.Cart.Select(c => $"{c.Name} {c.Reference}")).ToLowerInvariant();
+
+        public static string CartHay(StoreChatSession session) => CartOnlyHay(session);
 
         public static bool HasStructure(string hay) =>
             ContainsAny(hay,

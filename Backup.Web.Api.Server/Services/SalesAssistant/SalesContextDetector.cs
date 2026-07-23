@@ -259,18 +259,6 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (brandMode)
                 return;
-
-            // Ne réinjecter le kit mur que sur intention mur explicite — pas seulement parce que
-            // le domaine sticky est encore wall_construction.
-            if ((lower.Contains("construire") && lower.Contains("mur"))
-                || SalesTextGuards.IsExplicitWallIntent(text))
-            {
-                foreach (var hint in new[] { "parpaing", "brique", "mortier", "ciment" })
-                {
-                    if (!session.MaterialHints.Contains(hint, StringComparer.OrdinalIgnoreCase))
-                        session.MaterialHints.Add(hint);
-                }
-            }
         }
 
         public void ParseWallDimensions(StoreChatSession session, string text)
