@@ -13,8 +13,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             List<StoreChatProductSuggestionDto> products,
             StoreChatSession session)
         {
-            // Quantités déjà posées dans SearchProductsAsync (classification Name/Name2).
-            // Garde-fou si un autre chemin crée des suggestions sans qté.
+            // Quantités mur uniquement en projet construction — sinon qté = 1.
+            if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase)
+                || session.WallAreaM2 is null or <= 0)
+            {
+                foreach (var product in products)
+                {
+                    if (product.SuggestedQuantity is null or <= 0)
+                        product.SuggestedQuantity = 1;
+                }
+
+                return;
+            }
+
             var area = session.WallAreaM2;
             foreach (var product in products)
             {

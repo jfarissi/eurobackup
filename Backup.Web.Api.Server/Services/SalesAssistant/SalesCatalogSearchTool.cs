@@ -883,7 +883,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (!brandMode)
             {
                 foreach (var hint in session.MaterialHints)
+                {
+                    // Requête éclairage : ignorer les hints maçonnerie sticky (brique/ciment…).
+                    if (lighting && IsMasonrySearchHint(hint))
+                        continue;
                     AddTermWithSynonyms(terms, hint);
+                }
 
                 if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
                     && DomainSearchTerms.TryGetValue(session.ActiveProjectDomainId, out var domainTerms))
@@ -946,6 +951,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                    || ContainsIgnoreCase(lower, "halogène")
                    || ContainsIgnoreCase(lower, "halogene");
         }
+
+        private static bool IsMasonrySearchHint(string hint) =>
+            ContainsIgnoreCase(hint, "parpaing")
+            || ContainsIgnoreCase(hint, "brique")
+            || ContainsIgnoreCase(hint, "mortier")
+            || ContainsIgnoreCase(hint, "ciment")
+            || ContainsIgnoreCase(hint, "cement")
+            || ContainsIgnoreCase(hint, "baksteen")
+            || ContainsIgnoreCase(hint, "steen")
+            || ContainsIgnoreCase(hint, "blok")
+            || ContainsIgnoreCase(hint, "silka")
+            || ContainsIgnoreCase(hint, "porotherm")
+            || ContainsIgnoreCase(hint, "snelbouw");
 
         private static void AddTermWithSynonyms(HashSet<string> terms, string token)
         {

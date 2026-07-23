@@ -168,6 +168,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
                 session.ActiveProjectDomainId = domain.id;
                 session.ActiveProjectDomainLabel = domain.label;
+                if (!string.Equals(previousDomain, domain.id, StringComparison.OrdinalIgnoreCase))
+                    ClearStickyOnDomainChange(session, previousDomain, domain.id);
+
                 if (!string.Equals(previousDomain, domain.id, StringComparison.OrdinalIgnoreCase)
                     && IsGardenDomain(domain.id))
                 {
@@ -186,8 +189,62 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 session.ActiveProjectDomainId = "wall_construction";
                 session.ActiveProjectDomainLabel = "Construction de mur";
+                if (!string.Equals(previousDomain, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                    ClearStickyOnDomainChange(session, previousDomain, "wall_construction");
             }
         }
+
+        /// <summary>
+        /// Changement de sujet (ex. mur → ampoules) : purge surface / hints maçonnerie
+        /// pour ne pas polluer la recherche suivante.
+        /// </summary>
+        private static void ClearStickyOnDomainChange(
+            StoreChatSession session,
+            string? fromDomain,
+            string toDomain)
+        {
+            if (string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            session.PendingComplementHints.Clear();
+            session.AwaitingComplementConfirm = false;
+
+            var leavingWall = string.Equals(fromDomain, "wall_construction", StringComparison.OrdinalIgnoreCase)
+                              && !string.Equals(toDomain, "wall_construction", StringComparison.OrdinalIgnoreCase);
+            var enteringNonWall = !string.Equals(toDomain, "wall_construction", StringComparison.OrdinalIgnoreCase);
+
+            if (leavingWall || (enteringNonWall && !string.IsNullOrWhiteSpace(fromDomain)))
+            {
+                if (leavingWall || IsLightingOrNonMasonryDomain(toDomain))
+                {
+                    session.WallLengthM = null;
+                    session.WallHeightM = null;
+                    session.MaterialHints.RemoveAll(IsMasonryMaterialHint);
+                    session.SearchTypeHints.RemoveAll(IsMasonryMaterialHint);
+                }
+            }
+        }
+
+        private static bool IsLightingOrNonMasonryDomain(string domainId) =>
+            domainId is "electrical" or "painting" or "tiling" or "plumbing"
+                or "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
+
+        private static bool IsMasonryMaterialHint(string hint) =>
+            ContainsIgnoreCase(hint, "parpaing")
+            || ContainsIgnoreCase(hint, "brique")
+            || ContainsIgnoreCase(hint, "mortier")
+            || ContainsIgnoreCase(hint, "ciment")
+            || ContainsIgnoreCase(hint, "cement")
+            || ContainsIgnoreCase(hint, "baksteen")
+            || ContainsIgnoreCase(hint, "steen")
+            || ContainsIgnoreCase(hint, "blok")
+            || ContainsIgnoreCase(hint, "silka")
+            || ContainsIgnoreCase(hint, "porotherm")
+            || ContainsIgnoreCase(hint, "snelbouw");
+
+        private static bool ContainsIgnoreCase(string? hay, string needle) =>
+            !string.IsNullOrWhiteSpace(hay)
+            && hay.Contains(needle, StringComparison.OrdinalIgnoreCase);
 
         public void CollectMaterialHints(StoreChatSession session, string text)
         {
@@ -203,8 +260,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (brandMode)
                 return;
 
+            // Ne réinjecter le kit mur que sur intention mur explicite — pas seulement parce que
+            // le domaine sticky est encore wall_construction.
             if ((lower.Contains("construire") && lower.Contains("mur"))
-                || string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                || SalesTextGuards.IsExplicitWallIntent(text))
             {
                 foreach (var hint in new[] { "parpaing", "brique", "mortier", "ciment" })
                 {
