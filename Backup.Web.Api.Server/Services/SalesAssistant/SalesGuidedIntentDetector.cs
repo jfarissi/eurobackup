@@ -66,14 +66,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.DirectComplement;
                 slots.DirectComplementHint = complementHint;
             }
+            else if (SalesComplementRules.TryOverrideIntent(text, session) is GuidedSalesIntent contextual)
+            {
+                // Contexte métier (base panier complète + suite) → CartComplements, avant MoreProducts.
+                slots.Intent = contextual;
+            }
             else if (IsWallSchema(lower, session))
                 slots.Intent = GuidedSalesIntent.WallSchema;
             else if (IsPackRequest(lower))
                 slots.Intent = GuidedSalesIntent.PackRequest;
+            else if (IsCartComplements(lower, session))
+                slots.Intent = GuidedSalesIntent.CartComplements;
             else if (IsMoreProducts(lower))
                 slots.Intent = GuidedSalesIntent.MoreProducts;
-            else if (IsCartComplements(lower))
-                slots.Intent = GuidedSalesIntent.CartComplements;
             else if (IsCompare(lower, slots))
                 slots.Intent = GuidedSalesIntent.Compare;
             else if (IsSavings(lower))
@@ -94,6 +99,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.Hesitation;
             else if (IsStyle(lower, slots, session))
                 slots.Intent = GuidedSalesIntent.Style;
+
+            // Filet : MoreProducts alors que la base chantier est complète → compléments.
+            if (SalesComplementRules.ShouldRedirectMoreProductsToComplements(slots.Intent, text, session))
+                slots.Intent = GuidedSalesIntent.CartComplements;
 
             return slots;
         }
@@ -209,6 +218,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();
             trimmed = Regex.Replace(trimmed, @"\s+", " ");
+
+            // Laisser CartComplements gérer « autres … à ajouter / panier ».
+            if (ContainsAny(trimmed, "ajouter", "ajout", "panier", "complément", "complement",
+                    "accessoire", "outillage", "manque", "supplément", "supplement"))
+                return false;
+
             return trimmed is "autres produits" or "autre produit" or "autres" or "autre chose"
                 or "d'autres" or "d autres" or "montre autre" or "montre autres"
                 or "encore des produits" or "autres suggestions" or "autre suggestion"
@@ -217,19 +232,27 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     "montre autre", "montre d'autres", "encore des idées", "autre chose pour");
         }
 
-        private static bool IsCartComplements(string lower) =>
-            ContainsAny(lower,
-                "autres pour", "autre pour",
-                "besoin d'autre", "besoin d autre",
-                "aurai besoin", "aurais besoin", "ai besoin d'autre", "ai-je besoin",
-                "il me manque", "me manque", "manquera", "complément", "complement",
-                "compléments utiles", "complements utiles",
-                "pour mon panier", "pour le panier", "pour mon projet", "pour le projet",
-                "pour ces deux", "pour ce que j'ai",
-                "que j'ai ajout", "que j ai ajout",
-                "quoi d'autre", "quoi d autre", "encore besoin", "produits en plus",
-                "qu'est-ce qui manque", "quest ce qui manque", "ce qui manque");
+        /// <summary>
+        /// Lexique court de secours — le contexte (SalesComplementRules) prime.
+        /// </summary>
+        private static bool IsCartComplements(string lower, StoreChatSession session)
+        {
+            // Si le contexte métier offre déjà les compléments, les formulations « suite » suffisent.
+            if (SalesComplementRules.ShouldOfferComplements(session)
+                && (ContainsAny(lower, "autre", "autres", "encore", "manque", "ajouter", "produit",
+                        "complément", "complement", "accessoire", "quoi d'autre", "il me faut")
+                    || ContainsAny(lower, "panier")))
+                return true;
 
+            return ContainsAny(lower,
+                "complément", "complement", "compléments", "complements",
+                "accessoire", "accessoires", "outillage",
+                "quoi d'autre", "quoi d autre", "quoi encore",
+                "il manque", "il me faut", "me manque",
+                "pour mon panier", "pour le panier",
+                "qu'est-ce qui manque", "ce qui manque",
+                "autres pour", "autre pour");
+        }
         /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
         private static bool IsDirectComplementKeyword(string lower, out string? hint)
         {

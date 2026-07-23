@@ -75,7 +75,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 BudgetMax = session.BudgetMax,
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
-                ProjectBaseComplete = session.Project.IsBaseComplete
+                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
             };
 
             if (guided.BudgetMentioned || session.BudgetMax is > 0)
@@ -94,7 +94,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
             WorkflowState = session.WorkflowState.ToString(),
             ProjectSummary = session.Project.SummaryLine(),
-            ProjectBaseComplete = session.Project.IsBaseComplete
+            ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
         };
 
         public StoreChatResponseDto DenyWorkflow(StoreChatSession session, string action)

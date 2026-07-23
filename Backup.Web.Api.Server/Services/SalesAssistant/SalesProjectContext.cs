@@ -38,13 +38,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public List<string> PendingComplementHints { get; set; } = new();
         public bool AwaitingComplementConfirm { get; set; }
 
-        /// <summary>Structure (briques/blocs) + liant détectés via hints ou panier.</summary>
+        /// <summary>Structure (briques/blocs) + liant détectés via hints projet.</summary>
         public bool HasStructureHint =>
             MaterialHints.Any(h => IsStructureHint(h));
 
         public bool HasBinderHint =>
             MaterialHints.Any(h => IsBinderHint(h));
 
+        /// <summary>Hints structure + liant (panier → utiliser SalesComplementRules.IsBaseComplete).</summary>
         public bool IsBaseComplete => HasStructureHint && HasBinderHint;
 
         public void Reset()

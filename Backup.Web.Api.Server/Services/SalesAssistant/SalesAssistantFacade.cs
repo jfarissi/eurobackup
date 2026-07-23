@@ -81,7 +81,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ?? session.ActiveProjectDomainLabel
                 ?? response.ActiveProjectDomainLabel;
             response.ProjectSummary ??= session.Project.SummaryLine();
-            response.ProjectBaseComplete = session.Project.IsBaseComplete;
+            response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
 
             if (response.SearchFilter == null && HasFilterSignal(session))
             {
@@ -123,7 +123,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             response.SalesProjectId = session.ActiveSalesProjectId;
             response.SalesProjectTitle ??= session.ActiveProjectDomainLabel;
             response.ProjectSummary ??= session.Project.SummaryLine();
-            response.ProjectBaseComplete = session.Project.IsBaseComplete;
+            response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
         }
 
         private void LogAudit(StoreChatResponseDto response)
