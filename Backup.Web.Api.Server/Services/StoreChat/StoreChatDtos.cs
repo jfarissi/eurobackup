@@ -105,6 +105,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? InvoiceNumber { get; set; }
         public StoreChatQuotePdfDto? InvoicePdf { get; set; }
         public bool SuggestNewProject { get; set; } = true;
+        /// <summary>True si le panier session a été vidé après paiement.</summary>
+        public bool CartCleared { get; set; }
         public string? Source { get; set; }
         public string? SourceLabel { get; set; }
     }

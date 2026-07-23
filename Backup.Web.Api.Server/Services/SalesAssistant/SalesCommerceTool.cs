@@ -271,7 +271,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (string.Equals(order.Status, "paid", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(order.InvoicePdfBase64))
             {
-                return ToPaymentResult(order);
+                var already = ToPaymentResult(order);
+                already.CartCleared = ClearSessionCartAfterPayment(order.SessionId);
+                return already;
             }
 
             var status = "paid";
@@ -311,10 +313,35 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             var chatSession = _sessions.GetOrCreate(order.SessionId);
             chatSession.LastOrderId = order.Id;
+            ClearSessionCart(chatSession);
             _workflow.ApplyTransition(chatSession, WorkflowActions.ConfirmPayment);
+            // Nouveau cycle (ex. peinture après mur) : panier vide + état Idle.
+            chatSession.WorkflowState = SalesWorkflowState.Idle;
             _sessions.Save(chatSession);
 
-            return ToPaymentResult(order);
+            var result = ToPaymentResult(order);
+            result.CartCleared = true;
+            return result;
+        }
+
+        private bool ClearSessionCartAfterPayment(string sessionId)
+        {
+            var chatSession = _sessions.Get(sessionId);
+            if (chatSession == null)
+                return false;
+            ClearSessionCart(chatSession);
+            // Nouveau cycle (ex. peinture après mur) : panier vide + état Idle.
+            chatSession.WorkflowState = SalesWorkflowState.Idle;
+            _sessions.Save(chatSession);
+            return true;
+        }
+
+        private static void ClearSessionCart(StoreChatSession chatSession)
+        {
+            chatSession.Cart.Clear();
+            chatSession.LastSuggestedProducts.Clear();
+            chatSession.PendingComplementHints.Clear();
+            chatSession.AwaitingComplementConfirm = false;
         }
 
         private static StoreChatPaymentResultDto ToPaymentResult(StoreChatOrder order) => new()

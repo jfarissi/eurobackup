@@ -112,6 +112,8 @@ export interface StoreChatPaymentResult {
   invoiceNumber?: string | null;
   invoicePdf?: StoreChatQuotePdf | null;
   suggestNewProject?: boolean;
+  /** True si le panier session a été vidé après paiement. */
+  cartCleared?: boolean;
   source?: string | null;
   sourceLabel?: string | null;
 }

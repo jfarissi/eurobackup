@@ -537,6 +537,16 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }
   }
 
+  private clearLocalCartAfterPayment(): void {
+    for (const msg of this.messages) {
+      for (const p of msg.productSuggestions ?? []) {
+        p.lineCartState = 'idle';
+      }
+    }
+    this.cartPanelOpen = false;
+    this.saveChatToStorage();
+  }
+
   private handlePaymentReturn(orderId: string, sessionId: string | null): void {
     if (this.handledPaymentOrderId === orderId) return;
     this.handledPaymentOrderId = orderId;
@@ -558,6 +568,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       next: (result) => {
         if (result.status === 'paid' && result.invoicePdf?.pdfBase64) {
           this.showNewProjectPrompt = result.suggestNewProject !== false;
+          this.clearLocalCartAfterPayment();
           this.messages.push({
             text: `Paiement confirmé${result.invoiceNumber ? ` — facture ${result.invoiceNumber}` : ''}.`,
             sender: 'bot',

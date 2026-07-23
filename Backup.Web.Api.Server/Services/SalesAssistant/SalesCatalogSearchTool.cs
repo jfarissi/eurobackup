@@ -56,9 +56,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             },
             ["painting"] = new[]
             {
-                "peinture", "rouleau", "enduit", "sous-couche",
-                "verf", "muurverf", "kwast", "roller",
-                "paint", "roller", "primer"
+                // Pas de « verf » / « paint » / « peinture » seuls : matchent des milliers de Name2.
+                "muurverf", "latexverf", "grondverf", "acrylverf",
+                "kwast", "pinceau", "verfroller", "verfborstel",
+                "sous-couche", "primer"
             },
             ["tiling"] = new[]
             {
@@ -1112,6 +1113,24 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             terms.Remove("bloc");
             terms.Remove("block");
             terms.Remove("blocks");
+
+            // Peinture : éviter les termes trop larges (→ milliers de hits Name2).
+            if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var broad in new[]
+                         {
+                             "peinture", "peintures", "peindre", "paint", "paints",
+                             "verf", "mur", "mure", "wall", "produit", "produits", "besoin"
+                         })
+                    terms.Remove(broad);
+
+                if (terms.Count == 0)
+                {
+                    terms.Add("kwast");
+                    terms.Add("verfroller");
+                    terms.Add("muurverf");
+                }
+            }
 
             return terms.Take(24).ToList();
         }
