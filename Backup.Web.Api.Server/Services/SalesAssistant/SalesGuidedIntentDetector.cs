@@ -134,9 +134,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool IsWallNextStepPhrase(string lower) =>
             ContainsAny(lower,
-                "produit suivant", "étape suivante", "etape suivante", "suivant",
+                "produit suivant", "étape suivante", "etape suivante",
                 "ok suivant", "suite", "ensuite", "après", "apres",
-                "reste d", "reste autre", "autres produit", "autre chose", "quoi d");
+                "reste d", "reste autre", "autres produit", "autre chose")
+            // « quoi d'autre » = compléments panier, pas étape mur.
+            || (ContainsAny(lower, "suivant") && !ContainsAny(lower, "quoi d"));
 
         private static void DetectCustomer(string lower, StoreChatSession session)
         {
@@ -265,24 +267,30 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         /// <summary>
         /// Lexique court de secours — le contexte (SalesComplementRules) prime.
+        /// « il me faut … » seul = recherche produit, PAS compléments panier.
         /// </summary>
         private static bool IsCartComplements(string lower, StoreChatSession session)
         {
-            // Si le contexte métier offre déjà les compléments, les formulations « suite » suffisent.
+            // Panier prêt + formulation de suite → compléments.
             if (SalesComplementRules.ShouldOfferComplements(session)
                 && (ContainsAny(lower, "autre", "autres", "encore", "manque", "ajouter", "produit",
-                        "complément", "complement", "accessoire", "quoi d'autre", "il me faut")
+                        "complément", "complement", "accessoire", "quoi d'autre",
+                        "il me faut", "me manque", "il manque", "outillage")
                     || ContainsAny(lower, "panier")))
                 return true;
 
+            // Lexique explicite panier / manques — jamais « il me faut » nu (toit, perceuse…).
             return ContainsAny(lower,
-                "complément", "complement", "compléments", "complements",
-                "accessoire", "accessoires", "outillage",
+                "complément pour", "complement pour", "compléments pour", "complements pour",
+                "compléments panier", "complements panier", "complément panier", "complement panier",
+                "accessoires pour mon panier", "accessoire pour mon panier",
                 "quoi d'autre", "quoi d autre", "quoi encore",
-                "il manque", "il me faut", "me manque",
+                "qu'est-ce qui manque", "quest-ce qui manque", "ce qui manque au panier",
                 "pour mon panier", "pour le panier",
-                "qu'est-ce qui manque", "ce qui manque",
-                "autres pour", "autre pour");
+                "autres produits pour mon panier", "autre produit pour mon panier",
+                "autres pour le panier", "autre pour le panier",
+                "ajouter au panier", "à ajouter au panier", "a ajouter au panier",
+                "ajouter a mon panier", "ajouter à mon panier");
         }
         /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
         private static bool IsDirectComplementKeyword(string lower, out string? hint)

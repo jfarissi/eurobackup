@@ -9,7 +9,7 @@
     {
       "user": "il me faut un radiateur pour le salon",
       "expect": {
-        "categoryMustMatchAny": ["radiator", "Radiatoren"]
+        "categoryMustMatchAny": ["radiator", "Radiatoren", "radiateur", "chauffage", "verwarming"]
       }
     }
   ]

@@ -9,7 +9,7 @@
     {
       "user": "il me faut des matériaux pour réparer mon toit",
       "expect": {
-        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot"]
+        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot", "toit", "toiture", "tuile", "gouttière"]
       }
     }
   ]

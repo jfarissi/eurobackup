@@ -10,7 +10,8 @@
     {
       "user": "qu'avez-vous dans le rayon magasin en promo ?",
       "expect": {
-        "guidedIntent": "Promos"
+        "guidedIntent": "Promos",
+        "categoryMustMatchAny": ["Winkel", "Rekken", "promo", "magasin", "panier", "offre"]
       }
     }
   ]

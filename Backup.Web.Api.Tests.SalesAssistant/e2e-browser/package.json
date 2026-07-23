@@ -1,0 +1,17 @@
+{
+  "name": "sales-assistant-e2e-browser",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:cases": "node scripts/build-cases.mjs",
+    "test": "npm run build:cases && playwright test",
+    "test:euro13": "npm run build:cases && cross-env ASSISTANT_BASE_URL=http://euro13/assistant HEADED=1 playwright test --headed",
+    "test:headed": "npm run build:cases && cross-env ASSISTANT_BASE_URL=http://euro13/assistant HEADED=1 SLOW_MO=400 playwright test --headed",
+    "test:headed:smoke": "npm run build:cases && cross-env ASSISTANT_BASE_URL=http://euro13/assistant HEADED=1 SLOW_MO=400 playwright test --headed -g \"bouwmaterialen-wall-guided|verf-paint-house|elektriciteit-ampoules\"",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "cross-env": "^7.0.3"
+  }
+}

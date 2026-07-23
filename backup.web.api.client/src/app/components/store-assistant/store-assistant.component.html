@@ -75,9 +75,9 @@
       <button type="button" class="btn-outline" (click)="startNewProject()">Nouveau projet</button>
     </div>
 
-    <div class="message-row" *ngFor="let msg of messages" [class.user]="msg.sender === 'user'" [class.bot]="msg.sender === 'bot'">
+    <div class="message-row" *ngFor="let msg of messages" [class.user]="msg.sender === 'user'" [class.bot]="msg.sender === 'bot'" [attr.data-testid]="msg.sender === 'bot' ? 'bot-message' : 'user-message'">
       <div class="bubble">
-        <div class="bubble-text">{{ msg.text }}</div>
+        <div class="bubble-text" [attr.data-testid]="msg.sender === 'bot' ? 'bot-text' : 'user-text'">{{ msg.text }}</div>
 
         <div class="product-table-wrap" *ngIf="msg.sender === 'bot' && msg.productSuggestions?.length">
           <table class="product-table">
@@ -178,6 +178,7 @@
   <footer class="assistant-input">
     <div class="recording-banner" *ngIf="isRecording">Écoute en cours…</div>
     <textarea
+      data-testid="assistant-input"
       [(ngModel)]="newMessage"
       (keydown)="onKeydown($event)"
       rows="2"
@@ -191,7 +192,7 @@
       <button type="button" class="icon-btn" (click)="toggleMic()" [class.active]="isRecording" [disabled]="isTyping">
         <mat-icon>{{ isRecording ? 'stop' : 'mic' }}</mat-icon>
       </button>
-      <button type="button" class="btn-primary send-btn" (click)="send()" [disabled]="isTyping || !newMessage.trim()">
+      <button type="button" class="btn-primary send-btn" data-testid="assistant-send" (click)="send()" [disabled]="isTyping || !newMessage.trim()">
         <mat-icon>send</mat-icon>
         Envoyer
       </button>

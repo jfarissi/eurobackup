@@ -1,0 +1,391 @@
+[
+  {
+    "id": "bouwmaterialen-wall-guided",
+    "mainType": "Bouwmaterialen",
+    "title": "Bouwmaterialen — parcours mur guidé (structure → ciment → treillis → outils)",
+    "user": "je veux construire un mur de 7m de longeur et 2m de hateur",
+    "mustContainAny": [
+      "m²",
+      "briques",
+      "1. Structure (briques / blocs)",
+      "← à choisir maintenant",
+      "Étape « structure (briques / blocs) »",
+      "Stenen",
+      "Snelbouw",
+      "Lijmblok",
+      "baksteen",
+      "Porotherm",
+      "Snelbouwstenen",
+      "Cement en Mortels",
+      "Net, IJzer en Toebehoren",
+      "Zind",
+      "Murfor"
+    ],
+    "mustNotContain": [
+      "3. Treillis / ferraillage — rayon : Zind & Grid · Net, IJzer en Toebehoren ← à choisir maintenant",
+      "2. Ciment / mortier — rayon : Cement en Mortels ← à choisir maintenant",
+      "gipsplaat",
+      "hammerite",
+      "ampoule"
+    ]
+  },
+  {
+    "id": "dakmaterialen",
+    "mainType": "Dakmaterialen",
+    "title": "Dakmaterialen — toiture",
+    "user": "il me faut des matériaux pour réparer mon toit",
+    "mustContainAny": [
+      "Dak",
+      "dakpan",
+      "dakmateriaal",
+      "gouttiere",
+      "goot",
+      "toit",
+      "toiture",
+      "tuile",
+      "gouttière"
+    ],
+    "mustNotContain": [
+      "muurverf",
+      "ampoule"
+    ]
+  },
+  {
+    "id": "deuren-vloeren",
+    "mainType": "Deuren _ Houten vloeren",
+    "title": "Deuren _ Houten vloeren — portes / parquets",
+    "user": "je cherche une porte intérieure et du parquet",
+    "mustContainAny": [
+      "deur",
+      "vloer",
+      "parquet",
+      "laminaat",
+      "Deuren",
+      "Deur"
+    ],
+    "mustNotContain": [
+      "cement"
+    ]
+  },
+  {
+    "id": "eko-lampen-led",
+    "mainType": "EKO Lampen",
+    "title": "EKO Lampen — éclairage LED",
+    "user": "je veux des lampes LED E27 pour la maison",
+    "mustContainAny": [
+      "LED",
+      "lamp",
+      "E27",
+      "Lampen",
+      "EKO"
+    ],
+    "mustNotContain": [
+      "cement",
+      "tegel"
+    ]
+  },
+  {
+    "id": "elektriciteit-ampoules",
+    "mainType": "Elektriciteit",
+    "title": "Elektriciteit — ampoules jardin (pas sticky mur / Ytong)",
+    "user": "je cherche des ampoules pour mon jardin",
+    "mustContainAny": [
+      "lamp",
+      "LED",
+      "ampoule",
+      "E27",
+      "E14",
+      "Lampen",
+      "Elektriciteit"
+    ],
+    "mustNotContain": [
+      "ytong",
+      "porotherm",
+      "cement",
+      "snelbouw",
+      "lijmblok"
+    ]
+  },
+  {
+    "id": "gereedschap-outils",
+    "mainType": "Gereedschap",
+    "title": "Gereedschap — outillage",
+    "user": "il me faut une perceuse et des forets",
+    "mustContainAny": [
+      "boor",
+      "perceuse",
+      "Gereedschap",
+      "drill",
+      "zaag",
+      "outil"
+    ],
+    "mustNotContain": [
+      "muurverf"
+    ]
+  },
+  {
+    "id": "hout-bois",
+    "mainType": "Hout",
+    "title": "Hout — bois / planches",
+    "user": "je cherche des planches de bois pour une étagère",
+    "mustContainAny": [
+      "Hout",
+      "plank",
+      "bois",
+      "lat"
+    ],
+    "mustNotContain": [
+      "hammerite"
+    ]
+  },
+  {
+    "id": "kleding-epi",
+    "mainType": "Kleding",
+    "title": "Kleding — EPI / gants chantier",
+    "user": "il me faut des gants de travail pour le chantier",
+    "mustContainAny": [
+      "handschoen",
+      "gant",
+      "Kleding",
+      "werk",
+      "gants"
+    ],
+    "mustNotContain": [
+      "porotherm"
+    ]
+  },
+  {
+    "id": "kranen-robinet",
+    "mainType": "Kranen",
+    "title": "Kranen — robinetterie",
+    "user": "je cherche un robinet pour la cuisine",
+    "mustContainAny": [
+      "kraan",
+      "robinet",
+      "Kranen",
+      "mengkraan"
+    ],
+    "mustNotContain": [
+      "cement",
+      "tegel"
+    ]
+  },
+  {
+    "id": "ladders",
+    "mainType": "Ladders",
+    "title": "Ladders — échelles",
+    "user": "je cherche une échelle aluminium pour le plafond",
+    "mustContainAny": [
+      "ladder",
+      "échelle",
+      "escabeau",
+      "trap",
+      "Ladder"
+    ],
+    "mustNotContain": [
+      "tegel"
+    ]
+  },
+  {
+    "id": "meubelen",
+    "mainType": "Meubelen",
+    "title": "Meubelen — mobilier",
+    "user": "je cherche une table de jardin",
+    "mustContainAny": [
+      "Meubel",
+      "table",
+      "tuin",
+      "meuble"
+    ],
+    "mustNotContain": [
+      "snelbouw"
+    ]
+  },
+  {
+    "id": "radiatoren",
+    "mainType": "Radiatoren",
+    "title": "Radiatoren — radiateurs",
+    "user": "il me faut un radiateur pour le salon",
+    "mustContainAny": [
+      "radiator",
+      "Radiatoren",
+      "radiateur",
+      "chauffage",
+      "verwarming",
+      "Radiator"
+    ],
+    "mustNotContain": [
+      "cement",
+      "tegel"
+    ]
+  },
+  {
+    "id": "sanitair-plomberie",
+    "mainType": "Sanitair",
+    "title": "Sanitair — plomberie / siphon",
+    "user": "il me faut un siphon pour mon lavabo",
+    "mustContainAny": [
+      "siphon",
+      "Sanitair",
+      "afvoer",
+      "sifon",
+      "PVC"
+    ],
+    "mustNotContain": [
+      "muurverf",
+      "snelbouw"
+    ]
+  },
+  {
+    "id": "sedpa-plexiglas",
+    "mainType": "Sedpa _ Plexiglas",
+    "title": "Sedpa _ Plexiglas — plexi / polycarbonate",
+    "user": "je cherche du plexiglas pour un abri",
+    "mustContainAny": [
+      "plexi",
+      "Sedpa",
+      "polycarbonaat",
+      "acryl",
+      "Plexiglas"
+    ],
+    "mustNotContain": [
+      "cement"
+    ]
+  },
+  {
+    "id": "skylux-dakramen",
+    "mainType": "Skylux + Dakramen",
+    "title": "Skylux + Dakramen — fenêtres de toit",
+    "user": "je veux une fenêtre de toit Skylux",
+    "mustContainAny": [
+      "Skylux",
+      "dakraam",
+      "dakramen",
+      "velux"
+    ],
+    "mustNotContain": [
+      "snelbouw"
+    ]
+  },
+  {
+    "id": "tegels-access-colle-joint",
+    "mainType": "Tegels Access.",
+    "title": "Tegels Access. — colle et joints",
+    "user": "il me faut de la colle carrelage et du joint",
+    "mustContainAny": [
+      "lijm",
+      "voeg",
+      "colle",
+      "joint",
+      "tegellijm",
+      "voegsel"
+    ],
+    "mustNotContain": [
+      "snelbouwsteen"
+    ]
+  },
+  {
+    "id": "tegels-carrelage",
+    "mainType": "Tegels",
+    "title": "Tegels — carrelage sol / mur",
+    "user": "je veux du carrelage pour ma salle de bain",
+    "mustContainAny": [
+      "Tegel",
+      "carrel",
+      "Tegels",
+      "tegel",
+      "carrelage"
+    ],
+    "mustNotContain": [
+      "hammerite",
+      "porotherm"
+    ]
+  },
+  {
+    "id": "vaillant-ventilatie",
+    "mainType": "Vaillant / Ventilatie",
+    "title": "Vaillant / Ventilatie — VMC / ventilation",
+    "user": "je cherche une ventilation Vaillant pour la salle de bain",
+    "mustContainAny": [
+      "Vaillant",
+      "ventil",
+      "Ventilatie"
+    ],
+    "mustNotContain": [
+      "porotherm"
+    ]
+  },
+  {
+    "id": "verf-paint-house",
+    "mainType": "Verf",
+    "title": "Verf — peindre maison multi-pièces (pas Hammerite métal)",
+    "user": "j'ai besoin de peindre ma maison 6 chambre de 2m de haut et 2m de longeur , salle de bain 2m de haut et 1.5 de longeur couloires 6m de longeur et 2m de hauteru",
+    "mustContainAny": [
+      "m²",
+      "peindre",
+      "couches",
+      "muurverf",
+      "latex",
+      "acryl",
+      "Verf",
+      "kwast",
+      "verfroller"
+    ],
+    "mustNotContain": [
+      "briques",
+      "parpaings",
+      "Hammerite",
+      "hammerite",
+      "antiroest",
+      "anti-roest",
+      "metaalverf",
+      "ultima"
+    ]
+  },
+  {
+    "id": "verwarming-chauffage",
+    "mainType": "Verwarming",
+    "title": "Verwarming — demande chauffage",
+    "user": "je cherche une chaudière ou système de chauffage",
+    "mustContainAny": [
+      "Verwarming",
+      "ketel",
+      "chauffage",
+      "cv"
+    ],
+    "mustNotContain": [
+      "snelbouw",
+      "muurverf"
+    ]
+  },
+  {
+    "id": "winkel-oud",
+    "mainType": "Winkel (oud)",
+    "title": "Winkel (oud) — ancien stock / déstockage",
+    "user": "avez-vous des articles en déstockage ou ancien stock ?",
+    "mustContainAny": [
+      "oud",
+      "uitverkoop",
+      "Winkel",
+      "promo",
+      "déstock",
+      "Winkel (oud)"
+    ],
+    "mustNotContain": []
+  },
+  {
+    "id": "winkel-rekken",
+    "mainType": "Winkel (Rekken)",
+    "title": "Winkel (Rekken) — rayon magasin",
+    "user": "qu'avez-vous dans le rayon magasin en promo ?",
+    "mustContainAny": [
+      "Winkel",
+      "Rekken",
+      "promo",
+      "magasin",
+      "panier",
+      "offre"
+    ],
+    "mustNotContain": []
+  }
+]

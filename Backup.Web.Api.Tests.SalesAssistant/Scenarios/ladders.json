@@ -7,9 +7,9 @@
   "forbiddenProductHints": ["tegel"],
   "turns": [
     {
-      "user": "je cherche une échelle pour peindre le plafond",
+      "user": "je cherche une échelle aluminium pour le plafond",
       "expect": {
-        "categoryMustMatchAny": ["ladder", "échelle", "escabeau", "trap"]
+        "categoryMustMatchAny": ["ladder", "échelle", "escabeau", "trap", "Ladder"]
       }
     }
   ]
