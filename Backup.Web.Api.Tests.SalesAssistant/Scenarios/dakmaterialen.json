@@ -3,13 +3,19 @@
   "title": "Dakmaterialen — toiture",
   "mainType": "Dakmaterialen",
   "mainTypeId": "45",
+  "domainId": "roofing",
   "expectedCategoryHints": ["Dak", "dakpan", "toiture", "gouttière"],
-  "forbiddenProductHints": ["muurverf", "ampoule"],
+  "forbiddenProductHints": ["muurverf", "ampoule", "tronçon", "disque", "ribimex", "winkel (oud)"],
+  "notes": "Régression : « matériaux pour réparer mon toit » ≠ disques à tronçonner.",
   "turns": [
     {
       "user": "il me faut des matériaux pour réparer mon toit",
       "expect": {
-        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot", "toit", "toiture", "tuile", "gouttière"]
+        "domainId": "roofing",
+        "guidedIntent": "None",
+        "categoryMustMatchAny": ["Dak", "dakpan", "dakmateriaal", "gouttiere", "goot", "toit", "toiture", "tuile", "gouttière"],
+        "productMustNotMatch": ["tronçon", "disque", "ribimex", "ribimix"],
+        "replyMustNotContain": ["panier est vide"]
       }
     }
   ]

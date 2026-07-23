@@ -79,6 +79,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "stopcontact", "schakelaar", "draad", "lampje", "gloeilamp",
                 "socket", "switch", "bulb"
             },
+            ["roofing"] = new[]
+            {
+                "dakpan", "dakpannen", "dakmateriaal", "dakmaterialen", "dakgoot", "goot",
+                "nokvorst", "onderdak", "tuile", "gouttière", "gouttiere", "toiture",
+                "skylux", "dakraam"
+            },
             ["garden_cleaning"] = new[]
             {
                 "souffleur", "bladblazer", "rateau", "râteau", "balai",
@@ -179,6 +185,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             ApplyGardenIntentFilter(scores, session.ActiveProjectDomainId);
             ApplyLightingIntentFilter(scores, text);
             ApplyPaintingIntentFilter(scores, session.ActiveProjectDomainId);
+            ApplyRoofingIntentFilter(scores, session.ActiveProjectDomainId);
             DemoteClearanceNoise(scores, session.ActiveProjectDomainId);
 
             IEnumerable<ScoredProduct> ranked = scores.Values;
@@ -1138,6 +1145,24 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 }
             }
 
+            // Toiture : ne pas chercher « matériaux » (→ disques à tronçonner).
+            if (string.Equals(session.ActiveProjectDomainId, "roofing", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var broad in new[]
+                         {
+                             "matériaux", "materiaux", "matériau", "materiau",
+                             "réparer", "reparer", "produit", "produits", "besoin", "faut"
+                         })
+                    terms.Remove(broad);
+
+                if (terms.Count == 0)
+                {
+                    terms.Add("dakpan");
+                    terms.Add("dakmateriaal");
+                    terms.Add("goot");
+                }
+            }
+
             return terms.Take(24).ToList();
         }
 
@@ -1435,12 +1460,39 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }
         }
 
+        private static void ApplyRoofingIntentFilter(Dictionary<int, ScoredProduct> scores, string? domainId)
+        {
+            if (!string.Equals(domainId, "roofing", StringComparison.OrdinalIgnoreCase) || scores.Count == 0)
+                return;
+
+            foreach (var p in scores.Values.ToList())
+            {
+                var hay = $"{p.Name} {p.Name2} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}"
+                    .ToLowerInvariant();
+
+                // Bruit typique : disques / outils qui citent « matériaux » ou soldes Winkel (oud).
+                if (ContainsAny(hay,
+                        "tronçon", "troncon", "disque à", "disque a", "slijpschijf", "doorslijp",
+                        "ribimex", "ribimix", "winkel (oud)", "uitverkoop"))
+                {
+                    scores.Remove(p.Id);
+                    continue;
+                }
+
+                if (ContainsAny(hay, "dakmaterialen", "dakpan", "dakpannen", "dakgoot", "goot",
+                        "nokvorst", "onderdak", "skylux", "dakraam", "tuile", "goutti"))
+                    p.Score += 22;
+                else if (ContainsAny(hay, "dak", "toiture", "roof"))
+                    p.Score += 8;
+            }
+        }
+
         /// <summary>Pénalise les soldes / Winkel (oud) quand un rayon métier existe.</summary>
         private static void DemoteClearanceNoise(Dictionary<int, ScoredProduct> scores, string? domainId)
         {
             if (scores.Count == 0)
                 return;
-            if (domainId is not ("electrical" or "plumbing" or "painting" or "tiling"
+            if (domainId is not ("electrical" or "plumbing" or "painting" or "tiling" or "roofing"
                 or "garden_cleaning" or "garden_landscaping" or "garden_maintenance"
                 or "wall_construction"))
                 return;
@@ -1457,6 +1509,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                         || hay.Contains("eko lampen", StringComparison.OrdinalIgnoreCase)
                         || hay.Contains("lamp", StringComparison.OrdinalIgnoreCase)))
                     p.Score += 8;
+
+                if (domainId == "roofing"
+                    && (hay.Contains("dakmaterialen", StringComparison.OrdinalIgnoreCase)
+                        || hay.Contains("dakpan", StringComparison.OrdinalIgnoreCase)
+                        || hay.Contains("skylux", StringComparison.OrdinalIgnoreCase)))
+                    p.Score += 10;
             }
         }    }
 }

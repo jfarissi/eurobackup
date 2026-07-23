@@ -157,6 +157,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     "électri", "electri", "prise", "interrupteur", "câble", "cable", "led",
                     "ampoule", "ampoules", "lampe", "lampes", "e27", "e14"
                 }),
+                ("roofing", "Toiture", new[]
+                {
+                    "toit", "toiture", "tuile", "tuiles", "gouttière", "gouttiere", "gouttières",
+                    "dak", "dakpan", "dakpannen", "dakmateriaal", "dakmaterialen", "goot", "goten",
+                    "roof", "roofing", "shingle", "skylight", "fenêtre de toit", "fenetre de toit"
+                }),
                 ("garden_cleaning", "Nettoyage jardin", new[]
                 {
                     "nettoyer mon jardin", "nettoyer le jardin", "nettoyer jardin", "nettoyage jardin",
@@ -250,7 +256,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         }
 
         private static bool IsLightingOrNonMasonryDomain(string domainId) =>
-            domainId is "electrical" or "painting" or "tiling" or "plumbing"
+            domainId is "electrical" or "painting" or "tiling" or "plumbing" or "roofing"
                 or "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
 
         private static bool IsMasonryMaterialHint(string hint) =>

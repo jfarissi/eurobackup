@@ -19,7 +19,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             "souhaite", "souhaitez", "donne", "donner", "liste", "voir", "montre", "montrer",
             "est-ce", "quelque", "chose", "choses", "merci", "bonjour", "salut",
             "nouveau", "nouvelle", "nouveaux", "nouvelles", "new", "nieuw", "nieuwe", "démarré", "demarre",
-            "démarrer", "demarrer", "commencer", "start"
+            "démarrer", "demarrer", "commencer", "start",
+            // Trop larges / bruit (→ « disque à tronçonner les matériaux »)
+            "matériaux", "materiaux", "matériau", "materiau", "réparer", "reparer", "faut", "besoin"
         };
 
         public static readonly Dictionary<string, string[]> MaterialSynonyms = new(StringComparer.OrdinalIgnoreCase)
@@ -77,6 +79,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "peinture", "peintures", "lasurer", "enduit",
                 "verf", "muurverf", "latex", "beits",
                 "paint", "coating", "plaster"
+            },
+            ["toiture"] = new[]
+            {
+                "toit", "toiture", "tuile", "tuiles", "gouttière", "gouttiere", "gouttières",
+                "dak", "dakpan", "dakpannen", "dakmateriaal", "dakmaterialen", "goot", "goten",
+                "nokvorst", "onderdak", "dakgoot",
+                "roof", "roofing", "shingle", "tile roof"
             },
         };
 
