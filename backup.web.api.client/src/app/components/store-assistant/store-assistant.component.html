@@ -3,14 +3,21 @@
     <div class="assistant-brand">
       <mat-icon>smart_toy</mat-icon>
       <div>
-        <h1>Assistant magasin</h1>
-        <p>Conseils produits, devis et commande</p>
+        <h1>{{ i18n.t('title') }}</h1>
+        <p>{{ i18n.t('subtitle') }}</p>
       </div>
     </div>
     <div class="assistant-header-actions">
+      <div class="lang-switch" [attr.aria-label]="i18n.t('lang')">
+        <button type="button"
+                *ngFor="let l of i18n.languages"
+                class="lang-btn"
+                [class.active]="i18n.lang === l.code"
+                (click)="setLanguage(l.code)">{{ l.label }}</button>
+      </div>
       <span class="domain-chip" *ngIf="activeProjectDomainLabel">
         <mat-icon>handyman</mat-icon>
-        Projet : {{ activeProjectDomainLabel }}
+        {{ i18n.t('project') }} : {{ activeProjectDomainLabel }}
       </span>
       <span class="domain-chip" *ngIf="salesProjectId" [title]="salesProjectId">
         <mat-icon>tag</mat-icon>
@@ -22,7 +29,7 @@
       </span>
       <span class="domain-chip" *ngIf="budgetMax != null">
         <mat-icon>account_balance_wallet</mat-icon>
-        Budget {{ budgetMax | number:'1.0-0' }} €
+        {{ i18n.t('budget') }} {{ budgetMax | number:'1.0-0' }} €
       </span>
       <button type="button"
               class="cart-toggle"
@@ -30,7 +37,7 @@
               [class.open]="cartPanelOpen"
               (click)="toggleCartPanel()"
               [attr.aria-expanded]="cartPanelOpen"
-              title="Panier">
+              [attr.title]="i18n.t('cart')">
         <mat-icon>shopping_cart</mat-icon>
         <span class="cart-badge" *ngIf="cartItemCount > 0">{{ cartItemCount }}</span>
       </button>
@@ -39,14 +46,14 @@
 
   <aside class="cart-panel" *ngIf="cartPanelOpen">
     <div class="cart-panel-header">
-      <h2>Panier</h2>
-      <button type="button" class="icon-btn cart-close" (click)="cartPanelOpen = false" title="Fermer">
+      <h2>{{ i18n.t('cart') }}</h2>
+      <button type="button" class="icon-btn cart-close" (click)="cartPanelOpen = false" [attr.title]="i18n.t('close')">
         <mat-icon>close</mat-icon>
       </button>
     </div>
 
     <div class="cart-empty" *ngIf="cartLines.length === 0">
-      Aucun produit dans le panier.
+      {{ i18n.t('cartEmpty') }}
     </div>
 
     <ul class="cart-lines" *ngIf="cartLines.length > 0">
@@ -62,7 +69,7 @@
                 class="icon-btn cart-remove"
                 [disabled]="line.removing"
                 (click)="removeCartLine(line)"
-                title="Retirer du panier">
+                [attr.title]="i18n.t('remove')">
           <mat-icon>delete</mat-icon>
         </button>
       </li>
@@ -71,8 +78,8 @@
 
   <main class="assistant-messages">
     <div class="new-project-banner" *ngIf="showNewProjectPrompt">
-      <p>Commande terminée. Souhaitez-vous démarrer un autre projet ?</p>
-      <button type="button" class="btn-outline" (click)="startNewProject()">Nouveau projet</button>
+      <p>{{ i18n.t('newProject') }}</p>
+      <button type="button" class="btn-outline" (click)="startNewProject()">{{ i18n.t('newProject') }}</button>
     </div>
 
     <div class="message-row" *ngFor="let msg of messages" [class.user]="msg.sender === 'user'" [class.bot]="msg.sender === 'bot'" [attr.data-testid]="msg.sender === 'bot' ? 'bot-message' : 'user-message'">
@@ -84,10 +91,10 @@
             <thead>
               <tr>
                 <th></th>
-                <th>Produit</th>
-                <th>Prix</th>
-                <th>Qté</th>
-                <th>Panier</th>
+                <th>{{ i18n.t('product') }}</th>
+                <th>{{ i18n.t('price') }}</th>
+                <th>{{ i18n.t('qty') }}</th>
+                <th>{{ i18n.t('cart') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -143,32 +150,32 @@
             <button type="button" class="btn-outline"
                     [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
                     (click)="requestQuote()">
-              Demander un devis
+              {{ i18n.t('quote') }}
             </button>
             <button type="button" class="btn-primary"
                     [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
                     (click)="requestOrder()">
-              Commander
+              {{ i18n.t('order') }}
             </button>
           </div>
         </div>
 
         <div class="download-wrap" *ngIf="msg.quotePdf?.pdfBase64 && (msg.actionType === 'QUOTE_PDF' || msg.actionType === 'INVOICE_PDF')">
           <button type="button" class="btn-outline" (click)="downloadQuotePdf(msg)">
-            {{ msg.actionType === 'INVOICE_PDF' ? 'Télécharger la facture' : 'Télécharger le devis' }}
+            {{ msg.actionType === 'INVOICE_PDF' ? i18n.t('downloadInvoice') : i18n.t('downloadQuote') }}
           </button>
           <button type="button" class="btn-primary"
                   *ngIf="msg.actionType === 'QUOTE_PDF'"
                   [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
                   (click)="requestOrder()">
-            Commander
+            {{ i18n.t('order') }}
           </button>
           <span class="file-name">{{ msg.quotePdf?.fileName }}</span>
         </div>
 
         <div class="payment-wrap" *ngIf="msg.paymentLink?.url">
           <button type="button" class="btn-primary" (click)="startPayment(msg)">
-            Payer par carte{{ msg.paymentLink?.amount != null ? ' — ' + (msg.paymentLink!.amount | number:'1.2-2') + ' €' : '' }}
+            {{ i18n.t('payCard') }}{{ msg.paymentLink?.amount != null ? ' — ' + (msg.paymentLink!.amount | number:'1.2-2') + ' €' : '' }}
           </button>
         </div>
       </div>
@@ -182,17 +189,17 @@
   </main>
 
   <footer class="assistant-input">
-    <div class="recording-banner" *ngIf="isRecording">Écoute en cours…</div>
+    <div class="recording-banner" *ngIf="isRecording">{{ i18n.t('listening') }}</div>
     <textarea
       data-testid="assistant-input"
       [(ngModel)]="newMessage"
       (keydown)="onKeydown($event)"
       rows="2"
-      placeholder="Ex. peinture blanche 10L, ampoule LED, perceuse…"
+      [placeholder]="i18n.t('placeholder')"
       [disabled]="isTyping"></textarea>
     <div class="input-actions">
       <input #photoInput type="file" accept="image/*" hidden (change)="onPhotoSelected($event)" />
-      <button type="button" class="icon-btn" (click)="photoInput.click()" [disabled]="isTyping" title="Joindre une photo">
+      <button type="button" class="icon-btn" (click)="photoInput.click()" [disabled]="isTyping" [attr.title]="i18n.t('photo')">
         <mat-icon>photo_camera</mat-icon>
       </button>
       <button type="button" class="icon-btn" (click)="toggleMic()" [class.active]="isRecording" [disabled]="isTyping">
@@ -200,7 +207,7 @@
       </button>
       <button type="button" class="btn-primary send-btn" data-testid="assistant-send" (click)="send()" [disabled]="isTyping || !newMessage.trim()">
         <mat-icon>send</mat-icon>
-        Envoyer
+        {{ i18n.t('send') }}
       </button>
     </div>
   </footer>

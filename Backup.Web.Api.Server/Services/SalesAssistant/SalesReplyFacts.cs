@@ -13,6 +13,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         [JsonPropertyName("intent")]
         public string Intent { get; set; } = "PRODUCT_SEARCH";
 
+        [JsonPropertyName("language")]
+        public string Language { get; set; } = SalesLocale.Fr;
+
         [JsonPropertyName("project")]
         public SalesReplyProjectFacts Project { get; set; } = new();
 
@@ -42,6 +45,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return new SalesReplyFacts
             {
                 Intent = meta.Intent ?? meta.Outcome.ToString(),
+                Language = SalesLocale.Of(session),
                 Project = new SalesReplyProjectFacts
                 {
                     DomainId = session.Project.DomainId,

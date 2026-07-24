@@ -148,7 +148,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             _sessions.Save(session);
 
             var logistics = _logistics.Evaluate(session);
-            var quoteReply = $"Devis prêt ({pdf.Total:N2} €). Vous pouvez le télécharger, ou passer à la commande.";
+            var quoteReply = SalesLocale.T(session, "quote_ready", pdf.Total ?? 0);
             if (session.ActiveSalesProjectId is Guid pid)
                 quoteReply += $"\nRattaché au projet {pid:D}.";
             quoteReply += "\n" + logistics.Summary;

@@ -19,7 +19,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             session.AwaitingComplementConfirm = session.PendingComplementHints.Count > 0;
             var products = await _complements.SearchAsync(session, session.PendingComplementHints, ct);
             var reply = _recommendations.BuildCartComplementsReply(session);
-            if (products.Count > 0) { session.AwaitingComplementConfirm = false; session.PendingComplementHints.Clear(); reply += "\n\nVoici des références catalogue pour ces compléments :"; }
+            if (products.Count > 0) { session.AwaitingComplementConfirm = false; session.PendingComplementHints.Clear(); reply += "\n\n" + SalesLocale.T(session, "complements_catalog_refs"); }
             else if (session.AwaitingComplementConfirm) reply += "\n\nRépondez « ok », « d'accord », « oui » ou « vas-y » pour que je cherche ces articles dans le catalogue.";
             var response = _turn.Finish(session, ctx.Text, reply, products.Count > 0 ? "CART_COMPLEMENTS" : "CART_ADVICE", products.Count > 0 ? products : null, ctx.Guided);
             response.Recommendations = missing.ToList(); return response;

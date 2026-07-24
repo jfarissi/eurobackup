@@ -264,8 +264,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 var detail = !string.IsNullOrWhiteSpace(session.ProjectTypeHint)
                     ? session.ProjectTypeHint + "\n"
                     : "";
-                return $"{detail}Surface murs à peindre ≈ {area:0.#} m².\n"
-                       + $"Estimation (2 couches, ~10 m²/L) : ≈ {liters:0} L de peinture murale (+ sous-couche si support neuf).";
+                return detail + SalesLocale.T(session, "paint_surface", area, liters);
             }
 
             if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
@@ -279,9 +278,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var parpaings = Math.Ceiling(wallArea * SalesWallEstimates.ParpaingsPerM2);
             var mortarBags = Math.Ceiling(wallArea * SalesWallEstimates.MortarKgPerM2 / SalesWallEstimates.DefaultBagKg);
 
-            return $"Mur {session.WallLengthM:0.##} m × {session.WallHeightM:0.##} m → surface ≈ {wallArea:0.##} m².\n"
-                   + $"Estimations (ordre de grandeur) : ~{bricks:0} briques, ou ~{parpaings:0} parpaings, "
-                   + $"et ~{mortarBags:0} sac(s) de mortier/ciment ({SalesWallEstimates.DefaultBagKg:0} kg).";
+            return SalesLocale.T(session, "wall_estimate",
+                session.WallLengthM, session.WallHeightM, wallArea, bricks, parpaings, mortarBags,
+                SalesWallEstimates.DefaultBagKg);
         }
 
         private static bool LooksLikeInventedProductList(string reply)

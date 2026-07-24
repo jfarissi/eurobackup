@@ -69,6 +69,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var intent = (request.ClientIntent ?? string.Empty).Trim();
             _workflow.EnsureConsistent(session);
 
+            if (!string.IsNullOrWhiteSpace(request.Language))
+                session.PreferredLanguage = request.Language;
+
             var clientReturn = SalesTextGuards.ResolveClientReturnBaseUrl(request.ReturnBaseUrl);
             if (clientReturn != null)
                 session.ReturnBaseUrl = clientReturn;
@@ -79,7 +82,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
             var text = (request.Text ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(request.ImageCaption) && string.IsNullOrWhiteSpace(request.ImageBase64))
-                return _turn.Ok(session, "Message vide.", "NONE");
+                return _turn.Ok(session, SalesLocale.T(session, "empty_message"), "NONE");
 
             // P4 photo
             if (!string.IsNullOrWhiteSpace(request.ImageBase64) || !string.IsNullOrWhiteSpace(request.ImageCaption))
@@ -101,7 +104,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             }
 
             if (string.IsNullOrWhiteSpace(text))
-                return _turn.Ok(session, "Message vide.", "NONE");
+                return _turn.Ok(session, SalesLocale.T(session, "empty_message"), "NONE");
 
             var guided = _guidedIntent.Detect(text, session);
             _confidence.DetectStyle(text, session);
@@ -151,7 +154,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             _workflow.ApplyTransition(session, WorkflowActions.Reset);
             _sessions.Save(session);
             await Task.CompletedTask;
-            return _turn.Ok(session, "Nouveau projet démarré. Comment puis-je vous aider ?", "NONE");
+            return _turn.Ok(session, SalesLocale.T(session, "new_project"), "NONE");
         }
 
         private Task<List<StoreChatProductSuggestionDto>> SearchProductsAsync(

@@ -135,8 +135,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "seau" => new[] { "seau", "auge", "emmer", "mortelkuip", "kuip" },
                 "rouleau" => new[]
                 {
-                    "verfroller", "schildersrol", "paint roller", "verfrol", "rouleau à peindre",
-                    "rouleau peindre", "lakroller"
+                    "verfroller", "schildersrol", "paint roller", "muurroller", "lakroller",
+                    "rouleau à peindre", "rouleau peindre"
                 },
                 "ruban" => new[]
                 {
@@ -259,20 +259,24 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static int ScorePaintRoller(string hay, bool clearance)
         {
-            // Faux positifs : kit roues / spare wheels (« rouleaux de rechange »).
+            // Faux positifs : kit roues, manches / beugels / perches (pas le rouleau lui-même).
             if (ContainsAnyLocal(hay,
                     "wheel", "wheels", "roue", "roues", "spare", "rechange",
-                    "usag", "insulating", "isolant", "isolatie"))
+                    "usag", "insulating", "isolant", "isolatie",
+                    "handvat", "handvatten", "beugel", "telescopische", "telescopic",
+                    "stok van", "extension pole", "voor adapter", "anti-spat", "antispatrol",
+                    "spatrol", "verfrollerhandvatten"))
                 return 0;
 
             var score = ScoreAny(hay,
                 ("verfroller", 120), ("schildersrol", 120), ("paint roller", 120),
                 ("verfrol", 110), ("lakroller", 100), ("rouleau à peindre", 100),
-                ("rouleau peindre", 100));
+                ("rouleau peindre", 100), ("muurroller", 110));
 
             if (score == 0
                 && ContainsAnyLocal(hay, "roller", "rouleau")
-                && ContainsAnyLocal(hay, "verf", "paint", "schilder", "peinture", "latex"))
+                && ContainsAnyLocal(hay, "verf", "paint", "schilder", "peinture", "latex")
+                && !ContainsAnyLocal(hay, "handvat", "beugel", "stok", "adapter"))
                 score = 80;
 
             if (clearance && score > 0)

@@ -8,6 +8,7 @@ import {
   StoreChatProductSuggestion,
   StoreChatResponse
 } from '../../models/store-chat';
+import { AssistantI18nService, AssistantLang } from '../../services/assistant-i18n.service';
 import { StoreChatService } from '../../services/store-chat.service';
 import { Subscription, timer } from 'rxjs';
 
@@ -21,13 +22,7 @@ import { Subscription, timer } from 'rxjs';
 export class StoreAssistantComponent implements OnInit, OnDestroy {
   private static readonly CHAT_STORAGE_KEY = 'store_assistant_messages';
 
-  messages: StoreChatBubble[] = [
-    {
-      text: 'Bonjour ! Je suis l’assistant magasin. Demandez un produit, une marque ou un projet (peinture, électricité…).',
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ];
+  messages: StoreChatBubble[] = [];
 
   newMessage = '';
   isRecording = false;
@@ -56,8 +51,15 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     private chat: StoreChatService,
     private route: ActivatedRoute,
     private router: Router,
-    private ngZone: NgZone
-  ) {}
+    private ngZone: NgZone,
+    public i18n: AssistantI18nService
+  ) {
+    this.messages = [{
+      text: this.i18n.t('welcome'),
+      sender: 'bot',
+      timestamp: new Date()
+    }];
+  }
 
   ngOnInit(): void {
     this.restoreChatFromStorage();
@@ -313,7 +315,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     if (this.isGeneratingQuote || this.isPlacingOrder) return;
     this.isGeneratingQuote = true;
     this.callApi({
-      text: 'Demander un devis',
+      text: this.i18n.t('quote'),
       clientIntent: 'CreateQuoteFromTableSelection',
       tableCartLines: this.selectedCartLines()
     }, undefined, undefined, () => { this.isGeneratingQuote = false; });
@@ -323,7 +325,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     if (this.isGeneratingQuote || this.isPlacingOrder) return;
     this.isPlacingOrder = true;
     this.callApi({
-      text: 'Commander',
+      text: this.i18n.t('order'),
       clientIntent: 'CreateOrderFromTableSelection',
       tableCartLines: this.selectedCartLines()
     }, undefined, undefined, () => { this.isPlacingOrder = false; });
@@ -348,7 +350,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   startNewProject(): void {
     this.showNewProjectPrompt = false;
     this.messages = [{
-      text: 'Nouveau projet. Que souhaitez-vous faire ?',
+      text: this.i18n.t('newProject') + '. ' + this.i18n.t('welcome'),
       sender: 'bot',
       timestamp: new Date()
     }];
@@ -357,7 +359,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     this.salesProjectId = null;
     this.skillLevel = null;
     this.budgetMax = null;
-    this.callApi({ text: 'Nouveau projet', clientIntent: 'NewProject' });
+    this.callApi({ text: this.i18n.t('newProject'), clientIntent: 'NewProject' });
   }
 
   private selectedCartLines() {
@@ -404,7 +406,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     this.isTyping = true;
     this.chat.sendMessage({
       sender: 'user',
-      language: 'fr',
+      language: this.i18n.lang,
       ...payload
     }).subscribe({
       next: (res) => {
@@ -417,7 +419,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       error: () => {
         this.isTyping = false;
         this.messages.push({
-          text: 'Désolé, une erreur est survenue. Réessayez.',
+          text: this.i18n.t('error'),
           sender: 'bot',
           timestamp: new Date()
         });
@@ -425,6 +427,21 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
         onFinally?.();
       }
     });
+  }
+
+  setLanguage(lang: AssistantLang): void {
+    if (this.i18n.lang === lang) return;
+    this.i18n.setLang(lang);
+    if (this.messages.length === 1 && this.messages[0].sender === 'bot') {
+      this.messages[0] = {
+        text: this.i18n.t('welcome'),
+        sender: 'bot',
+        timestamp: new Date()
+      };
+    }
+    if (this.recognition) {
+      this.recognition.lang = this.i18n.speechLocale();
+    }
   }
 
   private applyBotResponse(res: StoreChatResponse): void {
@@ -496,7 +513,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }
 
     this.recognition = new SpeechRecognitionCtor();
-    this.recognition.lang = 'fr-FR';
+    this.recognition.lang = this.i18n.speechLocale();
     this.recognition.interimResults = true;
     this.recognition.continuous = false;
     this.isRecording = true;

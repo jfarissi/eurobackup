@@ -8,6 +8,8 @@ public class PaintComplementSearchTests
     [Theory]
     [InlineData("314 AR Kit rouleaux de rechange · Winkel (oud) / USAG", "rouleau", 0)]
     [InlineData("073 Ruban isolant insulating tape · Winkel (oud)", "ruban", 0)]
+    [InlineData("Kubala Telescopische stok voor verfrollerhandvatten", "rouleau", 0)]
+    [InlineData("Anti-Spatrol Beugel 6mm", "rouleau", 0)]
     [InlineData("Verfroller 25cm schilder · Verf", "rouleau", 100)]
     [InlineData("Schilderstape 50mm masking tape", "ruban", 100)]
     [InlineData("Grondverf wit 5L primer", "sous-couche", 100)]
@@ -85,5 +87,28 @@ public class PaintComplementSearchTests
 
         var guided = new SalesGuidedIntentDetector().Detect("et maintenant ?", session);
         Assert.Equal(GuidedSalesIntent.CartComplements, guided.Intent);
+    }
+
+    [Fact]
+    public void Telescopic_pole_does_not_count_as_paint_roller()
+    {
+        Assert.False(SalesRecommendationEngine.HasRealPaintRoller(
+            "kubala telescopische stok voor verfrollerhandvatten"));
+        Assert.True(SalesRecommendationEngine.HasRealPaintRoller(
+            "verfroller 25cm nylon schilder"));
+    }
+
+    [Fact]
+    public void Locale_paint_surface_switches_language()
+    {
+        var session = new StoreChatSession
+        {
+            PreferredLanguage = "nl",
+            ActiveProjectDomainId = "painting",
+            PaintAreaM2 = 100
+        };
+        var text = new SalesDeterministicReply().BuildCalculationSummary(session);
+        Assert.Contains("Muuroppervlakte", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("m²", text);
     }
 }

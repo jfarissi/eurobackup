@@ -38,11 +38,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public string BuildCartReviewReply(StoreChatSession session)
         {
             if (session.Cart.Count == 0)
-                return "Votre panier est vide. Ajoutez d'abord des produits pour que je puisse le commenter.";
+                return SalesLocale.T(session, "cart_empty_review");
 
             var cart = SalesProjectGuide.CartOnlyHay(session);
             var sb = new StringBuilder();
-            sb.AppendLine("Voici mon avis sur votre panier :");
+            sb.AppendLine(SalesLocale.T(session, "review_header"));
             foreach (var line in session.Cart)
                 sb.AppendLine($"• {line.Name} × {line.Quantity:0.##}");
 
@@ -83,7 +83,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 if (session.PaintAreaM2 is > 0)
                 {
                     var liters = Math.Max(1, Math.Ceiling(session.PaintAreaM2.Value / 5m));
-                    sb.AppendLine($"Surface à peindre ~{session.PaintAreaM2:0.#} m² → besoin estimé ≈ {liters:0} L (2 couches).");
+                    sb.AppendLine(SalesLocale.T(session, "paint_need_line", session.PaintAreaM2.Value, liters));
                 }
 
                 var paintLines = session.Cart.Count(c =>
@@ -93,7 +93,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                            || n.Contains("peint") || n.Contains("verf");
                 });
                 if (paintLines >= 2)
-                    sb.AppendLine("⚠ Plusieurs peintures murales dans le panier : ce sont des alternatives — en général une seule gamme suffit pour le chantier.");
+                    sb.AppendLine(SalesLocale.T(session, "multi_paint_warn"));
             }
 
             var missing = SuggestComplements(session, session.Cart.Select(c => new StoreChatProductSuggestionDto
@@ -103,13 +103,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             }).ToList());
             if (missing.Count > 0)
             {
-                sb.AppendLine("\nProchaines familles utiles :");
+                sb.AppendLine("\n" + SalesLocale.T(session, "review_next"));
                 foreach (var m in missing.Take(3))
                     sb.AppendLine($"• {m.Label} — {m.Reason}");
             }
             else
             {
-                sb.AppendLine("\nRien d’essentiel ne manque pour passer au devis / commande.");
+                sb.AppendLine("\n" + SalesLocale.T(session, "review_ok"));
             }
 
             return sb.ToString().Trim();
@@ -118,9 +118,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public string BuildCartComplementsReply(StoreChatSession session)
         {
             if (session.Cart.Count == 0)
-            {
-                return "Votre panier est vide. Ajoutez d'abord des produits, puis je vous dirai ce qu'il manque.";
-            }
+                return SalesLocale.T(session, "cart_empty_complements");
 
             var cartAsProducts = session.Cart.Select(c => new StoreChatProductSuggestionDto
             {
@@ -134,7 +132,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var missing = BuildTipsForDomain(domain, present, session);
 
             var sb = new StringBuilder();
-            sb.AppendLine("D'après votre panier actuel :");
+            sb.AppendLine(SalesLocale.T(session, "complements_header"));
             foreach (var line in session.Cart)
                 sb.AppendLine($"• {line.Name} × {line.Quantity:0.##}");
 
@@ -155,20 +153,23 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (missing.Count == 0)
             {
-                sb.AppendLine("\nRien d'essentiel ne manque pour démarrer. Vous pouvez passer au devis.");
+                sb.AppendLine("\n" + SalesLocale.T(session, "complements_none"));
                 return sb.ToString().Trim();
             }
 
-            sb.AppendLine("\nCompléments utiles (pas encore dans le panier) :");
+            sb.AppendLine("\n" + SalesLocale.T(session, "complements_list"));
             foreach (var m in missing.Take(4))
                 sb.AppendLine($"• {m.Label} — {m.Reason}");
 
             sb.AppendLine();
-            sb.Append(BuildComplementFooter(domain, missing));
+            sb.Append(BuildComplementFooter(session, domain, missing));
             return sb.ToString().Trim();
         }
 
-        private static string BuildComplementFooter(string domain, IReadOnlyList<SalesRecommendationDto> missing)
+        private static string BuildComplementFooter(
+            StoreChatSession session,
+            string domain,
+            IReadOnlyList<SalesRecommendationDto> missing)
         {
             var examples = string.Join(" », « ",
                 missing.Take(3)
@@ -179,17 +180,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return domain switch
             {
-                "painting" or "Painting" =>
-                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »).\n"
-                    + "Pas besoin de racheter la peinture déjà choisie.",
-                "tiling" or "Bathroom" =>
-                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »).\n"
-                    + "Pas besoin de racheter le carrelage déjà choisi.",
-                "wall_construction" or "Wall" =>
-                    "Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « treillis » ou « truelle »).\n"
-                    + "Pas besoin de racheter briques/blocs/ciment déjà choisis.",
-                _ =>
-                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »)."
+                "painting" or "Painting" => SalesLocale.T(session, "complements_search_paint", examples),
+                "tiling" or "Bathroom" => SalesLocale.T(session, "complements_search_generic", examples),
+                "wall_construction" or "Wall" => SalesLocale.T(session, "complements_search_wall"),
+                _ => SalesLocale.T(session, "complements_search_generic", examples)
             };
         }
 
@@ -241,10 +235,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 case "Painting":
                     AddIfMissing("primer", "Sous-couche", "Meilleure accroche et rendu uniforme.", "sous-couche",
                         "sous-couche", "sous couche", "primer", "grondverf", "voorstrijk", "undercoat");
-                    // Pas « rouleau/roller » seuls : matchent « kit rouleaux / wheels ».
-                    AddIfMissing("roller", "Rouleau", "Application rapide sur grandes surfaces.", "rouleau",
-                        "verfroller", "schildersrol", "paint roller", "verfrol", "lakroller",
-                        "rouleau à peindre", "rouleau peindre");
+                    if (!HasRealPaintRoller(present))
+                    {
+                        tips.Add(new SalesRecommendationDto
+                        {
+                            Code = "roller",
+                            Label = "Rouleau",
+                            Reason = "Application rapide sur grandes surfaces.",
+                            SearchHint = "rouleau"
+                        });
+                    }
                     // Pas « ruban/tape » seuls : matchent ruban isolant électrique.
                     AddIfMissing("tape", "Ruban de masquage", "Finitions propres aux angles.", "ruban",
                         "schilderstape", "masking tape", "afplaktape", "malertape",
@@ -311,6 +311,27 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (ContainsAny(hay, "jardin", "tuin", "terrasse", "dalle", "bordure", "tondeuse", "gazon"))
                 return "garden_landscaping";
             return "Other";
+        }
+
+        /// <summary>
+        /// Vrai rouleau peinture — exclut manches, beugels, perches (« verfrollerhandvatten »).
+        /// </summary>
+        public static bool HasRealPaintRoller(string present)
+        {
+            if (string.IsNullOrWhiteSpace(present))
+                return false;
+
+            if (ContainsAny(present,
+                    "handvat", "handvatten", "beugel", "telescopische", "telescopic",
+                    "stok van", "extension pole", "voor adapter", "anti-spat", "antispatrol",
+                    "spatrol", "verfrollerhandvatten", "spare wheels", "kit rouleaux"))
+                return false;
+
+            return ContainsAny(present,
+                "schildersrol", "paint roller", "lakroller", "muurroller",
+                "rouleau à peindre", "rouleau peindre")
+                   || (present.Contains("verfroller", StringComparison.OrdinalIgnoreCase)
+                       && !present.Contains("handvat", StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool ContainsAny(string hay, params string[] needles) =>

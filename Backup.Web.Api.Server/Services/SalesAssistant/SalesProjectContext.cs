@@ -21,6 +21,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public string? CustomerId { get; set; }
         public string? ProjectTypeHint { get; set; }
         public bool AdvisorMode { get; set; }
+        /// <summary>fr | nl | en — langue UI / réponses.</summary>
+        public string PreferredLanguage { get; set; } = SalesLocale.Fr;
 
         public string? PreferredBrand { get; set; }
         public List<string> SearchTypeHints { get; set; } = new();

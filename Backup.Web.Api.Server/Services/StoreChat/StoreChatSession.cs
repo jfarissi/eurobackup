@@ -129,6 +129,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             set => Project.PaintAreaM2 = value;
         }
 
+        public string PreferredLanguage
+        {
+            get => Project.PreferredLanguage;
+            set => Project.PreferredLanguage = SalesLocale.Normalize(value);
+        }
+
         public List<string> PendingComplementHints
         {
             get => Project.PendingComplementHints;

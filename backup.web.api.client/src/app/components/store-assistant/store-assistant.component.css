@@ -57,6 +57,32 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid #c7c4d8;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.lang-btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: #5c5870;
+}
+
+.lang-btn.active {
+  background: #3525cd;
+  color: #fff;
 }
 
 .domain-chip {

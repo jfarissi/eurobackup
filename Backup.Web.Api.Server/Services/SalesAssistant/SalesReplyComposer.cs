@@ -46,13 +46,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             var json = JsonSerializer.Serialize(facts, JsonOptions);
             var brand = string.IsNullOrWhiteSpace(_store.BrandName) ? "magasin" : _store.BrandName;
+            var langName = SalesLocale.LanguageName(facts.Language);
             var system =
                 $"Tu es la voix de l'assistant vendeur {brand}. "
                 + "Tu reformules UNIQUEMENT le JSON de faits métier fourni par le système C#. "
                 + "Tu n'as AUCUN outil. Tu ne décides PAS (pas de recherche, panier, devis, commande, paiement). "
                 + "Interdit d'inventer un produit, un prix, une marque, un id ou une gamme absente de answerFacts.topProducts. "
                 + "Si answerFacts.hasMatches est false, dis clairement l'absence — ne propose rien d'inventé. "
-                + "Réponds en français, 2 à 4 phrases max, une seule question de suivi si suggestedFollowUp est fourni. "
+                + $"Réponds en {langName}, 2 à 4 phrases max, une seule question de suivi si suggestedFollowUp est fourni. "
                 + "N'ajoute pas de liste à puces de produits (l'UI affiche déjà le tableau).";
 
             var user =
