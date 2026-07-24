@@ -6,13 +6,15 @@ import { StockService } from '../../services/stock.service';
 import { StockItem } from '../../models/stock-item';
 import { MaterialModule } from '../../material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-stock',
   templateUrl: './stock.component.html',
   styleUrls: ['./stock.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class StockComponent implements OnInit {
   stockItems: StockItem[] = [];
@@ -24,7 +26,8 @@ export class StockComponent implements OnInit {
 
   constructor(
     private stockService: StockService,
-    private snack: MatSnackBar
+    private snack: MatSnackBar,
+    private i18n: AppI18nService
   ) {}
 
   ngOnInit(): void {
@@ -40,16 +43,17 @@ export class StockComponent implements OnInit {
       },
       error: (err) => {
         console.error('Erreur lors du chargement du stock:', err);
-        this.snack.open('Erreur lors du chargement du stock', 'Fermer', { duration: 3000 });
+        this.snack.open(this.i18n.t('stock.snack.loadError'), this.i18n.t('common.close'), { duration: 3000 });
       }
     });
   }
 
   groupBySupplier(): void {
     const grouped = new Map<string, StockItem[]>();
+    const unspecified = this.i18n.t('stock.unspecifiedSupplier');
     
     this.stockItems.forEach(item => {
-      const supplier = item.supplier || 'Non spécifié';
+      const supplier = item.supplier || unspecified;
       if (!grouped.has(supplier)) {
         grouped.set(supplier, []);
       }
@@ -92,7 +96,7 @@ export class StockComponent implements OnInit {
   formatDate(dateString: string): string {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(this.i18n.numberLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -109,4 +113,3 @@ export class StockComponent implements OnInit {
     return items.reduce((sum, item) => sum + item.quantityOnHand, 0);
   }
 }
-

@@ -7,13 +7,15 @@ import { MaterialModule } from '../../material.module';
 import { ErpChangeValueMode, ErpProductChange, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap, takeWhile, timer } from 'rxjs';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-erp-changes',
   templateUrl: './erp-changes.component.html',
   styleUrls: ['./erp-changes.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class ErpChangesComponent implements OnInit, OnDestroy {
   changes: ErpProductChange[] = [];
@@ -36,19 +38,19 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   selectedIds = new Set<number>();
 
   readonly changeTypes = [
-    { value: '', label: 'Tous les types' },
-    { value: 'Created', label: 'Création' },
-    { value: 'Updated', label: 'Modification' },
-    { value: 'PriceChanged', label: 'Prix' },
-    { value: 'StockChanged', label: 'Stock' },
-    { value: 'Deleted', label: 'Suppression' }
+    { value: '', labelKey: 'erpChanges.filter.allTypes' },
+    { value: 'Created', labelKey: 'erpChanges.filter.created' },
+    { value: 'Updated', labelKey: 'erpChanges.filter.updated' },
+    { value: 'PriceChanged', labelKey: 'erpChanges.filter.price' },
+    { value: 'StockChanged', labelKey: 'erpChanges.filter.stock' },
+    { value: 'Deleted', labelKey: 'erpChanges.filter.deleted' }
   ];
 
-  readonly valueModes: { value: ErpChangeValueMode; label: string }[] = [
-    { value: '', label: 'Toutes les valeurs' },
-    { value: 'both', label: 'Avant et Après renseignés' },
-    { value: 'cleared', label: 'Valeur vidée (→ —)' },
-    { value: 'added', label: 'Valeur ajoutée (— →)' }
+  readonly valueModes: { value: ErpChangeValueMode; labelKey: string }[] = [
+    { value: '', labelKey: 'erpChanges.filter.allValues' },
+    { value: 'both', labelKey: 'erpChanges.filter.bothValues' },
+    { value: 'cleared', labelKey: 'erpChanges.filter.cleared' },
+    { value: 'added', labelKey: 'erpChanges.filter.added' }
   ];
 
   private searchInput$ = new Subject<string>();
@@ -56,7 +58,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
 
   constructor(
     private erpService: ErpProductService,
-    private snack: MatSnackBar
+    private snack: MatSnackBar,
+    private i18n: AppI18nService
   ) {}
 
   ngOnInit(): void {
@@ -119,7 +122,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error(err);
         this.loading = false;
-        this.snack.open('Erreur lors du chargement des changements ERP', 'Fermer', { duration: 3500 });
+        this.snack.open(this.i18n.t('erpChanges.snack.loadError'), this.i18n.t('common.close'), { duration: 3500 });
       }
     });
   }
@@ -180,45 +183,45 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   markSelectedRead(): void {
     const ids = Array.from(this.selectedIds);
     if (ids.length === 0) {
-      this.snack.open('Sélectionnez au moins un changement', 'Fermer', { duration: 2500 });
+      this.snack.open(this.i18n.t('erpChanges.snack.selectAtLeastOne'), this.i18n.t('common.close'), { duration: 2500 });
       return;
     }
     this.erpService.markChangesRead(ids).subscribe({
       next: () => {
-        this.snack.open(`${ids.length} changement(s) marqué(s) comme lu(s)`, 'OK', { duration: 2500 });
+        this.snack.open(this.i18n.t('erpChanges.snack.markedRead', { count: ids.length }), this.i18n.t('common.ok'), { duration: 2500 });
         this.loadChanges();
       },
-      error: () => this.snack.open('Impossible de marquer comme lu', 'Fermer', { duration: 3000 })
+      error: () => this.snack.open('Impossible de marquer comme lu', this.i18n.t('common.close'), { duration: 3000 })
     });
   }
 
   deleteSelected(): void {
     const ids = Array.from(this.selectedIds);
     if (ids.length === 0) {
-      this.snack.open('Sélectionnez au moins un changement', 'Fermer', { duration: 2500 });
+      this.snack.open(this.i18n.t('erpChanges.snack.selectAtLeastOne'), this.i18n.t('common.close'), { duration: 2500 });
       return;
     }
     this.erpService.deleteChanges(ids).subscribe({
       next: (res) => {
-        this.snack.open(`${res.deleted} changement(s) supprimé(s)`, 'OK', { duration: 2500 });
+        this.snack.open(this.i18n.t('erpChanges.snack.deleted', { count: res.deleted }), this.i18n.t('common.ok'), { duration: 2500 });
         this.loadChanges();
       },
-      error: () => this.snack.open('Impossible de supprimer la sélection', 'Fermer', { duration: 3000 })
+      error: () => this.snack.open('Impossible de supprimer la sélection', this.i18n.t('common.close'), { duration: 3000 })
     });
   }
 
   markAllVisibleRead(): void {
     const ids = this.changes.filter(c => !c.isRead).map(c => c.id);
     if (ids.length === 0) {
-      this.snack.open('Aucun changement non lu sur cette page', 'Fermer', { duration: 2500 });
+      this.snack.open('Aucun changement non lu sur cette page', this.i18n.t('common.close'), { duration: 2500 });
       return;
     }
     this.erpService.markChangesRead(ids).subscribe({
       next: () => {
-        this.snack.open(`${ids.length} changement(s) marqué(s) comme lu(s)`, 'OK', { duration: 2500 });
+        this.snack.open(this.i18n.t('erpChanges.snack.markedRead', { count: ids.length }), this.i18n.t('common.ok'), { duration: 2500 });
         this.loadChanges();
       },
-      error: () => this.snack.open('Impossible de marquer comme lu', 'Fermer', { duration: 3000 })
+      error: () => this.snack.open('Impossible de marquer comme lu', this.i18n.t('common.close'), { duration: 3000 })
     });
   }
 
@@ -248,13 +251,13 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     if (this.syncing) return;
     this.syncing = true;
     this.syncProgress = null;
-    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
+    this.snack.open(this.i18n.t('erpChanges.snack.enrichStarted'), undefined, { duration: 2500 });
     this.erpService.syncAll().subscribe({
       next: (log) => this.watchSyncJob(log),
       error: () => {
         this.syncing = false;
         this.syncProgress = null;
-        this.snack.open('Échec du démarrage de la synchronisation ERP', 'Fermer', { duration: 4000 });
+        this.snack.open(this.i18n.t('erpProducts.snack.syncFailed'), this.i18n.t('common.close'), { duration: 4000 });
       }
     });
   }
@@ -308,7 +311,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     if (this.importing) return;
     this.importing = true;
     this.snack.open(
-      syncAfter ? 'Import Excel + sync ERP…' : 'Import Excel en cours…',
+      syncAfter ? this.i18n.t('erpChanges.snack.importExcelSync') : this.i18n.t('erpChanges.snack.importExcel'),
       undefined,
       { duration: 3000 }
     );
@@ -320,7 +323,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
         this.snack.open(
           `Excel: ${imp.created} créés, ${imp.updated} maj, ${imp.skipped} ignorés` +
             (errCount ? ` (${errCount} erreurs)` : ''),
-          'OK',
+          this.i18n.t('common.ok'),
           { duration: 6000 }
         );
         this.loadChanges();
@@ -328,7 +331,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.importing = false;
-        this.snack.open('Échec de l\'import Excel', 'Fermer', { duration: 4000 });
+        this.snack.open(this.i18n.t('erpChanges.snack.importFailed'), this.i18n.t('common.close'), { duration: 4000 });
       }
     });
   }
@@ -352,7 +355,7 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   formatDate(value?: string | null): string {
     if (!value) return '—';
     const date = new Date(value);
-    return date.toLocaleString('fr-FR', {
+    return date.toLocaleString(this.i18n.numberLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -362,7 +365,8 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   }
 
   changeTypeLabel(type: string): string {
-    return this.changeTypes.find(t => t.value === type)?.label ?? type;
+    const key = this.changeTypes.find(t => t.value === type)?.labelKey;
+    return key ? this.i18n.t(key) : type;
   }
 
   changeTypeClass(type: string): string {

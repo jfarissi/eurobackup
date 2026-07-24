@@ -3,8 +3,8 @@
   <section class="stock-subheader">
     <div class="stock-subheader-inner">
       <div class="stock-title-block">
-        <h2>Gestion du Stock</h2>
-        <p>Consultation du stock mis à jour depuis les bons de livraison</p>
+        <h2>{{ 'stock.title' | t }}</h2>
+        <p>{{ 'stock.subtitle' | t }}</p>
       </div>
 
       <div class="search-bar-wrap">
@@ -12,8 +12,8 @@
         <input class="search-input"
                [(ngModel)]="searchQuery"
                (keyup.enter)="onSearch()"
-               placeholder="Rechercher un produit ou un code..." />
-        <button class="search-btn" (click)="onSearch()">Rechercher</button>
+               [placeholder]="'stock.placeholder' | t" />
+        <button class="search-btn" (click)="onSearch()">{{ 'stock.search' | t }}</button>
         <button class="clear-btn" *ngIf="searchQuery" (click)="clearSearch()">
           <mat-icon>clear</mat-icon>
         </button>
@@ -23,16 +23,16 @@
     <!-- Stats bar -->
     <div class="stats-bar" *ngIf="stockItems.length > 0">
       <div class="stat-chip">
-        <span class="stat-label label-caps">Total de produits</span>
+        <span class="stat-label label-caps">{{ 'stock.stat.productCount' | t }}</span>
         <span class="stat-value font-mono">{{ stockItems.length }}</span>
       </div>
       <div class="stat-chip">
-        <span class="stat-label label-caps">Total des quantités</span>
+        <span class="stat-label label-caps">{{ 'stock.stat.totalQty' | t }}</span>
         <span class="stat-value font-mono">{{ getTotalQuantity() | number:'1.0-0' }}</span>
       </div>
       <div class="sort-hint">
         <mat-icon>filter_list</mat-icon>
-        <span>Trier par : Code</span>
+        <span>{{ 'stock.sortByCode' | t }}</span>
       </div>
     </div>
   </section>
@@ -43,7 +43,7 @@
 
       <div class="no-data" *ngIf="stockItems.length === 0">
         <mat-icon>inventory_2</mat-icon>
-        <p>Aucun produit en stock</p>
+        <p>{{ 'stock.empty' | t }}</p>
       </div>
 
       <div class="supplier-block card" *ngFor="let group of stockBySupplier; let i = index">
@@ -55,10 +55,12 @@
             </mat-icon>
             <mat-icon class="package-icon">inventory_2</mat-icon>
             <span class="supplier-name">{{ group.supplier }}</span>
-            <span class="supplier-count">({{ group.items.length }} produit{{ group.items.length > 1 ? 's' : '' }})</span>
+            <span class="supplier-count">{{
+              (group.items.length === 1 ? 'stock.productCount' : 'stock.productCountPlural') | t:{count: group.items.length}
+            }}</span>
           </div>
           <div class="supplier-total">
-            Quantité totale: <span class="font-mono">{{ getSupplierTotalQuantity(group.items) | number:'1.0-0' }}</span>
+            {{ 'stock.totalQuantity' | t }} <span class="font-mono">{{ getSupplierTotalQuantity(group.items) | number:'1.0-0' }}</span>
           </div>
         </div>
 
@@ -67,11 +69,11 @@
           <table class="data-table stock-table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Libellé</th>
-                <th class="text-right">Quantité</th>
-                <th class="text-center">Unité</th>
-                <th>Dernière mise à jour</th>
+                <th>{{ 'stock.col.code' | t }}</th>
+                <th>{{ 'stock.col.label' | t }}</th>
+                <th class="text-right">{{ 'stock.col.quantity' | t }}</th>
+                <th class="text-center">{{ 'stock.col.unit' | t }}</th>
+                <th>{{ 'stock.col.lastUpdated' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -81,7 +83,7 @@
                 <td class="col-mono code-cell">{{ item.productKey }}</td>
                 <td class="label-cell">
                   {{ item.description || '-' }}
-                  <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" matTooltip="Stock négatif">report</mat-icon>
+                  <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" [matTooltip]="'stock.negativeTooltip' | t">report</mat-icon>
                 </td>
                 <td class="text-right col-mono qty-cell"
                     [class.negative]="item.quantityOnHand < 0"

@@ -182,7 +182,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
 
   formatPrice(p: StoreChatProductSuggestion): string {
     if (p.price == null) return '—';
-    return p.price.toLocaleString('fr-BE', { style: 'currency', currency: 'EUR' });
+    return p.price.toLocaleString(this.i18n.numberLocale(), { style: 'currency', currency: 'EUR' });
   }
 
   onProductImageError(event: Event): void {
@@ -273,7 +273,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   formatCartLinePrice(line: { quantity: number; price?: number | null }): string {
     if (line.price == null) return '';
     const total = line.price * line.quantity;
-    return total.toLocaleString('fr-BE', { style: 'currency', currency: 'EUR' });
+    return total.toLocaleString(this.i18n.numberLocale(), { style: 'currency', currency: 'EUR' });
   }
 
   toggleCartLineFromList(p: StoreChatProductSuggestion): void {
@@ -482,15 +482,8 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }
   }
 
-  private langSwitchedMessage(lang: AssistantLang): string {
-    switch (lang) {
-      case 'nl':
-        return 'Taal ingesteld: Nederlands. Ik antwoord vanaf nu in het Nederlands.';
-      case 'en':
-        return 'Language set to English. I will reply in English from now on.';
-      default:
-        return 'Langue définie : français. Je répondrai désormais en français.';
-    }
+  private langSwitchedMessage(_lang: AssistantLang): string {
+    return this.i18n.t('langSwitched');
   }
 
   private applyBotResponse(res: StoreChatResponse): void {

@@ -128,3 +128,29 @@
 .login-submit mat-icon {
   color: #ffffff !important;
 }
+
+.login-lang {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  padding: 2px;
+  border-radius: 6px;
+  background: #eceef0;
+}
+
+.login-lang .lang-btn {
+  border: none;
+  background: transparent;
+  color: #464555;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.login-lang .lang-btn.active {
+  background: #3525cd;
+  color: #ffffff;
+}

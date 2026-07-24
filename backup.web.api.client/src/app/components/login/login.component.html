@@ -2,15 +2,23 @@
   <div class="login-card">
     <div class="login-brand">
       <span class="brand-title">DocManager Pro</span>
-      <span class="brand-sub">Connexion</span>
+      <span class="brand-sub">{{ 'login.brandSub' | t }}</span>
     </div>
 
-    <h1>Accéder à l'application</h1>
-    <p class="login-hint">Utilisez votre compte EuroBrico Backup</p>
+    <div class="lang-switch login-lang" [attr.aria-label]="'common.lang' | t">
+      <button type="button"
+              *ngFor="let l of i18n.languages"
+              class="lang-btn"
+              [class.active]="i18n.lang === l.code"
+              (click)="setLanguage(l.code)">{{ l.label }}</button>
+    </div>
+
+    <h1>{{ 'login.title' | t }}</h1>
+    <p class="login-hint">{{ 'login.hint' | t }}</p>
 
     <form class="login-form" (ngSubmit)="submit()" autocomplete="on">
       <label class="field">
-        <span>Email</span>
+        <span>{{ 'login.email' | t }}</span>
         <input type="email"
                name="username"
                [(ngModel)]="username"
@@ -21,7 +29,7 @@
       </label>
 
       <label class="field">
-        <span>Mot de passe</span>
+        <span>{{ 'login.password' | t }}</span>
         <div class="password-wrap">
           <input [type]="hidePassword ? 'password' : 'text'"
                  name="password"
@@ -33,7 +41,7 @@
           <button type="button"
                   class="toggle-pass"
                   (click)="hidePassword = !hidePassword"
-                  [attr.aria-label]="hidePassword ? 'Afficher' : 'Masquer'">
+                  [attr.aria-label]="hidePassword ? ('common.show' | t) : ('common.hide' | t)">
             <mat-icon>{{ hidePassword ? 'visibility' : 'visibility_off' }}</mat-icon>
           </button>
         </div>
@@ -43,7 +51,7 @@
 
       <button class="btn-primary login-submit" type="submit" [disabled]="loading">
         <mat-icon>{{ loading ? 'hourglass_top' : 'login' }}</mat-icon>
-        {{ loading ? 'Connexion…' : 'Se connecter' }}
+        {{ loading ? ('login.submitting' | t) : ('login.submit' | t) }}
       </button>
     </form>
   </div>

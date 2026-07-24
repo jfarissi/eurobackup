@@ -8,13 +8,15 @@ import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-
 import { ErpProductService } from '../../services/erp-product.service';
 import { environment } from '../../../environments/environment';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-erp-products',
   templateUrl: './erp-products.component.html',
   styleUrls: ['./erp-products.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class ErpProductsComponent implements OnInit, OnDestroy {
   products: ErpProduct[] = [];
@@ -43,15 +45,16 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   subTypes: ErpCategory[] = [];
 
   readonly sourceOptions = [
-    { value: '', label: 'Toutes sources' },
-    { value: 'Excel', label: 'Excel' },
-    { value: 'Merged', label: 'Excel + ERP' },
-    { value: 'Erp', label: 'ERP seul' }
+    { value: '', labelKey: 'erpProducts.filter.allSources' },
+    { value: 'Excel', labelKey: 'erpProducts.filter.sourceExcel' },
+    { value: 'Merged', labelKey: 'erpProducts.filter.sourceMerged' },
+    { value: 'Erp', labelKey: 'erpProducts.filter.sourceErp' }
   ];
 
   constructor(
     private erpService: ErpProductService,
-    private snack: MatSnackBar
+    private snack: MatSnackBar,
+    private i18n: AppI18nService
   ) {}
 
   ngOnInit(): void {
@@ -74,9 +77,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   get syncProgressTitle(): string {
     const mode = this.parseSyncDetails(this.syncProgress ?? ({} as ErpSyncLog)).mode;
-    if (mode === 'FullCatalog') return 'Sync catalogue ERP complet';
-    if (this.syncMode === 'catalog') return 'Sync produits filtrés';
-    return 'Enrichissement ERP (produits locaux)';
+    if (mode === 'FullCatalog') return this.i18n.t('erpProducts.progress.fullCatalog');
+    if (this.syncMode === 'catalog') return this.i18n.t('erpProducts.progress.filtered');
+    return this.i18n.t('erpProducts.progress.enrich');
   }
 
   get syncProgressPercent(): number {
@@ -287,7 +290,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error(err);
         this.loading = false;
-        this.snack.open('Erreur chargement produits', 'Fermer', { duration: 3500 });
+        this.snack.open(this.i18n.t('erpProducts.snack.loadError'), this.i18n.t('common.close'), { duration: 3500 });
       }
     });
   }
@@ -329,8 +332,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         this.resetSyncTracking();
         const detail = err?.error?.detail || err?.error?.message || err?.message;
         this.snack.open(
-          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la sync',
-          'Fermer',
+          detail ? `Échec sync: ${detail}` : this.i18n.t('erpProducts.snack.syncFailed'),
+          this.i18n.t('common.close'),
           { duration: 8000 }
         );
       }
@@ -341,11 +344,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.erpService.cancelRunningSync().subscribe({
       next: () => {
         this.resetSyncTracking();
-        this.snack.open('Sync annulée', 'OK', { duration: 3000 });
+        this.snack.open(this.i18n.t('erpProducts.snack.syncCancelled'), this.i18n.t('common.ok'), { duration: 3000 });
       },
       error: () => {
         this.resetSyncTracking();
-        this.snack.open('Sync arrêtée (ou déjà terminée)', 'OK', { duration: 3000 });
+        this.snack.open('Sync arrêtée (ou déjà terminée)', this.i18n.t('common.ok'), { duration: 3000 });
       }
     });
   }
@@ -353,15 +356,15 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   triggerSyncAll(): void {
     if (this.syncingAll || this.syncingId != null) return;
     this.startSyncTracking('enrich');
-    this.snack.open('Enrichissement ERP démarré…', undefined, { duration: 2500 });
+    this.snack.open(this.i18n.t('erpProducts.snack.enrichStarted'), undefined, { duration: 2500 });
     this.erpService.syncAll().subscribe({
       next: (log) => this.watchSyncJob(log),
       error: (err) => {
         this.resetSyncTracking();
         const detail = err?.error?.detail || err?.error?.message || err?.message;
         this.snack.open(
-          detail ? `Échec sync: ${detail}` : 'Échec du démarrage de la synchronisation ERP',
-          'Fermer',
+          detail ? `Échec sync: ${detail}` : this.i18n.t('erpProducts.snack.syncFailed'),
+          this.i18n.t('common.close'),
           { duration: 8000 }
         );
       }
@@ -388,8 +391,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         if (idx >= 0) this.products[idx] = { ...this.products[idx], ...updated };
         if (this.selected?.id === product.id) this.selected = { ...this.selected, ...updated };
         this.snack.open(
-          `Sync OK — ${updated.name || updated.reference || updated.erpProductId}`,
-          'OK',
+          this.i18n.t('erpProducts.snack.productSyncOk', {
+            name: updated.name || updated.reference || updated.erpProductId
+          }),
+          this.i18n.t('common.ok'),
           { duration: 3000 }
         );
       },
@@ -491,7 +496,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   formatDate(value?: string | null): string {
     if (!value) return '—';
-    return new Date(value).toLocaleString('fr-FR', {
+    return new Date(value).toLocaleString(this.i18n.numberLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -502,7 +507,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   formatPrice(value?: number | null): string {
     if (value == null) return '—';
-    return value.toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return value.toLocaleString(this.i18n.numberLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   }
 
   sourceClass(source?: string | null): string {

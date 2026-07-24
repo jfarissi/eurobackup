@@ -6,32 +6,37 @@ import { filter } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { AuthUser } from '../../models/auth';
+import { AppI18nService, AppLang } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 interface NavItem {
   path: string;
-  label: string;
-  tabLabel: string;
+  labelKey: string;
+  tabLabelKey: string;
   icon: string;
-  title: string;
+  titleKey: string;
   exact?: boolean;
+  /** When set, shown as-is (no i18n) — e.g. dev tools */
+  literal?: boolean;
 }
 
 const MAIN_NAV_ITEMS: NavItem[] = [
-  { path: '/upload', label: 'Upload', tabLabel: 'Upload', icon: 'cloud_upload', title: 'Gestion Documents' },
-  { path: '/recherche', label: 'Recherche', tabLabel: 'Recherche', icon: 'search', title: 'Recherche' },
-  { path: '/compare', label: 'Association', tabLabel: 'Association', icon: 'link', title: 'Association' },
-  { path: '/stock', label: 'Stock', tabLabel: 'Stock', icon: 'inventory_2', title: 'Gestion Documents' },
-  { path: '/erp-products', label: 'Produits', tabLabel: 'Produits', icon: 'category', title: 'Produits ERP' },
-  { path: '/erp-changes', label: 'Changements', tabLabel: 'Changements', icon: 'sync_alt', title: 'Changements ERP' },
-  { path: '/assistant', label: 'Assistant', tabLabel: 'Magasin', icon: 'smart_toy', title: 'Assistant magasin' },
+  { path: '/upload', labelKey: 'nav.upload', tabLabelKey: 'nav.upload', icon: 'cloud_upload', titleKey: 'nav.title.upload' },
+  { path: '/recherche', labelKey: 'nav.search', tabLabelKey: 'nav.search', icon: 'search', titleKey: 'nav.title.search' },
+  { path: '/compare', labelKey: 'nav.compare', tabLabelKey: 'nav.compare', icon: 'link', titleKey: 'nav.title.compare' },
+  { path: '/stock', labelKey: 'nav.stock', tabLabelKey: 'nav.stock', icon: 'inventory_2', titleKey: 'nav.title.stock' },
+  { path: '/erp-products', labelKey: 'nav.erpProducts', tabLabelKey: 'nav.erpProducts', icon: 'category', titleKey: 'nav.title.erpProducts' },
+  { path: '/erp-changes', labelKey: 'nav.erpChanges', tabLabelKey: 'nav.erpChanges', icon: 'sync_alt', titleKey: 'nav.title.erpChanges' },
+  { path: '/assistant', labelKey: 'nav.assistant', tabLabelKey: 'nav.assistantTab', icon: 'smart_toy', titleKey: 'nav.title.assistant' },
 ];
 
 const PYTHON_TEST_NAV_ITEM: NavItem = {
   path: '/python-test',
-  label: 'Python / Ollama',
-  tabLabel: 'Dev',
+  labelKey: 'Python / Ollama',
+  tabLabelKey: 'Dev',
   icon: 'science',
-  title: 'Python / Ollama',
+  titleKey: 'Python / Ollama',
+  literal: true,
 };
 
 @Component({
@@ -39,7 +44,7 @@ const PYTHON_TEST_NAV_ITEM: NavItem = {
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule]
+  imports: [CommonModule, RouterModule, MaterialModule, TPipe]
 })
 export class NavbarComponent {
   mobileNavOpen = false;
@@ -51,11 +56,13 @@ export class NavbarComponent {
     ? [...MAIN_NAV_ITEMS, PYTHON_TEST_NAV_ITEM]
     : MAIN_NAV_ITEMS;
 
-  pageTitle = 'Gestion Documents';
+  pageTitleKey = 'nav.title.default';
+  pageTitleLiteral = false;
 
   constructor(
     private router: Router,
-    private auth: AuthService
+    private auth: AuthService,
+    public i18n: AppI18nService
   ) {
     this.auth.user$.subscribe(u => this.user = u);
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
@@ -65,6 +72,10 @@ export class NavbarComponent {
     });
     this.updateTitle();
     this.isLoginPage = this.router.url.startsWith('/login');
+  }
+
+  setLanguage(lang: AppLang): void {
+    this.i18n.setLang(lang);
   }
 
   logout(): void {
@@ -81,6 +92,7 @@ export class NavbarComponent {
   private updateTitle(): void {
     const url = this.router.url.split('?')[0];
     const item = this.navItems.find(n => url.startsWith(n.path));
-    this.pageTitle = item?.title ?? 'Gestion Documents';
+    this.pageTitleKey = item?.titleKey ?? 'nav.title.default';
+    this.pageTitleLiteral = !!item?.literal;
   }
 }

@@ -7,13 +7,15 @@ import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { Router, RouterModule } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-upload',
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class UploadComponent implements OnInit {
   file: File | null = null;
@@ -37,7 +39,8 @@ export class UploadComponent implements OnInit {
   constructor(
     private docs: DocumentService,
     private snack: MatSnackBar,
-    private router: Router
+    private router: Router,
+    private i18n: AppI18nService
   ) {}
 
   ngOnInit(): void {
@@ -68,10 +71,10 @@ export class UploadComponent implements OnInit {
     if (!dateStr) return '-';
     const diff = Date.now() - new Date(dateStr).getTime();
     const hours = Math.floor(diff / 3600000);
-    if (hours < 1) return 'À l\'instant';
-    if (hours < 24) return `Il y a ${hours}h`;
+    if (hours < 1) return this.i18n.t('upload.relative.justNow');
+    if (hours < 24) return this.i18n.t('upload.relative.hoursAgo', { hours });
     const days = Math.floor(hours / 24);
-    return `Il y a ${days}j`;
+    return this.i18n.t('upload.relative.daysAgo', { days });
   }
 
   onDragOver(event: DragEvent) {
@@ -160,7 +163,7 @@ export class UploadComponent implements OnInit {
 
   upload() {
     if (!this.file) {
-      this.snack.open('Veuillez sélectionner un fichier', 'OK', { duration: 2000 });
+      this.snack.open(this.i18n.t('upload.snack.selectFile'), this.i18n.t('common.ok'), { duration: 2000 });
       return;
     }
     
@@ -176,7 +179,7 @@ export class UploadComponent implements OnInit {
             this.suppliers.sort();
           }
           
-          this.snack.open('Document uploadé avec succès', 'OK', { duration: 2000 });
+          this.snack.open(this.i18n.t('upload.snack.success'), this.i18n.t('common.ok'), { duration: 2000 });
           this.loadRecentDocuments();
           
           // Si c'est un BL, rechercher les factures correspondantes
@@ -194,14 +197,14 @@ export class UploadComponent implements OnInit {
           
           // Vérifier si c'est une erreur de doublon
           if (err.status === 409 || (err.error && err.error.isDuplicate)) {
-            const errorMessage = err.error?.error || 'Ce document existe déjà dans le système';
-            this.snack.open(errorMessage, 'Fermer', { 
+            const errorMessage = err.error?.error || this.i18n.t('upload.snack.duplicate');
+            this.snack.open(errorMessage, this.i18n.t('common.close'), { 
               duration: 5000,
               panelClass: ['error-snackbar']
             });
           } else {
-            const errorMessage = err.error?.error || 'Erreur lors de l\'upload';
-            this.snack.open(errorMessage, 'Fermer', { duration: 3000 });
+            const errorMessage = err.error?.error || this.i18n.t('upload.snack.uploadError');
+            this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
           }
           console.error(err);
         }
@@ -220,15 +223,15 @@ export class UploadComponent implements OnInit {
         if (filteredInvoices.length === 1) {
           // Une seule facture trouvée, proposer l'association
           const invoice = filteredInvoices[0];
-          if (confirm(`Facture trouvée : ${invoice.numero || invoice.id}\nVoulez-vous l'associer à ce BL ?`)) {
+          if (confirm(this.i18n.t('upload.confirm.linkInvoice', { numero: invoice.numero || invoice.id }))) {
             this.docs.link(invoice.id, blId).subscribe({
               next: () => {
-                this.snack.open('BL associé à la facture avec succès', 'OK', { duration: 2000 });
+                this.snack.open(this.i18n.t('upload.snack.linkSuccess'), this.i18n.t('common.ok'), { duration: 2000 });
                 this.loadUnlinkedDocuments();
                 this.resetForm();
               },
               error: (err) => {
-                this.snack.open('Erreur lors de l\'association', 'Fermer', { duration: 3000 });
+                this.snack.open(this.i18n.t('upload.snack.linkError'), this.i18n.t('common.close'), { duration: 3000 });
                 console.error(err);
               }
             });
@@ -244,7 +247,11 @@ export class UploadComponent implements OnInit {
           }
         } else if (filteredInvoices.length > 1) {
           // Plusieurs factures trouvées, rediriger vers la page de comparaison
-          this.snack.open(`${filteredInvoices.length} factures trouvées. Redirection vers la page d'association...`, 'OK', { duration: 3000 });
+          this.snack.open(
+            this.i18n.t('upload.snack.invoicesFound', { count: filteredInvoices.length }),
+            this.i18n.t('common.ok'),
+            { duration: 3000 }
+          );
           this.router.navigate(['/compare'], { 
             queryParams: { 
               blId: blId, 
@@ -254,7 +261,7 @@ export class UploadComponent implements OnInit {
           });
         } else {
           // Aucune facture trouvée avec ce numéro, afficher toutes les factures du fournisseur
-          this.snack.open('Aucune facture trouvée avec ce numéro. Affichage de toutes les factures du fournisseur...', 'OK', { duration: 3000 });
+          this.snack.open(this.i18n.t('upload.snack.noInvoice'), this.i18n.t('common.ok'), { duration: 3000 });
           this.router.navigate(['/compare'], { 
             queryParams: { 
               blId: blId, 

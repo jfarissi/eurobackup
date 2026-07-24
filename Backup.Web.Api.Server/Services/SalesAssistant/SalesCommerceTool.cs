@@ -117,9 +117,58 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (lines == null || lines.Count == 0)
                 return;
 
-            session.Cart.Clear();
+            // Ne pas Clear() avant succès : sinon un échec ERP vide le panier et le PDF sort sans lignes.
+            var rebuilt = new List<StoreChatCartItem>();
             foreach (var line in lines)
-                await AddToCartAsync(session, line.ProductId, line.Quantity <= 0 ? 1 : line.Quantity, ct);
+            {
+                var before = rebuilt.Count;
+                await TryAddLineToListAsync(rebuilt, line.ProductId, line.Quantity <= 0 ? 1 : line.Quantity, ct);
+                if (rebuilt.Count == before)
+                    _logger.LogWarning("ReplaceCart: produit introuvable id={ProductId}", line.ProductId);
+            }
+
+            if (rebuilt.Count == 0)
+            {
+                _logger.LogWarning(
+                    "ReplaceCart: aucune ligne rechargée ({Requested} demandées) — panier session conservé ({Kept})",
+                    lines.Count, session.Cart.Count);
+                return;
+            }
+
+            session.Cart.Clear();
+            session.Cart.AddRange(rebuilt);
+        }
+
+        private async Task TryAddLineToListAsync(
+            List<StoreChatCartItem> cart,
+            string? productId,
+            decimal qty,
+            CancellationToken ct)
+        {
+            if (!int.TryParse(productId, out var id) || qty <= 0)
+                return;
+
+            var product = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+            if (product == null)
+                return;
+
+            var existing = cart.FirstOrDefault(c => c.ErpProductId == id);
+            if (existing != null)
+            {
+                existing.Quantity = qty;
+                return;
+            }
+
+            cart.Add(new StoreChatCartItem
+            {
+                ErpProductId = product.Id,
+                Name = FormatProductDisplayName(product.Name, product.Name2, product.Reference, product.Id),
+                Reference = product.Reference,
+                Quantity = qty,
+                UnitPrice = product.UnitPrice ?? product.PriceHT ?? 0
+            });
         }
 
         public async Task<StoreChatResponseDto> CreateQuoteAsync(

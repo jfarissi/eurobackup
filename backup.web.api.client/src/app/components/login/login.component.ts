@@ -1,14 +1,18 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { AuthService } from '../../services/auth.service';
+import { AppI18nService, AppLang } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
+
+const HOME_URL = '/upload';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MaterialModule],
+  imports: [CommonModule, FormsModule, RouterModule, MaterialModule, TPipe],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
@@ -22,21 +26,21 @@ export class LoginComponent {
   constructor(
     private auth: AuthService,
     private router: Router,
-    private route: ActivatedRoute
+    public i18n: AppI18nService
   ) {
     if (this.auth.isLoggedIn) {
-      void this.router.navigateByUrl(this.returnUrl);
+      void this.router.navigateByUrl(HOME_URL);
     }
   }
 
-  get returnUrl(): string {
-    return this.route.snapshot.queryParamMap.get('returnUrl') || '/upload';
+  setLanguage(lang: AppLang): void {
+    this.i18n.setLang(lang);
   }
 
   submit(): void {
     this.error = '';
     if (!this.username.trim() || !this.password) {
-      this.error = 'Email et mot de passe requis';
+      this.error = this.i18n.t('login.required');
       return;
     }
 
@@ -47,11 +51,11 @@ export class LoginComponent {
     }).subscribe({
       next: () => {
         this.loading = false;
-        void this.router.navigateByUrl(this.returnUrl);
+        void this.router.navigateByUrl(HOME_URL);
       },
       error: (err) => {
         this.loading = false;
-        this.error = err?.error?.message || 'Identifiants incorrects';
+        this.error = err?.error?.message || this.i18n.t('login.invalid');
       }
     });
   }

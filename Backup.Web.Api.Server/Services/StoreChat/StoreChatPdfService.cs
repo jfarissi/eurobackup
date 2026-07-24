@@ -70,7 +70,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     page.Size(PageSizes.A4);
                     page.Margin(1, Unit.Centimetre);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(11).FontFamily(Fonts.Verdana));
+                    // Pas de FontFamily(Verdana) : absent sous Linux/Docker → pages blanches.
+                    page.DefaultTextStyle(x => x.FontSize(11));
 
                     page.Header().Row(row =>
                     {
@@ -90,6 +91,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     page.Content().PaddingVertical(20).Column(col =>
                     {
                         col.Item().Text($"Client: {customerName}").FontSize(14).SemiBold();
+                        if (items.Count == 0)
+                        {
+                            col.Item().PaddingVertical(10).Text("Aucune ligne dans le panier.").Italic().FontColor(Colors.Grey.Darken1);
+                        }
+                        else
+                        {
                         col.Item().PaddingVertical(10).Table(table =>
                         {
                             table.ColumnsDefinition(columns =>
@@ -110,12 +117,13 @@ namespace Backup.Web.Api.Server.Services.StoreChat
 
                             foreach (var item in items)
                             {
-                                table.Cell().Element(BodyCell).Text(item.Name);
+                                table.Cell().Element(BodyCell).Text(item.Name ?? "");
                                 table.Cell().Element(BodyCell).Text(item.Quantity.ToString("0.##", CultureInfo.InvariantCulture));
                                 table.Cell().Element(BodyCell).Text($"{item.UnitPrice:N2} €");
                                 table.Cell().Element(BodyCell).Text($"{item.TotalPrice:N2} €");
                             }
                         });
+                        }
 
                         col.Item().AlignRight().PaddingTop(10).Text(x =>
                         {

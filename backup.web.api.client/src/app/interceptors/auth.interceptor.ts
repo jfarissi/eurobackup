@@ -25,10 +25,7 @@ export class AuthInterceptor implements HttpInterceptor {
       catchError((err: HttpErrorResponse) => {
         if (err.status === 401 && !req.url.includes('/auth/login')) {
           this.auth.logout();
-          const returnUrl = this.router.url && this.router.url !== '/login'
-            ? this.router.url
-            : '/upload';
-          void this.router.navigate(['/login'], { queryParams: { returnUrl } });
+          void this.router.navigate(['/login']);
         }
         return throwError(() => err);
       })

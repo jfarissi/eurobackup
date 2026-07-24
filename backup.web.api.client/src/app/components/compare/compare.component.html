@@ -3,22 +3,22 @@
   <!-- Page header -->
   <section class="compare-page-header">
     <div class="compare-page-header-text">
-      <h1>Association & Comparaison de Documents</h1>
-      <p>Réconciliation automatisée des factures et bons de livraison.</p>
+      <h1>{{ 'compare.title' | t }}</h1>
+      <p>{{ 'compare.subtitle' | t }}</p>
     </div>
     <div class="compare-page-header-actions">
       <button class="btn-secondary" *ngIf="hasComparisonResults()" (click)="exportAllComparisonsExcel()">
-        <mat-icon>download</mat-icon> Exporter tout (Excel)
+        <mat-icon>download</mat-icon> {{ 'compare.exportAll' | t }}
       </button>
       <button class="btn-secondary" *ngIf="selectedInvoice && selectedDelivery" (click)="linkSelected()">
-        <mat-icon>link</mat-icon> Valider l'Association
+        <mat-icon>link</mat-icon> {{ 'compare.validateAssociation' | t }}
       </button>
     </div>
   </section>
 
   <!-- Suggestions pour BL uploadé -->
   <div class="suggestion-card" *ngIf="blId && suggestedInvoices.length > 0">
-    <h2>💡 Factures suggérées pour BL #{{ blId }} ({{ blNumber }})</h2>
+    <h2>💡 {{ 'compare.suggestedInvoices' | t:{blId: blId} }} ({{ blNumber }})</h2>
     <p *ngIf="selectedDelivery" class="selected-bl-info">
       ✅ BL sélectionné : {{ selectedDelivery.numero || ('#' + selectedDelivery.id) }}
       ({{ selectedDelivery.supplier || 'Fournisseur non spécifié' }})
@@ -27,12 +27,12 @@
       <mat-card *ngFor="let inv of suggestedInvoices" class="invoice-card" (click)="selectInvoice(inv)">
         <mat-card-header>
           <mat-card-title>Facture #{{ inv.id }}</mat-card-title>
-          <mat-card-subtitle>{{ inv.numero || 'Sans numéro' }}</mat-card-subtitle>
+          <mat-card-subtitle>{{ inv.numero || ('compare.noNumber' | t) }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p><strong>Client:</strong> {{ inv.client || '-' }}</p>
-          <p><strong>Fournisseur:</strong> {{ inv.supplier || '-' }}</p>
-          <p><strong>Date:</strong> {{ inv.dateDocument ? (inv.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
+          <p><strong>{{ 'compare.label.client' | t }}:</strong> {{ inv.client || '-' }}</p>
+          <p><strong>{{ 'compare.label.supplier' | t }}:</strong> {{ inv.supplier || '-' }}</p>
+          <p><strong>{{ 'compare.label.date' | t }}:</strong> {{ inv.dateDocument ? (inv.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
         </mat-card-content>
       </mat-card>
     </div>
@@ -40,13 +40,13 @@
 
   <!-- Sélection actuelle pour association Facture-BL -->
   <div class="selection-card" *ngIf="selectedInvoice || selectedDelivery">
-    <h2>📋 Sélection Actuelle (Association Facture-BL)</h2>
+    <h2>📋 {{ 'compare.selection.association' | t }}</h2>
     <div class="selection-items">
       <div class="selected-item" *ngIf="selectedInvoice">
         <mat-icon>receipt</mat-icon>
         <div>
           <strong>Facture #{{ selectedInvoice.id }}</strong>
-          <p>{{ selectedInvoice.numero || 'Sans numéro' }}</p>
+          <p>{{ selectedInvoice.numero || ('compare.noNumber' | t) }}</p>
         </div>
         <button mat-icon-button (click)="selectedInvoice = null">
           <mat-icon>close</mat-icon>
@@ -56,7 +56,7 @@
         <mat-icon>local_shipping</mat-icon>
         <div>
           <strong>BL #{{ selectedDelivery.id }}</strong>
-          <p>{{ selectedDelivery.numero || 'Sans numéro' }}</p>
+          <p>{{ selectedDelivery.numero || ('compare.noNumber' | t) }}</p>
         </div>
         <button mat-icon-button (click)="selectedDelivery = null">
           <mat-icon>close</mat-icon>
@@ -66,28 +66,28 @@
     <button mat-raised-button color="primary" [disabled]="!selectedInvoice || !selectedDelivery"
       (click)="linkSelected()" class="link-button">
       <mat-icon>link</mat-icon>
-      Associer
+      {{ 'compare.associate' | t }}
     </button>
     <button mat-raised-button color="accent" *ngIf="selectedInvoice" [disabled]="erpPriceComparisonLoading"
       (click)="compareWithErp(selectedInvoice.id)" class="link-button" style="margin-left: 8px;">
       <mat-icon>price_check</mat-icon>
-      Comparer avec les prix ERP
+      {{ 'compare.compareErpPrices' | t }}
     </button>
   </div>
 
   <!-- Sélection pour comparaison de prix entre factures -->
   <div class="selection-card" *ngIf="selectedInvoice1 || selectedInvoice2">
-    <h2>💰 Comparaison de Prix entre Factures</h2>
+    <h2>💰 {{ 'compare.priceCompare.title' | t }}</h2>
 
     <!-- Message d'avertissement si fournisseurs différents -->
     <div class="warning-message" *ngIf="selectedInvoice1 && selectedInvoice2 && !canCompareInvoices()">
       <mat-icon>warning</mat-icon>
       <div>
-        <strong>⚠️ Fournisseurs différents</strong>
-        <p>Les deux factures doivent avoir le même fournisseur pour être comparées.</p>
+        <strong>⚠️ {{ 'compare.differentSuppliers' | t }}</strong>
+        <p>{{ 'compare.sameSupplierRequired' | t }}</p>
         <p class="supplier-details">
-          <span>Facture 1: <strong>{{ selectedInvoice1.supplier || 'Non spécifié' }}</strong></span>
-          <span>Facture 2: <strong>{{ selectedInvoice2.supplier || 'Non spécifié' }}</strong></span>
+          <span>Facture 1: <strong>{{ selectedInvoice1.supplier || ('stock.unspecifiedSupplier' | t) }}</strong></span>
+          <span>Facture 2: <strong>{{ selectedInvoice2.supplier || ('stock.unspecifiedSupplier' | t) }}</strong></span>
         </p>
       </div>
     </div>
@@ -131,15 +131,15 @@
     <button mat-raised-button color="accent"
       [disabled]="!selectedInvoice1 || !selectedInvoice2 || !canCompareInvoices()" (click)="compareInvoices()"
       class="link-button"
-      [matTooltip]="!canCompareInvoices() && selectedInvoice1 && selectedInvoice2 ? 'Les deux factures doivent avoir le même fournisseur' : ''">
+      [matTooltip]="!canCompareInvoices() && selectedInvoice1 && selectedInvoice2 ? ('compare.sameSupplierRequired' | t) : ''">
       <mat-icon>compare_arrows</mat-icon>
-      Comparer les Prix
+      {{ 'compare.comparePrices' | t }}
     </button>
   </div>
 
   <!-- Tableau des factures avec expansion -->
   <div class="table-card">
-    <h2>📄 Factures <span class="doc-count">({{ factures.length }})</span></h2>
+    <h2>📄 {{ 'compare.invoices' | t }} <span class="doc-count">({{ factures.length }})</span></h2>
     <div class="table-wrapper">
       <div class="invoices-list">
         <div *ngFor="let invoice of factures" class="invoice-item">
@@ -151,20 +151,20 @@
               </button>
             </div>
             <div class="invoice-info">
-              <div class="info-item"><strong>Numéro:</strong> {{ invoice.numero || '-' }}</div>
-              <div class="info-item"><strong>Fournisseur:</strong> {{ invoice.supplier || '-' }}</div>
-              <div class="info-item"><strong>Client:</strong> {{ invoice.client || '-' }}</div>
-              <div class="info-item"><strong>Date:</strong> {{ invoice.dateDocument ? (invoice.dateDocument |
+              <div class="info-item"><strong>{{ 'compare.label.number' | t }}:</strong> {{ invoice.numero || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.supplier' | t }}:</strong> {{ invoice.supplier || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.client' | t }}:</strong> {{ invoice.client || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.date' | t }}:</strong> {{ invoice.dateDocument ? (invoice.dateDocument |
                 date:'yyyy-MM-dd') : '-' }}</div>
             </div>
             <div class="invoice-status">
               <mat-chip-set *ngIf="getAssociatedDeliveries(invoice.id).length > 0">
-                <mat-chip class="linked-chip">Associé</mat-chip>
+                <mat-chip class="linked-chip">{{ 'compare.status.linked' | t }}</mat-chip>
                 <mat-chip *ngIf="getBatchStatus(invoice.id) as bs" class="linked-chip">
                   Traitement BL: {{ bs.updated }}/{{ bs.total }}
                 </mat-chip>
               </mat-chip-set>
-              <span *ngIf="getAssociatedDeliveries(invoice.id).length === 0" class="not-linked">Non associé</span>
+              <span *ngIf="getAssociatedDeliveries(invoice.id).length === 0" class="not-linked">{{ 'compare.status.unlinked' | t }}</span>
             </div>
             <div class="invoice-actions">
               <button mat-icon-button
@@ -182,7 +182,7 @@
               <button mat-stroked-button color="accent" (click)="reparseDocument(invoice.id)"
                 matTooltip="Re-parser la facture (corriger le parsing Python)">
                 <mat-icon>refresh</mat-icon>
-                Reparser Facture
+                {{ 'compare.reparseInvoice' | t }}
               </button>
             </div>
           </div>
@@ -198,60 +198,60 @@
               <button mat-raised-button color="accent" [disabled]="erpPriceComparisonLoading"
                 (click)="compareWithErp(invoice.id)" matTooltip="Comparer les prix unitaires avec le web service ERP">
                 <mat-icon>price_check</mat-icon>
-                Comparer avec les prix ERP
+                {{ 'compare.compareErpPrices' | t }}
               </button>
             </div>
             <!-- BL associés (relation facture -> plusieurs BL) -->
             <div *ngIf="getAssociatedDeliveries(invoice.id).length > 0" class="delivery-info">
-              <h4>🚚 Bons de Livraison Associés</h4>
+              <h4>🚚 {{ 'compare.associatedDeliveries' | t }}</h4>
               <div class="delivery-actions" style="margin-bottom: 12px;">
                 <button mat-raised-button color="primary" (click)="compareAllDeliveries(invoice.id)">
                   <mat-icon>compare_arrows</mat-icon>
-                  Comparer facture vs total BL
+                  {{ 'compare.compareInvoiceVsBl' | t }}
                 </button>
                 <button mat-raised-button color="primary" (click)="compareAndStockAllDeliveries(invoice.id, false)">
                   <mat-icon>inventory_2</mat-icon>
-                  Tous les BL: Comparer + Stock
+                  {{ 'compare.allBlCompareStock' | t }}
                 </button>
                 <button *ngIf="hasCorrectedQuantities()" mat-raised-button color="warn"
                   (click)="compareAndStockAllDeliveries(invoice.id, true)"
                   matTooltip="Appliquer les corrections de quantités validées sur tous les BL"
                   style="margin-left: 8px;">
                   <mat-icon>update</mat-icon>
-                  Tous les BL: Correction stock
+                  {{ 'compare.allBlStockCorrection' | t }}
                 </button>
               </div>
               <div class="delivery-details" *ngFor="let delivery of getAssociatedDeliveries(invoice.id)">
                 <div class="detail-item">
-                  <strong>Numéro:</strong> {{ delivery.numero || '-' }}
+                  <strong>{{ 'compare.label.number' | t }}:</strong> {{ delivery.numero || '-' }}
                 </div>
                 <div class="detail-item">
-                  <strong>Client:</strong> {{ delivery.client || '-' }}
+                  <strong>{{ 'compare.label.client' | t }}:</strong> {{ delivery.client || '-' }}
                 </div>
                 <div class="detail-item">
-                  <strong>Fournisseur:</strong> {{ delivery.supplier || '-' }}
+                  <strong>{{ 'compare.label.supplier' | t }}:</strong> {{ delivery.supplier || '-' }}
                 </div>
                 <div class="detail-item">
-                  <strong>Date:</strong> {{ delivery.dateDocument ? (delivery.dateDocument | date:'yyyy-MM-dd') : '-' }}
+                  <strong>{{ 'compare.label.date' | t }}:</strong> {{ delivery.dateDocument ? (delivery.dateDocument | date:'yyyy-MM-dd') : '-' }}
                 </div>
               </div>
               <div class="delivery-actions" *ngFor="let delivery of getAssociatedDeliveries(invoice.id)">
                 <button *ngIf="getRelationId(invoice.id, delivery.id)" mat-stroked-button color="warn"
                   (click)="unlink(getRelationId(invoice.id, delivery.id)!)">
                   <mat-icon>link_off</mat-icon>
-                  Dissocier
+                  {{ 'compare.unlink' | t }}
                 </button>
                 <button mat-stroked-button color="accent" (click)="reparseDocument(delivery.id)"
                   matTooltip="Re-parser le BL (corriger le parsing)" style="margin-left: 8px;">
                   <mat-icon>refresh</mat-icon>
-                  Reparser BL
+                  {{ 'compare.reparseBl' | t }}
                 </button>
               </div>
             </div>
 
             <!-- Afficher aussi la liste des BL disponibles pour permettre plusieurs associations -->
             <div class="associate-delivery">
-              <h4>🔗 Ajouter un Bon de Livraison</h4>
+              <h4>🔗 {{ 'compare.addDelivery' | t }}</h4>
               <p>Sélectionnez un BL supplémentaire à associer à cette facture :</p>
               <div class="delivery-list">
                 <mat-card *ngFor="let bl of getAvailableDeliveries(invoice)" class="delivery-card"
@@ -260,22 +260,22 @@
                     <div class="delivery-card-content">
                       <div>
                         <strong>BL #{{ bl.id }}</strong>
-                        <p>Numéro: {{ bl.numero || '-' }}</p>
-                        <p>Client: {{ bl.client || '-' }}</p>
-                        <p>Fournisseur: {{ bl.supplier || '-' }}</p>
-                        <p>Date: {{ bl.dateDocument ? (bl.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
+                        <p>{{ 'compare.label.number' | t }}: {{ bl.numero || '-' }}</p>
+                        <p>{{ 'compare.label.client' | t }}: {{ bl.client || '-' }}</p>
+                        <p>{{ 'compare.label.supplier' | t }}: {{ bl.supplier || '-' }}</p>
+                        <p>{{ 'compare.label.date' | t }}: {{ bl.dateDocument ? (bl.dateDocument | date:'yyyy-MM-dd') : '-' }}</p>
                       </div>
                       <button mat-raised-button color="primary"
                         (click)="selectInvoice(invoice); selectDelivery(bl); linkSelected(); $event.stopPropagation()">
                         <mat-icon>link</mat-icon>
-                        Associer
+                        {{ 'compare.associate' | t }}
                       </button>
                     </div>
                   </mat-card-content>
                 </mat-card>
               </div>
               <p *ngIf="getAvailableDeliveries(invoice).length === 0" class="no-deliveries">
-                Aucun bon de livraison supplémentaire disponible pour l'association (même fournisseur requis).
+                {{ 'compare.noExtraDeliveries' | t }}
               </p>
             </div>
           </div>
@@ -286,18 +286,18 @@
 
   <!-- Bons de livraison (liste dédiée : auparavant visibles seulement à l’expansion « Associer un BL ») -->
   <div class="table-card">
-    <h2>🚚 Bons de livraison <span class="doc-count">({{ bonsLivraison.length }})</span></h2>
-    <p class="section-hint" *ngIf="bonsLivraison.length === 0">Aucun bon de livraison dans le jeu chargé.</p>
+    <h2>🚚 {{ 'compare.deliveries' | t }} <span class="doc-count">({{ bonsLivraison.length }})</span></h2>
+    <p class="section-hint" *ngIf="bonsLivraison.length === 0">{{ 'compare.empty.deliveries' | t }}</p>
     <div class="table-wrapper" *ngIf="bonsLivraison.length > 0">
       <div class="invoices-list">
         <div *ngFor="let bl of bonsLivraison" class="invoice-item">
           <div class="invoice-row-main" [class.has-association]="relationMap[bl.id]">
             <div class="invoice-info">
               <div class="info-item"><strong>ID:</strong> {{ bl.id }}</div>
-              <div class="info-item"><strong>Numéro:</strong> {{ bl.numero || '-' }}</div>
-              <div class="info-item"><strong>Fournisseur:</strong> {{ bl.supplier || '-' }}</div>
-              <div class="info-item"><strong>Client:</strong> {{ bl.client || '-' }}</div>
-              <div class="info-item"><strong>Date:</strong> {{ bl.dateDocument ? (bl.dateDocument | date:'yyyy-MM-dd') : '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.number' | t }}:</strong> {{ bl.numero || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.supplier' | t }}:</strong> {{ bl.supplier || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.client' | t }}:</strong> {{ bl.client || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.date' | t }}:</strong> {{ bl.dateDocument ? (bl.dateDocument | date:'yyyy-MM-dd') : '-' }}</div>
               <div class="info-item" *ngIf="relationMap[bl.id]"><strong>Lien:</strong> {{ relationMap[bl.id] }}</div>
             </div>
             <div class="invoice-actions">
@@ -307,7 +307,7 @@
               <button mat-stroked-button color="accent" (click)="reparseDocument(bl.id)"
                 matTooltip="Re-parser ce bon de livraison">
                 <mat-icon>refresh</mat-icon>
-                Reparser BL
+                {{ 'compare.reparseBl' | t }}
               </button>
             </div>
           </div>
@@ -317,7 +317,7 @@
   </div>
 
   <div class="table-card" *ngIf="autresDocuments.length > 0">
-    <h2>📎 Autres documents <span class="doc-count">({{ autresDocuments.length }})</span></h2>
+    <h2>📎 {{ 'compare.otherDocuments' | t }} <span class="doc-count">({{ autresDocuments.length }})</span></h2>
     <p class="section-hint">Type non reconnu comme facture ou BL — vérifiez le champ « type » en base.</p>
     <div class="table-wrapper">
       <div class="invoices-list">
@@ -326,8 +326,8 @@
             <div class="invoice-info">
               <div class="info-item"><strong>Type:</strong> {{ doc.typeDocument || '—' }}</div>
               <div class="info-item"><strong>ID:</strong> {{ doc.id }}</div>
-              <div class="info-item"><strong>Numéro:</strong> {{ doc.numero || '-' }}</div>
-              <div class="info-item"><strong>Fournisseur:</strong> {{ doc.supplier || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.number' | t }}:</strong> {{ doc.numero || '-' }}</div>
+              <div class="info-item"><strong>{{ 'compare.label.supplier' | t }}:</strong> {{ doc.supplier || '-' }}</div>
             </div>
             <div class="invoice-actions">
               <button mat-icon-button (click)="download(doc.id)" matTooltip="Télécharger">
@@ -336,7 +336,7 @@
               <button mat-stroked-button color="accent" (click)="reparseDocument(doc.id)"
                 matTooltip="Re-parser ce document">
                 <mat-icon>refresh</mat-icon>
-                Reparser
+                {{ 'compare.reparse' | t }}
               </button>
             </div>
           </div>
@@ -349,43 +349,43 @@
   <div class="comparison-result-card" *ngIf="comparaisonResult">
     <div class="comparison-result-header">
       <div class="comparison-result-title">
-        <h2>Comparaison de Détails</h2>
+        <h2>{{ 'compare.detailsComparison' | t }}</h2>
         <div class="match-badges" *ngIf="comparaisonResult.lines.length">
           <span class="badge-match"><mat-icon>check_circle</mat-icon> {{ getMatchCount() }} OK</span>
-          <span class="badge-error" *ngIf="getErrorCount() > 0"><mat-icon>error</mat-icon> {{ getErrorCount() }} ERREURS</span>
+          <span class="badge-error" *ngIf="getErrorCount() > 0"><mat-icon>error</mat-icon> {{ getErrorCount() }} {{ 'compare.errors' | t }}</span>
         </div>
       </div>
       <div class="comparison-result-actions">
         <button class="btn-ghost-sm" (click)="exportComparaisonExcel()">
-          <mat-icon>download</mat-icon> Excel
+          <mat-icon>download</mat-icon> {{ 'compare.excel' | t }}
         </button>
         <button class="btn-ghost-sm" (click)="reparseDocument(comparaisonResult.invoiceId)" *ngIf="comparaisonResult?.invoiceId">
-          <mat-icon>refresh</mat-icon> Reparser Facture
+          <mat-icon>refresh</mat-icon> {{ 'compare.reparseInvoice' | t }}
         </button>
         <button class="btn-ghost-sm" (click)="reparseDocument(comparaisonResult.deliveryId)" *ngIf="comparaisonResult?.deliveryId">
-          <mat-icon>refresh</mat-icon> Reparser BL
+          <mat-icon>refresh</mat-icon> {{ 'compare.reparseBl' | t }}
         </button>
       </div>
     </div>
     <div class="table-wrapper comparison-scroll">
       <table mat-table [dataSource]="comparaisonResult.lines" class="comparison-table">
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>Produit</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.product' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
         <ng-container matColumnDef="invoiceQty">
-          <th mat-header-cell *matHeaderCellDef>Qté Facture</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.invoiceQty' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.invoiceQty }}</td>
         </ng-container>
 
         <ng-container matColumnDef="deliveryQty">
-          <th mat-header-cell *matHeaderCellDef>Qté BL</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.deliveryQty' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.deliveryQty }}</td>
         </ng-container>
 
         <ng-container matColumnDef="actualQty">
-          <th mat-header-cell *matHeaderCellDef>Qté Réelle</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.actualQty' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <div class="actual-qty-cell">
               <div *ngIf="l.stockUpdated" class="stock-updated-warning">
@@ -393,7 +393,7 @@
                 <span>Stock déjà mis à jour - Vous pouvez corriger en cas d'erreur de comptage</span>
               </div>
               <mat-form-field appearance="outline" class="qty-input">
-                <mat-label>Quantité réelle</mat-label>
+                <mat-label>{{ 'compare.actualQtyLabel' | t }}</mat-label>
                 <input matInput type="number" [(ngModel)]="l.actualQuantity" [value]="l.actualQuantity ?? l.deliveryQty"
                   (blur)="saveAdjustment(l)" (input)="onActualQuantityChange(l, $event)" [disabled]="false" min="0"
                   step="0.01" placeholder="{{ l.deliveryQty }}" />
@@ -415,7 +415,7 @@
         </ng-container>
 
         <ng-container matColumnDef="diff">
-          <th mat-header-cell *matHeaderCellDef>Différence Qté</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.qtyDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.diff-positive]="l.diff > 0" [class.diff-negative]="l.diff < 0"
             [class.diff-zero]="l.diff === 0">
             {{ l.diff }}
@@ -426,7 +426,7 @@
         </ng-container>
 
         <ng-container matColumnDef="currentPrice">
-          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture Actuelle</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.currentUnitPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.currentInvoiceUnitPrice > 0">{{ l.currentInvoiceUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.currentInvoiceUnitPrice === 0" class="no-price">-</span>
@@ -434,7 +434,7 @@
         </ng-container>
 
         <ng-container matColumnDef="previousPrice">
-          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture Précédente</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.previousUnitPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.previousInvoiceUnitPrice > 0">{{ l.previousInvoiceUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.previousInvoiceUnitPrice === 0" class="no-price">-</span>
@@ -442,7 +442,7 @@
         </ng-container>
 
         <ng-container matColumnDef="priceDiff">
-          <th mat-header-cell *matHeaderCellDef>Différence Prix</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.priceDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.price-positive]="l.priceDiff > 0"
             [class.price-negative]="l.priceDiff < 0"
             [class.price-zero]="l.priceDiff === 0 && (l.currentInvoiceUnitPrice > 0 || l.previousInvoiceUnitPrice > 0)"
@@ -454,17 +454,17 @@
         </ng-container>
 
         <ng-container matColumnDef="productKey">
-          <th mat-header-cell *matHeaderCellDef>Code</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.code' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.productKey }}</td>
         </ng-container>
 
         <ng-container matColumnDef="unit">
-          <th mat-header-cell *matHeaderCellDef>Unité</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.unit' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.unit }}</td>
         </ng-container>
 
         <ng-container matColumnDef="totalValue">
-          <th mat-header-cell *matHeaderCellDef>Total (Fact)</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.totalInvoice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.invoiceTotalValue !== undefined && l.invoiceTotalValue !== null">{{ l.invoiceTotalValue |
               number:'1.2-2' }} €</span>
@@ -473,7 +473,7 @@
         </ng-container>
 
         <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.status' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <mat-chip-set>
               <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">
@@ -502,9 +502,9 @@
   <!-- Résultat de comparaison de prix entre factures -->
   <div class="comparison-result-card" *ngIf="invoicePriceComparisonResult">
     <div class="comparison-result-header">
-      <h2>💰 Comparaison de Prix entre Factures</h2>
+      <h2>💰 {{ 'compare.priceCompare.title' | t }}</h2>
       <button class="btn-ghost-sm" (click)="exportInvoicePriceExcel()">
-        <mat-icon>download</mat-icon> Excel
+        <mat-icon>download</mat-icon> {{ 'compare.excel' | t }}
       </button>
     </div>
     <div class="invoice-comparison-header">
@@ -530,7 +530,7 @@
     <div class="table-wrapper">
       <table mat-table [dataSource]="invoicePriceComparisonResult.lines" class="comparison-table">
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>Produit</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.product' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
@@ -551,7 +551,7 @@
         </ng-container>
 
         <ng-container matColumnDef="priceDiff">
-          <th mat-header-cell *matHeaderCellDef>Différence Prix</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.priceDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.price-positive]="l.priceDiff > 0"
             [class.price-negative]="l.priceDiff < 0"
             [class.price-zero]="l.priceDiff === 0 && (l.invoice1UnitPrice > 0 || l.invoice2UnitPrice > 0)"
@@ -570,14 +570,14 @@
   <!-- Résultat de comparaison avec les prix ERP -->
   <div class="comparison-result-card" *ngIf="erpPriceComparisonLoading || erpPriceComparisonResult">
     <div class="comparison-result-header">
-      <h2>🏷️ Comparaison avec les prix ERP</h2>
+      <h2>🏷️ {{ 'compare.erpPrice.title' | t }}</h2>
       <button class="btn-ghost-sm" *ngIf="erpPriceComparisonResult?.length" (click)="exportErpPriceExcel()">
-        <mat-icon>download</mat-icon> Excel
+        <mat-icon>download</mat-icon> {{ 'compare.excel' | t }}
       </button>
     </div>
     <div class="invoice-comparison-header" *ngIf="erpPriceComparisonInvoice">
       <div class="invoice-info-box">
-        <strong>Facture:</strong>
+        <strong>{{ 'compare.label.invoice' | t }}:</strong>
         <span *ngIf="erpPriceComparisonInvoice.numero">{{ erpPriceComparisonInvoice.numero }}</span>
         <span *ngIf="!erpPriceComparisonInvoice.numero">#{{ erpPriceComparisonInvoice.id }}</span>
         <span *ngIf="erpPriceComparisonInvoice.supplier" class="supplier-badge">
@@ -587,27 +587,27 @@
     </div>
     <div *ngIf="erpPriceComparisonLoading" class="erp-loading">
       <mat-spinner diameter="36"></mat-spinner>
-      <span>Interrogation du web service ERP en cours…</span>
+      <span>{{ 'compare.erpPrice.loading' | t }}</span>
     </div>
     <div class="table-wrapper" *ngIf="erpPriceComparisonResult && !erpPriceComparisonLoading">
       <table mat-table [dataSource]="erpPriceComparisonResult" class="comparison-table">
         <ng-container matColumnDef="productCode">
-          <th mat-header-cell *matHeaderCellDef>Code produit</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.productCode' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.productCode || '-' }}</td>
         </ng-container>
 
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>Désignation</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.designation' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
         <ng-container matColumnDef="invoiceUnitPrice">
-          <th mat-header-cell *matHeaderCellDef>Prix facture</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.invoicePrice' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.invoiceUnitPrice | number:'1.2-2' }}</td>
         </ng-container>
 
         <ng-container matColumnDef="erpUnitPrice">
-          <th mat-header-cell *matHeaderCellDef>Prix ERP</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.erpPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.erpUnitPrice != null">{{ l.erpUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.erpUnitPrice == null" class="no-price">-</span>
@@ -615,7 +615,7 @@
         </ng-container>
 
         <ng-container matColumnDef="delta">
-          <th mat-header-cell *matHeaderCellDef>Delta</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.delta' | t }}</th>
           <td mat-cell *matCellDef="let l"
             [class.price-positive]="l.delta != null && l.delta > 0"
             [class.price-negative]="l.delta != null && l.delta < 0"
@@ -627,7 +627,7 @@
         </ng-container>
 
         <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.status' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <mat-chip-set>
               <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">{{ l.status }}</mat-chip>

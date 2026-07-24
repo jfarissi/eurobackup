@@ -2,33 +2,33 @@
   <section class="erp-subheader">
     <div class="erp-subheader-inner">
       <div class="erp-title-block">
-        <h2>Changements ERP</h2>
-        <p>Suivi des modifications détectées sur les produits du webservice EuroBrico</p>
+        <h2>{{ 'erpChanges.title' | t }}</h2>
+        <p>{{ 'erpChanges.subtitle' | t }}</p>
       </div>
 
       <div class="erp-actions">
         <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing">
           <mat-icon>{{ syncing ? 'hourglass_top' : 'sync' }}</mat-icon>
-          {{ syncing ? 'Sync en cours…' : 'Enrichir depuis ERP' }}
+          {{ syncing ? ('erpChanges.syncing' | t) : ('erpChanges.enrichFromErp' | t) }}
         </button>
         <button class="btn-secondary" type="button" (click)="importExcel(false)" [disabled]="importing || syncing">
           <mat-icon>upload_file</mat-icon>
-          {{ importing ? 'Import…' : 'Importer Excel' }}
+          {{ importing ? ('erpChanges.importing' | t) : ('erpChanges.importExcel' | t) }}
         </button>
         <button class="btn-secondary" type="button" (click)="importExcel(true)" [disabled]="importing || syncing">
           <mat-icon>playlist_add_check</mat-icon>
-          Excel + Sync ERP
+          {{ 'erpChanges.excelPlusSync' | t }}
         </button>
         <button class="btn-secondary" type="button" (click)="loadChanges()" [disabled]="loading">
           <mat-icon>refresh</mat-icon>
-          Actualiser
+          {{ 'erpChanges.refresh' | t }}
         </button>
       </div>
     </div>
 
     <div class="sync-progress-panel" *ngIf="syncing || (syncProgress && syncProgress.status === 'Running')">
       <div class="sync-progress-header">
-        <span class="sync-progress-title">Enrichissement ERP en cours</span>
+        <span class="sync-progress-title">{{ 'erpChanges.progressTitle' | t }}</span>
         <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
       </div>
       <div class="sync-progress-track" [class.indeterminate]="syncProgressIndeterminate">
@@ -40,15 +40,15 @@
 
     <div class="stats-bar">
       <div class="stat-chip">
-        <span class="stat-label label-caps">Total filtrés</span>
+        <span class="stat-label label-caps">{{ 'erpChanges.stat.filteredTotal' | t }}</span>
         <span class="stat-value font-mono">{{ total }}</span>
       </div>
       <div class="stat-chip">
-        <span class="stat-label label-caps">Non lus (page)</span>
+        <span class="stat-label label-caps">{{ 'erpChanges.stat.unreadPage' | t }}</span>
         <span class="stat-value font-mono">{{ unreadCount() }}</span>
       </div>
       <div class="stat-chip" *ngIf="syncLogs[0] as last">
-        <span class="stat-label label-caps">Dernière sync</span>
+        <span class="stat-label label-caps">{{ 'erpChanges.stat.lastSync' | t }}</span>
         <span class="stat-value">{{ last.status }} · {{ formatDate(last.completedAt || last.startedAt) }}</span>
       </div>
     </div>
@@ -58,40 +58,40 @@
     <div class="erp-filters-inner">
       <label class="filter-toggle">
         <input type="checkbox" [(ngModel)]="unreadOnly" (change)="applyFilters()" />
-        Non lus uniquement
+        {{ 'erpChanges.filter.unreadOnly' | t }}
       </label>
 
       <select class="filter-select" [(ngModel)]="changeType" (change)="applyFilters()">
-        <option *ngFor="let t of changeTypes" [value]="t.value">{{ t.label }}</option>
+        <option *ngFor="let t of changeTypes" [value]="t.value">{{ t.labelKey | t }}</option>
       </select>
 
       <select class="filter-select" [(ngModel)]="valueMode" (change)="applyFilters()" title="Filtrer selon Avant / Après">
-        <option *ngFor="let m of valueModes" [value]="m.value">{{ m.label }}</option>
+        <option *ngFor="let m of valueModes" [value]="m.value">{{ m.labelKey | t }}</option>
       </select>
 
       <input class="filter-search"
              type="search"
              [(ngModel)]="search"
              (ngModelChange)="onSearchInput()"
-             placeholder="Rechercher produit, réf, EAN, valeur…" />
+             [placeholder]="'erpChanges.searchPlaceholder' | t" />
 
       <button class="btn-secondary btn-sm" type="button" (click)="markSelectedRead()" [disabled]="selectedIds.size === 0">
         <mat-icon>done</mat-icon>
-        Marquer sélection
+        {{ 'erpChanges.markSelected' | t }}
       </button>
       <button class="btn-secondary btn-sm" type="button" (click)="deleteSelected()" [disabled]="selectedIds.size === 0">
         <mat-icon>delete</mat-icon>
-        Supprimer sélection
+        {{ 'erpChanges.deleteSelected' | t }}
       </button>
       <button class="btn-secondary btn-sm" type="button" (click)="markAllVisibleRead()">
         <mat-icon>done_all</mat-icon>
-        Tout marquer (page)
+        {{ 'erpChanges.markAllPage' | t }}
       </button>
       <button class="btn-secondary btn-sm" type="button" (click)="cleanupFormattingFalsePositives()" [disabled]="cleaning">
         <mat-icon>cleaning_services</mat-icon>
-        {{ cleaning ? 'Nettoyage…' : 'Nettoyer faux positifs prix' }}
+        {{ cleaning ? ('erpChanges.cleaning' | t) : ('erpChanges.cleanupFalsePositives' | t) }}
       </button>
-      <button class="clear-link" type="button" (click)="clearFilters()">Réinitialiser</button>
+      <button class="clear-link" type="button" (click)="clearFilters()">{{ 'erpChanges.reset' | t }}</button>
     </div>
   </section>
 
@@ -100,14 +100,14 @@
 
       <div class="loading-wrap" *ngIf="loading">
         <mat-spinner diameter="36"></mat-spinner>
-        <span>Chargement des changements…</span>
+        <span>{{ 'erpChanges.loading' | t }}</span>
       </div>
 
       <div class="no-data" *ngIf="!loading && changes.length === 0">
         <mat-icon>notifications_none</mat-icon>
-        <p>Aucun changement ERP pour ces filtres</p>
+        <p>{{ 'erpChanges.empty' | t }}</p>
         <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing">
-          Lancer une synchronisation
+          {{ 'erpChanges.startSync' | t }}
         </button>
       </div>
 
@@ -120,15 +120,15 @@
                   <input type="checkbox"
                          [checked]="allSelected"
                          (change)="toggleSelectAll()"
-                         aria-label="Tout sélectionner" />
+                         [attr.aria-label]="'erpChanges.selectAll' | t" />
                 </th>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Produit</th>
-                <th>Champ</th>
-                <th>Avant</th>
-                <th>Après</th>
-                <th>Statut</th>
+                <th>{{ 'erpChanges.col.date' | t }}</th>
+                <th>{{ 'erpChanges.col.type' | t }}</th>
+                <th>{{ 'erpChanges.col.product' | t }}</th>
+                <th>{{ 'erpChanges.col.field' | t }}</th>
+                <th>{{ 'erpChanges.col.before' | t }}</th>
+                <th>{{ 'erpChanges.col.after' | t }}</th>
+                <th>{{ 'erpChanges.col.status' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,7 +160,7 @@
                 <td class="value-cell new font-mono">{{ change.newValue || '—' }}</td>
                 <td>
                   <span class="read-badge" [class.unread]="!change.isRead">
-                    {{ change.isRead ? 'Lu' : 'Non lu' }}
+                    {{ change.isRead ? ('erpChanges.status.read' | t) : ('erpChanges.status.unread' | t) }}
                   </span>
                 </td>
               </tr>
@@ -170,26 +170,26 @@
 
         <div class="pager">
           <button class="btn-secondary btn-sm" type="button" (click)="prevPage()" [disabled]="page <= 1">
-            Précédent
+            {{ 'common.prev' | t }}
           </button>
-          <span class="pager-info font-mono">Page {{ page }} / {{ totalPages }}</span>
+          <span class="pager-info font-mono">{{ 'erpChanges.pageInfo' | t:{page: page, totalPages: totalPages} }}</span>
           <button class="btn-secondary btn-sm" type="button" (click)="nextPage()" [disabled]="page >= totalPages">
-            Suivant
+            {{ 'common.next' | t }}
           </button>
         </div>
       </div>
 
       <div class="card sync-logs-card" *ngIf="syncLogs.length > 0">
-        <h3>Dernières synchronisations</h3>
+        <h3>{{ 'erpChanges.syncLogsTitle' | t }}</h3>
         <table class="data-table sync-table">
           <thead>
             <tr>
-              <th>Démarrée</th>
-              <th>Statut</th>
-              <th>Nouveaux</th>
-              <th>Mis à jour</th>
-              <th>Échecs</th>
-              <th>Changements</th>
+              <th>{{ 'erpChanges.col.started' | t }}</th>
+              <th>{{ 'erpChanges.col.status' | t }}</th>
+              <th>{{ 'erpChanges.col.new' | t }}</th>
+              <th>{{ 'erpChanges.col.updated' | t }}</th>
+              <th>{{ 'erpChanges.col.failed' | t }}</th>
+              <th>{{ 'erpChanges.col.changes' | t }}</th>
             </tr>
           </thead>
           <tbody>

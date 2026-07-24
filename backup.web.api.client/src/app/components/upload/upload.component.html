@@ -3,13 +3,13 @@
 
     <div class="page-header-bar">
       <div class="icon-wrap"><mat-icon>upload_file</mat-icon></div>
-      <h1>Upload de Documents</h1>
+      <h1>{{ 'upload.title' | t }}</h1>
     </div>
 
     <!-- Upload form -->
     <section class="card upload-form-card">
       <div class="card-header">
-        <h2>Nouveau Document</h2>
+        <h2>{{ 'upload.newDocument' | t }}</h2>
       </div>
       <div class="card-body upload-form-body">
 
@@ -27,8 +27,8 @@
             </div>
             <div class="drop-text">
               <p class="drop-filename" *ngIf="file">{{ file.name }}</p>
-              <p class="drop-filename placeholder" *ngIf="!file">Glissez votre fichier ici</p>
-              <p class="drop-hint">Faites glisser votre fichier ici ou cliquez pour parcourir</p>
+              <p class="drop-filename placeholder" *ngIf="!file">{{ 'upload.dropPlaceholder' | t }}</p>
+              <p class="drop-hint">{{ 'upload.dropHint' | t }}</p>
             </div>
           </label>
           <div class="drop-progress" *ngIf="loading"></div>
@@ -37,43 +37,43 @@
         <!-- Form grid -->
         <div class="form-grid">
           <div class="form-field">
-            <label class="field-label">Type de Document</label>
+            <label class="field-label">{{ 'upload.documentType' | t }}</label>
             <mat-form-field appearance="outline" class="ds-field">
               <mat-select [(ngModel)]="typeDocument">
-                <mat-option value="Facture">Facture</mat-option>
-                <mat-option value="BonLivraison">Bon de Livraison</mat-option>
-                <mat-option value="Autre">Autre</mat-option>
+                <mat-option value="Facture">{{ 'upload.type.invoice' | t }}</mat-option>
+                <mat-option value="BonLivraison">{{ 'upload.type.deliveryNote' | t }}</mat-option>
+                <mat-option value="Autre">{{ 'upload.type.other' | t }}</mat-option>
               </mat-select>
             </mat-form-field>
           </div>
 
           <div class="form-field">
-            <label class="field-label">Fournisseur</label>
+            <label class="field-label">{{ 'upload.supplier' | t }}</label>
             <mat-form-field appearance="outline" class="ds-field">
               <mat-select [(ngModel)]="supplier" (selectionChange)="onSupplierChange()">
-                <mat-option value="">-- Sélectionner --</mat-option>
+                <mat-option value="">{{ 'upload.selectPlaceholder' | t }}</mat-option>
                 <mat-option *ngFor="let s of suppliers" [value]="s">{{ s }}</mat-option>
               </mat-select>
-              <mat-hint *ngIf="suppliers.length === 0">Aucun fournisseur enregistré. Le fournisseur sera ajouté lors de l'inspection du fichier.</mat-hint>
+              <mat-hint *ngIf="suppliers.length === 0">{{ 'upload.noSuppliersHint' | t }}</mat-hint>
             </mat-form-field>
           </div>
 
           <div class="form-field">
-            <label class="field-label">Numéro</label>
+            <label class="field-label">{{ 'upload.number' | t }}</label>
             <mat-form-field appearance="outline" class="ds-field mono-field">
-              <input matInput [(ngModel)]="numero" placeholder="Numéro du document" />
+              <input matInput [(ngModel)]="numero" [placeholder]="'upload.numberPlaceholder' | t" />
             </mat-form-field>
           </div>
 
           <div class="form-field-row">
             <div class="form-field">
-              <label class="field-label">Client</label>
+              <label class="field-label">{{ 'upload.client' | t }}</label>
               <mat-form-field appearance="outline" class="ds-field">
-                <input matInput [(ngModel)]="client" placeholder="Nom du client" />
+                <input matInput [(ngModel)]="client" [placeholder]="'upload.clientPlaceholder' | t" />
               </mat-form-field>
             </div>
             <div class="form-field">
-              <label class="field-label">Date</label>
+              <label class="field-label">{{ 'upload.date' | t }}</label>
               <mat-form-field appearance="outline" class="ds-field">
                 <input matInput type="date" [(ngModel)]="dateDocument" />
               </mat-form-field>
@@ -87,9 +87,9 @@
             <div class="ai-pulse-wrap">
               <mat-icon>auto_awesome</mat-icon>
             </div>
-            <span>Extraction par IA activée</span>
+            <span>{{ 'upload.aiEnabled' | t }}</span>
           </div>
-          <span class="ai-badge font-mono">Précision ~99%</span>
+          <span class="ai-badge font-mono">{{ 'upload.aiAccuracy' | t }}</span>
         </div>
 
         <!-- Actions -->
@@ -97,9 +97,9 @@
           <button class="btn-primary" (click)="upload()" [disabled]="!file || loading">
             <mat-icon *ngIf="!loading">upload</mat-icon>
             <mat-spinner *ngIf="loading" diameter="18"></mat-spinner>
-            {{ loading ? 'Upload en cours...' : 'Uploader' }}
+            {{ loading ? ('upload.submitting' | t) : ('upload.submit' | t) }}
           </button>
-          <button class="btn-secondary" (click)="resetForm()" [disabled]="loading">Réinitialiser</button>
+          <button class="btn-secondary" (click)="resetForm()" [disabled]="loading">{{ 'upload.reset' | t }}</button>
         </div>
       </div>
     </section>
@@ -108,23 +108,23 @@
     <div class="bento-grid" *ngIf="recentDocuments.length > 0 || totalDocuments > 0">
       <div class="card bento-history" *ngIf="recentDocuments.length > 0">
         <div class="bento-header">
-          <h3>Historique Récent</h3>
-          <button class="link-btn" routerLink="/compare">Tout voir</button>
+          <h3>{{ 'upload.recentHistory' | t }}</h3>
+          <button class="link-btn" routerLink="/compare">{{ 'upload.viewAll' | t }}</button>
         </div>
         <div class="history-table">
           <div class="history-row history-header label-caps">
-            <span>Document</span>
-            <span>Fournisseur</span>
-            <span>Statut</span>
-            <span class="text-right">Date</span>
+            <span>{{ 'upload.col.document' | t }}</span>
+            <span>{{ 'upload.col.supplier' | t }}</span>
+            <span>{{ 'upload.col.status' | t }}</span>
+            <span class="text-right">{{ 'upload.col.date' | t }}</span>
           </div>
           <div class="history-row" *ngFor="let doc of recentDocuments"
                [class.row-error]="!doc.supplier">
             <span class="doc-name">{{ doc.numero || ('#' + doc.id) }}</span>
-            <span>{{ doc.supplier || 'Non identifié' }}</span>
+            <span>{{ doc.supplier || ('upload.unidentified' | t) }}</span>
             <span>
-              <span class="chip-ok" *ngIf="doc.supplier">Validé</span>
-              <span class="chip-error" *ngIf="!doc.supplier">Erreur</span>
+              <span class="chip-ok" *ngIf="doc.supplier">{{ 'upload.status.validated' | t }}</span>
+              <span class="chip-error" *ngIf="!doc.supplier">{{ 'upload.status.error' | t }}</span>
             </span>
             <span class="text-right text-muted">{{ formatRelativeDate(doc.dateAdded) }}</span>
           </div>
@@ -132,10 +132,10 @@
       </div>
 
       <div class="card bento-metrics">
-        <h3>Métriques IA</h3>
+        <h3>{{ 'upload.aiMetrics' | t }}</h3>
         <div class="metrics-body">
           <div class="metrics-value">{{ totalDocuments | number }}</div>
-          <div class="label-caps metrics-label">Documents indexés</div>
+          <div class="label-caps metrics-label">{{ 'upload.indexedDocuments' | t }}</div>
           <div class="metrics-bar">
             <div class="metrics-bar-fill" [style.width.%]="metricsPercent"></div>
           </div>
@@ -147,17 +147,17 @@
     <!-- Unlinked documents for supplier -->
     <section class="card" *ngIf="supplier && unlinkedDocuments.length > 0">
       <div class="card-header">
-        <h2>Documents Non Associés — {{ supplier }}</h2>
+        <h2>{{ 'upload.unlinkedTitle' | t:{supplier: supplier} }}</h2>
       </div>
       <div class="card-body table-scroll">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Numéro</th>
-              <th>Client</th>
-              <th>Date</th>
+              <th>{{ 'upload.col.id' | t }}</th>
+              <th>{{ 'upload.col.type' | t }}</th>
+              <th>{{ 'upload.number' | t }}</th>
+              <th>{{ 'upload.col.client' | t }}</th>
+              <th>{{ 'upload.col.date' | t }}</th>
               <th></th>
             </tr>
           </thead>
@@ -165,14 +165,14 @@
             <tr *ngFor="let doc of unlinkedDocuments">
               <td class="col-mono">{{ doc.id }}</td>
               <td>
-                <span class="chip-active" *ngIf="doc.typeDocument === 'Facture'">Facture</span>
+                <span class="chip-active" *ngIf="doc.typeDocument === 'Facture'">{{ 'upload.type.invoice' | t }}</span>
                 <span class="chip-pending" *ngIf="doc.typeDocument !== 'Facture'">{{ doc.typeDocument }}</span>
               </td>
               <td class="col-mono">{{ doc.numero || '-' }}</td>
               <td>{{ doc.client || '-' }}</td>
               <td>{{ doc.dateDocument ? (doc.dateDocument | date:'yyyy-MM-dd') : '-' }}</td>
               <td>
-                <button class="btn-ghost" (click)="download(doc.id)" matTooltip="Télécharger">
+                <button class="btn-ghost" (click)="download(doc.id)" [matTooltip]="'upload.download' | t">
                   <mat-icon>download</mat-icon>
                 </button>
               </td>

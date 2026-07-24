@@ -3,7 +3,7 @@
   <aside class="sidebar" *ngIf="!isLoginPage">
     <div class="sidebar-brand">
       <span class="brand-title">DocManager Pro</span>
-      <span class="brand-sub">Industrial Logistics</span>
+      <span class="brand-sub">{{ 'nav.brandSub' | t }}</span>
     </div>
     <nav class="sidebar-nav">
       <a *ngFor="let item of navItems"
@@ -12,13 +12,13 @@
          [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
          class="sidebar-link">
         <mat-icon>{{ item.icon }}</mat-icon>
-        <span>{{ item.label }}</span>
+        <span>{{ item.literal ? item.labelKey : (item.labelKey | t) }}</span>
       </a>
     </nav>
     <div class="sidebar-footer">
       <button class="btn-primary sidebar-cta" routerLink="/upload">
         <mat-icon>add</mat-icon>
-        Nouvelle analyse
+        {{ 'nav.newAnalysis' | t }}
       </button>
     </div>
   </aside>
@@ -30,18 +30,25 @@
         <button class="mobile-menu-btn" (click)="mobileNavOpen = !mobileNavOpen" type="button">
           <mat-icon>menu</mat-icon>
         </button>
-        <span class="topbar-title">{{ pageTitle }}</span>
+        <span class="topbar-title">{{ pageTitleLiteral ? pageTitleKey : (pageTitleKey | t) }}</span>
         <nav class="topbar-tabs">
           <a *ngFor="let item of mainNavItems"
              [routerLink]="item.path"
              routerLinkActive="tab-active"
              [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
              class="topbar-tab">
-            {{ item.tabLabel }}
+            {{ item.tabLabelKey | t }}
           </a>
         </nav>
       </div>
       <div class="topbar-right">
+        <div class="lang-switch" [attr.aria-label]="'common.lang' | t">
+          <button type="button"
+                  *ngFor="let l of i18n.languages"
+                  class="lang-btn"
+                  [class.active]="i18n.lang === l.code"
+                  (click)="setLanguage(l.code)">{{ l.label }}</button>
+        </div>
         <span class="env-badge label-caps" *ngIf="enablePythonTest">Python / Ollama</span>
         <span class="user-chip" *ngIf="user" title="{{ user.username }}">
           <mat-icon>account_circle</mat-icon>
@@ -49,7 +56,7 @@
         </span>
         <button class="btn-secondary logout-btn" type="button" (click)="logout()" *ngIf="user">
           <mat-icon>logout</mat-icon>
-          Déconnexion
+          {{ 'nav.logout' | t }}
         </button>
       </div>
     </header>
@@ -62,7 +69,7 @@
          (click)="mobileNavOpen = false"
          class="mobile-nav-link">
         <mat-icon>{{ item.icon }}</mat-icon>
-        <span>{{ item.label }}</span>
+        <span>{{ item.literal ? item.labelKey : (item.labelKey | t) }}</span>
       </a>
     </nav>
 

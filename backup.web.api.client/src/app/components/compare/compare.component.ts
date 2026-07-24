@@ -14,13 +14,15 @@ import {
   exportErpPriceToExcel,
   exportInvoicePriceToExcel,
 } from '../../utils/comparison-excel.util';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-compare',
   templateUrl: './compare.component.html',
   styleUrls: ['./compare.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class CompareComponent implements OnInit {
   documents: Document[] = [];
@@ -55,7 +57,8 @@ export class CompareComponent implements OnInit {
     private docs: DocumentService,
     private snack: MatSnackBar,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private i18n: AppI18nService
   ) {}
 
   ngOnInit(): void {
@@ -203,13 +206,13 @@ export class CompareComponent implements OnInit {
 
   linkSelected() {
     if (!this.selectedInvoice || !this.selectedDelivery) {
-      this.snack.open('Veuillez sélectionner une facture et un BL', 'OK', { duration: 2000 });
+      this.snack.open(this.i18n.t('compare.snack.selectInvoiceAndBl'), this.i18n.t('common.ok'), { duration: 2000 });
       return;
     }
     
     this.docs.link(this.selectedInvoice.id, this.selectedDelivery.id).subscribe({
       next: () => {
-        this.snack.open('Relation créée avec succès', 'OK', { duration: 2000 });
+        this.snack.open(this.i18n.t('compare.snack.linkSuccess'), this.i18n.t('common.ok'), { duration: 2000 });
         this.loadRelations();
         this.clearPair();
         // Si on venait d'un upload, rediriger vers la page d'upload
@@ -221,7 +224,7 @@ export class CompareComponent implements OnInit {
       },
       error: (e) => {
         console.error(e);
-        this.snack.open('Erreur lors de la création de la relation', 'Fermer', { duration: 3000 });
+        this.snack.open(this.i18n.t('compare.snack.linkError'), this.i18n.t('common.close'), { duration: 3000 });
       }
     });
   }
@@ -244,11 +247,11 @@ export class CompareComponent implements OnInit {
         this.comparaisonResult = res;
         this.invoicePriceComparisonResult = null;
         this.erpPriceComparisonResult = null;
-        this.snack.open('Comparaison effectuée', 'OK', { duration: 2000 });
+        this.snack.open(this.i18n.t('compare.snack.comparisonDone'), this.i18n.t('common.ok'), { duration: 2000 });
       },
       error: (err) => {
         console.error('Erreur lors de la comparaison:', err);
-        this.snack.open('Erreur lors de la comparaison', 'OK', { duration: 3000 });
+        this.snack.open(this.i18n.t('compare.snack.comparisonError'), this.i18n.t('common.ok'), { duration: 3000 });
       }
     });
   }
@@ -261,11 +264,11 @@ export class CompareComponent implements OnInit {
         this.selectedDelivery = null;
         this.invoicePriceComparisonResult = null;
         this.erpPriceComparisonResult = null;
-        this.snack.open('Comparaison globale facture vs total BL effectuée', 'OK', { duration: 2500 });
+        this.snack.open(this.i18n.t('compare.snack.globalComparisonDone'), this.i18n.t('common.ok'), { duration: 2500 });
       },
       error: (err) => {
         console.error('Erreur lors de la comparaison globale:', err);
-        this.snack.open('Erreur lors de la comparaison globale', 'OK', { duration: 3000 });
+        this.snack.open(this.i18n.t('compare.snack.comparisonError'), this.i18n.t('common.ok'), { duration: 3000 });
       }
     });
   }
@@ -376,7 +379,7 @@ export class CompareComponent implements OnInit {
     this.docs.compare(invoiceId, deliveryId).subscribe(res => {
       this.comparaisonResult = res;
       this.invoicePriceComparisonResult = null; // Clear invoice comparison
-      this.snack.open('Comparaison effectuée', 'OK', { duration: 2000 });
+      this.snack.open(this.i18n.t('compare.snack.comparisonDone'), this.i18n.t('common.ok'), { duration: 2000 });
     });
   }
 
@@ -391,20 +394,20 @@ export class CompareComponent implements OnInit {
       next: (res) => {
         this.erpPriceComparisonResult = res;
         this.erpPriceComparisonLoading = false;
-        this.snack.open('Comparaison avec les prix ERP effectuée', 'OK', { duration: 2500 });
+        this.snack.open(this.i18n.t('compare.snack.erpComparisonDone'), this.i18n.t('common.ok'), { duration: 2500 });
       },
       error: (err) => {
         console.error('Erreur lors de la comparaison ERP:', err);
         this.erpPriceComparisonLoading = false;
         const errorMessage = err.error?.message || err.message || 'Erreur lors de la comparaison ERP';
-        this.snack.open(errorMessage, 'Fermer', { duration: 4000 });
+        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 4000 });
       }
     });
   }
 
   compareInvoices() {
     if (!this.selectedInvoice1 || !this.selectedInvoice2) {
-      this.snack.open('Veuillez sélectionner deux factures', 'OK', { duration: 2000 });
+      this.snack.open(this.i18n.t('compare.snack.selectTwoInvoices'), this.i18n.t('common.ok'), { duration: 2000 });
       return;
     }
 
@@ -425,7 +428,7 @@ export class CompareComponent implements OnInit {
         this.invoicePriceComparisonResult = res;
         this.comparaisonResult = null;
         this.erpPriceComparisonResult = null;
-        this.snack.open('Comparaison de prix effectuée', 'OK', { duration: 2000 });
+        this.snack.open(this.i18n.t('compare.snack.priceComparisonDone'), this.i18n.t('common.ok'), { duration: 2000 });
       },
       error: (err) => {
         console.error('Erreur lors de la comparaison:', err);
@@ -440,21 +443,21 @@ export class CompareComponent implements OnInit {
       next: (r) => {
         if (r.success) {
           const message = forceUpdate 
-            ? 'Stock mis à jour avec les quantités corrigées' 
-            : 'Stock mis à jour (quantités livrées)';
-          this.snack.open(message, 'OK', { duration: 2500 });
+            ? this.i18n.t('compare.snack.stockCorrected') 
+            : this.i18n.t('compare.snack.stockUpdated');
+          this.snack.open(message, this.i18n.t('common.ok'), { duration: 2500 });
           // Recharger la comparaison pour mettre à jour le statut stockUpdated
           setTimeout(() => {
             this.compare(invoiceId, deliveryId);
           }, 500);
         } else {
-          this.snack.open('Différences détectées: stock non mis à jour', 'OK', { duration: 3000 });
+          this.snack.open(this.i18n.t('compare.snack.stockSkippedDiffs'), this.i18n.t('common.ok'), { duration: 3000 });
         }
       },
       error: (e) => {
         console.error(e);
         const errorMessage = e.error?.message || 'Erreur lors de l\'alimentation du stock';
-        this.snack.open(errorMessage, 'Fermer', { duration: 3000 });
+        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
       }
     });
   }
@@ -463,7 +466,7 @@ export class CompareComponent implements OnInit {
     this.docs.compareAndStockAllDeliveries(invoiceId, forceUpdate).subscribe({
       next: (r) => {
         if (r.totalDeliveries === 0) {
-          this.snack.open('Aucun BL associé à cette facture', 'OK', { duration: 3000 });
+          this.snack.open(this.i18n.t('compare.snack.noLinkedBl'), this.i18n.t('common.ok'), { duration: 3000 });
           return;
         }
 
@@ -483,7 +486,7 @@ export class CompareComponent implements OnInit {
       error: (e) => {
         console.error(e);
         const errorMessage = e.error?.message || 'Erreur lors du traitement des BL';
-        this.snack.open(errorMessage, 'Fermer', { duration: 3000 });
+        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
       }
     });
   }
@@ -497,7 +500,7 @@ export class CompareComponent implements OnInit {
     this.docs.reparseLines(documentId, false).subscribe({
       next: (r) => {
         if (r.success) {
-          this.snack.open('Document re-parsé avec succès', 'OK', { duration: 2500 });
+          this.snack.open(this.i18n.t('compare.snack.reparseSuccess'), this.i18n.t('common.ok'), { duration: 2500 });
           // Recharger les documents pour voir les changements
           this.load();
           // Recharger la comparaison affichée si applicable
@@ -511,13 +514,13 @@ export class CompareComponent implements OnInit {
             }, 500);
           }
         } else {
-          this.snack.open('Erreur lors du re-parsing', 'Fermer', { duration: 3000 });
+          this.snack.open(this.i18n.t('compare.snack.reparseError'), this.i18n.t('common.close'), { duration: 3000 });
         }
       },
       error: (e) => {
         console.error(e);
         const errorMessage = e.error?.message || 'Erreur lors du re-parsing';
-        this.snack.open(errorMessage, 'Fermer', { duration: 3000 });
+        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
       }
     });
   }
@@ -551,7 +554,7 @@ export class CompareComponent implements OnInit {
   }
 
   unlink(relationId: number) {
-    if (!confirm('Confirmer la dissociation ?')) return;
+    if (!confirm(this.i18n.t('compare.confirm.unlink'))) return;
     this.docs.unlink(relationId).subscribe(() => {
       this.loadRelations();
       this.load();
@@ -657,7 +660,7 @@ export class CompareComponent implements OnInit {
       return;
     }
     exportComparaisonToExcel(this.comparaisonResult);
-    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+    this.snack.open(this.i18n.t('compare.snack.excelDownloaded'), this.i18n.t('common.ok'), { duration: 2000 });
   }
 
   exportInvoicePriceExcel(): void {
@@ -665,7 +668,7 @@ export class CompareComponent implements OnInit {
       return;
     }
     exportInvoicePriceToExcel(this.invoicePriceComparisonResult);
-    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+    this.snack.open(this.i18n.t('compare.snack.excelDownloaded'), this.i18n.t('common.ok'), { duration: 2000 });
   }
 
   exportErpPriceExcel(): void {
@@ -675,7 +678,7 @@ export class CompareComponent implements OnInit {
     const label = this.erpPriceComparisonInvoice?.numero
       ?? String(this.erpPriceComparisonInvoice?.id ?? 'facture');
     exportErpPriceToExcel(this.erpPriceComparisonResult, label);
-    this.snack.open('Export Excel téléchargé', 'OK', { duration: 2000 });
+    this.snack.open(this.i18n.t('compare.snack.excelDownloaded'), this.i18n.t('common.ok'), { duration: 2000 });
   }
 
   exportAllComparisonsExcel(): void {
@@ -689,7 +692,7 @@ export class CompareComponent implements OnInit {
       erpInvoiceLabel: this.erpPriceComparisonInvoice?.numero
         ?? String(this.erpPriceComparisonInvoice?.id ?? ''),
     });
-    this.snack.open('Export Excel (toutes les comparaisons) téléchargé', 'OK', { duration: 2500 });
+    this.snack.open(this.i18n.t('compare.snack.excelDownloaded'), this.i18n.t('common.ok'), { duration: 2500 });
   }
 }
 

@@ -6,13 +6,15 @@ import { finalize } from 'rxjs';
 import { DocumentService } from '../../services/document.service';
 import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
+import { AppI18nService } from '../../services/app-i18n.service';
+import { TPipe } from '../../pipes/t.pipe';
 
 @Component({
   selector: 'app-document-search',
   templateUrl: './document-search.component.html',
   styleUrls: ['./document-search.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class DocumentSearchComponent {
   query = '';
@@ -26,7 +28,8 @@ export class DocumentSearchComponent {
 
   constructor(
     private docs: DocumentService,
-    private router: Router
+    private router: Router,
+    private i18n: AppI18nService
   ) {}
 
   search(): void {
@@ -45,7 +48,7 @@ export class DocumentSearchComponent {
     ).subscribe({
       next: (docs) => this.applyResults(docs),
       error: () => {
-        this.errorMessage = 'Impossible de charger les documents. Vérifiez que l\'API est démarrée.';
+        this.errorMessage = this.i18n.t('search.error.load');
         this.results = [];
         this.factures = [];
         this.bonsLivraison = [];
