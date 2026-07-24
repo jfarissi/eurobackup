@@ -151,6 +151,8 @@ builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AuthSeedOpti
 builder.Services.AddIdentityCore<User>(options =>
 {
     options.User.RequireUniqueEmail = false;
+    options.User.AllowedUserNameCharacters =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
     options.Password.RequireDigit = false;
     options.Password.RequireLowercase = false;
     options.Password.RequireUppercase = false;

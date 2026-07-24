@@ -16,6 +16,9 @@ public static class AuthSeedService
 
         var userManager = services.GetRequiredService<UserManager<User>>();
         var roleManager = services.GetRequiredService<RoleManager<Role>>();
+        var userStore = services.GetRequiredService<IUserStore<User>>();
+        var passwordStore = userStore as IUserPasswordStore<User>
+            ?? throw new InvalidOperationException("IUserPasswordStore<User> is required for auth seed");
 
         foreach (var roleName in new[] { "Admin", "User" })
         {
@@ -56,43 +59,56 @@ public static class AuthSeedService
                 UpdatedDate = DateTimeOffset.UtcNow
             };
 
-            var createUser = await userManager.CreateAsync(user, options.Password);
-            if (!createUser.Succeeded)
+            try
             {
-                logger.LogError(
-                    "Auth seed: failed to create admin {Email}: {Errors}",
-                    email,
-                    string.Join(", ", createUser.Errors.Select(e => e.Description)));
+                await PersistUserViaStoreAsync(userStore, passwordStore, userManager, user, options.Password, create: true);
+                existing = user;
+                logger.LogInformation("Auth seed: admin user created ({Email})", email);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Auth seed: failed to create admin {Email}", email);
                 return;
             }
-
-            existing = user;
-            logger.LogInformation("Auth seed: admin user created ({Email})", email);
         }
         else
         {
-            // Repair legacy BCrypt / empty hashes so Identity CheckPasswordAsync works
             var hash = existing.PasswordHash;
-            var needsPasswordRepair = string.IsNullOrWhiteSpace(hash)
-                || hash.StartsWith("$2", StringComparison.Ordinal) // BCrypt
-                || options.ForceResetPassword;
+            var needsPasswordRepair = options.ForceResetPassword
+                || string.IsNullOrWhiteSpace(hash)
+                || hash.StartsWith("$2", StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(existing.UserName);
 
-            if (needsPasswordRepair)
+            var needsNormalize = string.IsNullOrWhiteSpace(existing.UserName)
+                || !string.Equals(existing.UserName, email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(existing.Email, email, StringComparison.OrdinalIgnoreCase);
+
+            if (needsPasswordRepair || needsNormalize)
             {
-                if (await userManager.HasPasswordAsync(existing))
-                    await userManager.RemovePasswordAsync(existing);
+                existing.Email = email;
+                existing.EmailConfirmed = true;
+                existing.Status = UserStatus.Activated;
+                existing.UpdatedDate = DateTimeOffset.UtcNow;
 
-                var addPassword = await userManager.AddPasswordAsync(existing, options.Password);
-                if (!addPassword.Succeeded)
+                try
                 {
-                    logger.LogError(
-                        "Auth seed: failed to reset password for {Email}: {Errors}",
-                        email,
-                        string.Join(", ", addPassword.Errors.Select(e => e.Description)));
+                    await PersistUserViaStoreAsync(
+                        userStore,
+                        passwordStore,
+                        userManager,
+                        existing,
+                        needsPasswordRepair ? options.Password : null,
+                        create: false);
+
+                    logger.LogInformation(
+                        "Auth seed: user normalized{PasswordPart} ({Email})",
+                        needsPasswordRepair ? " + password repaired" : "",
+                        email);
                 }
-                else
+                catch (Exception ex)
                 {
-                    logger.LogInformation("Auth seed: password repaired for {Email}", email);
+                    logger.LogError(ex, "Auth seed: failed to repair admin {Email}", email);
+                    return;
                 }
             }
         }
@@ -111,5 +127,50 @@ public static class AuthSeedService
         }
 
         logger.LogInformation("Auth seed: admin user ready ({Email})", email);
+    }
+
+    /// <summary>
+    /// Writes username/email/password via the EF store, bypassing UserManager validators
+    /// (required for legacy AspNetUsers rows with empty UserName).
+    /// </summary>
+    private static async Task PersistUserViaStoreAsync(
+        IUserStore<User> userStore,
+        IUserPasswordStore<User> passwordStore,
+        UserManager<User> userManager,
+        User user,
+        string? newPassword,
+        bool create)
+    {
+        var email = user.Email!;
+        await userStore.SetUserNameAsync(user, email, CancellationToken.None);
+        await userStore.SetNormalizedUserNameAsync(user, userManager.NormalizeName(email), CancellationToken.None);
+
+        if (userStore is IUserEmailStore<User> emailStore)
+        {
+            await emailStore.SetEmailAsync(user, email, CancellationToken.None);
+            await emailStore.SetEmailConfirmedAsync(user, true, CancellationToken.None);
+            await emailStore.SetNormalizedEmailAsync(user, userManager.NormalizeEmail(email), CancellationToken.None);
+        }
+
+        if (!string.IsNullOrEmpty(newPassword))
+        {
+            var hash = userManager.PasswordHasher.HashPassword(user, newPassword);
+            await passwordStore.SetPasswordHashAsync(user, hash, CancellationToken.None);
+            user.SecurityStamp = Guid.NewGuid().ToString();
+        }
+        else if (string.IsNullOrEmpty(user.SecurityStamp))
+        {
+            user.SecurityStamp = Guid.NewGuid().ToString();
+        }
+
+        IdentityResult result = create
+            ? await userStore.CreateAsync(user, CancellationToken.None)
+            : await userStore.UpdateAsync(user, CancellationToken.None);
+
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Auth seed store persist failed: " + string.Join(", ", result.Errors.Select(e => e.Description)));
+        }
     }
 }

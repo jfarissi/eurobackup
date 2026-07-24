@@ -1,10 +1,11 @@
 using System.Security.Claims;
+using Backup.Web.Api.Server.Authorization;
 using Backup.Web.Api.Server.Models.Users;
-using Backup.Web.Api.Server.Services.Users;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
-using Backup.Web.Api.Server.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MsAuthorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
+using MsAllowAnonymous = Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute;
 
 namespace Backup.Web.Api.Server.Controllers;
 
@@ -12,18 +13,23 @@ namespace Backup.Web.Api.Server.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IUserService _userService;
     private readonly UserManager<User> _userManager;
+    private readonly IJwtUtils _jwtUtils;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IUserService userService, UserManager<User> userManager)
+    public AuthController(
+        UserManager<User> userManager,
+        IJwtUtils jwtUtils,
+        ILogger<AuthController> logger)
     {
-        _userService = userService;
         _userManager = userManager;
+        _jwtUtils = jwtUtils;
+        _logger = logger;
     }
 
-    [AllowAnonymous]
+    [MsAllowAnonymous]
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] AuthenticateRequest request)
+    public async Task<IActionResult> Login([FromBody] AuthenticateRequest? request)
     {
         if (request == null
             || string.IsNullOrWhiteSpace(request.Username)
@@ -32,22 +38,52 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Username and password are required" });
         }
 
+        var login = request.Username.Trim();
         try
         {
-            var response = await _userService.Authenticate(request);
-            return Ok(response);
+            var user = await _userManager.FindByEmailAsync(login)
+                ?? await _userManager.FindByNameAsync(login);
+
+            if (user == null)
+            {
+                user = await _userManager.Users.FirstOrDefaultAsync(u =>
+                    (u.Email != null && u.Email.ToLower() == login.ToLower())
+                    || (u.UserName != null && u.UserName.ToLower() == login.ToLower()));
+            }
+
+            if (user == null)
+            {
+                _logger.LogWarning("Login failed: user not found ({Login})", login);
+                return Unauthorized(new { message = "Username or password is incorrect" });
+            }
+
+            var passwordOk = await _userManager.CheckPasswordAsync(user, request.Password);
+            if (!passwordOk)
+            {
+                _logger.LogWarning(
+                    "Login failed: bad password for {Login} (hashPrefix={HashPrefix})",
+                    login,
+                    string.IsNullOrEmpty(user.PasswordHash) ? "(empty)" : user.PasswordHash[..Math.Min(4, user.PasswordHash.Length)]);
+                return Unauthorized(new { message = "Username or password is incorrect" });
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            var roleName = roles.FirstOrDefault() ?? "User";
+            user.IsAdmin = roles.Contains("Admin")
+                || string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase);
+            user.Role = null;
+
+            var token = _jwtUtils.GenerateJwtToken(user);
+            return Ok(new AuthenticateResponse(user, token));
         }
-        catch (AppException ex)
+        catch (Exception ex)
         {
-            return Unauthorized(new { message = ex.Message });
-        }
-        catch (Exception)
-        {
-            return Unauthorized(new { message = "Username or password is incorrect" });
+            _logger.LogError(ex, "Login failed with exception for {Login}", login);
+            return Unauthorized(new { message = "Username or password is incorrect", detail = ex.Message });
         }
     }
 
-    [Authorize]
+    [MsAuthorize]
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {

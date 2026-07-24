@@ -42,14 +42,8 @@ namespace Backup.Web.Api.Server.Brokers.UserManagement
 
         public async ValueTask<AuthenticateResponse> Authenticate(AuthenticateRequest model, User user)
         {
-
-            // authentication successful so generate jwt token
-            var roles = await this.roleManagement.SelectAllRoles().ToListAsync();
             user.IsAdmin = await this.userManagement.IsInRoleAsync(user, "Admin");
-            //IList<string> listrole = await this.userManagement.GetRolesAsync(user);
-            //user.Role = await this.roleManagement.SelectRoleByNameAsync(listrole.First().ToUpper());
             var jwtToken = _jwtUtils.GenerateJwtToken(user);
-
             return new AuthenticateResponse(user, jwtToken);
         }
 
