@@ -19,18 +19,29 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 var litersNeeded = Math.Max(1, Math.Ceiling(session.PaintAreaM2.Value / 5m));
                 foreach (var product in products)
                 {
-                    var hay = (product.Name ?? string.Empty).ToLowerInvariant();
-                    if (ContainsAny(hay, "kwast", "pinceau", "roller", "ruban", "tape", "masking"))
+                    var hay = $"{product.Name} {product.Category}".ToLowerInvariant();
+                    if (ContainsAny(hay, "kwast", "pinceau", "roller", "rouleau", "ruban", "tape", "masking",
+                            "sous-couche", "primer", "grondverf", "bac à peinture", "verfbak"))
                     {
                         product.SuggestedQuantity = 1;
                         continue;
                     }
 
-                    var packL = TryParsePaintLiters(hay);
+                    var packL = TryParsePaintLiters(hay) ?? TryParsePaintKgAsLiters(hay);
                     if (packL is > 0)
-                        product.SuggestedQuantity = Math.Max(1, Math.Ceiling(litersNeeded / packL.Value));
+                    {
+                        var packs = Math.Max(1, Math.Ceiling(litersNeeded / packL.Value));
+                        // Liste = alternatives : petits pots (ex. 1 L) → qté 1, pas 27 pots.
+                        // Formats chantier (≥ 2,5 L) : nb de pots pour couvrir le chantier, plafonné.
+                        if (packL.Value < 2.5m && packs > 4)
+                            product.SuggestedQuantity = 1;
+                        else
+                            product.SuggestedQuantity = Math.Min(packs, 12);
+                    }
                     else if (product.SuggestedQuantity is null or <= 0)
+                    {
                         product.SuggestedQuantity = 1;
+                    }
                 }
 
                 return;
@@ -103,6 +114,21 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 && decimal.TryParse(ml.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var milli)
                 && milli > 0)
                 return milli / 1000m;
+
+            return null;
+        }
+
+        /// <summary>Latex / muurverf souvent en kg ≈ L pour l'ordre de grandeur.</summary>
+        private static decimal? TryParsePaintKgAsLiters(string hay)
+        {
+            if (!ContainsAny(hay, "latex", "muurverf", "acryl", "verf", "paint"))
+                return null;
+
+            var match = Regex.Match(hay, @"(\d+(?:[.,]\d+)?)\s*kg\b");
+            if (match.Success
+                && decimal.TryParse(match.Groups[1].Value.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var kg)
+                && kg >= 2.5m && kg <= 40)
+                return kg;
 
             return null;
         }

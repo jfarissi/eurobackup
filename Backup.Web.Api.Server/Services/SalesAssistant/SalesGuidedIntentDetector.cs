@@ -252,9 +252,10 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var trimmed = Regex.Replace(lower.Trim(), @"[!?.…]+$", "").Trim();
             trimmed = Regex.Replace(trimmed, @"\s+", " ");
 
-            // Laisser CartComplements gérer « autres … à ajouter / panier ».
+            // Laisser CartComplements gérer « autres … à ajouter / panier / outils ».
             if (ContainsAny(trimmed, "ajouter", "ajout", "panier", "complément", "complement",
-                    "accessoire", "outillage", "manque", "supplément", "supplement"))
+                    "accessoire", "outillage", "outils", "outil", "manque", "supplément", "supplement",
+                    "c'est bon", "cest bon", "besoin d"))
                 return false;
 
             return trimmed is "autres produits" or "autre produit" or "autres" or "autre chose"
@@ -275,7 +276,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (SalesComplementRules.ShouldOfferComplements(session)
                 && (ContainsAny(lower, "autre", "autres", "encore", "manque", "ajouter", "produit",
                         "complément", "complement", "accessoire", "quoi d'autre",
-                        "il me faut", "me manque", "il manque", "outillage")
+                        "il me faut", "me manque", "il manque", "outillage", "outils", "outil",
+                        "c'est bon", "cest bon", "besoin d")
                     || ContainsAny(lower, "panier")))
                 return true;
 
@@ -290,7 +292,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "autres produits pour mon panier", "autre produit pour mon panier",
                 "autres pour le panier", "autre pour le panier",
                 "ajouter au panier", "à ajouter au panier", "a ajouter au panier",
-                "ajouter a mon panier", "ajouter à mon panier");
+                "ajouter a mon panier", "ajouter à mon panier",
+                "besoin d'autres produits", "besoin d autres produits",
+                "besoin d'outils", "besoin d outils", "autres produits ou outils");
         }
         /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
         private static bool IsDirectComplementKeyword(string lower, out string? hint)

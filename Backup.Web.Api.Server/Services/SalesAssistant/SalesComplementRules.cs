@@ -41,7 +41,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 "wall_construction" => HasStructureMaterial(hay) && HasBinderMaterial(hay),
                 "tiling" => HasTilingSurface(hay) && HasTilingAdhesive(hay),
-                "painting" => HasPaint(hay) && HasPrimer(hay),
+                // Peinture murale dans le panier = base ; sous-couche / rouleau / ruban = compléments.
+                "painting" => HasPaint(hay),
                 _ => session.Project.HasStructureHint && session.Project.HasBinderHint
             };
         }
@@ -114,8 +115,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "autres produits", "autre produit", "d'autres produits", "d autres produits",
                 "encore des", "produits en plus", "à ajouter", "a ajouter", "ajouter au panier",
                 "ajouter a mon panier", "ajouter à mon panier",
-                "complément", "complement", "accessoire", "outillage",
-                "supplément", "supplement", "ander", "andere", "ontbreekt", "nodig"
+                "complément", "complement", "accessoire", "outillage", "outils", "outil",
+                "supplément", "supplement", "ander", "andere", "ontbreekt", "nodig",
+                "c'est bon", "cest bon", "besoin d"
             };
             if (phrases.Any(p => lower.Contains(p, StringComparison.OrdinalIgnoreCase)))
                 return true;
