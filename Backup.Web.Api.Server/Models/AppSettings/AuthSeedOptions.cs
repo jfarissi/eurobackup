@@ -10,4 +10,5 @@ public class AuthSeedOptions
     public string Role { get; set; } = "Admin";
     public string? Name { get; set; } = "Admin";
     public string? FamilyName { get; set; } = "EuroBrico";
-}
+    /// <summary>When true, always reset the seed user password to <see cref="Password"/> on startup.</summary>
+    public bool ForceResetPassword { get; set; }}

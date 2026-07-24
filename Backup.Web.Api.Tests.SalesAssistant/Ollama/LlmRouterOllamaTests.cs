@@ -1,7 +1,5 @@
 using Backup.Web.Api.Server.Services.SalesAssistant;
 using Backup.Web.Api.Server.Services.StoreChat;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Backup.Web.Api.Tests.SalesAssistant.Ollama;
 
@@ -62,7 +60,7 @@ public class LlmRouterOllamaTests
         Assert.False(string.IsNullOrWhiteSpace(caseId));
         FailIfRequiredButDown();
 
-        var router = CreateRouterEnabled();
+        var router = OllamaTestSupport.CreateLlmRouter();
         var decision = await router.TryDecideAsync(session, userText);
 
         Assert.NotNull(decision);
@@ -72,32 +70,6 @@ public class LlmRouterOllamaTests
         Assert.True(
             SalesLlmRouterGuard.IsAllowed(decision.ParsedAction.Value, session),
             $"[{caseId}] action {decision.Action} hors guard");
-    }
-
-    private static SalesLlmIntentRouter CreateRouterEnabled()
-    {
-        var ai = ((SalesReplyComposer)OllamaTestSupport.CreateComposer());
-        // Rebuild with EnableLlmIntentRouter
-        var configAi = OllamaTestSupport.CreateComposer();
-        // Access AI via new stack
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(4) };
-        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["AISettings:Provider"] = "Ollama",
-                ["AISettings:Ollama:ApiKey"] = "ollama",
-                ["AISettings:Ollama:Model"] = OllamaTestSupport.Model,
-                ["AISettings:Ollama:Endpoint"] = OllamaTestSupport.Host,
-                ["AISettings:Ollama:EmbeddingModel"] = "nomic-embed-text"
-            })
-            .Build();
-        var store = Options.Create(new StoreChatOptions
-        {
-            BrandName = "EuroBrico",
-            EnableLlmIntentRouter = true
-        });
-        var client = new StoreChatAiClient(http, config, store, NullLogger<StoreChatAiClient>.Instance);
-        return new SalesLlmIntentRouter(client, store, NullLogger<SalesLlmIntentRouter>.Instance);
     }
 
     private static StoreChatSession CompleteWall()

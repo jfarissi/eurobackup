@@ -21,18 +21,6 @@ namespace Backup.Web.Api.Server.Models.Users
             set => base.Id = value;
         }
 
-        public override string? UserName
-        {
-            get => base.Email;
-            set => base.Email = value;
-        }
-
-        public override string? PhoneNumber
-        {
-            get => base.PhoneNumber;
-            set => base.PhoneNumber = value;
-        }
-
         public string? Name { get; set; }
         public string? FamilyName { get; set; }
         public UserStatus Status { get; set; }
@@ -42,7 +30,6 @@ namespace Backup.Web.Api.Server.Models.Users
             set  ; 
         }
         public DateTimeOffset UpdatedDate { get; set; }
-        public string? PasswordHash { get; set; }
         public Role? Role { internal get; set; }
 
         public bool IsAdmin { internal get; set; }

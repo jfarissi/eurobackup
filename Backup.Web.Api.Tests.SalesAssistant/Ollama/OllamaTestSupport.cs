@@ -67,6 +67,13 @@ public static class OllamaTestSupport
 
     public static ISalesReplyComposer CreateComposer()
     {
+        var store = Options.Create(new StoreChatOptions { BrandName = "EuroBrico" });
+        var ai = CreateAiClient(store);
+        return new SalesReplyComposer(ai, store, NullLogger<SalesReplyComposer>.Instance);
+    }
+
+    public static IStoreChatAiClient CreateAiClient(IOptions<StoreChatOptions>? store = null)
+    {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -79,9 +86,21 @@ public static class OllamaTestSupport
             .Build();
 
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(4) };
-        var store = Options.Create(new StoreChatOptions { BrandName = "EuroBrico" });
-        var ai = new StoreChatAiClient(http, config, store, NullLogger<StoreChatAiClient>.Instance);
-        return new SalesReplyComposer(ai, store, NullLogger<SalesReplyComposer>.Instance);
+        store ??= Options.Create(new StoreChatOptions { BrandName = "EuroBrico" });
+        return new StoreChatAiClient(http, config, store, NullLogger<StoreChatAiClient>.Instance);
+    }
+
+    public static SalesLlmIntentRouter CreateLlmRouter()
+    {
+        var store = Options.Create(new StoreChatOptions
+        {
+            BrandName = "EuroBrico",
+            EnableLlmIntentRouter = true
+        });
+        return new SalesLlmIntentRouter(
+            CreateAiClient(store),
+            store,
+            NullLogger<SalesLlmIntentRouter>.Instance);
     }
 
     public static SalesReplyFacts WallSearchFacts()

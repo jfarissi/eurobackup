@@ -40,40 +40,71 @@ public static class AuthSeedService
         var email = options.Email.Trim();
         var existing = await userManager.FindByEmailAsync(email)
             ?? await userManager.FindByNameAsync(email);
-        if (existing != null)
-            return;
 
-        var user = new User
+        if (existing == null)
         {
-            Id = Guid.NewGuid(),
-            Email = email,
-            UserName = email,
-            Name = options.Name,
-            FamilyName = options.FamilyName,
-            EmailConfirmed = true,
-            Status = UserStatus.Activated,
-            CreatedDate = DateTimeOffset.UtcNow,
-            UpdatedDate = DateTimeOffset.UtcNow
-        };
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = email,
+                UserName = email,
+                Name = options.Name,
+                FamilyName = options.FamilyName,
+                EmailConfirmed = true,
+                Status = UserStatus.Activated,
+                CreatedDate = DateTimeOffset.UtcNow,
+                UpdatedDate = DateTimeOffset.UtcNow
+            };
 
-        var createUser = await userManager.CreateAsync(user, options.Password);
-        if (!createUser.Succeeded)
+            var createUser = await userManager.CreateAsync(user, options.Password);
+            if (!createUser.Succeeded)
+            {
+                logger.LogError(
+                    "Auth seed: failed to create admin {Email}: {Errors}",
+                    email,
+                    string.Join(", ", createUser.Errors.Select(e => e.Description)));
+                return;
+            }
+
+            existing = user;
+            logger.LogInformation("Auth seed: admin user created ({Email})", email);
+        }
+        else
         {
-            logger.LogError(
-                "Auth seed: failed to create admin {Email}: {Errors}",
-                email,
-                string.Join(", ", createUser.Errors.Select(e => e.Description)));
-            return;
+            // Repair legacy BCrypt / empty hashes so Identity CheckPasswordAsync works
+            var hash = existing.PasswordHash;
+            var needsPasswordRepair = string.IsNullOrWhiteSpace(hash)
+                || hash.StartsWith("$2", StringComparison.Ordinal) // BCrypt
+                || options.ForceResetPassword;
+
+            if (needsPasswordRepair)
+            {
+                if (await userManager.HasPasswordAsync(existing))
+                    await userManager.RemovePasswordAsync(existing);
+
+                var addPassword = await userManager.AddPasswordAsync(existing, options.Password);
+                if (!addPassword.Succeeded)
+                {
+                    logger.LogError(
+                        "Auth seed: failed to reset password for {Email}: {Errors}",
+                        email,
+                        string.Join(", ", addPassword.Errors.Select(e => e.Description)));
+                }
+                else
+                {
+                    logger.LogInformation("Auth seed: password repaired for {Email}", email);
+                }
+            }
         }
 
         var role = string.IsNullOrWhiteSpace(options.Role) ? "Admin" : options.Role.Trim();
-        if (!await userManager.IsInRoleAsync(user, role))
+        if (!await userManager.IsInRoleAsync(existing, role))
         {
-            var addRole = await userManager.AddToRoleAsync(user, role);
+            var addRole = await userManager.AddToRoleAsync(existing, role);
             if (!addRole.Succeeded)
             {
                 logger.LogWarning(
-                    "Auth seed: user created but role {Role} failed: {Errors}",
+                    "Auth seed: user ready but role {Role} failed: {Errors}",
                     role,
                     string.Join(", ", addRole.Errors.Select(e => e.Description)));
             }

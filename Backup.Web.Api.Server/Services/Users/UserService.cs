@@ -104,23 +104,25 @@ namespace Backup.Web.Api.Server.Services.Users
             if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(model.Password))
                 throw new AppException("Username or password is incorrect");
 
-            var user = await this._UserManagement.SelectUserByEmailAsync(login);
+            var user = await this._userManager.FindByEmailAsync(login)
+                ?? await this._userManager.FindByNameAsync(login);
+
             if (user == null)
             {
                 user = this._UserManagement.SelectAllUsers()
-                    .FirstOrDefault(u => u.UserName == login || u.Email == login);
+                    .FirstOrDefault(u =>
+                        string.Equals(u.UserName, login, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(u.Email, login, StringComparison.OrdinalIgnoreCase));
             }
 
             if (user == null)
                 throw new AppException("Username or password is incorrect");
 
-            // Vérification via Identity (hash Identity, pas BCrypt)
-            var userManager = this._userManager;
-            var passwordOk = await userManager.CheckPasswordAsync(user, model.Password);
+            var passwordOk = await this._userManager.CheckPasswordAsync(user, model.Password);
             if (!passwordOk)
                 throw new AppException("Username or password is incorrect");
 
-            var roles = await userManager.GetRolesAsync(user);
+            var roles = await this._userManager.GetRolesAsync(user);
             var roleName = roles.FirstOrDefault() ?? "User";
             try
             {

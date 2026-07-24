@@ -27,7 +27,7 @@
 }
 
 .brand-title {
-  font-family: var(--font-headline, 'Hanken Grotesk', system-ui, sans-serif);
+  font-family: var(--font-headline, system-ui, sans-serif);
   font-size: 22px;
   font-weight: 700;
   color: #191c1e;
