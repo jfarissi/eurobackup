@@ -117,7 +117,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "ajouter a mon panier", "ajouter à mon panier",
                 "complément", "complement", "accessoire", "outillage", "outils", "outil",
                 "supplément", "supplement", "ander", "andere", "ontbreekt", "nodig",
-                "c'est bon", "cest bon", "besoin d"
+                "c'est bon", "cest bon", "besoin d",
+                "et maintenant", "et ensuite", "et après", "et apres", "quoi maintenant",
+                "et la suite", "la suite"
             };
             if (phrases.Any(p => lower.Contains(p, StringComparison.OrdinalIgnoreCase)))
                 return true;

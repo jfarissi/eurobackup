@@ -277,7 +277,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 && (ContainsAny(lower, "autre", "autres", "encore", "manque", "ajouter", "produit",
                         "complément", "complement", "accessoire", "quoi d'autre",
                         "il me faut", "me manque", "il manque", "outillage", "outils", "outil",
-                        "c'est bon", "cest bon", "besoin d")
+                        "c'est bon", "cest bon", "besoin d",
+                        "maintenant", "ensuite", "après", "apres", "suite")
                     || ContainsAny(lower, "panier")))
                 return true;
 
@@ -294,7 +295,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "ajouter au panier", "à ajouter au panier", "a ajouter au panier",
                 "ajouter a mon panier", "ajouter à mon panier",
                 "besoin d'autres produits", "besoin d autres produits",
-                "besoin d'outils", "besoin d outils", "autres produits ou outils");
+                "besoin d'outils", "besoin d outils", "autres produits ou outils",
+                "et maintenant", "et ensuite", "et après", "et apres", "quoi maintenant");
         }
         /// <summary>Demande directe d'un complément (ex. coller le libellé « Gants — … »).</summary>
         private static bool IsDirectComplementKeyword(string lower, out string? hint)

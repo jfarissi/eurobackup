@@ -93,6 +93,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "treillis" => 4,
                 "ciment" => 3,
                 "truelle" => 2,
+                "rouleau" => 2,
+                "ruban" => 2,
+                "sous-couche" => 2,
                 _ => 1
             };
 
@@ -130,9 +133,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "gants" => new[] { "handschoen", "handschoenen", "werkhandschoen", "gants", "gloves" },
                 "ciment" => new[] { "ciment", "cement", "mortier", "mortel", "metselspecie" },
                 "seau" => new[] { "seau", "auge", "emmer", "mortelkuip", "kuip" },
-                "rouleau" => new[] { "rouleau", "roller", "verfroller" },
-                "ruban" => new[] { "ruban", "masking", "schilderstape" },
-                "sous-couche" => new[] { "sous-couche", "primer", "grondverf" },
+                "rouleau" => new[]
+                {
+                    "verfroller", "schildersrol", "paint roller", "verfrol", "rouleau à peindre",
+                    "rouleau peindre", "lakroller"
+                },
+                "ruban" => new[]
+                {
+                    "schilderstape", "masking tape", "afplaktape", "malertape", "ruban de masquage",
+                    "masking"
+                },
+                "sous-couche" => new[]
+                {
+                    "grondverf", "voorstrijk", "sous-couche", "sous couche", "primer", "primer muur"
+                },
                 "colle carrelage" => new[] { "tegellijm", "colle carrelage", "colle" },
                 "joint" => new[] { "voegsel", "voeg", "joint" },
                 "primaire" => new[] { "primaire", "primer", "grondverf" },
@@ -209,7 +223,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         }
 
         /// <summary>Score &gt; 0 = accepté. Pénalise les faux positifs (Gauge⊃auge, Fuel Gauge…).</summary>
-        private static int ScoreComplementHit(string hay, string hint)
+        public static int ScoreComplementHit(string hay, string hint)
         {
             if (string.IsNullOrWhiteSpace(hay))
                 return 0;
@@ -221,6 +235,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 && hint.Trim().Equals("auge", StringComparison.OrdinalIgnoreCase))
                 return 0;
 
+            // Soldes / déstockage : souvent hors rayon projet (roues, ruban isolant…).
+            var clearance = ContainsAnyLocal(hay, "winkel (oud)", "uitverkoop", "uitverkoop)");
+
             return hint.Trim().ToLowerInvariant() switch
             {
                 "treillis" => ScoreMesh(hay),
@@ -228,6 +245,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "gants" => ScoreGloves(hay),
                 "ciment" => ScoreAny(hay, ("ciment", 100), ("cement", 100), ("mortier", 80), ("mortel", 80)),
                 "truelle" => ScoreTruelle(hay),
+                "rouleau" => ScorePaintRoller(hay, clearance),
+                "ruban" => ScoreMaskingTape(hay, clearance),
+                "sous-couche" or "primaire" => ScorePaintPrimer(hay, clearance),
                 "bordure" => ScoreAny(hay, ("bordure", 100), ("opsluitband", 100), ("kantopsluiting", 90), ("border", 70)),
                 "geotextile" => ScoreAny(hay, ("geotextile", 100), ("géotextile", 100), ("worteldoek", 90), ("anti-wortel", 80)),
                 "sable" => ScoreAny(hay, ("sable", 100), ("zand", 100), ("gravier", 80), ("grind", 80)),
@@ -235,6 +255,67 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "souffleur" => ScoreAny(hay, ("souffleur", 100), ("bladblazer", 100), ("blower", 80), ("balai", 60)),
                 _ => hay.Contains(hint, StringComparison.OrdinalIgnoreCase) ? 50 : 0
             };
+        }
+
+        private static int ScorePaintRoller(string hay, bool clearance)
+        {
+            // Faux positifs : kit roues / spare wheels (« rouleaux de rechange »).
+            if (ContainsAnyLocal(hay,
+                    "wheel", "wheels", "roue", "roues", "spare", "rechange",
+                    "usag", "insulating", "isolant", "isolatie"))
+                return 0;
+
+            var score = ScoreAny(hay,
+                ("verfroller", 120), ("schildersrol", 120), ("paint roller", 120),
+                ("verfrol", 110), ("lakroller", 100), ("rouleau à peindre", 100),
+                ("rouleau peindre", 100));
+
+            if (score == 0
+                && ContainsAnyLocal(hay, "roller", "rouleau")
+                && ContainsAnyLocal(hay, "verf", "paint", "schilder", "peinture", "latex"))
+                score = 80;
+
+            if (clearance && score > 0)
+                score -= 40;
+
+            return score > 0 ? score : 0;
+        }
+
+        private static int ScoreMaskingTape(string hay, bool clearance)
+        {
+            if (ContainsAnyLocal(hay,
+                    "isolant", "insulating", "isolatie", "électrique", "electrique",
+                    "electrical", "duct tape", "gaffer", "pakband"))
+                return 0;
+
+            var score = ScoreAny(hay,
+                ("schilderstape", 120), ("masking tape", 120), ("afplaktape", 110),
+                ("malertape", 110), ("ruban de masquage", 110), ("masking", 90));
+
+            if (score == 0
+                && ContainsAnyLocal(hay, "ruban", "tape")
+                && ContainsAnyLocal(hay, "masquage", "masking", "schilder", "paint", "verf"))
+                score = 80;
+
+            if (clearance && score > 0)
+                score -= 40;
+
+            return score > 0 ? score : 0;
+        }
+
+        private static int ScorePaintPrimer(string hay, bool clearance)
+        {
+            if (ContainsAnyLocal(hay, "wheel", "spare", "isolant", "insulating"))
+                return 0;
+
+            var score = ScoreAny(hay,
+                ("grondverf", 120), ("voorstrijk", 120), ("sous-couche", 110),
+                ("sous couche", 110), ("primer", 90), ("undercoat", 90));
+
+            if (clearance && score > 0)
+                score -= 40;
+
+            return score > 0 ? score : 0;
         }
 
         private static int ScoreMesh(string hay)

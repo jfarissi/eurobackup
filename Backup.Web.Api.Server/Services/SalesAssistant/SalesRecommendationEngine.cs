@@ -76,6 +76,26 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     sb.AppendLine($"Surface projet ~{session.WallAreaM2:0.##} m² — contrôlez les quantités avant devis.");
             }
 
+            if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                || session.PaintAreaM2 is > 0)
+            {
+                sb.AppendLine();
+                if (session.PaintAreaM2 is > 0)
+                {
+                    var liters = Math.Max(1, Math.Ceiling(session.PaintAreaM2.Value / 5m));
+                    sb.AppendLine($"Surface à peindre ~{session.PaintAreaM2:0.#} m² → besoin estimé ≈ {liters:0} L (2 couches).");
+                }
+
+                var paintLines = session.Cart.Count(c =>
+                {
+                    var n = (c.Name ?? string.Empty).ToLowerInvariant();
+                    return n.Contains("latex") || n.Contains("muurverf") || n.Contains("acryl")
+                           || n.Contains("peint") || n.Contains("verf");
+                });
+                if (paintLines >= 2)
+                    sb.AppendLine("⚠ Plusieurs peintures murales dans le panier : ce sont des alternatives — en général une seule gamme suffit pour le chantier.");
+            }
+
             var missing = SuggestComplements(session, session.Cart.Select(c => new StoreChatProductSuggestionDto
             {
                 ProductId = c.ErpProductId.ToString(),
@@ -143,9 +163,34 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             foreach (var m in missing.Take(4))
                 sb.AppendLine($"• {m.Label} — {m.Reason}");
 
-            sb.AppendLine("\nJe peux chercher ces compléments dans le catalogue si vous voulez (ex. « treillis » ou « truelle »).");
-            sb.Append("Pas besoin de racheter briques/blocs/ciment déjà choisis.");
+            sb.AppendLine();
+            sb.Append(BuildComplementFooter(domain, missing));
             return sb.ToString().Trim();
+        }
+
+        private static string BuildComplementFooter(string domain, IReadOnlyList<SalesRecommendationDto> missing)
+        {
+            var examples = string.Join(" », « ",
+                missing.Take(3)
+                    .Select(m => m.SearchHint ?? m.Label.Split('—')[0].Trim().ToLowerInvariant())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(3));
+
+            return domain switch
+            {
+                "painting" or "Painting" =>
+                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »).\n"
+                    + "Pas besoin de racheter la peinture déjà choisie.",
+                "tiling" or "Bathroom" =>
+                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »).\n"
+                    + "Pas besoin de racheter le carrelage déjà choisi.",
+                "wall_construction" or "Wall" =>
+                    "Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « treillis » ou « truelle »).\n"
+                    + "Pas besoin de racheter briques/blocs/ciment déjà choisis.",
+                _ =>
+                    $"Je peux chercher ces compléments dans le catalogue si vous voulez (ex. « {examples} »)."
+            };
         }
 
         private static List<SalesRecommendationDto> BuildTipsForDomain(
@@ -195,11 +240,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 case "painting":
                 case "Painting":
                     AddIfMissing("primer", "Sous-couche", "Meilleure accroche et rendu uniforme.", "sous-couche",
-                        "sous-couche", "primer");
+                        "sous-couche", "sous couche", "primer", "grondverf", "voorstrijk", "undercoat");
+                    // Pas « rouleau/roller » seuls : matchent « kit rouleaux / wheels ».
                     AddIfMissing("roller", "Rouleau", "Application rapide sur grandes surfaces.", "rouleau",
-                        "rouleau", "roller");
+                        "verfroller", "schildersrol", "paint roller", "verfrol", "lakroller",
+                        "rouleau à peindre", "rouleau peindre");
+                    // Pas « ruban/tape » seuls : matchent ruban isolant électrique.
                     AddIfMissing("tape", "Ruban de masquage", "Finitions propres aux angles.", "ruban",
-                        "ruban", "masking");
+                        "schilderstape", "masking tape", "afplaktape", "malertape",
+                        "ruban de masquage", "masking");
                     break;
                 case "tiling":
                 case "Bathroom":

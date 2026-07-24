@@ -36,7 +36,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             var session = ctx.Session; var hints = session.PendingComplementHints.ToList();
             if (hints.Count == 0) hints = _recommendations.SuggestComplements(session, session.Cart.Select(c => new StoreChatProductSuggestionDto { ProductId = c.ErpProductId.ToString(), Name = c.Name }).ToList()).Select(m => m.SearchHint).Where(h => !string.IsNullOrWhiteSpace(h)).Select(h => h!).Take(5).ToList();
             var hits = await _complements.SearchAsync(session, hints, ct);
-            if (hits.Count == 0) { session.AwaitingComplementConfirm = true; session.PendingComplementHints = hints.ToList(); return _turn.Finish(session, ctx.Text, "Je n'ai pas encore trouvé ces compléments. Réessayez « ok », ou un mot précis : treillis, truelle, auge, gants.", "NONE", null, ctx.Guided); }
+            if (hits.Count == 0) { session.AwaitingComplementConfirm = true; session.PendingComplementHints = hints.ToList(); return _turn.Finish(session, ctx.Text, "Je n'ai pas encore trouvé ces compléments. Réessayez « ok », ou un mot précis : " + (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase) ? "sous-couche, rouleau, ruban." : "treillis, truelle, auge, gants."), "NONE", null, ctx.Guided); }
             session.AwaitingComplementConfirm = false; session.PendingComplementHints.Clear();
             return _turn.Finish(session, ctx.Text, "Voici les compléments catalogue pour votre panier :\nAjoutez ce dont vous avez besoin, puis devis / commande.", "CART_COMPLEMENTS", hits, ctx.Guided);
         }
