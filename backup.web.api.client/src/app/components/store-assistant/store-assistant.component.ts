@@ -360,10 +360,34 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   downloadQuotePdf(msg: StoreChatBubble): void {
     const pdf = msg.quotePdf;
     if (!pdf?.pdfBase64) return;
-    const link = document.createElement('a');
-    link.href = `data:application/pdf;base64,${pdf.pdfBase64}`;
-    link.download = pdf.fileName || 'document.pdf';
-    link.click();
+    this.downloadBase64Pdf(pdf.pdfBase64, pdf.fileName || 'document.pdf');
+  }
+
+  /** Blob + object URL — évite le blocage Chrome « téléchargement non sécurisé » des data: URLs. */
+  private downloadBase64Pdf(base64: string, fileName: string): void {
+    try {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      this.messages.push({
+        text: this.i18n.t('error'),
+        sender: 'bot',
+        timestamp: new Date()
+      });
+    }
   }
 
   startPayment(msg: StoreChatBubble): void {

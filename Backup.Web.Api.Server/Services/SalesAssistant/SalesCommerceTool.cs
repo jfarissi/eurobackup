@@ -41,7 +41,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
         };
 
         private readonly IStorageBroker _storage;
