@@ -154,8 +154,14 @@
         </div>
 
         <div class="download-wrap" *ngIf="msg.quotePdf?.pdfBase64 && (msg.actionType === 'QUOTE_PDF' || msg.actionType === 'INVOICE_PDF')">
-          <button type="button" class="btn-primary" (click)="downloadQuotePdf(msg)">
+          <button type="button" class="btn-outline" (click)="downloadQuotePdf(msg)">
             {{ msg.actionType === 'INVOICE_PDF' ? 'Télécharger la facture' : 'Télécharger le devis' }}
+          </button>
+          <button type="button" class="btn-primary"
+                  *ngIf="msg.actionType === 'QUOTE_PDF'"
+                  [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
+                  (click)="requestOrder()">
+            Commander
           </button>
           <span class="file-name">{{ msg.quotePdf?.fileName }}</span>
         </div>
