@@ -82,6 +82,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ?? response.ActiveProjectDomainLabel;
             response.ProjectSummary ??= session.Project.SummaryLine();
             response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
+            response.WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session);
 
             if (response.SearchFilter == null && HasFilterSignal(session))
             {
@@ -124,6 +125,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             response.SalesProjectTitle ??= session.ActiveProjectDomainLabel;
             response.ProjectSummary ??= session.Project.SummaryLine();
             response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
+            response.WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session);
         }
 
         private void LogAudit(StoreChatResponseDto response)

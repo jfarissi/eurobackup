@@ -95,7 +95,8 @@
           "✓ 4. Outillage pose"
         ],
         "replyMustNotContain": [
-          "← à choisir maintenant"
+          "← à choisir maintenant",
+          "Prochaines familles utiles"
         ]
       }
     },

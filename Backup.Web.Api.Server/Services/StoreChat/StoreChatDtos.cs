@@ -90,6 +90,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? ProjectSummary { get; set; }
         /// <summary>Structure + liant présents (hints projet).</summary>
         public bool ProjectBaseComplete { get; set; }
+        /// <summary>Parcours mur : structure + liant + ferraillage + outillage.</summary>
+        public bool WallGuideComplete { get; set; }
     }
 
     public class StoreChatConfirmPaymentDto

@@ -106,7 +106,23 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ProductId = c.ErpProductId.ToString(),
                 Name = c.Name
             }).ToList());
-            if (missing.Count > 0)
+
+            // Parcours mur terminé : ne pas lister des « prochaines familles » (ex. gants)
+            // comme s'il manquait encore une étape.
+            if (SalesProjectGuide.IsWallGuideComplete(session))
+            {
+                if (missing.Count > 0)
+                {
+                    sb.AppendLine("\nCompléments optionnels (facultatifs) :");
+                    foreach (var m in missing.Take(2))
+                        sb.AppendLine($"• {m.Label} — {m.Reason}");
+                }
+                else
+                {
+                    sb.AppendLine("\n" + SalesLocale.T(session, "review_ok"));
+                }
+            }
+            else if (missing.Count > 0)
             {
                 sb.AppendLine("\n" + SalesLocale.T(session, "review_next"));
                 foreach (var m in missing.Take(3))

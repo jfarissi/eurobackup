@@ -166,7 +166,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 Logistics = logistics,
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
-                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
+                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
             };
         }
 
@@ -225,7 +226,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                         ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
                         WorkflowState = session.WorkflowState.ToString(),
                         ProjectSummary = session.Project.SummaryLine(),
-                        ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
+                        ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
                     };
                 }
             }
@@ -246,7 +248,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
-                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
+                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
             };
         }
 
@@ -397,7 +400,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
             WorkflowState = session.WorkflowState.ToString(),
             ProjectSummary = session.Project.SummaryLine(),
-            ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session)
+            ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
         };
 
         private static string FormatProductDisplayName(string? name, string? name2, string? reference, int id)

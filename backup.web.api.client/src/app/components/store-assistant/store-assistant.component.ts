@@ -31,6 +31,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
   activeProjectDomainId: string | null = null;
+  wallGuideComplete = false;
   salesProjectTitle: string | null = null;
   salesProjectId: string | null = null;
   skillLevel: string | null = null;
@@ -43,6 +44,11 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
 
   get isWallProject(): boolean {
     return this.activeProjectDomainId === 'wall_construction';
+  }
+
+  /** Afficher « Étape suivante » seulement tant que le parcours mur n'est pas terminé. */
+  get showWallNextStep(): boolean {
+    return this.isWallProject && !this.wallGuideComplete;
   }
 
   cartPanelOpen = false;
@@ -376,6 +382,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }];
     this.activeProjectDomainLabel = null;
     this.activeProjectDomainId = null;
+    this.wallGuideComplete = false;
     this.salesProjectTitle = null;
     this.salesProjectId = null;
     this.skillLevel = null;
@@ -489,6 +496,9 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   private applyBotResponse(res: StoreChatResponse): void {
     if (res.activeProjectDomainId) {
       this.activeProjectDomainId = res.activeProjectDomainId;
+    }
+    if (typeof res.wallGuideComplete === 'boolean') {
+      this.wallGuideComplete = res.wallGuideComplete;
     }
 
     if (res.salesProjectTitle) {

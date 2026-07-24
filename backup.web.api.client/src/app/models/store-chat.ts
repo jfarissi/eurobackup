@@ -104,6 +104,8 @@ export interface StoreChatResponse {
   projectSummary?: string | null;
   /** Structure + liant présents (hints projet). */
   projectBaseComplete?: boolean;
+  /** Parcours mur : structure + liant + ferraillage + outillage. */
+  wallGuideComplete?: boolean;
 }
 
 export interface StoreChatPaymentResult {
