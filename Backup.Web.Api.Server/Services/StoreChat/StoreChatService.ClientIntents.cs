@@ -62,7 +62,50 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return await _commerce.CreateOrderAsync(session, ct);
             }
 
+            // CTA UI explicites — progression / revue sans dépendre du phrasé libre.
+            if (intent.Equals("ReviewCart", StringComparison.OrdinalIgnoreCase))
+                return BuildCartReviewIntentResponse(session, request.Text ?? "review cart");
+
+            if (intent.Equals("WallNextStep", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                {
+                    return _turn.Ok(session,
+                        "Aucun parcours mur actif. Décrivez d’abord votre mur (ex. 7 m × 2 m).",
+                        "NONE");
+                }
+
+                if (SalesProjectGuide.IsWallGuideComplete(session))
+                    return BuildCartReviewIntentResponse(session, request.Text ?? "étape suivante");
+
+                return await HandleProductSearchTurnAsync(
+                    session,
+                    "étape suivante",
+                    new GuidedSalesSlots(),
+                    ct);
+            }
+
             return null;
+        }
+
+        private StoreChatResponseDto BuildCartReviewIntentResponse(StoreChatSession session, string userText)
+        {
+            var reply = _recommendations.BuildCartReviewReply(session);
+            if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+            {
+                var family = SalesProjectGuide.ResolveWallFamily(session, userText);
+                var checklist = SalesProjectGuide.BuildWallChecklist(session, family);
+                reply = checklist + "\n\n" + reply;
+            }
+
+            _sessions.Save(session);
+            return _turn.Finish(
+                session,
+                userText,
+                reply,
+                "TIPS",
+                null,
+                new GuidedSalesSlots { Intent = GuidedSalesIntent.Tips });
         }
     }
 }

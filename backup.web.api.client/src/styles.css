@@ -1,4 +1,5 @@
 @import "@angular/material/prebuilt-themes/indigo-pink.css";
+@import "material-icons/iconfont/material-icons.css";
 @import "./app/styles/design-system.css";
 
 @tailwind base;

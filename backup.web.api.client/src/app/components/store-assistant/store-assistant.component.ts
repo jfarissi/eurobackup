@@ -30,6 +30,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isGeneratingQuote = false;
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
+  activeProjectDomainId: string | null = null;
   salesProjectTitle: string | null = null;
   salesProjectId: string | null = null;
   skillLevel: string | null = null;
@@ -39,6 +40,11 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   get salesProjectIdShort(): string {
     return this.salesProjectId ? this.salesProjectId.slice(0, 8) : '';
   }
+
+  get isWallProject(): boolean {
+    return this.activeProjectDomainId === 'wall_construction';
+  }
+
   cartPanelOpen = false;
   readonly productTablePageSize = 3;
 
@@ -331,6 +337,20 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }, undefined, undefined, () => { this.isPlacingOrder = false; });
   }
 
+  requestWallNextStep(): void {
+    if (this.isTyping || this.isGeneratingQuote || this.isPlacingOrder) return;
+    const text = this.i18n.t('nextStep');
+    this.pushUser(text);
+    this.callApi({ text, clientIntent: 'WallNextStep' });
+  }
+
+  requestCartReview(): void {
+    if (this.isTyping || this.isGeneratingQuote || this.isPlacingOrder) return;
+    const text = this.i18n.t('reviewCart');
+    this.pushUser(text);
+    this.callApi({ text, clientIntent: 'ReviewCart' });
+  }
+
   downloadQuotePdf(msg: StoreChatBubble): void {
     const pdf = msg.quotePdf;
     if (!pdf?.pdfBase64) return;
@@ -355,6 +375,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
       timestamp: new Date()
     }];
     this.activeProjectDomainLabel = null;
+    this.activeProjectDomainId = null;
     this.salesProjectTitle = null;
     this.salesProjectId = null;
     this.skillLevel = null;
@@ -466,6 +487,10 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   }
 
   private applyBotResponse(res: StoreChatResponse): void {
+    if (res.activeProjectDomainId) {
+      this.activeProjectDomainId = res.activeProjectDomainId;
+    }
+
     if (res.salesProjectTitle) {
       this.salesProjectTitle = res.salesProjectTitle;
       this.activeProjectDomainLabel = res.salesProjectTitle;

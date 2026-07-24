@@ -29,7 +29,9 @@ const DICT: Record<AssistantLang, Record<string, string>> = {
     newProject: 'Nouveau projet',
     photo: 'Joindre une photo',
     listening: 'Écoute en cours…',
-    lang: 'Langue'
+    lang: 'Langue',
+    nextStep: 'Étape suivante',
+    reviewCart: 'Revue panier'
   },
   nl: {
     title: 'Winkelassistent',
@@ -55,7 +57,9 @@ const DICT: Record<AssistantLang, Record<string, string>> = {
     newProject: 'Nieuw project',
     photo: 'Foto toevoegen',
     listening: 'Luisteren…',
-    lang: 'Taal'
+    lang: 'Taal',
+    nextStep: 'Volgende stap',
+    reviewCart: 'Winkelwagen nalopen'
   },
   en: {
     title: 'Store assistant',
@@ -81,7 +85,9 @@ const DICT: Record<AssistantLang, Record<string, string>> = {
     newProject: 'New project',
     photo: 'Attach a photo',
     listening: 'Listening…',
-    lang: 'Language'
+    lang: 'Language',
+    nextStep: 'Next step',
+    reviewCart: 'Review cart'
   }
 };
 

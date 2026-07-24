@@ -10,6 +10,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         /// <summary>Nombre de produits montrés d'emblée (style vendeur).</summary>
         public int InitialProductResults { get; set; } = 3;
         public int ChatHistoryLimit { get; set; } = 12;
+
+        /// <summary>
+        /// Si true, quand le détecteur déterministe renvoie None, un appel LLM
+        /// choisit une action parmi une whitelist (guard panier). Défaut false.
+        /// </summary>
+        public bool EnableLlmIntentRouter { get; set; }
     }
 
     public class AiSettingsOptions

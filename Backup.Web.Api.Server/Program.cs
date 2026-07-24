@@ -118,6 +118,7 @@ builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.I
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.PackRequestHandler>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.Turns.ISalesGuidedTurnHandler, Backup.Web.Api.Server.Services.SalesAssistant.Turns.MoreProductsHandler>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesReplyComposer, Backup.Web.Api.Server.Services.SalesAssistant.SalesReplyComposer>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesLlmIntentRouter, Backup.Web.Api.Server.Services.SalesAssistant.SalesLlmIntentRouter>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesDeterministicReply, Backup.Web.Api.Server.Services.SalesAssistant.SalesDeterministicReply>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesAssistantFacade, Backup.Web.Api.Server.Services.SalesAssistant.SalesAssistantFacade>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>

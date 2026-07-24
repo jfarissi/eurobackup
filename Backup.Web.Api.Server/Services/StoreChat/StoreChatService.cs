@@ -30,6 +30,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private readonly ISalesContextDetector _context;
         private readonly ISalesCatalogSearchTool _catalogSearch;
         private readonly ISalesCommerceTool _commerce;
+        private readonly ISalesLlmIntentRouter _llmRouter;
+        private readonly StoreChatOptions _options;
 
         public StoreChatService(
             IStoreChatSessionStore sessions,
@@ -45,7 +47,9 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             ISalesGuidedTurnDispatcher guidedTurns,
             ISalesContextDetector context,
             ISalesCatalogSearchTool catalogSearch,
-            ISalesCommerceTool commerce)
+            ISalesCommerceTool commerce,
+            ISalesLlmIntentRouter llmRouter,
+            Microsoft.Extensions.Options.IOptions<StoreChatOptions> options)
         {
             _sessions = sessions;
             _replyComposer = replyComposer;
@@ -61,6 +65,8 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             _context = context;
             _catalogSearch = catalogSearch;
             _commerce = commerce;
+            _llmRouter = llmRouter;
+            _options = options.Value ?? new StoreChatOptions();
         }
 
         public async Task<StoreChatResponseDto> ProcessMessageAsync(StoreChatMessageRequest request, CancellationToken ct = default)
@@ -109,6 +115,13 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             var guided = _guidedIntent.Detect(text, session);
             _confidence.DetectStyle(text, session);
 
+            if (guided.Intent == GuidedSalesIntent.None && _options.EnableLlmIntentRouter)
+            {
+                var routed = await TryHandleLlmRouterAsync(session, text, guided, ct);
+                if (routed != null)
+                    return routed;
+            }
+
             if (guided.Intent == GuidedSalesIntent.ResumeProject)
             {
                 var (ok, resumeReply, project) = await _resume.TryResumeAsync(text, session, ct);
@@ -132,6 +145,51 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 return guidedResponse;
 
             return await HandleProductSearchTurnAsync(session, text, guided, ct);
+        }
+
+        /// <summary>
+        /// Routeur LLM (optionnel) : uniquement si détecteur déterministe = None.
+        /// Retourne une réponse immédiate ou mute <paramref name="guided"/> pour le dispatcher.
+        /// </summary>
+        private async Task<StoreChatResponseDto?> TryHandleLlmRouterAsync(
+            StoreChatSession session,
+            string text,
+            GuidedSalesSlots guided,
+            CancellationToken ct)
+        {
+            var decision = await _llmRouter.TryDecideAsync(session, text, ct);
+            if (decision?.ParsedAction is not { } action)
+                return null;
+
+            switch (action)
+            {
+                case SalesLlmRouterAction.ReviewCart:
+                    return BuildCartReviewIntentResponse(session, text);
+
+                case SalesLlmRouterAction.WallNextStep:
+                    if (SalesProjectGuide.IsWallGuideComplete(session))
+                        return BuildCartReviewIntentResponse(session, text);
+                    return await HandleProductSearchTurnAsync(session, "étape suivante", guided, ct);
+
+                case SalesLlmRouterAction.SuggestComplements:
+                    guided.Intent = GuidedSalesIntent.CartComplements;
+                    return null;
+
+                case SalesLlmRouterAction.CreateQuote:
+                    return _turn.Ok(session,
+                        "Pour un devis chiffré, utilisez le bouton « Demander un devis » (totaux ERP, pas le chat).",
+                        "TIPS");
+
+                case SalesLlmRouterAction.AskClarification:
+                    var hint = string.IsNullOrWhiteSpace(decision.Reason)
+                        ? "Pouvez-vous préciser le produit, la marque ou le projet ?"
+                        : decision.Reason!;
+                    return _turn.Ok(session, hint, "NONE");
+
+                case SalesLlmRouterAction.SearchProducts:
+                default:
+                    return null;
+            }
         }
 
         public Task<StoreChatPaymentResultDto?> GetPaymentResultAsync(Guid orderId, CancellationToken ct = default) =>

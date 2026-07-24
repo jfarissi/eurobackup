@@ -148,6 +148,18 @@
 
           <div class="commerce-actions">
             <button type="button" class="btn-outline"
+                    *ngIf="isWallProject"
+                    [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
+                    (click)="requestWallNextStep()">
+              {{ i18n.t('nextStep') }}
+            </button>
+            <button type="button" class="btn-outline"
+                    *ngIf="cartItemCount > 0"
+                    [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
+                    (click)="requestCartReview()">
+              {{ i18n.t('reviewCart') }}
+            </button>
+            <button type="button" class="btn-outline"
                     [disabled]="!hasTableCartSelection() || isGeneratingQuote || isPlacingOrder"
                     (click)="requestQuote()">
               {{ i18n.t('quote') }}
@@ -189,6 +201,20 @@
   </main>
 
   <footer class="assistant-input">
+    <div class="journey-actions" *ngIf="isWallProject || cartItemCount > 0">
+      <button type="button" class="btn-outline"
+              *ngIf="isWallProject"
+              [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
+              (click)="requestWallNextStep()">
+        {{ i18n.t('nextStep') }}
+      </button>
+      <button type="button" class="btn-outline"
+              *ngIf="cartItemCount > 0"
+              [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
+              (click)="requestCartReview()">
+        {{ i18n.t('reviewCart') }}
+      </button>
+    </div>
     <div class="recording-banner" *ngIf="isRecording">{{ i18n.t('listening') }}</div>
     <textarea
       data-testid="assistant-input"
