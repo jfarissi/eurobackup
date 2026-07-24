@@ -29,26 +29,33 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var hints = string.Join(' ', meta?.TypeHints ?? session.SearchTypeHints).ToLowerInvariant();
             var hay = $"{text} {hints}";
 
-            if (LooksLikeTools(hay))
-                return WallGuideFamily.Tools;
-            if (LooksLikeReinforcement(hay))
-                return WallGuideFamily.Reinforcement;
-            if (LooksLikeBinder(hay))
-                return WallGuideFamily.Binder;
-            if (LooksLikeStructure(hay))
-                return WallGuideFamily.Structure;
-
             var cart = CartOnlyHay(session);
             var hasStructure = HasStructure(cart);
             var hasBinder = HasBinder(cart);
             var hasMesh = HasReinforcement(cart);
+            var hasTools = HasTools(cart);
 
-            // Suite naturelle après ajout panier (panier réel, pas MaterialHints).
+            // Intention explicite uniquement si la famille n'est pas déjà couverte par le panier
+            // (évite de rester bloqué sur « ciment » à cause des TypeHints de session).
+            if (LooksLikeTools(hay) && !hasTools)
+                return WallGuideFamily.Tools;
+            if (LooksLikeReinforcement(hay) && !hasMesh)
+                return WallGuideFamily.Reinforcement;
+            if (LooksLikeBinder(hay) && !hasBinder)
+                return WallGuideFamily.Binder;
+            if (LooksLikeStructure(hay) && !hasStructure)
+                return WallGuideFamily.Structure;
+
+            // Suite naturelle d'après le panier réel.
             if (hasStructure && !hasBinder)
                 return WallGuideFamily.Binder;
             if (hasStructure && hasBinder && !hasMesh)
                 return WallGuideFamily.Reinforcement;
-            if (hasStructure && hasBinder && hasMesh)
+            if (hasStructure && hasBinder && hasMesh && !hasTools)
+                return WallGuideFamily.Tools;
+
+            // Tout est couvert : garder Tools comme focus « terminé » (checklist ✓ partout).
+            if (hasStructure && hasBinder && hasMesh && hasTools)
                 return WallGuideFamily.Tools;
 
             return WallGuideFamily.Structure;
@@ -67,7 +74,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             string Mark(bool done, WallGuideFamily family, string label, string aisle)
             {
-                var here = family == focus ? " ← à choisir maintenant" : "";
+                var complete = hasStructure && hasBinder && hasMesh && hasTools;
+                var here = !complete && family == focus ? " ← à choisir maintenant" : "";
                 var state = done ? "✓" : "○";
                 return $"{state} {label} — rayon : {aisle}{here}";
             }
@@ -86,8 +94,18 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (session.WallAreaM2 is > 0)
                 sb.Append($"\nSurface estimée ~{session.WallAreaM2:0.##} m² — quantités préremplies sur la structure / le liant.");
 
-            sb.Append("\nPrécisez une marque, un type (brique / bloc / ciment 25 kg…) ou ajoutez une référence au panier pour passer à l’étape suivante.");
+            if (hasStructure && hasBinder && hasMesh && hasTools)
+                sb.Append("\nParcours mur complet — vous pouvez demander un devis ou passer commande.");
+            else
+                sb.Append("\nPrécisez une marque, un type (brique / bloc / ciment 25 kg…) ou ajoutez une référence au panier pour passer à l’étape suivante.");
             return sb.ToString().Trim();
+        }
+
+        /// <summary>True si structure + liant + ferraillage + outillage sont dans le panier.</summary>
+        public static bool IsWallGuideComplete(StoreChatSession session)
+        {
+            var cart = CartOnlyHay(session);
+            return HasStructure(cart) && HasBinder(cart) && HasReinforcement(cart) && HasTools(cart);
         }
 
         public static string FocusLabel(WallGuideFamily family) => family switch
@@ -131,7 +149,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return ContainsAny(lower,
                 "autre", "autres", "encore", "suite", "ensuite", "après", "apres",
                 "quoi d", "manque", "ajouter", "complement", "complément",
-                "suivant", "ciment", "cement", "mortier", "mortel", "treillis", "outil");
+                "suivant", "ciment", "cement", "mortier", "mortel", "treillis", "outil",
+                "déjà", "deja", "j'ai déjà", "j ai deja");
         }
 
         /// <summary>Panier uniquement — pour l’avancement du parcours.</summary>
@@ -153,17 +172,24 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             // Filets plâtre / cloison ≠ ferraillage mur maçonnerie.
             if (ContainsAny(hay, "gipsplaat", "gipsplaten", "pladur", "drywall"))
                 return false;
+            // Entretoises bétonnet ≠ treillis / Murfor.
+            if (ContainsAny(hay, "afstandhouder", "afstandhouders")
+                && !ContainsAny(hay, "murfor", "bewapeningsnet", "wapeningsnet", "lintvoeg", "betonijzer"))
+                return false;
 
             return ContainsAny(hay,
-                "murfor", "betonijzer", "betonnet", "wapeningsnet", "bewapeningsnet",
+                "murfor", "betonijzer", "wapeningsnet", "bewapeningsnet",
                 "wapeningsgaas", "treillis", "zind", "metselwapen", "lintvoeg")
+                   || (ContainsAny(hay, "betonnet")
+                       && !ContainsAny(hay, "afstandhouder", "afstandhouders"))
                    || (ContainsAny(hay, "wapening", "gaas", "mesh")
                        && ContainsAny(hay, "murfor", "ytong", "metsel", "beton", "zind", "ijzer", "net,"));
         }
 
         public static bool HasTools(string hay) =>
             ContainsAny(hay,
-                "truelle", "troffel", "niveau", "waterpas", "auge", "seau", "emmer",
+                "truelle", "troffel", "truweel", "poliertruweel", "metseltroffel",
+                "niveau", "waterpas", "auge", "seau", "emmer",
                 "kuip", "gant", "handschoen");
 
         private static bool LooksLikeStructure(string hay) =>
@@ -181,7 +207,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool LooksLikeTools(string hay) =>
             ContainsAny(hay,
-                "truelle", "troffel", "niveau", "waterpas", "auge", "seau", "emmer",
+                "truelle", "troffel", "truweel", "poliertruweel", "metseltroffel",
+                "niveau", "waterpas", "auge", "seau", "emmer",
                 "outil", "outillage", "gant", "handschoen", "kuip");
 
         private static bool ContainsAny(string hay, params string[] needles) =>

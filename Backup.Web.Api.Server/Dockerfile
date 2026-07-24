@@ -7,7 +7,7 @@ RUN npm ci
 COPY backup.web.api.client/ ./
 RUN npm run build -- --configuration production
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dotnet-build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build
 WORKDIR /src
 COPY Backup.Web.Api.Server/Backup.Web.Api.Server.csproj Backup.Web.Api.Server/
 RUN dotnet restore Backup.Web.Api.Server/Backup.Web.Api.Server.csproj
@@ -16,7 +16,7 @@ RUN mkdir -p Backup.Web.Api.Server/wwwroot
 COPY --from=angular-build /src/dist/backup.web.api.client/browser/ Backup.Web.Api.Server/wwwroot/
 RUN dotnet publish Backup.Web.Api.Server/Backup.Web.Api.Server.csproj -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 RUN apt-get update \

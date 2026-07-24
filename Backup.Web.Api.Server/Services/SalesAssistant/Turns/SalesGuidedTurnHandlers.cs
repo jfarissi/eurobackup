@@ -20,7 +20,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             var products = await _complements.SearchAsync(session, session.PendingComplementHints, ct);
             var reply = _recommendations.BuildCartComplementsReply(session);
             if (products.Count > 0) { session.AwaitingComplementConfirm = false; session.PendingComplementHints.Clear(); reply += "\n\n" + SalesLocale.T(session, "complements_catalog_refs"); }
-            else if (session.AwaitingComplementConfirm) reply += "\n\nRépondez « ok », « d'accord », « oui » ou « vas-y » pour que je cherche ces articles dans le catalogue.";
+            else if (session.AwaitingComplementConfirm) reply += "\n\n" + SalesLocale.T(session, "complements_confirm_prompt");
             var response = _turn.Finish(session, ctx.Text, reply, products.Count > 0 ? "CART_COMPLEMENTS" : "CART_ADVICE", products.Count > 0 ? products : null, ctx.Guided);
             response.Recommendations = missing.ToList(); return response;
         }
@@ -36,9 +36,17 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             var session = ctx.Session; var hints = session.PendingComplementHints.ToList();
             if (hints.Count == 0) hints = _recommendations.SuggestComplements(session, session.Cart.Select(c => new StoreChatProductSuggestionDto { ProductId = c.ErpProductId.ToString(), Name = c.Name }).ToList()).Select(m => m.SearchHint).Where(h => !string.IsNullOrWhiteSpace(h)).Select(h => h!).Take(5).ToList();
             var hits = await _complements.SearchAsync(session, hints, ct);
-            if (hits.Count == 0) { session.AwaitingComplementConfirm = true; session.PendingComplementHints = hints.ToList(); return _turn.Finish(session, ctx.Text, "Je n'ai pas encore trouvé ces compléments. Réessayez « ok », ou un mot précis : " + (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase) ? "sous-couche, rouleau, ruban." : "treillis, truelle, auge, gants."), "NONE", null, ctx.Guided); }
+            if (hits.Count == 0)
+            {
+                session.AwaitingComplementConfirm = true;
+                session.PendingComplementHints = hints.ToList();
+                var hintWords = string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                    ? SalesLocale.T(session, "complements_hints_paint")
+                    : SalesLocale.T(session, "complements_hints_wall");
+                return _turn.Finish(session, ctx.Text, SalesLocale.T(session, "complements_not_found", hintWords), "NONE", null, ctx.Guided);
+            }
             session.AwaitingComplementConfirm = false; session.PendingComplementHints.Clear();
-            return _turn.Finish(session, ctx.Text, "Voici les compléments catalogue pour votre panier :\nAjoutez ce dont vous avez besoin, puis devis / commande.", "CART_COMPLEMENTS", hits, ctx.Guided);
+            return _turn.Finish(session, ctx.Text, SalesLocale.T(session, "complements_cart_found"), "CART_COMPLEMENTS", hits, ctx.Guided);
         }
     }
 
@@ -51,7 +59,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
         {
             if (string.IsNullOrWhiteSpace(ctx.Guided.DirectComplementHint)) return null;
             var hint = ctx.Guided.DirectComplementHint!; var hits = await _complements.SearchAsync(ctx.Session, new[] { hint }, ct);
-            return hits.Count == 0 ? _turn.Finish(ctx.Session, ctx.Text, $"Je n'ai pas trouvé de produit pour « {hint} ». Essayez un autre mot (ex. handschoen, truelle, auge).", "NONE", null, ctx.Guided) : _turn.Finish(ctx.Session, ctx.Text, $"Voici des références pour « {hint} » :", "CART_COMPLEMENTS", hits, ctx.Guided);
+            return hits.Count == 0
+                ? _turn.Finish(ctx.Session, ctx.Text, SalesLocale.T(ctx.Session, "direct_complement_missing", hint), "NONE", null, ctx.Guided)
+                : _turn.Finish(ctx.Session, ctx.Text, SalesLocale.T(ctx.Session, "direct_complement_found", hint), "CART_COMPLEMENTS", hits, ctx.Guided);
         }
     }
 
@@ -92,7 +102,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
         {
             var lower = (ctx.Text ?? string.Empty).ToLowerInvariant();
             var reply = ContainsAny(lower,
-                    "panier", "cart", "que pensez", "avis", "opinion", "qu'en pense")
+                    "panier", "cart", "que pensez", "avis", "opinion", "qu'en pense",
+                    "c'est bon", "cest bon", "bon pour")
                 ? _recommendations.BuildCartReviewReply(ctx.Session)
                 : _confidence.BuildTips(ctx.Session, ctx.Session.LastSuggestedProducts);
             return Task.FromResult<StoreChatResponseDto?>(
@@ -167,7 +178,21 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
         public async Task<StoreChatResponseDto?> HandleAsync(SalesGuidedTurnContext ctx, CancellationToken ct = default)
         {
             var session = ctx.Session; var packType = _packEngine.ResolvePackType(ctx.Text, session);
-            switch (packType) { case "Painting": session.ActiveProjectDomainId = "painting"; session.ActiveProjectDomainLabel = "Peinture"; break; case "Bathroom": session.ActiveProjectDomainId = "tiling"; session.ActiveProjectDomainLabel = "Carrelage"; break; default: session.ActiveProjectDomainId = "wall_construction"; session.ActiveProjectDomainLabel = "Construction de mur"; break; }
+            switch (packType)
+            {
+                case "Painting":
+                    session.ActiveProjectDomainId = "painting";
+                    session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, "painting");
+                    break;
+                case "Bathroom":
+                    session.ActiveProjectDomainId = "tiling";
+                    session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, "tiling");
+                    break;
+                default:
+                    session.ActiveProjectDomainId = "wall_construction";
+                    session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, "wall_construction");
+                    break;
+            }
             var savedBrand = session.PreferredBrand; session.PreferredBrand = null;
             var meta = _context.BuildSearchMeta(session, ctx.Text); meta.SkillLevel = session.SkillLevel; if (session.BudgetMax is > 0) meta.MaxUnitPrice = session.BudgetMax;
             var hits = await _catalog.SearchAsync(ctx.Text, session, meta, ct); session.PreferredBrand = savedBrand;
@@ -192,10 +217,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
             var products = await _catalog.SearchAsync(seed, session, meta, ct, excludes);
             SalesQuantityEstimator.ApplySuggestedQuantities(products, session);
             var budgetAlert = SalesBudgetFilter.Apply(products, session, meta);
-            var reply = products.Count == 0 ? "Je n'ai pas d'autres références pertinentes pour l'instant. Précisez (bordure, clôture, gravier…)."
+            var reply = products.Count == 0
+                ? SalesLocale.T(session, "more_products_empty")
                 : meta.WallGuideFamily is { } family
                     ? $"Étape suivante — {SalesProjectGuide.FocusLabel(family)} :"
-                    : "Voici d'autres produits" + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel) ? " :" : $" pour {session.ActiveProjectDomainLabel} :");
+                    : SalesLocale.T(session, "more_products",
+                        string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
+                            ? ""
+                            : SalesLocale.T(session, "more_products_for",
+                                SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel)));
             if (meta.WallGuideFamily is { } wallFamily
                 && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
                 reply = reply.TrimEnd() + "\n\n" + SalesProjectGuide.BuildWallChecklist(session, wallFamily);

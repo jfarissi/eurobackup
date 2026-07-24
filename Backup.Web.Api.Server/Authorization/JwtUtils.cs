@@ -1,76 +1,102 @@
-namespace Backup.Web.Api.Server.Authorization;
-
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Backup.Web.Api.Server.Models.AppSettings;
 using Backup.Web.Api.Server.Models.Users;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+
+namespace Backup.Web.Api.Server.Authorization;
 
 public interface IJwtUtils
 {
-    public string GenerateJwtToken(User user);
-    public Guid? ValidateJwtToken(string token);
+    string GenerateJwtToken(User user);
+    Guid? ValidateJwtToken(string token);
 }
 
 public class JwtUtils : IJwtUtils
 {
-    private readonly AppSettings _appSettings;
-    private readonly IConfiguration configuration;
+    private readonly IConfiguration _configuration;
 
     public JwtUtils(IOptions<AppSettings> appSettings, IConfiguration configuration)
     {
-        _appSettings = appSettings.Value;
-        this.configuration = configuration;
+        _ = appSettings;
+        _configuration = configuration;
     }
 
     public string GenerateJwtToken(User user)
     {
-        // generate token that is valid for 7 days
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes(this.configuration.GetValue<string>("AppSettings:Secret"));
+        var key = Encoding.UTF8.GetBytes(GetJwtKey());
+        var roleName = user.Role?.Name ?? (user.IsAdmin ? "Admin" : "User");
 
-       // var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new("id", user.Id.ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Role, roleName)
+        };
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+        if (!string.IsNullOrWhiteSpace(user.UserName))
+            claims.Add(new Claim(ClaimTypes.Name, user.UserName!));
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(new[] { new Claim("id", user.Id.ToString()) }),
+            Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddDays(7),
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            Issuer = _configuration["Jwt:Issuer"],
+            Audience = _configuration["Jwt:Audience"],
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(key),
+                SecurityAlgorithms.HmacSha256Signature)
         };
+
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
     }
 
     public Guid? ValidateJwtToken(string token)
     {
-        if (token == null)
+        if (string.IsNullOrWhiteSpace(token))
             return null;
 
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
+        var key = Encoding.UTF8.GetBytes(GetJwtKey());
         try
         {
             tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                // set clockskew to zero so tokens expire exactly at token expiration time (instead of 5 minutes later)
+                ValidateIssuer = true,
+                ValidIssuer = _configuration["Jwt:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = _configuration["Jwt:Audience"],
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);
 
             var jwtToken = (JwtSecurityToken)validatedToken;
-            var userId = Guid.Parse(jwtToken.Claims.First(x => x.Type == "id").Value);
+            var idClaim = jwtToken.Claims.FirstOrDefault(x => x.Type == "id")
+                ?? jwtToken.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Sub)
+                ?? jwtToken.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier);
 
-            // return user id from JWT token if validation successful
-            return userId;
+            return idClaim != null ? Guid.Parse(idClaim.Value) : null;
         }
         catch
         {
-            // return null if validation fails
             return null;
         }
+    }
+
+    private string GetJwtKey()
+    {
+        var key = _configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(key))
+            throw new InvalidOperationException("Jwt:Key is not configured");
+        return key;
     }
 }

@@ -94,6 +94,11 @@ public class ScenarioDeterministicTests
                     $"[{id}] base chantier attendue complète");
             }
 
+            if (expect.WallGuideComplete is bool wantComplete)
+            {
+                Assert.Equal(wantComplete, SalesProjectGuide.IsWallGuideComplete(session));
+            }
+
             if (!string.IsNullOrWhiteSpace(expect.GuidedIntent))
             {
                 Assert.Equal(expect.GuidedIntent, guided.Intent.ToString());

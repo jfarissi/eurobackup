@@ -54,6 +54,29 @@ public class PaintCalculationReplyTests
     }
 
     [Fact]
+    public void Compose_catalog_intro_follows_session_language()
+    {
+        var session = new StoreChatSession
+        {
+            PreferredLanguage = "en",
+            ActiveProjectDomainId = "painting",
+            ActiveProjectDomainLabel = "Peinture"
+        };
+        var products = new List<StoreChatProductSuggestionDto>
+        {
+            new() { ProductId = "1", Name = "Paint A", Category = "Verf", Price = 10 }
+        };
+        var reply = new SalesDeterministicReply().Compose(
+            null,
+            products,
+            session,
+            new ProductSearchFilter { Outcome = ProductSearchOutcome.Generic, TotalMatches = 10, TypeHints = { "latex" } },
+            "latex mural blanc");
+        Assert.Contains("Here are 1 product(s) from the catalog for Painting", reply);
+        Assert.DoesNotContain("Voici", reply);
+    }
+
+    [Fact]
     public void Enrich_path_parse_project_dimensions_fills_paint_area()
     {
         // Régression pipeline StoreChat : DetectDomain + ParseProjectDimensions

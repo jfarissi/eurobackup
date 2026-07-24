@@ -250,6 +250,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 var focus = SalesProjectGuide.ResolveWallFamily(session, text, meta);
                 meta.WallGuideFamily = focus;
 
+                // Parcours terminé : ne plus renvoyer une liste d'outils.
+                if (SalesProjectGuide.IsWallGuideComplete(session))
+                {
+                    ranked = Array.Empty<ScoredProduct>();
+                }
+                else
+                {
                 if (focus == WallGuideFamily.Reinforcement)
                     await EnrichWallReinforcementCandidatesAsync(scores, ct);
                 else if (focus == WallGuideFamily.Tools)
@@ -298,6 +305,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
                     _ => BuildWallStructureSelection(classified, Math.Max(12, _options.MaxProductResults))
                 };
+                } // fin parcours mur non terminé
 
                 meta.Outcome = ProductSearchOutcome.Domain;
             }

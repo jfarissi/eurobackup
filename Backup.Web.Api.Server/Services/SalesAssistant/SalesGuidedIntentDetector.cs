@@ -125,20 +125,40 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             return slots;
         }
 
-        private static bool IsCartReview(string lower) =>
-            ContainsAny(lower,
+        private static bool IsCartReview(string lower)
+        {
+            if (ContainsAny(lower,
                 "que pensez", "qu'en pensez", "quen pensez", "votre avis", "ton avis",
                 "avis sur mon panier", "avis sur le panier", "évaluer mon panier", "evaluer mon panier",
                 "mon panier est-il", "panier est bon", "panier est-il bon", "critique mon panier",
-                "opinion sur mon panier", "review my cart", "what do you think of my cart");
+                "opinion sur mon panier", "review my cart", "what do you think of my cart",
+                "c'est bon pour le panier", "cest bon pour le panier", "bon pour le panier",
+                "panier ok", "panier complet"))
+                return true;
+
+            // « c'est bon ? » seul = revue panier ; pas « c'est bon ou j'ai besoin d'autres… »
+            var trimmed = lower.Trim().TrimEnd('?', '.', '!', ' ').Trim();
+            return trimmed is "c'est bon" or "cest bon";
+        }
 
         private static bool IsWallNextStepPhrase(string lower) =>
             ContainsAny(lower,
                 "produit suivant", "étape suivante", "etape suivante",
                 "ok suivant", "suite", "ensuite", "après", "apres",
-                "reste d", "reste autre", "autres produit", "autre chose")
-            // « quoi d'autre » = compléments panier, pas étape mur.
-            || (ContainsAny(lower, "suivant") && !ContainsAny(lower, "quoi d"));
+                "reste d", "reste autre", "autres produit", "autre chose",
+                "autres ?", "autre ?", "et maintenant",
+                "déjà ajout", "deja ajout", "j'ai déjà", "j ai deja", "j'ai deja",
+                "déjà mis", "deja mis", "déjà le ciment", "deja le ciment")
+            // « quoi d'autre » / « c'est bon » = revue ou compléments panier, pas étape mur.
+            || (ContainsAny(lower, "suivant") && !ContainsAny(lower, "quoi d"))
+            || (ContainsWord(lower, "autres") && !ContainsAny(lower, "quoi d"));
+
+        private static bool ContainsWord(string hay, string word) =>
+            System.Text.RegularExpressions.Regex.IsMatch(
+                hay,
+                $@"\b{System.Text.RegularExpressions.Regex.Escape(word)}\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         private static void DetectCustomer(string lower, StoreChatSession session)
         {

@@ -13,25 +13,25 @@ namespace Backup.Web.Api.Server.Services.Users
 {
     public partial class UserService : IUserService
     {
-        //private readonly IUserManagementBroker userManagementBroker;
         private readonly ILoggingBroker loggingBroker;
         private readonly IDateTimeBroker dateTimeBroker;
-        //private readonly UserManager<User> userManagement;
         private readonly IUserManagementBroker _UserManagement;
         private readonly IRoleManagementBroker _roleManagement;
+        private readonly UserManager<User> _userManager;
 
-        public UserService(IUserManagementBroker userManagementBroker,
+        public UserService(
+            IUserManagementBroker userManagementBroker,
             ILoggingBroker loggingBroker,
             IDateTimeBroker dateTimeBroker,
-            //UserManager<User> userManager,
             IUserManagementBroker UserManagement,
-            IRoleManagementBroker roleManagementBroker)
+            IRoleManagementBroker roleManagementBroker,
+            UserManager<User> userManager)
         {
             this.loggingBroker = loggingBroker;
             this.dateTimeBroker = dateTimeBroker;
-            //this.userManagement = userManager;
             this._UserManagement = UserManagement;
             this._roleManagement = roleManagementBroker;
+            this._userManager = userManager;
         }
 
         public ValueTask<User> DeleteUserAsync(Guid userId) =>
@@ -100,16 +100,41 @@ namespace Backup.Web.Api.Server.Services.Users
         public ValueTask<AuthenticateResponse> Authenticate(AuthenticateRequest model) =>
         TryCatch(async () =>
         {
-            //var user = userManagement.Users.SingleOrDefault(x => x.UserName == model.Username);
-            var user = await this._UserManagement.SelectUserByEmailAsync(model.Username);
-            var RoleName = (await this._UserManagement.SelectRoleByUserAsync(user)).FirstOrDefault();
-            user.Role = await this._roleManagement.SelectRoleByNameAsync(RoleName);
-            // validate
-
-            if (user == null || !BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
+            var login = model.Username?.Trim();
+            if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(model.Password))
                 throw new AppException("Username or password is incorrect");
-            return await this._UserManagement.Authenticate(model, user);
 
+            var user = await this._UserManagement.SelectUserByEmailAsync(login);
+            if (user == null)
+            {
+                user = this._UserManagement.SelectAllUsers()
+                    .FirstOrDefault(u => u.UserName == login || u.Email == login);
+            }
+
+            if (user == null)
+                throw new AppException("Username or password is incorrect");
+
+            // Vérification via Identity (hash Identity, pas BCrypt)
+            var userManager = this._userManager;
+            var passwordOk = await userManager.CheckPasswordAsync(user, model.Password);
+            if (!passwordOk)
+                throw new AppException("Username or password is incorrect");
+
+            var roles = await userManager.GetRolesAsync(user);
+            var roleName = roles.FirstOrDefault() ?? "User";
+            try
+            {
+                user.Role = await this._roleManagement.SelectRoleByNameAsync(roleName);
+            }
+            catch
+            {
+                user.Role = null;
+            }
+
+            user.IsAdmin = roles.Contains("Admin")
+                || string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            return await this._UserManagement.Authenticate(model, user);
         });
         //public ValueTask<AuthenticateResponse> AuthenticateSocial(JwtSecurityToken token) =>
         //TryCatch(async () =>

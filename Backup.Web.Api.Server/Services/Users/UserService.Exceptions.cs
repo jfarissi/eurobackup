@@ -1,4 +1,5 @@
-﻿using Backup.Web.Api.Server.Models.Roles.Exceptions;
+﻿using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Roles.Exceptions;
 using Backup.Web.Api.Server.Models.Users;
 using Backup.Web.Api.Server.Models.Users.Exceptions;
 using EFxceptions.Models.Exceptions;
@@ -55,6 +56,10 @@ namespace Backup.Web.Api.Server.Services.Users
             catch (DbUpdateException dbUpdateException)
             {
                 throw CreateAndLogDependencyException(dbUpdateException);
+            }
+            catch (AppException)
+            {
+                throw;
             }
             catch (Exception exception)
             {

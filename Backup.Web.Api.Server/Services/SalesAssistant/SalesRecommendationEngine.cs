@@ -71,6 +71,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
                 if (!SalesProjectGuide.HasTools(cart))
                     sb.AppendLine("○ Outillage pose (truelle, niveau, auge, gants) encore partiel ou absent.");
+                else
+                    sb.AppendLine("✓ Outillage pose présent.");
+
+                if (SalesProjectGuide.IsWallGuideComplete(session))
+                    sb.AppendLine("Parcours mur complet — devis ou commande possibles.");
 
                 if (session.WallAreaM2 is > 0)
                     sb.AppendLine($"Surface projet ~{session.WallAreaM2:0.##} m² — contrôlez les quantités avant devis.");
@@ -212,11 +217,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 case "wall_construction":
                 case "Wall":
                     AddIfMissing("mesh", "Treillis / ferraillage", "Rayons Zind & Grid · Net, IJzer en Toebehoren.", "treillis",
-                        "treillis", "mesh", "wapening", "zind", "grid", "gaas", "betonijzer");
+                        "treillis", "mesh", "wapening", "bewapeningsnet", "wapeningsnet", "murfor",
+                        "zind", "grid", "gaas", "betonijzer", "lintvoeg");
                     AddIfMissing("tools", "Truelle + niveau", "Pose plus précise, moins de reprise.", "truelle",
-                        "truelle", "niveau", "troffel", "waterpas");
+                        "truelle", "truweel", "poliertruweel", "metseltroffel", "niveau", "troffel", "waterpas");
                     AddIfMissing("tub", "Auge / seau", "Pour gâcher le mortier.", "auge",
-                        "auge", "seau", "emmer", "kuip");
+                        "auge", "seau", "emmer", "kuip", "mortelkuip", "speciekuip");
                     AddIfMissing("gloves", "Gants", "Protection lors du malaxage.", "gants",
                         "gant", "gloves", "handschoen");
                     // Ne pas proposer « mortier » si déjà en panier (parcours étape 2).
@@ -233,20 +239,25 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     break;
                 case "painting":
                 case "Painting":
-                    AddIfMissing("primer", "Sous-couche", "Meilleure accroche et rendu uniforme.", "sous-couche",
+                    AddIfMissing("primer",
+                        SalesLocale.T(session, "tip_primer"),
+                        SalesLocale.T(session, "tip_primer_reason"),
+                        "sous-couche",
                         "sous-couche", "sous couche", "primer", "grondverf", "voorstrijk", "undercoat");
                     if (!HasRealPaintRoller(present))
                     {
                         tips.Add(new SalesRecommendationDto
                         {
                             Code = "roller",
-                            Label = "Rouleau",
-                            Reason = "Application rapide sur grandes surfaces.",
+                            Label = SalesLocale.T(session, "tip_roller"),
+                            Reason = SalesLocale.T(session, "tip_roller_reason"),
                             SearchHint = "rouleau"
                         });
                     }
-                    // Pas « ruban/tape » seuls : matchent ruban isolant électrique.
-                    AddIfMissing("tape", "Ruban de masquage", "Finitions propres aux angles.", "ruban",
+                    AddIfMissing("tape",
+                        SalesLocale.T(session, "tip_tape"),
+                        SalesLocale.T(session, "tip_tape_reason"),
+                        "ruban",
                         "schilderstape", "masking tape", "afplaktape", "malertape",
                         "ruban de masquage", "masking");
                     break;

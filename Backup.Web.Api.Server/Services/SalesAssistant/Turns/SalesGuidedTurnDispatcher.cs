@@ -56,7 +56,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
                     || string.Equals(session.LastActionType, "CART_ADVICE", StringComparison.OrdinalIgnoreCase)))
             {
                 return _turn.Finish(session, text,
-                    "Je cherche les compléments… Réessayez « ok », ou un mot précis : treillis, truelle, auge, gants.",
+                    SalesLocale.T(session, "complements_searching"),
                     "NONE", null, guided);
             }
 

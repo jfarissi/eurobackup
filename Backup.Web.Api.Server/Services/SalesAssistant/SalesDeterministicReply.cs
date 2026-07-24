@@ -35,14 +35,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (meta.Outcome == ProductSearchOutcome.WeightNotFound)
             {
-                return $"Je n'ai pas trouvé de"
-                       + (typeLabel != null ? $" {typeLabel}" : " produit")
-                       + (brand != null ? $" {brand}" : "")
-                       + (weightLabel != null ? $" en {weightLabel}" : "")
-                       + " dans le catalogue."
-                       + (brand != null && typeLabel != null
-                           ? $" Souhaitez-vous voir d'autres formats {brand} ({typeLabel}) ?"
-                           : " Affinez marque, type ou poids.");
+                var typePart = typeLabel != null ? $" {typeLabel}" : SalesLocale.T(session, "product_word");
+                var brandPart = brand != null ? $" {brand}" : "";
+                var weightPart = weightLabel != null ? SalesLocale.T(session, "in_weight", weightLabel) : "";
+                var ask = brand != null && typeLabel != null
+                    ? SalesLocale.T(session, "weight_not_found_ask", brand, typeLabel)
+                    : SalesLocale.T(session, "weight_not_found_refine");
+                return SalesLocale.T(session, "weight_not_found", typePart, brandPart, weightPart, ask);
             }
 
             if (products.Count > 0)
@@ -50,10 +49,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 string intro;
                 if (!string.IsNullOrWhiteSpace(vagueFollowUp))
                 {
-                    intro = vagueFollowUp + "\n\nVoici quelques exemples en attendant :";
+                    intro = vagueFollowUp + "\n\n" + SalesLocale.T(session, "here_examples");
                 }
-                // Calcul C# (peinture m²/L, mur briques…) = voix métier : toujours prioritaire sur
-                // « Voici N produits », y compris Outcome Generic (recherche peinture ≠ Domain mur).
+                // Calcul C# (peinture m²/L, mur briques…) = voix métier : toujours prioritaire.
                 else if (!string.IsNullOrWhiteSpace(calc))
                 {
                     intro = calc;
@@ -62,49 +60,55 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                          && meta.Outcome is ProductSearchOutcome.BrandAndType or ProductSearchOutcome.BrandOnly)
                 {
                     var samples = string.Join(", ", products.Take(2).Select(p => p.Name));
-                    intro = $"Oui. {brand} propose "
-                            + (typeLabel != null ? $"du {typeLabel} " : "ces produits ")
-                            + "dans notre catalogue"
-                            + (samples.Length > 0 ? $", notamment : {samples}." : ".");
+                    var typePart = typeLabel != null ? $"{typeLabel} " : "";
+                    var samplePart = samples.Length > 0
+                        ? SalesLocale.Of(session) switch
+                        {
+                            SalesLocale.Nl => $", o.a.: {samples}.",
+                            SalesLocale.En => $", including: {samples}.",
+                            _ => $", notamment : {samples}."
+                        }
+                        : ".";
+                    intro = SalesLocale.T(session, "yes_brand", brand, typePart, samplePart);
 
                     if (meta.WeightKg is null or <= 0)
-                        intro += "\n\nCherchez-vous un petit format (ex. 5 kg) ou un sac chantier (25 kg) ?";
+                        intro += "\n\n" + SalesLocale.T(session, "ask_weight");
                 }
                 else if (meta.Outcome == ProductSearchOutcome.BrandAndType)
                 {
                     intro = weightLabel != null
-                        ? $"Voici {products.Count} référence(s) {brand} — {typeLabel} — {weightLabel}."
-                        : $"Voici {products.Count} référence(s) {brand} liées à « {typeLabel} ».";
+                        ? SalesLocale.T(session, "here_n_brand_type_weight", products.Count, brand, typeLabel, weightLabel)
+                        : SalesLocale.T(session, "here_n_brand_type", products.Count, brand, typeLabel);
                 }
                 else if (meta.Outcome == ProductSearchOutcome.BrandWithoutType)
                 {
-                    intro = $"Je n'ai pas trouvé de {typeLabel} de la marque {brand} dans le catalogue. "
-                            + $"Voici d'autres produits {brand} :";
+                    intro = SalesLocale.T(session, "brand_type_missing", typeLabel, brand);
                 }
                 else if (meta.Outcome == ProductSearchOutcome.BrandOnly)
                 {
                     intro = weightLabel != null
-                        ? $"Voici {products.Count} produit(s) {brand} en {weightLabel}."
-                        : $"Voici {products.Count} produit(s) de la marque {brand}.";
+                        ? SalesLocale.T(session, "here_n_brand_weight", products.Count, brand, weightLabel)
+                        : SalesLocale.T(session, "here_n_brand", products.Count, brand);
                 }
                 else
                 {
-                    intro = $"Voici {products.Count} produit(s) du catalogue"
-                            + (string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel)
-                                ? "."
-                                : $" pour {session.ActiveProjectDomainLabel}.");
+                    var domainLabel = SalesLocale.DomainDisplay(
+                        session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel);
+                    intro = string.IsNullOrWhiteSpace(domainLabel)
+                        ? SalesLocale.T(session, "here_n_catalog", products.Count)
+                        : SalesLocale.T(session, "here_n_domain", products.Count, domainLabel);
                 }
 
                 if (meta.TotalMatches > products.Count && string.IsNullOrWhiteSpace(vagueFollowUp))
                 {
                     if (meta.WallGuideFamily is { } family)
                     {
-                        intro += $"\n(Étape « {SalesProjectGuide.FocusLabel(family)} » : {products.Count} refs affichées"
-                                 + $" sur {meta.TotalMatches} dans ce rayon — précisez marque / type pour affiner.)";
+                        intro += "\n" + SalesLocale.T(session, "wall_step_matches",
+                            SalesProjectGuide.FocusLabel(family), products.Count, meta.TotalMatches);
                     }
                     else
                     {
-                        intro += $"\n(Affichage des {products.Count} meilleures sur {meta.TotalMatches} — précisez pour affiner.)";
+                        intro += "\n" + SalesLocale.T(session, "display_best", products.Count, meta.TotalMatches);
                     }
                 }
 
@@ -121,20 +125,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     if (meta.WeightKg is null or <= 0
                         && meta.Outcome is ProductSearchOutcome.BrandAndType or ProductSearchOutcome.BrandOnly)
                     {
-                        intro += "\n\nCherchez-vous un petit format (ex. 5 kg) ou un sac chantier (25 kg) ?";
+                        intro += "\n\n" + SalesLocale.T(session, "ask_weight");
                     }
                     else
                     {
-                        intro += "\n\nAjustez les quantités puis ajoutez au panier / devis / commande.";
+                        intro += "\n\n" + SalesLocale.T(session, "adjust_qty");
                     }
 
                     return intro.Trim();
                 }
 
                 if (!string.IsNullOrWhiteSpace(vagueFollowUp))
-                    intro += "\n\nRépondez avec le type souhaité (ex. « ampoules »), ou ajoutez un exemple au panier.";
+                    intro += "\n\n" + vagueFollowUp; // already localized upstream when possible
                 else
-                    intro += "\n\nAjustez les quantités puis ajoutez au panier / devis / commande.";
+                    intro += "\n\n" + SalesLocale.T(session, "adjust_qty");
 
                 if (string.IsNullOrWhiteSpace(vagueFollowUp)
                     && !string.IsNullOrWhiteSpace(aiReply)
@@ -144,7 +148,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 {
                     intro = (!string.IsNullOrWhiteSpace(calc) ? calc + "\n\n" : "")
                             + aiReply.Trim()
-                            + "\n\nLes quantités proposées sont préremplies dans le tableau.";
+                            + "\n\n" + SalesLocale.T(session, "qty_prefilled");
                 }
 
                 if (meta.WallGuideFamily is { } wallFamily
@@ -160,26 +164,23 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (meta.Outcome == ProductSearchOutcome.BrandNotFound && !string.IsNullOrWhiteSpace(brand))
             {
-                return $"Je n'ai trouvé aucun produit de la marque {brand} dans le catalogue. "
-                       + "Vérifiez l'orthographe ou essayez une autre marque / un type de produit.";
+                return SalesLocale.T(session, "brand_not_found", brand);
             }
 
             if (meta.Outcome == ProductSearchOutcome.BrandWithoutType
                 && !string.IsNullOrWhiteSpace(brand)
                 && typeLabel != null)
             {
-                return $"La marque {brand} est présente, mais je n'ai pas de {typeLabel} {brand} dans le catalogue. "
-                       + "Précisez un autre type (plâtre, plaque, colle…) ou une autre marque.";
+                return SalesLocale.T(session, "brand_present_no_type", brand, typeLabel);
             }
 
             if (!string.IsNullOrWhiteSpace(calc))
-                return calc + "\n\nJe n'ai pas trouvé de parpaings/briques/mortier/ciment correspondants dans le catalogue. Affinez avec un matériau précis.";
+                return calc + "\n\n" + SalesLocale.T(session, "no_matching_materials");
 
             if (!string.IsNullOrWhiteSpace(aiReply) && !LooksLikeInventedProductList(aiReply))
                 return aiReply!.Trim();
 
-            return "Je n'ai pas trouvé de produit correspondant dans le catalogue. "
-                   + "Indiquez un matériau ou une marque précise (ex. Knauf, parpaing, brique, mortier, ciment).";
+            return SalesLocale.T(session, "no_matching_product");
         }
 
         public string? BuildVagueDomainFollowUp(
@@ -237,18 +238,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return domain switch
             {
-                "electrical" =>
-                    "Le rayon électricité est large. Que cherchez-vous exactement : ampoules / LED, prises & interrupteurs, câbles, ou tableaux / disjoncteurs ?",
-                "painting" =>
-                    "Pour peindre : intérieur ou extérieur ? Peinture murale (muurverf / latex), sous-couche, ou outils (rouleau / pinceaux) ?",
-                "tiling" =>
-                    "Carrelage : sol ou mur ? Format / couleur, ou plutôt colle et joints ?",
-                "plumbing" =>
-                    "Plomberie : robinetterie, PVC / tuyaux, évacuation, ou accessoires (joints, colliers) ?",
+                "electrical" => SalesLocale.T(session, "vague_electrical"),
+                "painting" => SalesLocale.T(session, "vague_painting"),
+                "tiling" => SalesLocale.T(session, "vague_tiling"),
+                "plumbing" => SalesLocale.T(session, "vague_plumbing"),
                 "garden_landscaping" or "garden_cleaning" or "garden_maintenance" =>
-                    "Jardin : aménagement (dalles, clôture), entretien (tondeuse, haie), ou nettoyage (souffleur, sacs) ?",
-                "wall_construction" =>
-                    "Pour votre mur : briques, blocs / parpaings, ou mortier / ciment ?",
+                    SalesLocale.T(session, "vague_garden"),
+                "wall_construction" => SalesLocale.T(session, "vague_wall"),
                 _ => null
             };
         }

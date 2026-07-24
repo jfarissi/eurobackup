@@ -143,14 +143,18 @@ builder.Services.AddSwaggerGen(c =>
 
 
 builder.Services.AddTransient<IJwtUtils, JwtUtils>();
+builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AppSettings>(
+    builder.Configuration.GetSection("AppSettings"));
+builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AuthSeedOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Models.AppSettings.AuthSeedOptions.SectionName));
 builder.Services.AddIdentityCore<User>(options =>
 {
     options.User.RequireUniqueEmail = false;
-    options.Password.RequireDigit = false;           // Pas de chiffre obligatoire
-    options.Password.RequireLowercase = false;       // Pas de minuscule obligatoire
-    options.Password.RequireUppercase = false;       // Pas de majuscule obligatoire
-    options.Password.RequireNonAlphanumeric = false; // Pas de caract�re sp�cial obligatoire
-    options.Password.RequiredLength = 6;             // Longueur minimale du mot de passe
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 6;
 
 }).AddRoles<Role>()
         .AddEntityFrameworkStores<StorageBroker>()
@@ -171,7 +175,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+        NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
 });
 builder.Services.AddAuthorization();
@@ -213,6 +219,24 @@ if (builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", false))
     }
 }
 
+try
+{
+    using var seedScope = app.Services.CreateScope();
+    var seedLogger = seedScope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("AuthSeed");
+    await Backup.Web.Api.Server.Services.Users.AuthSeedService.SeedAsync(
+        seedScope.ServiceProvider,
+        seedLogger);
+}
+catch (Exception ex)
+{
+    var startupLogger = app.Services
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("AuthSeed");
+    startupLogger.LogError(ex, "Auth seed failed on startup");
+}
+
 if (builder.Configuration.GetValue("UseHttpsRedirection", true))
     app.UseHttpsRedirection();
 
@@ -220,9 +244,10 @@ app.UseCors();
 
 app.UseRequestTimeouts();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapControllers();
 

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Services.ErpSync;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ using RESTFulSense.Controllers;
 
 namespace Backup.Web.Api.Server.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/erp-products")]
     public class ErpProductController : RESTFulController

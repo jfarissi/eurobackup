@@ -432,15 +432,36 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   setLanguage(lang: AssistantLang): void {
     if (this.i18n.lang === lang) return;
     this.i18n.setLang(lang);
+    if (this.recognition) {
+      this.recognition.lang = this.i18n.speechLocale();
+    }
+
+    // Accueil seul → le remplacer. Sinon → message bot confirmant la langue
+    // (les prochaines réponses API suivront `language` envoyé à chaque tour).
     if (this.messages.length === 1 && this.messages[0].sender === 'bot') {
       this.messages[0] = {
         text: this.i18n.t('welcome'),
         sender: 'bot',
         timestamp: new Date()
       };
+    } else {
+      this.messages.push({
+        text: this.langSwitchedMessage(lang),
+        sender: 'bot',
+        timestamp: new Date()
+      });
+      this.scrollToBottom();
     }
-    if (this.recognition) {
-      this.recognition.lang = this.i18n.speechLocale();
+  }
+
+  private langSwitchedMessage(lang: AssistantLang): string {
+    switch (lang) {
+      case 'nl':
+        return 'Taal ingesteld: Nederlands. Ik antwoord vanaf nu in het Nederlands.';
+      case 'en':
+        return 'Language set to English. I will reply in English from now on.';
+      default:
+        return 'Langue définie : français. Je répondrai désormais en français.';
     }
   }
 

@@ -324,14 +324,17 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static int ScoreMesh(string hay)
         {
+            // Entretoises / distanceurs ≠ treillis de pose.
+            if (ContainsAnyLocal(hay, "afstandhouder", "afstandhouders", "spacer", "distanceur"))
+                return 0;
             if (ContainsAnyLocal(hay, "gipsplaat", "gipsplaten", "pladur", "drywall", "tape & banden"))
                 return 0;
 
             return ScoreAny(hay,
-                ("murfor", 110), ("betonijzer", 100), ("betonnet", 100),
+                ("murfor", 110), ("betonijzer", 100),
                 ("bewapeningsnet", 95), ("wapeningsnet", 95), ("wapeningsgaas", 70),
                 ("lintvoeg", 90), ("treillis", 90), ("zind", 85), ("grid", 80),
-                ("metselwapen", 85), ("wapening", 50), ("gaas", 40), ("mesh", 40));
+                ("metselwapen", 85), ("betonnet", 75), ("wapening", 50), ("gaas", 40), ("mesh", 40));
         }
 
         private static int ScoreTruelle(string hay)

@@ -3,11 +3,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Services.SalesAssistant;
 using Backup.Web.Api.Server.Services.StoreChat;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Backup.Web.Api.Server.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/store-chat")]
     public class StoreChatController : ControllerBase

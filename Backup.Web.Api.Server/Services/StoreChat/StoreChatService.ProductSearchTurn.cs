@@ -53,7 +53,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 && searchMeta.WallGuideFamily is null)
             {
                 reply = reply.TrimEnd()
-                        + "\n\nCompléments utiles : "
+                        + "\n\n" + SalesLocale.T(session, "complements_inline") + " "
                         + string.Join(" · ", recos.Take(3).Select(r => $"{r.Label} ({r.Reason})"));
             }
 

@@ -1,0 +1,158 @@
+{
+  "id": "bouwmaterialen-wall-complete-grid",
+  "title": "Bouwmaterialen — grille panier × phrasé (état d'abord, pas synonymes)",
+  "mainType": "Bouwmaterialen",
+  "mainTypeId": "7",
+  "domainId": "wall_construction",
+  "notes": "Même état panier, styles différents (vague / pro / validation). Panier complet → jamais « ← à choisir maintenant » ni relance outillage.",
+  "forbiddenProductHints": ["gipsplaat"],
+  "turns": [
+    {
+      "user": "autres ?",
+      "cartBefore": ["Snelbouw Porotherm Thermobrick 29x09"],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Binder",
+        "wallGuideComplete": false,
+        "replyMustContain": [
+          "2. Ciment / mortier",
+          "← à choisir maintenant"
+        ],
+        "replyMustNotContain": [
+          "Parcours mur complet"
+        ]
+      }
+    },
+    {
+      "user": "et ensuite",
+      "cartBefore": [
+        "Snelbouw Porotherm Thermobrick 29x09",
+        "Cement Wit - 20kg"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Reinforcement",
+        "projectBaseComplete": true,
+        "wallGuideComplete": false,
+        "replyMustContain": [
+          "3. Treillis / ferraillage",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "ok suivant",
+      "cartBefore": [
+        "Snelbouw Porotherm",
+        "Cement Wit",
+        "Murfor Plat 04cm"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Tools",
+        "wallGuideComplete": false,
+        "replyMustContain": [
+          "4. Outillage pose",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "c'est bon pour le panier ?",
+      "cartBefore": [
+        "Juwö Lijmblok PLZ TP100",
+        "Cement Wit - 20kg",
+        "Murfor Plat 04cm x 3.05m"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "guidedIntent": "Tips",
+        "wallGuideComplete": false,
+        "replyMustContain": [
+          "Base OK",
+          "Outillage pose"
+        ],
+        "replyMustNotContain": [
+          "Parcours mur complet"
+        ]
+      }
+    },
+    {
+      "user": "c'est bon ?",
+      "cartBefore": [
+        "Juwö Lijmblok PLZ TP100 498 x 100 x 249mm",
+        "Cement Wit - 20kg",
+        "Murfor Plat 04cm x 3.05m",
+        "OX Pro Emmer troffel Lange Handgreep",
+        "GEWEVEN WERKHANDSCHOENEN"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "guidedIntent": "Tips",
+        "wallGuideComplete": true,
+        "replyMustContain": [
+          "Parcours mur complet",
+          "✓ 4. Outillage pose"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "ok",
+      "cartBefore": [
+        "Juwö Lijmblok PLZ TP100",
+        "Cement Wit - 20kg",
+        "Murfor Compacte I-100",
+        "OX Pro Emmer troffel",
+        "handschoenen PVC"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideComplete": true,
+        "replyMustContain": [
+          "Parcours mur complet"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "il me manque quelque chose ?",
+      "cartBefore": [
+        "Boerkes Kortemark Rood",
+        "Cement Wit - 20kg",
+        "Murfor Plat 04cm",
+        "metseltroffel",
+        "werkhandschoenen"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideComplete": true,
+        "replyMustContain": [
+          "Parcours mur complet"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "Murfor + ciment portland, passe aux outils",
+      "cartBefore": [
+        "Snelbouw Porotherm Thermobrick"
+      ],
+      "expect": {
+        "domainId": "wall_construction",
+        "wallGuideFamily": "Tools",
+        "wallGuideComplete": false,
+        "replyMustContain": [
+          "4. Outillage pose",
+          "← à choisir maintenant"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="brand-title">DocManager Pro</span>
+      <span class="brand-sub">Connexion</span>
+    </div>
+
+    <h1>Accéder à l'application</h1>
+    <p class="login-hint">Utilisez votre compte EuroBrico Backup</p>
+
+    <form class="login-form" (ngSubmit)="submit()" autocomplete="on">
+      <label class="field">
+        <span>Email</span>
+        <input type="email"
+               name="username"
+               [(ngModel)]="username"
+               placeholder="admin@eurobrico.local"
+               [disabled]="loading"
+               required
+               autocomplete="username" />
+      </label>
+
+      <label class="field">
+        <span>Mot de passe</span>
+        <div class="password-wrap">
+          <input [type]="hidePassword ? 'password' : 'text'"
+                 name="password"
+                 [(ngModel)]="password"
+                 placeholder="••••••••"
+                 [disabled]="loading"
+                 required
+                 autocomplete="current-password" />
+          <button type="button"
+                  class="toggle-pass"
+                  (click)="hidePassword = !hidePassword"
+                  [attr.aria-label]="hidePassword ? 'Afficher' : 'Masquer'">
+            <mat-icon>{{ hidePassword ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+        </div>
+      </label>
+
+      <div class="login-error" *ngIf="error">{{ error }}</div>
+
+      <button class="btn-primary login-submit" type="submit" [disabled]="loading">
+        <mat-icon>{{ loading ? 'hourglass_top' : 'login' }}</mat-icon>
+        {{ loading ? 'Connexion…' : 'Se connecter' }}
+      </button>
+    </form>
+  </div>
+</div>

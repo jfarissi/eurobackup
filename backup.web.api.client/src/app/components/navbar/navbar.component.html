@@ -1,6 +1,6 @@
-<div class="app-shell">
+<div class="app-shell" [class.login-mode]="isLoginPage">
   <!-- Sidebar (desktop) -->
-  <aside class="sidebar">
+  <aside class="sidebar" *ngIf="!isLoginPage">
     <div class="sidebar-brand">
       <span class="brand-title">DocManager Pro</span>
       <span class="brand-sub">Industrial Logistics</span>
@@ -25,7 +25,7 @@
 
   <div class="main-area">
     <!-- Top bar -->
-    <header class="topbar">
+    <header class="topbar" *ngIf="!isLoginPage">
       <div class="topbar-left">
         <button class="mobile-menu-btn" (click)="mobileNavOpen = !mobileNavOpen" type="button">
           <mat-icon>menu</mat-icon>
@@ -43,12 +43,19 @@
       </div>
       <div class="topbar-right">
         <span class="env-badge label-caps" *ngIf="enablePythonTest">Python / Ollama</span>
-        <mat-icon class="account-icon">account_circle</mat-icon>
+        <span class="user-chip" *ngIf="user" title="{{ user.username }}">
+          <mat-icon>account_circle</mat-icon>
+          <span class="user-name">{{ displayName() }}</span>
+        </span>
+        <button class="btn-secondary logout-btn" type="button" (click)="logout()" *ngIf="user">
+          <mat-icon>logout</mat-icon>
+          Déconnexion
+        </button>
       </div>
     </header>
 
     <!-- Mobile nav overlay -->
-    <nav class="mobile-nav" [class.open]="mobileNavOpen">
+    <nav class="mobile-nav" *ngIf="!isLoginPage" [class.open]="mobileNavOpen">
       <a *ngFor="let item of navItems"
          [routerLink]="item.path"
          routerLinkActive="active"
@@ -59,8 +66,9 @@
       </a>
     </nav>
 
-  <main class="page-content">
-    <router-outlet></router-outlet>
-  </main>
+    <!-- Single outlet always present -->
+    <main class="page-content" [class.login-outlet]="isLoginPage">
+      <router-outlet></router-outlet>
+    </main>
   </div>
 </div>

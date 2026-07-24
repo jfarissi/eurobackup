@@ -35,6 +35,8 @@ public sealed class ScenarioExpect
     public decimal? WallAreaMin { get; set; }
     public string? GuidedIntent { get; set; }
     public bool? ProjectBaseComplete { get; set; }
+    /// <summary>True si structure + liant + ferraillage + outillage sont dans le panier.</summary>
+    public bool? WallGuideComplete { get; set; }
     public List<string>? ReplyMustContain { get; set; }
     /// <summary>Fragments interdits dans la réponse C# déterministe (pas le LLM).</summary>
     public List<string>? ReplyMustNotContain { get; set; }

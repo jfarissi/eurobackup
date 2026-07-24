@@ -4,6 +4,8 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { filter } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../services/auth.service';
+import { AuthUser } from '../../models/auth';
 
 interface NavItem {
   path: string;
@@ -41,6 +43,8 @@ const PYTHON_TEST_NAV_ITEM: NavItem = {
 })
 export class NavbarComponent {
   mobileNavOpen = false;
+  isLoginPage = false;
+  user: AuthUser | null = null;
   readonly enablePythonTest = environment.enablePythonTest;
   readonly mainNavItems = MAIN_NAV_ITEMS;
   readonly navItems: NavItem[] = environment.enablePythonTest
@@ -49,12 +53,29 @@ export class NavbarComponent {
 
   pageTitle = 'Gestion Documents';
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private auth: AuthService
+  ) {
+    this.auth.user$.subscribe(u => this.user = u);
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       this.updateTitle();
       this.mobileNavOpen = false;
+      this.isLoginPage = this.router.url.startsWith('/login');
     });
     this.updateTitle();
+    this.isLoginPage = this.router.url.startsWith('/login');
+  }
+
+  logout(): void {
+    this.auth.logout();
+    void this.router.navigate(['/login']);
+  }
+
+  displayName(): string {
+    if (!this.user) return '';
+    const name = [this.user.firstName, this.user.lastName].filter(Boolean).join(' ');
+    return name || this.user.username;
   }
 
   private updateTitle(): void {

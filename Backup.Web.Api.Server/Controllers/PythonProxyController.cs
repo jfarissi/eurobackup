@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using Backup.Web.Api.Server.Services.Documents.Python;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -8,6 +9,7 @@ namespace Backup.Web.Api.Server.Controllers
     /// <summary>
     /// Reverse proxy vers le service Python FastAPI (dev / tests Angular).
     /// </summary>
+    [Authorize]
     [ApiController]
     [Route("api/python")]
     [DisableRequestSizeLimit]

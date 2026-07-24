@@ -1,9 +1,11 @@
 using Backup.Web.Api.Server.Brokers.Storage;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RESTFulSense.Controllers;
 
 namespace Backup.Web.Api.Server.Controllers
 {
+	[Authorize]
 	[ApiController]
 	[Route("api/[controller]")]
 	public class StockController : RESTFulController

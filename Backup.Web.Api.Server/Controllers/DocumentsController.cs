@@ -1,6 +1,7 @@
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Services;
 using Backup.Web.Api.Server.Services.Documents;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RESTFulSense.Controllers;
 using QuestPDF.Fluent;
@@ -10,6 +11,7 @@ using MySqlConnector;
 
 namespace Backup.Web.Api.Server.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class DocumentsController : RESTFulController
