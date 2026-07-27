@@ -1,0 +1,16 @@
+{
+  "id": "winkel-oud",
+  "title": "Winkel (oud) — ancien stock / déstockage",
+  "mainType": "Winkel (oud)",
+  "mainTypeId": "6",
+  "expectedCategoryHints": ["Winkel (oud)", "uitverkoop"],
+  "forbiddenProductHints": [],
+  "turns": [
+    {
+      "user": "avez-vous des articles en déstockage ou ancien stock ?",
+      "expect": {
+        "categoryMustMatchAny": ["oud", "uitverkoop", "Winkel", "promo", "déstock"]
+      }
+    }
+  ]
+}

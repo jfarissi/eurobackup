@@ -1,5 +1,6 @@
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Services.SalesAssistant;
+using Backup.Web.Api.Server.Services.SalesAssistant.Guides;
 using Backup.Web.Api.Server.Services.StoreChat;
 using Moq;
 
@@ -88,15 +89,26 @@ public class ScenarioDeterministicTests
                 Assert.Equal(expect.WallGuideFamily, family.ToString());
             }
 
+            if (!string.IsNullOrWhiteSpace(expect.GuideStepId)
+                && ProjectGuides.TryGet(session, out var stepGuide)
+                && stepGuide is not null)
+            {
+                var step = stepGuide.ResolveNext(session, turn.User);
+                Assert.Equal(expect.GuideStepId, step.Id);
+            }
+
             if (expect.ProjectBaseComplete == true)
             {
                 Assert.True(SalesComplementRules.IsBaseComplete(session),
                     $"[{id}] base chantier attendue complète");
             }
 
-            if (expect.WallGuideComplete is bool wantComplete)
+            if (expect.GuideComplete is bool wantGuide || expect.WallGuideComplete is bool wantWall)
             {
-                Assert.Equal(wantComplete, SalesProjectGuide.IsWallGuideComplete(session));
+                var wantComplete = expect.GuideComplete ?? expect.WallGuideComplete!.Value;
+                Assert.Equal(wantComplete, ProjectGuides.IsComplete(session));
+                if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                    Assert.Equal(wantComplete, SalesProjectGuide.IsWallGuideComplete(session));
             }
 
             if (!string.IsNullOrWhiteSpace(expect.GuidedIntent))
@@ -148,11 +160,11 @@ public class ScenarioDeterministicTests
         if (!string.IsNullOrWhiteSpace(calc))
             parts.Add(calc);
 
-        if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+        if (ProjectGuides.TryGet(session, out var guide) && guide is not null)
         {
-            var family = SalesProjectGuide.ResolveWallFamily(session, userText);
-            parts.Add(SalesProjectGuide.BuildWallChecklist(session, family));
-            parts.Add($"Étape « {SalesProjectGuide.FocusLabel(family)} »");
+            var focus = guide.ResolveNext(session, userText);
+            parts.Add(guide.BuildChecklist(session, focus));
+            parts.Add($"Étape « {guide.FocusLabel(focus)} »");
         }
 
         if (guided.Intent == GuidedSalesIntent.Tips)
@@ -190,6 +202,45 @@ public class ScenarioDeterministicTests
 
         Assert.True(missing.Count == 0,
             "MainTypes sans scénario : " + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void Paint_dutch_schilderen_detects_painting_domain()
+    {
+        var detector = new SalesContextDetector(new Mock<IStorageBroker>().Object);
+        var session = new StoreChatSession();
+        var text = "Ik wil mijn muur schilderen, die 7 meter lang en 2 meter hoog is.";
+        detector.DetectDomain(session, text);
+        Assert.Equal("painting", session.ActiveProjectDomainId);
+        Assert.True(SalesContextDetector.LooksLikePaintProject(text));
+        detector.ParsePaintSurfaces(session, text);
+        Assert.Equal(14m, session.PaintAreaM2);
+    }
+
+    [Fact]
+    public void Paint_single_wall_dutch_is_LxH()
+    {
+        var detector = new SalesContextDetector(new Mock<IStorageBroker>().Object);
+        var session = new StoreChatSession
+        {
+            ActiveProjectDomainId = "painting",
+            PaintAreaM2 = 56, // ancienne session FR
+            ProjectTypeHint = "pièce ≈ 56 m²"
+        };
+        detector.ParsePaintSurfaces(session,
+            "Ik wil mijn muur schilderen, die 7 meter lang en 2 meter hoog is.");
+        Assert.Equal(14m, session.PaintAreaM2);
+        Assert.Contains("mur", session.ProjectTypeHint ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Paint_single_wall_is_LxH_not_four_walls()
+    {
+        var detector = new SalesContextDetector(new Mock<IStorageBroker>().Object);
+        var session = new StoreChatSession { ActiveProjectDomainId = "painting" };
+        detector.ParsePaintSurfaces(session, "je veux peindre mon mure de 7m de longueur et 2m de hauteur");
+        Assert.Equal(14m, session.PaintAreaM2);
+        Assert.Contains("mur", session.ProjectTypeHint ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

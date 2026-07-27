@@ -50,12 +50,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
     {
         public GuidedSalesSlots Detect(string text, StoreChatSession session)
         {
-            var lower = (text ?? string.Empty).ToLowerInvariant();
+            var safeText = text ?? string.Empty;
+            var lower = safeText.ToLowerInvariant();
             var slots = new GuidedSalesSlots();
 
             DetectSkill(lower, slots, session);
             DetectBudget(lower, slots, session);
             DetectCustomer(lower, session);
+
+            // Affinage éclairage en cours → forcer la recherche produit (sauf CTA commerce déjà gérés ailleurs).
+            if (session.AwaitingCatalogRefine)
+            {
+                slots.Intent = GuidedSalesIntent.None;
+                return slots;
+            }
 
             if (IsResume(lower))
                 slots.Intent = GuidedSalesIntent.ResumeProject;
@@ -68,7 +76,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.DirectComplement;
                 slots.DirectComplementHint = complementHint;
             }
-            else if (SalesComplementRules.TryOverrideIntent(text, session) is GuidedSalesIntent contextual)
+            else if (SalesComplementRules.TryOverrideIntent(safeText, session) is GuidedSalesIntent contextual)
             {
                 // Contexte métier (base panier complète + suite) → CartComplements, avant MoreProducts.
                 slots.Intent = contextual;
@@ -103,7 +111,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 slots.Intent = GuidedSalesIntent.Style;
 
             // Filet : MoreProducts alors que la base chantier est complète → compléments.
-            if (SalesComplementRules.ShouldRedirectMoreProductsToComplements(slots.Intent, text, session))
+            if (SalesComplementRules.ShouldRedirectMoreProductsToComplements(slots.Intent, safeText, session))
                 slots.Intent = GuidedSalesIntent.CartComplements;
 
             // Suite mur après base : rester sur le parcours (treillis → outils), pas le mode texte compléments.
@@ -117,7 +125,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             // Mur incomplet : « autres produits » → recherche famille suivante (ciment…), pas plus de briques.
             if (slots.Intent == GuidedSalesIntent.MoreProducts
-                && SalesProjectGuide.ShouldAdvanceIncompleteWall(text, session))
+                && SalesProjectGuide.ShouldAdvanceIncompleteWall(safeText, session))
             {
                 slots.Intent = GuidedSalesIntent.None;
             }

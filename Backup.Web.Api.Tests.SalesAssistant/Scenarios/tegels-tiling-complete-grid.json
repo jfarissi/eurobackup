@@ -1,0 +1,59 @@
+{
+  "id": "tegels-tiling-complete-grid",
+  "title": "Tegels — grille parcours carrelage",
+  "mainType": "Tegels",
+  "mainTypeId": "11",
+  "domainId": "tiling",
+  "notes": "Carreaux → colle → joint → primaire.",
+  "turns": [
+    {
+      "user": "autres ?",
+      "cartBefore": ["Carrelage grès 30x30"],
+      "expect": {
+        "domainId": "tiling",
+        "guideStepId": "adhesive",
+        "guideComplete": false,
+        "replyMustContain": [
+          "2. Colle carrelage",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "et ensuite",
+      "cartBefore": [
+        "Carrelage grès 30x30",
+        "Colle carrelage tegellijm 25kg"
+      ],
+      "expect": {
+        "domainId": "tiling",
+        "guideStepId": "grout",
+        "guideComplete": false,
+        "replyMustContain": [
+          "3. Joint",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "c'est bon pour le panier ?",
+      "cartBefore": [
+        "Carrelage tegel",
+        "Colle carrelage tegellijm",
+        "Voegmiddel joint",
+        "Primaire primer voorstrijk"
+      ],
+      "expect": {
+        "domainId": "tiling",
+        "guidedIntent": "Tips",
+        "guideComplete": true,
+        "replyMustContain": [
+          "Parcours complet"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    }
+  ]
+}

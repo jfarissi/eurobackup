@@ -211,13 +211,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ActionType = "QUOTE_PDF",
                 QuotePdf = pdf,
                 ActiveProjectDomainId = session.ActiveProjectDomainId,
-                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel),
                 SalesProjectId = session.ActiveSalesProjectId,
                 Logistics = logistics,
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
                 ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
+                WallGuideComplete = Guides.ProjectGuides.IsComplete(session),
+                GuideComplete = Guides.ProjectGuides.IsComplete(session)
             };
         }
 
@@ -245,44 +246,62 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (_stripe.IsEnabled)
             {
-                var link = await _stripe.CreateCheckoutAsync(
-                    order.Id,
-                    session.Cart,
-                    session.SessionId,
-                    session.ReturnBaseUrl,
-                    ct);
-                if (link != null)
+                // Stripe refuse unit_amount = 0 ; ne payer que les lignes tarifées.
+                var payable = session.Cart.Where(c => c.UnitPrice > 0m && c.TotalPrice > 0m).ToList();
+                if (payable.Count == 0)
                 {
-                    order.StripeSessionId = link.Source;
-                    await _storage.UpdateStoreChatOrderAsync(order);
-                    _sessions.Save(session);
-
-                    return new StoreChatResponseDto
+                    _logger.LogInformation(
+                        "Order {OrderId} has no payable lines — demo confirm without Stripe",
+                        order.Id);
+                }
+                else
+                {
+                    var link = await _stripe.CreateCheckoutAsync(
+                        order.Id,
+                        payable,
+                        session.SessionId,
+                        session.ReturnBaseUrl,
+                        ct);
+                    if (link != null)
                     {
-                        SessionId = session.SessionId,
-                        ReplyText = $"Commande créée ({order.TotalAmount:N2} €). Payez par carte pour finaliser.",
-                        HasAction = true,
-                        ActionType = "PAYMENT_LINK",
-                        PaymentLink = new StoreChatPaymentLinkDto
+                        order.StripeSessionId = link.Source;
+                        await _storage.UpdateStoreChatOrderAsync(order);
+                        _sessions.Save(session);
+
+                        return new StoreChatResponseDto
                         {
-                            Url = link.Url,
-                            Amount = link.Amount,
-                            Description = link.Description,
-                            OrderId = link.OrderId,
-                            Source = "stripe",
-                            SourceLabel = link.SourceLabel
-                        },
-                        ActiveProjectDomainId = session.ActiveProjectDomainId,
-                        ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
-                        WorkflowState = session.WorkflowState.ToString(),
-                        ProjectSummary = session.Project.SummaryLine(),
-                        ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
-                    };
+                            SessionId = session.SessionId,
+                            ReplyText = $"Commande créée ({order.TotalAmount:N2} €). Redirection vers le paiement…",
+                            HasAction = true,
+                            ActionType = "PAYMENT_LINK",
+                            PaymentLink = new StoreChatPaymentLinkDto
+                            {
+                                Url = link.Url,
+                                Amount = link.Amount,
+                                Description = link.Description,
+                                OrderId = link.OrderId,
+                                Source = "stripe",
+                                SourceLabel = link.SourceLabel
+                            },
+                            ActiveProjectDomainId = session.ActiveProjectDomainId,
+                            ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel),
+                            WorkflowState = session.WorkflowState.ToString(),
+                            ProjectSummary = session.Project.SummaryLine(),
+                            ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+                            WallGuideComplete = Guides.ProjectGuides.IsComplete(session),
+                            GuideComplete = Guides.ProjectGuides.IsComplete(session)
+                        };
+                    }
+
+                    _logger.LogWarning("Stripe checkout failed for order {OrderId} — no demo fallback while Stripe is enabled", order.Id);
+                    _sessions.Save(session);
+                    return Ok(session,
+                        "Impossible d'ouvrir le paiement Stripe. Vérifiez la configuration ou réessayez.",
+                        "NONE");
                 }
             }
 
-            // Mode démo sans Stripe : confirme directement et génère facture.
+            // Mode démo sans Stripe (ou panier gratuit) : confirme directement et génère facture.
             _logger.LogInformation("Order {OrderId} created without Stripe — demo confirm", order.Id);
             var confirmed = await ConfirmPaymentAsync(order.Id, null, ct);
             _sessions.Save(session);
@@ -295,11 +314,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ActionType = "INVOICE_PDF",
                 QuotePdf = confirmed?.InvoicePdf,
                 ActiveProjectDomainId = session.ActiveProjectDomainId,
-                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel),
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
                 ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
+                WallGuideComplete = Guides.ProjectGuides.IsComplete(session),
+                GuideComplete = Guides.ProjectGuides.IsComplete(session)
             };
         }
 
@@ -447,11 +467,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                         && !string.Equals(actionType, "WORKFLOW_DENIED", StringComparison.OrdinalIgnoreCase),
             ActionType = actionType,
             ActiveProjectDomainId = session.ActiveProjectDomainId,
-            ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+            ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel),
             WorkflowState = session.WorkflowState.ToString(),
             ProjectSummary = session.Project.SummaryLine(),
             ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
+                WallGuideComplete = Guides.ProjectGuides.IsComplete(session),
+                GuideComplete = Guides.ProjectGuides.IsComplete(session)
         };
 
         private static string FormatProductDisplayName(string? name, string? name2, string? reference, int id)

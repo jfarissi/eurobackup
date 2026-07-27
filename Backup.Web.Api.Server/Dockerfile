@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1
 
 FROM node:22-alpine AS angular-build
+ARG CHATBOT_PUBLIC_URL=http://euro13:81
 WORKDIR /src
 COPY backup.web.api.client/package.json backup.web.api.client/package-lock.json* ./
 RUN npm ci
 COPY backup.web.api.client/ ./
+RUN sed -i "s|CHATBOT_PUBLIC_URL_PLACEHOLDER|${CHATBOT_PUBLIC_URL}|g" src/environments/environment.prod.ts
 RUN npm run build -- --configuration production
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build

@@ -154,8 +154,51 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             // Marque demandée → ne jamais basculer en mode mur (évite Silka/Coeck pour « Knauf ciment »).
             var wallMode = !brandMode
                 && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase);
+            var paintTileGuideMode = !brandMode
+                && (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(session.ActiveProjectDomainId, "tiling", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(session.ActiveProjectDomainId, "roofing", StringComparison.OrdinalIgnoreCase));
+
+            Guides.IProjectGuide? paintTileGuide = null;
+            Guides.ProjectGuideStep? paintTileFocus = null;
+            if (paintTileGuideMode && Guides.ProjectGuides.TryGet(session, out paintTileGuide) && paintTileGuide is not null)
+            {
+                paintTileFocus = paintTileGuide.ResolveNext(session, text, meta);
+                meta.GuideStepId = paintTileFocus.Id;
+                foreach (var hint in paintTileFocus.TypeHints)
+                {
+                    if (!meta.TypeHints.Contains(hint, StringComparer.OrdinalIgnoreCase))
+                        meta.TypeHints.Add(hint);
+                }
+            }
 
             var terms = BuildSearchTerms(text, session, brandMode);
+            if (!brandMode
+                && (IsLightingQuery(text)
+                    || meta.TypeHints.Any(h => h.Contains("ampoule", StringComparison.OrdinalIgnoreCase)
+                                               || h.Contains("lampe", StringComparison.OrdinalIgnoreCase))
+                    || session.SearchTypeHints.Any(h => h.Contains("ampoule", StringComparison.OrdinalIgnoreCase)
+                                                        || h.Contains("lampe", StringComparison.OrdinalIgnoreCase))))
+            {
+                foreach (var t in new[]
+                         {
+                             "ampoule", "ampoules", "lampe", "lampes", "e27", "e14", "gu10",
+                             "gloeilamp", "bulb"
+                         })
+                {
+                    if (!terms.Contains(t, StringComparer.OrdinalIgnoreCase))
+                        terms.Add(t);
+                }
+            }
+            if (paintTileFocus is not null)
+            {
+                foreach (var hint in paintTileFocus.TypeHints)
+                {
+                    if (!terms.Contains(hint, StringComparer.OrdinalIgnoreCase))
+                        terms.Add(hint);
+                }
+            }
+
             var scores = new Dictionary<int, ScoredProduct>();
 
             if (brandMode)
@@ -175,16 +218,30 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 if (wallMode)
                     await EnrichWallCatalogCandidatesAsync(scores, ct);
 
-                if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase))
+                // Peinture murale : enrichir SEULEMENT à l'étape « paint » (pas primer/rouleau/ruban).
+                if (string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase)
+                    && (paintTileFocus is null || paintTileFocus.Id == "paint"))
                     await EnrichPaintingWallPaintCandidatesAsync(scores, ct);
+
+                if (paintTileFocus is not null
+                    && string.Equals(session.ActiveProjectDomainId, "painting", StringComparison.OrdinalIgnoreCase))
+                    await EnrichPaintingStepCandidatesAsync(scores, paintTileFocus.Id, ct);
             }
 
             if (scores.Count == 0)
                 return new List<StoreChatProductSuggestionDto>();
 
             ApplyGardenIntentFilter(scores, session.ActiveProjectDomainId);
-            ApplyLightingIntentFilter(scores, text);
-            ApplyPaintingIntentFilter(scores, session.ActiveProjectDomainId);
+            var lightingIntent = IsLightingQuery(text)
+                || meta.TypeHints.Any(h => h.Contains("ampoule", StringComparison.OrdinalIgnoreCase)
+                                           || h.Contains("lampe", StringComparison.OrdinalIgnoreCase))
+                || session.SearchTypeHints.Any(h => h.Contains("ampoule", StringComparison.OrdinalIgnoreCase)
+                                                    || h.Contains("lampe", StringComparison.OrdinalIgnoreCase));
+            ApplyLightingIntentFilter(
+                scores,
+                lightingIntent ? (IsLightingQuery(text) ? text : "lampe e27 ampoule") : text,
+                session);
+            ApplyPaintingIntentFilter(scores, session.ActiveProjectDomainId, paintTileFocus?.Id);
             ApplyRoofingIntentFilter(scores, session.ActiveProjectDomainId);
             DemoteClearanceNoise(scores, session.ActiveProjectDomainId);
 
@@ -306,6 +363,28 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     _ => BuildWallStructureSelection(classified, Math.Max(12, _options.MaxProductResults))
                 };
                 } // fin parcours mur non terminé
+
+                meta.Outcome = ProductSearchOutcome.Domain;
+            }
+            else if (paintTileGuideMode && paintTileGuide is not null && paintTileFocus is not null)
+            {
+                if (paintTileGuide.IsComplete(session))
+                {
+                    ranked = Array.Empty<ScoredProduct>();
+                }
+                else
+                {
+                    var hints = paintTileFocus.TypeHints.Length > 0
+                        ? paintTileFocus.TypeHints.ToList()
+                        : meta.TypeHints;
+                    var typed = scores.Values
+                        .Where(p => MatchesPaintOrTileGuideStep(p, session.ActiveProjectDomainId, paintTileFocus.Id, hints))
+                        .OrderByDescending(p => p.Score + TypeExactBoost(p, hints))
+                        .ThenBy(p => p.Name)
+                        .ToList();
+                    // Pas de fallback « tout le domaine » : sinon étape ruban → peintures.
+                    ranked = typed;
+                }
 
                 meta.Outcome = ProductSearchOutcome.Domain;
             }
@@ -1057,26 +1136,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         }
 
         private string? BuildProductImageUrl(string? picName)
-        {
-            if (string.IsNullOrWhiteSpace(picName))
-                return null;
-
-            var file = picName.Trim().Replace('\\', '/');
-            if (file.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || file.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                return file;
-            }
-
-            var baseUrl = (_erpOptions.ImageBaseUrl ?? string.Empty).TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl))
-                return null;
-
-            while (file.StartsWith('/'))
-                file = file[1..];
-
-            return $"{baseUrl}/{file}";
-        }
+            => ErpProductImageUrls.ToProxyUrl(picName);
 
         private static List<string> BuildSearchTerms(string text, StoreChatSession session, bool brandMode)
         {
@@ -1110,12 +1170,21 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     foreach (var t in new[]
                              {
                                  "ampoule", "ampoules", "lampe", "lampes", "lamp", "bulb",
-                                 "gloeilamp", "spaarlamp", "lampje", "led"
+                                 "gloeilamp", "spaarlamp", "lampje", "led",
+                                 "e27", "e14", "gu10"
                              })
                         terms.Add(t);
                 }
+
+                foreach (var h in session.CatalogRefineHints)
+                {
+                    if (!string.IsNullOrWhiteSpace(h))
+                        terms.Add(h.Trim());
+                }
             }
-            else if (!string.IsNullOrWhiteSpace(session.PreferredBrand))
+            else if (!string.IsNullOrWhiteSpace(session.PreferredBrand)
+                     && !(IsLightingQuery(text)
+                          && text.IndexOf(session.PreferredBrand, StringComparison.OrdinalIgnoreCase) < 0))
             {
                 terms.Add(session.PreferredBrand);
             }
@@ -1124,7 +1193,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                          StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 var token = raw.Trim().ToLowerInvariant();
-                if (token.Length < 3 || SalesMaterialLexicon.StopWords.Contains(token) || token.Any(char.IsDigit))
+                if (token.Length < 3 || SalesMaterialLexicon.StopWords.Contains(token))
+                    continue;
+                // Garder les culots (e27…) ; ignorer les autres tokens numériques.
+                var isSocket = token is "e27" or "e14" or "gu10" or "gu5.3" or "mr16";
+                if (!isSocket && token.Any(char.IsDigit))
                     continue;
                 if (token is "bloc" or "block" or "blocks")
                     continue;
@@ -1173,6 +1246,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             return terms.Take(24).ToList();
         }
+
+        /// <summary>Exposé pour BuildSearchMeta / filtres hors catalogue.</summary>
+        public static bool IsLightingQueryPublic(string text) => IsLightingQuery(text);
 
         private static bool IsLightingQuery(string text)
         {
@@ -1335,10 +1411,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             domainId is "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
 
         /// <summary>Peinture maison : muurverf / latex — pas Hammerite métal / antirouille.</summary>
-        private static void ApplyPaintingIntentFilter(Dictionary<int, ScoredProduct> scores, string? domainId)
+        private static void ApplyPaintingIntentFilter(
+            Dictionary<int, ScoredProduct> scores,
+            string? domainId,
+            string? guideStepId = null)
         {
             if (!string.Equals(domainId, "painting", StringComparison.OrdinalIgnoreCase) || scores.Count == 0)
                 return;
+
+            var step = guideStepId ?? "paint";
 
             foreach (var p in scores.Values.ToList())
             {
@@ -1349,13 +1430,168 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     continue;
                 }
 
-                if (ContainsAny(hay, "muurverf", "latexverf", "acrylverf", "latex ", "muur verf"))
-                    p.Score += 18;
-                else if (ContainsAny(hay, "kwast", "pinceau", "verfroller", "verfborstel", "roller"))
-                    p.Score += 6;
-                else if (ContainsAny(hay, "verf") && !ContainsAny(hay, "hammerite", "antiroest", "metaal"))
-                    p.Score += 2;
+                // Gants / EPI latex ≠ peinture.
+                if (ContainsAny(hay, "handschoen", "gant", "gloves", "huishoud"))
+                {
+                    scores.Remove(p.Id);
+                    continue;
+                }
+
+                switch (step)
+                {
+                    case "primer":
+                        // Strict : pas de laque / finition (ex. Duol Brillant) dans l'étape primaire.
+                        if (!IsPrimerProduct(hay) || IsPaintRollerOrBrushNoise(hay) || IsMaskingTapeProduct(hay))
+                            scores.Remove(p.Id);
+                        else
+                            p.Score += 22;
+                        break;
+                    case "roller":
+                        if (IsWallPaintProduct(hay) || IsPrimerOnlyProduct(hay) || IsMaskingTapeProduct(hay))
+                            scores.Remove(p.Id);
+                        else if (IsPaintRollerOrBrushProduct(hay))
+                            p.Score += 22;
+                        break;
+                    case "tape":
+                        if (IsWallPaintProduct(hay) || IsPrimerProduct(hay) || IsPaintRollerOrBrushProduct(hay))
+                            scores.Remove(p.Id);
+                        else if (IsMaskingTapeProduct(hay))
+                            p.Score += 22;
+                        break;
+                    default:
+                        if (ContainsAny(hay, "muurverf", "latexverf", "acrylverf", "latex muur", "muur verf"))
+                            p.Score += 18;
+                        else if (ContainsAny(hay, "kwast", "pinceau", "verfroller", "verfborstel", "roller"))
+                            p.Score += 6;
+                        else if (ContainsAny(hay, "verf") && !ContainsAny(hay, "hammerite", "antiroest", "metaal"))
+                            p.Score += 2;
+                        break;
+                }
             }
+        }
+
+        private static bool MatchesPaintOrTileGuideStep(
+            ScoredProduct p,
+            string? domainId,
+            string stepId,
+            IReadOnlyList<string> hints)
+        {
+            var hay = $"{p.Name} {p.Name2} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}"
+                .ToLowerInvariant();
+
+            if (string.Equals(domainId, "painting", StringComparison.OrdinalIgnoreCase))
+            {
+                return stepId switch
+                {
+                    "primer" => IsPrimerProduct(hay),
+                    "roller" => IsPaintRollerOrBrushProduct(hay),
+                    "tape" => IsMaskingTapeProduct(hay),
+                    _ => IsWallPaintProduct(hay) || MatchesTypeHints(p, hints)
+                };
+            }
+
+            if (string.Equals(domainId, "roofing", StringComparison.OrdinalIgnoreCase))
+            {
+                return stepId switch
+                {
+                    "fixings" => IsRoofingFixingsProduct(hay),
+                    "gutter" => IsRoofingGutterProduct(hay),
+                    _ => IsRoofingCoverProduct(hay)
+                };
+            }
+
+            return MatchesTypeHints(p, hints);
+        }
+
+        private static bool IsRoofingToolNoise(string hay) =>
+            ContainsAny(hay,
+                "diamantschijf", "diamant", "disque", "slijpschijf", "doorslijp",
+                "tronçon", "troncon", "disque à", "disque a", "outil", "outils",
+                "leman, diamant", "diamantes");
+
+        private static bool IsRoofingUnderlayNoise(string hay) =>
+            ContainsAny(hay, "onderlaag", "onderdak", "sealbase", "superuno", "foliën dak", "folien dak");
+
+        private static bool IsRoofingCoverProduct(string hay) =>
+            !IsRoofingToolNoise(hay)
+            && !IsRoofingUnderlayNoise(hay)
+            && ContainsAny(hay,
+                "dakpannen", "dakpan", "dakpaneel", "gevelpan", "vorstpan", "tenord",
+                "waarborgpallet", "waarborgpalet",
+                "tuile", "tuiles", "ardoise", "leien", "dakplaat", "plaque toiture",
+                "shingle", "nokvorst", "edilians");
+
+        private static bool IsRoofingFixingsProduct(string hay) =>
+            !IsRoofingToolNoise(hay)
+            && !IsRoofingCoverProduct(hay)
+            && !IsRoofingUnderlayNoise(hay)
+            && ContainsAny(hay,
+                "crochet", "panhaak", "dakschroef", "vis toiture",
+                "panhaken", "dakhaak", "dakhaken", "fixation toiture", "fixations toiture",
+                "haak")
+            && !ContainsAny(hay, "schilderstape", "masking");
+
+        private static bool IsRoofingGutterProduct(string hay) =>
+            !IsRoofingToolNoise(hay)
+            && (ContainsAny(hay,
+                    "gouttière", "gouttiere", "dakgoot", "descente",
+                    "afvoer", "regenpijp", "hemelwater")
+                || (ContainsAny(hay, "goot") && ContainsAny(hay, "dak", "regen", "hemel")));
+
+        private static bool IsWallPaintProduct(string hay) =>
+            ContainsAny(hay,
+                "muurverf", "latexverf", "acrylverf", "binnenverf", "muur & plafond", "muur en plafond",
+                "formule 12", "muresko", "gevelverf")
+            || (ContainsAny(hay, "latex") && ContainsAny(hay, "verf", "paint", "peinture"))
+            || (ContainsAny(hay, "verf") && ContainsAny(hay, "mat", "satin", "blanc", "wit")
+                && !ContainsAny(hay, "primer", "grondverf", "roller", "kwast", "handschoen")
+                && !IsFinishCoatNoise(hay));
+
+        private static bool IsFinishCoatNoise(string hay) =>
+            ContainsAny(hay,
+                "lacquer", "laque", "briljant", "brillant", "vernis", "varnish",
+                "lakverf", "acryllak", "duol brillant", "duol briljant");
+
+        private static bool IsPrimerProduct(string hay) =>
+            ContainsAny(hay,
+                "primer", "grondverf", "voorstrijk", "sous-couche", "sous couche", "primaire",
+                "undercoat", "isoprim", "iso-prim", "iso prim")
+            && !IsPaintRollerOrBrushNoise(hay)
+            && !IsFinishCoatNoise(hay);
+
+        private static bool IsPrimerOnlyProduct(string hay) =>
+            IsPrimerProduct(hay) && !ContainsAny(hay, "muurverf", "latexverf");
+
+        private static bool IsPaintRollerOrBrushNoise(string hay) =>
+            ContainsAny(hay, "roller", "rouleau", "manchon", "beugel", "monture", "kwast", "pinceau", "borstel")
+            && !ContainsAny(hay, "primer muur", "grondverf");
+
+        private static bool IsPaintRollerOrBrushProduct(string hay) =>
+            ContainsAny(hay,
+                "verfroller", "paint roller", "manchon", "rouleau", "kwast", "pinceau", "verfborstel",
+                "beugel vr", "monture clip", "primer roller")
+            || (ContainsAny(hay, "roller") && ContainsAny(hay, "rol", "180", "250", "verf"));
+
+        private static bool IsMaskingTapeProduct(string hay) =>
+            ContainsAny(hay,
+                "schilderstape", "masking tape", "afplaktape", "malertape", "maskeertape",
+                "ruban de masquage", "ruban masquage", "painter's tape", "painters tape",
+                "afplakband", "masking");
+
+        private async Task EnrichPaintingStepCandidatesAsync(
+            Dictionary<int, ScoredProduct> scores,
+            string stepId,
+            CancellationToken ct)
+        {
+            string[] terms = stepId switch
+            {
+                "primer" => ["primer", "grondverf", "voorstrijk", "primaire"],
+                "roller" => ["verfroller", "manchon", "rouleau", "kwast", "pinceau"],
+                "tape" => ["schilderstape", "afplaktape", "masking tape", "malertape", "afplakband"],
+                _ => []
+            };
+            foreach (var term in terms)
+                await AccumulateSearchTermAsync(scores, term, ct);
         }
 
         private static bool IsMetalOrSpecialtyPaintNoise(string hay) =>
@@ -1438,33 +1674,147 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         }
 
         /// <summary>« ampoules » ne doit pas remonter des Wire Stripper via le domaine Électricité.</summary>
-        private static void ApplyLightingIntentFilter(Dictionary<int, ScoredProduct> scores, string text)
+        private static void ApplyLightingIntentFilter(
+            Dictionary<int, ScoredProduct> scores,
+            string text,
+            StoreChatSession session)
         {
-            if (!IsLightingQuery(text) || scores.Count == 0)
+            if ((!IsLightingQuery(text) && session.CatalogRefineHints.Count == 0
+                 && session.SkuConstraints?.Socket is null) || scores.Count == 0)
                 return;
+
+            var socket = session.SkuConstraints?.Socket
+                         ?? (ContainsIgnoreCase(text, "e27") ? "e27"
+                             : ContainsIgnoreCase(text, "e14") ? "e14"
+                             : ContainsIgnoreCase(text, "gu10") ? "gu10"
+                             : null);
+            var skuAmpoule = SalesMission.IsSimpleSku(session)
+                             || string.Equals(session.SkuConstraints?.ProductKind, "ampoule", StringComparison.OrdinalIgnoreCase);
 
             var noise = new[]
             {
                 "wire strip", "stripper", "dénudeur", "denudeur", "dégainer", "degainer",
-                "outil à dégainer", "outil a degainer"
+                "outil à dégainer", "outil a degainer",
+                // Profils / rubans ≠ ampoules E27.
+                "led-strip", "led strip", "ledstrip", "leddle", "hoekprofiel", "led-strip profiel",
+                "strip profiel", "strip profile", "bande led", "ledband", "aluminium led-strip",
+                "profiel opbouw", "profiel inbouw", "profiel voor gips"
             };
+
+            // Mission ampoule + culot : exclure appliques / spots / autres culots.
+            if (skuAmpoule)
+            {
+                noise = noise.Concat(new[]
+                {
+                    "wandlamp", "wand lamp", "applique", "plafondlamp", "plafond lamp",
+                    "inbouwspot", "inbouw spot", "spot ", "spots", "armatuur", "luminaire"
+                }).ToArray();
+            }
+
             var boost = new[]
             {
                 "ampoule", "lampe", "lamp", "bulb", "gloeilamp", "spaarlamp", "lampje",
-                "e27", "e14", "gu10", "led"
+                "bulbe", "ledlamp", "led-gloeilamp", "culot", "fitting"
             };
+            if (!string.IsNullOrWhiteSpace(socket))
+                boost = boost.Append(socket!).ToArray();
+
+            var refineHints = session.CatalogRefineHints
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Select(h => h.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToList();
+            if (!string.IsNullOrWhiteSpace(session.SkuConstraints?.Kelvin)
+                && !refineHints.Any(h => h.Contains(session.SkuConstraints!.Kelvin!)))
+                refineHints.Add(session.SkuConstraints!.Kelvin + "k");
+
+            var kelvinHints = refineHints
+                .Where(h => h.Contains("2700") || h.Contains("4000") || h.Contains("6500"))
+                .Select(h => Regex.Match(h, @"\d{4}").Value)
+                .Where(v => v.Length == 4)
+                .Distinct()
+                .ToList();
+            var wattHints = refineHints
+                .Where(h => Regex.IsMatch(h, @"^\d{1,2}w$"))
+                .Select(h => h.TrimEnd('w', 'W'))
+                .Distinct()
+                .ToList();
 
             foreach (var p in scores.Values.ToList())
             {
-                var hay = $"{p.Name} {p.Name2} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
+                var hay = $"{p.Name} {p.Name2} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}".ToLowerInvariant();
                 if (noise.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase)))
                 {
                     scores.Remove(p.Id);
                     continue;
                 }
 
+                // Culot imposé : exclure les autres sockets et exiger le culot demandé.
+                if (!string.IsNullOrWhiteSpace(socket))
+                {
+                    var otherSockets = new[] { "e27", "e14", "gu10", "gu5.3", "mr16" }
+                        .Where(s => !s.Equals(socket, StringComparison.OrdinalIgnoreCase));
+                    if (otherSockets.Any(s => hay.Contains(s, StringComparison.OrdinalIgnoreCase))
+                        && !hay.Contains(socket!, StringComparison.OrdinalIgnoreCase))
+                    {
+                        scores.Remove(p.Id);
+                        continue;
+                    }
+
+                    if (!hay.Contains(socket!, StringComparison.OrdinalIgnoreCase))
+                    {
+                        scores.Remove(p.Id);
+                        continue;
+                    }
+                }
+
                 if (boost.Any(b => hay.Contains(b, StringComparison.OrdinalIgnoreCase)))
-                    p.Score += 20;
+                    p.Score += 28;
+                else if (hay.Contains("led", StringComparison.OrdinalIgnoreCase)
+                         && !hay.Contains("strip", StringComparison.OrdinalIgnoreCase)
+                         && !hay.Contains("profiel", StringComparison.OrdinalIgnoreCase))
+                    p.Score += 12;
+
+                if (skuAmpoule
+                    && ContainsAny(hay, "gloeilamp", "ledlamp", "led-gloeilamp", "bulbe", "ampoule", "bulb"))
+                    p.Score += 35;
+
+                if (kelvinHints.Count > 0)
+                {
+                    if (kelvinHints.Any(k => hay.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                        p.Score += 40;
+                    else
+                        p.Score -= 25;
+                }
+
+                if (wattHints.Count > 0)
+                {
+                    if (wattHints.Any(w =>
+                            hay.Contains(w + "w", StringComparison.OrdinalIgnoreCase)
+                            || Regex.IsMatch(hay, $@"\b{Regex.Escape(w)}\s*w\b")))
+                        p.Score += 30;
+                }
+            }
+
+            // Si kelvin demandé : ne garder que les hits qui matchent quand il en reste assez.
+            if (kelvinHints.Count > 0)
+            {
+                var matched = scores.Values
+                    .Where(p =>
+                    {
+                        var hay = $"{p.Name} {p.Name2}".ToLowerInvariant();
+                        return kelvinHints.Any(k => hay.Contains(k, StringComparison.OrdinalIgnoreCase));
+                    })
+                    .ToList();
+                if (matched.Count >= 1)
+                {
+                    var keep = matched.Select(p => p.Id).ToHashSet();
+                    foreach (var id in scores.Keys.ToList())
+                    {
+                        if (!keep.Contains(id))
+                            scores.Remove(id);
+                    }
+                }
             }
         }
 
@@ -1478,19 +1828,21 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 var hay = $"{p.Name} {p.Name2} {p.Brand} {p.MainTypeName} {p.TypeName} {p.SubTypeName}"
                     .ToLowerInvariant();
 
-                // Bruit typique : disques / outils qui citent « matériaux » ou soldes Winkel (oud).
+                // Bruit typique : disques / outils qui citent « dakpan » ou soldes Winkel (oud).
                 if (ContainsAny(hay,
                         "tronçon", "troncon", "disque à", "disque a", "slijpschijf", "doorslijp",
-                        "ribimex", "ribimix", "winkel (oud)", "uitverkoop"))
+                        "diamantschijf", "diamant", "disque diamant", "outils diamantes",
+                        "ribimex", "ribimix", "winkel (oud)", "uitverkoop")
+                    || IsRoofingToolNoise(hay))
                 {
                     scores.Remove(p.Id);
                     continue;
                 }
 
-                if (ContainsAny(hay, "dakmaterialen", "dakpan", "dakpannen", "dakgoot", "goot",
+                if (ContainsAny(hay, "dakmaterialen", "dakpannen", "dakgoot", "goot",
                         "nokvorst", "onderdak", "skylux", "dakraam", "tuile", "goutti"))
                     p.Score += 22;
-                else if (ContainsAny(hay, "dak", "toiture", "roof"))
+                else if (ContainsAny(hay, "dak", "toiture", "roof") && !IsRoofingToolNoise(hay))
                     p.Score += 8;
             }
         }
@@ -1519,8 +1871,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     p.Score += 8;
 
                 if (domainId == "roofing"
+                    && !IsRoofingToolNoise(hay)
                     && (hay.Contains("dakmaterialen", StringComparison.OrdinalIgnoreCase)
-                        || hay.Contains("dakpan", StringComparison.OrdinalIgnoreCase)
+                        || hay.Contains("dakpannen", StringComparison.OrdinalIgnoreCase)
                         || hay.Contains("skylux", StringComparison.OrdinalIgnoreCase)))
                     p.Score += 10;
             }

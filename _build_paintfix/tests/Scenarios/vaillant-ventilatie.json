@@ -1,0 +1,16 @@
+{
+  "id": "vaillant-ventilatie",
+  "title": "Vaillant / Ventilatie — VMC / ventilation",
+  "mainType": "Vaillant / Ventilatie",
+  "mainTypeId": "33",
+  "expectedCategoryHints": ["Vaillant", "Ventilatie", "ventil"],
+  "forbiddenProductHints": ["porotherm"],
+  "turns": [
+    {
+      "user": "je cherche une ventilation Vaillant pour la salle de bain",
+      "expect": {
+        "categoryMustMatchAny": ["Vaillant", "ventil", "Ventilatie"]
+      }
+    }
+  ]
+}

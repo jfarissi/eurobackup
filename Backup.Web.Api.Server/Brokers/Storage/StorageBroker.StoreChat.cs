@@ -13,12 +13,17 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         IQueryable<StoreChatOrder> SelectAllStoreChatOrders();
         ValueTask<StoreChatOrder> InsertStoreChatOrderAsync(StoreChatOrder order);
         ValueTask<StoreChatOrder> UpdateStoreChatOrderAsync(StoreChatOrder order);
+
+        IQueryable<StoreChatTurn> SelectAllStoreChatTurns();
+        ValueTask<StoreChatTurn> InsertStoreChatTurnAsync(StoreChatTurn turn);
+        ValueTask<StoreChatTurn> UpdateStoreChatTurnAsync(StoreChatTurn turn);
     }
 
     public partial class StorageBroker
     {
         public DbSet<StoreChatQuote> StoreChatQuotes { get; set; } = null!;
         public DbSet<StoreChatOrder> StoreChatOrders { get; set; } = null!;
+        public DbSet<StoreChatTurn> StoreChatTurns { get; set; } = null!;
 
         public IQueryable<StoreChatQuote> SelectAllStoreChatQuotes() => this.StoreChatQuotes.AsQueryable();
 
@@ -41,6 +46,22 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public async ValueTask<StoreChatOrder> UpdateStoreChatOrderAsync(StoreChatOrder order)
         {
             var entry = this.StoreChatOrders.Update(order);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<StoreChatTurn> SelectAllStoreChatTurns() => this.StoreChatTurns.AsQueryable();
+
+        public async ValueTask<StoreChatTurn> InsertStoreChatTurnAsync(StoreChatTurn turn)
+        {
+            var entry = await this.StoreChatTurns.AddAsync(turn);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<StoreChatTurn> UpdateStoreChatTurnAsync(StoreChatTurn turn)
+        {
+            var entry = this.StoreChatTurns.Update(turn);
             await this.SaveChangesAsync();
             return entry.Entity;
         }

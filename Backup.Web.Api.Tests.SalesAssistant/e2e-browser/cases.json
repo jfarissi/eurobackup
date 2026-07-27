@@ -1,5 +1,19 @@
 [
   {
+    "id": "bouwmaterialen-wall-complete-grid",
+    "mainType": "Bouwmaterialen",
+    "title": "Bouwmaterialen — grille panier × phrasé (état d'abord, pas synonymes)",
+    "user": "autres ?",
+    "mustContainAny": [
+      "2. Ciment / mortier",
+      "← à choisir maintenant"
+    ],
+    "mustNotContain": [
+      "Parcours mur complet",
+      "gipsplaat"
+    ]
+  },
+  {
     "id": "bouwmaterialen-wall-guided",
     "mainType": "Bouwmaterialen",
     "title": "Bouwmaterialen — parcours mur guidé (structure → ciment → treillis → outils)",
@@ -112,6 +126,17 @@
       "snelbouw",
       "lijmblok"
     ]
+  },
+  {
+    "id": "garden-landscaping-complete-grid",
+    "mainType": "Gereedschap",
+    "title": "Jardin — grille parcours aménagement",
+    "user": "autres ?",
+    "mustContainAny": [
+      "2. Bordure",
+      "← à choisir maintenant"
+    ],
+    "mustNotContain": []
   },
   {
     "id": "gereedschap-outils",
@@ -316,6 +341,17 @@
     ]
   },
   {
+    "id": "tegels-tiling-complete-grid",
+    "mainType": "Tegels",
+    "title": "Tegels — grille parcours carrelage",
+    "user": "autres ?",
+    "mustContainAny": [
+      "2. Colle carrelage",
+      "← à choisir maintenant"
+    ],
+    "mustNotContain": []
+  },
+  {
     "id": "vaillant-ventilatie",
     "mainType": "Vaillant / Ventilatie",
     "title": "Vaillant / Ventilatie — VMC / ventilation",
@@ -327,6 +363,19 @@
     ],
     "mustNotContain": [
       "porotherm"
+    ]
+  },
+  {
+    "id": "verf-paint-complete-grid",
+    "mainType": "Verf",
+    "title": "Verf — grille parcours peinture (familles → complet)",
+    "user": "autres ?",
+    "mustContainAny": [
+      "2. Sous-couche",
+      "← à choisir maintenant"
+    ],
+    "mustNotContain": [
+      "Parcours complet"
     ]
   },
   {

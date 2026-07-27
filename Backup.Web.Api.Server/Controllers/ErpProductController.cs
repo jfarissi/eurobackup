@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using RESTFulSense.Controllers;
 
 namespace Backup.Web.Api.Server.Controllers
@@ -23,17 +25,53 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IErpProductSyncService _syncService;
         private readonly IErpExcelImportService _excelImport;
         private readonly IErpCatalogSyncService _catalogSync;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ErpSyncOptions _erpSyncOptions;
 
         public ErpProductController(
             IStorageBroker storage,
             IErpProductSyncService syncService,
             IErpExcelImportService excelImport,
-            IErpCatalogSyncService catalogSync)
+            IErpCatalogSyncService catalogSync,
+            IHttpClientFactory httpClientFactory,
+            IOptions<ErpSyncOptions> erpSyncOptions)
         {
             _storage = storage;
             _syncService = syncService;
             _excelImport = excelImport;
             _catalogSync = catalogSync;
+            _httpClientFactory = httpClientFactory;
+            _erpSyncOptions = erpSyncOptions.Value;
+        }
+
+        /// <summary>
+        /// Proxies ERP product images (port 15022 is HTTP-only; browsers with HSTS on the host break direct https).
+        /// Anonymous so &lt;img src&gt; works without Bearer token.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpGet("image")]
+        public async Task<IActionResult> ProxyImage([FromQuery] string? f, CancellationToken ct = default)
+        {
+            var upstream = ErpProductImageUrls.ToUpstreamUrl(_erpSyncOptions.ImageBaseUrl, f);
+            if (upstream == null)
+                return NotFound();
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient("ErpProductImages");
+                using var response = await client.GetAsync(upstream, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!response.IsSuccessStatusCode)
+                    return StatusCode((int)response.StatusCode);
+
+                var contentType = response.Content.Headers.ContentType?.ToString() ?? "image/jpeg";
+                var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+                Response.Headers.CacheControl = "public,max-age=3600";
+                return File(bytes, contentType);
+            }
+            catch (Exception)
+            {
+                return NotFound();
+            }
         }
 
         [HttpGet]

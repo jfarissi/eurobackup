@@ -1,10 +1,11 @@
 export const environment = {
   production: true,
+  /** Remplacé au build Docker par CHATBOT_PUBLIC_URL (voir Dockerfile). */
+  chatbotPublicUrl: 'CHATBOT_PUBLIC_URL_PLACEHOLDER',
   apiBaseUrl: '/api',
   pythonServiceUrl: '/api/python',
   enablePythonTest: false,
-  /** Base HTTP des images produits ERP (PicName), alignée sur ErpSync:ImageBaseUrl. */
-  erpImageBaseUrl: 'http://eurobrico.ddns.net:15022',
+  /** @deprecated Images passent par /api/erp-products/image (proxy HTTP → 15022). */
+  erpImageBaseUrl: '/api/erp-products/image',
 };
-
 

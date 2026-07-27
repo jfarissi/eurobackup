@@ -123,9 +123,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         private static void ApplySessionToProject(StoreChatSession session, SalesProject project)
         {
             if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId))
+            {
                 project.ProjectType = MapProjectType(session.ActiveProjectDomainId);
-
-            if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel))
+                var title = SalesLocale.DomainDisplay(
+                    session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel);
+                project.Title = title;
+                session.ActiveProjectDomainLabel = title;
+            }
+            else if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel))
                 project.Title = session.ActiveProjectDomainLabel;
             else if (!string.IsNullOrWhiteSpace(session.PreferredBrand))
                 project.Title = $"Recherche {session.PreferredBrand}";

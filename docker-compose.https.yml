@@ -1,0 +1,13 @@
+# Optional HTTPS override for LAN (euro13).
+# Usage:
+#   1. powershell -File .\scripts\generate-lan-certs.ps1
+#   2. docker compose -f docker-compose.yml -f docker-compose.https.yml up -d nginx
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.https.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro

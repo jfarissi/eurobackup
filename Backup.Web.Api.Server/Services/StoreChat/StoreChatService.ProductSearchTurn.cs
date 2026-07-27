@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,22 +15,58 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             GuidedSalesSlots guided,
             CancellationToken ct)
         {
-            var searchMeta = _context.BuildSearchMeta(session, text);
+            // Soft refine kelvin pendant mission SKU (ex. « bureau ») sans gate avant tableau.
+            if (SalesMission.IsSimpleSku(session))
+            {
+                SalesCatalogRefine.TryApplyAnswer(session, text);
+                if (string.IsNullOrWhiteSpace(session.PendingRefineSeed)
+                    && !string.IsNullOrWhiteSpace(text)
+                    && text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 3)
+                    session.PendingRefineSeed = text;
+            }
+            else if (SalesCatalogSearchTool.IsLightingQueryPublic(text)
+                     && text.Contains("e27", StringComparison.OrdinalIgnoreCase))
+            {
+                session.PendingRefineSeed = text;
+            }
+
+            var searchText = SalesMission.EnrichSearchText(session, text);
+
+            var searchMeta = _context.BuildSearchMeta(session, searchText);
             searchMeta.SkillLevel = session.SkillLevel;
             if (session.BudgetMax is > 0)
                 searchMeta.MaxUnitPrice = session.BudgetMax;
 
-            var products = await SearchProductsAsync(text, session, searchMeta, ct);
+            // « Suivant » / nouvelle liste : ne pas renvoyer les mêmes références.
+            var excludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in session.LastSuggestedProducts.Select(p => p.ProductId).Where(id => !string.IsNullOrWhiteSpace(id)))
+                excludes.Add(id!);
+            foreach (var id in session.Cart.Select(c => c.ErpProductId.ToString()))
+                excludes.Add(id);
+
+            // Mission SKU : pas d’exclusion agressive au 1er tour (on veut les meilleures E27).
+            if (SalesMission.IsSimpleSku(session) && session.LastSuggestedProducts.Count == 0)
+                excludes.Clear();
+
+            var products = await SearchProductsAsync(
+                searchText,
+                session,
+                searchMeta,
+                ct,
+                excludes.Count > 0 ? excludes : null);
+
+            // Gate « questions avant tableau » désactivé (flux vendeur : répondre d’abord).
+            session.AwaitingCatalogRefine = false;
+
             var budgetAlert = SalesBudgetFilter.Apply(products, session, searchMeta);
             SalesQuantityEstimator.ApplySuggestedQuantities(products, session);
 
-            // LLM = voix uniquement : faits C# → ReplyComposer (jamais d'outils / inventaire libre).
             var calc = _deterministicReply.BuildCalculationSummary(session);
-            var vagueFollowUp = _deterministicReply.BuildVagueDomainFollowUp(session, searchMeta, text);
+            var vagueFollowUp = _deterministicReply.BuildVagueDomainFollowUp(session, searchMeta, searchText);
             var facts = SalesReplyFacts.FromSearch(session, products, searchMeta, calc, vagueFollowUp);
             var aiReply = await _replyComposer.ComposeAsync(facts, ct);
 
-            var reply = _deterministicReply.Compose(aiReply, products, session, searchMeta, text);
+            var reply = _deterministicReply.Compose(aiReply, products, session, searchMeta, searchText);
             if (!string.IsNullOrWhiteSpace(budgetAlert))
                 reply = reply.TrimEnd() + "\n\n" + budgetAlert;
             if (guided.BudgetMentioned && session.BudgetMax is > 0 && string.IsNullOrWhiteSpace(budgetAlert))
@@ -47,7 +84,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 reply = reply.TrimEnd() + "\n\n" + styleAdvice;
             }
 
-            var recos = _recommendations.SuggestComplements(session, products);
+            // SKU simple : pas de compléments boîtes/câbles avant le choix.
+            var recos = SalesMission.IsSimpleSku(session)
+                ? new List<SalesRecommendationDto>()
+                : _recommendations.SuggestComplements(session, products);
             if (recos.Count > 0 && products.Count > 0
                 && !string.Equals(session.SkillLevel, "Pro", StringComparison.OrdinalIgnoreCase)
                 && searchMeta.WallGuideFamily is null)
@@ -67,6 +107,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 response.SearchFilter = searchMeta;
                 response.BudgetAlert = budgetAlert;
                 response.Recommendations = recos.ToList();
+                response.SuppressProjectGuide = session.SuppressProjectGuide;
                 return response;
             }
 
@@ -75,6 +116,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             empty.BudgetAlert = budgetAlert;
             empty.SkillLevel = session.SkillLevel;
             empty.BudgetMax = session.BudgetMax;
+            empty.SuppressProjectGuide = session.SuppressProjectGuide;
             return empty;
         }
     }

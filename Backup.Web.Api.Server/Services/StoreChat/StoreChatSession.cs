@@ -146,6 +146,48 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             get => Project.AwaitingComplementConfirm;
             set => Project.AwaitingComplementConfirm = value;
         }
+
+        public bool AwaitingCatalogRefine
+        {
+            get => Project.AwaitingCatalogRefine;
+            set => Project.AwaitingCatalogRefine = value;
+        }
+
+        public string? PendingRefineSeed
+        {
+            get => Project.PendingRefineSeed;
+            set => Project.PendingRefineSeed = value;
+        }
+
+        public List<string> CatalogRefineHints
+        {
+            get => Project.CatalogRefineHints;
+            set => Project.CatalogRefineHints = value ?? new();
+        }
+
+        public SalesMissionKind ActiveMission
+        {
+            get => Project.ActiveMission;
+            set => Project.ActiveMission = value;
+        }
+
+        public string? ActiveMissionName
+        {
+            get => Project.ActiveMissionName;
+            set => Project.ActiveMissionName = value;
+        }
+
+        public SalesSkuConstraints? SkuConstraints
+        {
+            get => Project.SkuConstraints;
+            set => Project.SkuConstraints = value;
+        }
+
+        public bool SuppressProjectGuide
+        {
+            get => Project.SuppressProjectGuide;
+            set => Project.SuppressProjectGuide = value;
+        }
     }
 
     public class StoreChatHistoryMessage

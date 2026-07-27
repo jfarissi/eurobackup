@@ -1,5 +1,161 @@
 [
   {
+    "id": "bouwmaterialen-wall-complete-grid",
+    "mainType": "Bouwmaterialen",
+    "title": "Bouwmaterialen — grille panier × phrasé (état d'abord, pas synonymes)",
+    "turns": [
+      {
+        "index": 0,
+        "user": "autres ?",
+        "cartBefore": [
+          "Snelbouw Porotherm Thermobrick 29x09"
+        ],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "2. Ciment / mortier",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [
+          "Parcours mur complet",
+          "gipsplaat"
+        ],
+        "wallGuideFamily": "Binder"
+      },
+      {
+        "index": 1,
+        "user": "et ensuite",
+        "cartBefore": [
+          "Snelbouw Porotherm Thermobrick 29x09",
+          "Cement Wit - 20kg"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "3. Treillis / ferraillage",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [
+          "gipsplaat"
+        ],
+        "wallGuideFamily": "Reinforcement"
+      },
+      {
+        "index": 2,
+        "user": "ok suivant",
+        "cartBefore": [
+          "Snelbouw Porotherm",
+          "Cement Wit",
+          "Murfor Plat 04cm"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "4. Outillage pose",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [
+          "gipsplaat"
+        ],
+        "wallGuideFamily": "Tools"
+      },
+      {
+        "index": 3,
+        "user": "c'est bon pour le panier ?",
+        "cartBefore": [
+          "Juwö Lijmblok PLZ TP100",
+          "Cement Wit - 20kg",
+          "Murfor Plat 04cm x 3.05m"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Base OK",
+          "Outillage pose"
+        ],
+        "mustNotContain": [
+          "Parcours mur complet",
+          "gipsplaat"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 4,
+        "user": "c'est bon ?",
+        "cartBefore": [
+          "Juwö Lijmblok PLZ TP100 498 x 100 x 249mm",
+          "Cement Wit - 20kg",
+          "Murfor Plat 04cm x 3.05m",
+          "OX Pro Emmer troffel Lange Handgreep",
+          "GEWEVEN WERKHANDSCHOENEN"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours mur complet",
+          "✓ 4. Outillage pose"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant",
+          "Prochaines familles utiles",
+          "gipsplaat"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 5,
+        "user": "ok",
+        "cartBefore": [
+          "Juwö Lijmblok PLZ TP100",
+          "Cement Wit - 20kg",
+          "Murfor Compacte I-100",
+          "OX Pro Emmer troffel",
+          "handschoenen PVC"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours mur complet"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant",
+          "gipsplaat"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 6,
+        "user": "il me manque quelque chose ?",
+        "cartBefore": [
+          "Boerkes Kortemark Rood",
+          "Cement Wit - 20kg",
+          "Murfor Plat 04cm",
+          "metseltroffel",
+          "werkhandschoenen"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours mur complet"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant",
+          "gipsplaat"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 7,
+        "user": "Murfor + ciment portland, passe aux outils",
+        "cartBefore": [
+          "Snelbouw Porotherm Thermobrick"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "4. Outillage pose",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [
+          "gipsplaat"
+        ],
+        "wallGuideFamily": "Tools"
+      }
+    ]
+  },
+  {
     "id": "bouwmaterialen-wall-guided",
     "mainType": "Bouwmaterialen",
     "title": "Bouwmaterialen — parcours mur guidé (structure → ciment → treillis → outils)",
@@ -331,6 +487,60 @@
           "snelbouw",
           "cement",
           "lijmblok"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "garden-landscaping-complete-grid",
+    "mainType": "Gereedschap",
+    "title": "Jardin — grille parcours aménagement",
+    "turns": [
+      {
+        "index": 0,
+        "user": "autres ?",
+        "cartBefore": [
+          "Dalles jardin 40x40"
+        ],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "2. Bordure",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "et ensuite",
+        "cartBefore": [
+          "Dalles jardin gravel",
+          "Bordure opsluitband"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "3. Géotextile",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "c'est bon pour le panier ?",
+        "cartBefore": [
+          "Gravier split",
+          "Bordure border",
+          "Géotextile worteldoek",
+          "Sable zand stabilisé"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours complet"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant"
         ],
         "wallGuideFamily": null
       }
@@ -677,6 +887,132 @@
           "porotherm",
           "snelbouw",
           "hammerite"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "tegels-tiling-complete-grid",
+    "mainType": "Tegels",
+    "title": "Tegels — grille parcours carrelage",
+    "turns": [
+      {
+        "index": 0,
+        "user": "autres ?",
+        "cartBefore": [
+          "Carrelage grès 30x30"
+        ],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "2. Colle carrelage",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "et ensuite",
+        "cartBefore": [
+          "Carrelage grès 30x30",
+          "Colle carrelage tegellijm 25kg"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "3. Joint",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "c'est bon pour le panier ?",
+        "cartBefore": [
+          "Carrelage tegel",
+          "Colle carrelage tegellijm",
+          "Voegmiddel joint",
+          "Primaire primer voorstrijk"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours complet"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant"
+        ],
+        "wallGuideFamily": null
+      }
+    ]
+  },
+  {
+    "id": "verf-paint-complete-grid",
+    "mainType": "Verf",
+    "title": "Verf — grille parcours peinture (familles → complet)",
+    "turns": [
+      {
+        "index": 0,
+        "user": "autres ?",
+        "cartBefore": [
+          "Muurverf latex blanc 10L"
+        ],
+        "addFirstProductToCart": false,
+        "mustContainAny": [
+          "2. Sous-couche",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [
+          "Parcours complet"
+        ],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 1,
+        "user": "et ensuite",
+        "cartBefore": [
+          "Muurverf latex blanc 10L",
+          "Grondverf voorstrijk 5L"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "3. Rouleau",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 2,
+        "user": "ok suivant",
+        "cartBefore": [
+          "Muurverf latex",
+          "Grondverf primer",
+          "Verfroller 25cm"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "4. Adhésif",
+          "← à choisir maintenant"
+        ],
+        "mustNotContain": [],
+        "wallGuideFamily": null
+      },
+      {
+        "index": 3,
+        "user": "c'est bon pour le panier ?",
+        "cartBefore": [
+          "Muurverf latex blanc",
+          "Sous-couche primer",
+          "Rouleau verfroller",
+          "Schilderstape masking"
+        ],
+        "addFirstProductToCart": true,
+        "mustContainAny": [
+          "Parcours complet"
+        ],
+        "mustNotContain": [
+          "← à choisir maintenant"
         ],
         "wallGuideFamily": null
       }

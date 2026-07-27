@@ -266,7 +266,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 var name = string.IsNullOrWhiteSpace(p.Name2) ? p.Name! : $"{p.Name} — {p.Name2}";
                 var cat = string.Join(" / ", new[] { p.MainTypeName, p.TypeName, p.SubTypeName }.Where(x => !string.IsNullOrWhiteSpace(x)));
                 var text = $"{name} {p.Brand} {cat}";
-                return (p.Id, name, p.Brand, cat, p.UnitPrice ?? p.PriceHT, (string?)null, Tokenize(text));
+                return (p.Id, name, p.Brand, (string?)(string.IsNullOrWhiteSpace(cat) ? null : cat), p.UnitPrice ?? p.PriceHT, (string?)null, Tokenize(text));
             }).ToList();
             _cacheAt = DateTime.UtcNow;
         }

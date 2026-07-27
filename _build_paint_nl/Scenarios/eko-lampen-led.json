@@ -1,0 +1,34 @@
+{
+  "id": "eko-lampen-led",
+  "title": "EKO Lampen — LED E27 puis affinage / compléments",
+  "mainType": "EKO Lampen",
+  "mainTypeId": "50",
+  "domainId": "electrical",
+  "expectedCategoryHints": ["Lampen", "LED", "EKO"],
+  "forbiddenProductHints": ["cement", "tegel"],
+  "turns": [
+    {
+      "user": "je veux des lampes LED E27 pour la maison",
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["LED", "lamp", "E27", "Lampen"]
+      }
+    },
+    {
+      "user": "en 10 watts blanc chaud",
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["LED", "lamp", "E27", "10", "watt", "Lampen", "warm"]
+      }
+    },
+    {
+      "user": "autres produits a ajouter a mon panier ?",
+      "cartBefore": ["EKO LED E27 10W"],
+      "expect": {
+        "domainId": "electrical",
+        "categoryMustMatchAny": ["LED", "lamp", "douille", "fitting", "panier", "complément"],
+        "replyMustNotContain": ["panier est vide"]
+      }
+    }
+  ]
+}

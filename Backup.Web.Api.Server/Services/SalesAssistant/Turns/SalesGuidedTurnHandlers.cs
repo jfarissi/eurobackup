@@ -107,7 +107,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
                 ? _recommendations.BuildCartReviewReply(ctx.Session)
                 : _confidence.BuildTips(ctx.Session, ctx.Session.LastSuggestedProducts);
             return Task.FromResult<StoreChatResponseDto?>(
-                _turn.Finish(ctx.Session, ctx.Text, reply, "TIPS", null, ctx.Guided));
+                _turn.Finish(ctx.Session, ctx.Text ?? string.Empty, reply, "TIPS", null, ctx.Guided));
         }
 
         private static bool ContainsAny(string hay, params string[] needles) =>
@@ -213,25 +213,63 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Turns
         {
             var session = ctx.Session; var meta = _context.BuildSearchMeta(session, ctx.Text); meta.SkillLevel = session.SkillLevel; if (session.BudgetMax is > 0) meta.MaxUnitPrice = session.BudgetMax;
             var excludes = session.LastSuggestedProducts.Select(p => p.ProductId).Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var seed = !string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel) ? session.ActiveProjectDomainLabel! : session.History.LastOrDefault(h => h.Role == "user" && !h.Content.Contains("autre", StringComparison.OrdinalIgnoreCase) && h.Content.Length > 8)?.Content ?? "jardin";
+            var seed = ResolveMoreProductsSeed(session, ctx.Text);
             var products = await _catalog.SearchAsync(seed, session, meta, ct, excludes);
             SalesQuantityEstimator.ApplySuggestedQuantities(products, session);
             var budgetAlert = SalesBudgetFilter.Apply(products, session, meta);
-            var reply = products.Count == 0
-                ? SalesLocale.T(session, "more_products_empty")
-                : meta.WallGuideFamily is { } family
-                    ? $"Étape suivante — {SalesProjectGuide.FocusLabel(family)} :"
-                    : SalesLocale.T(session, "more_products",
-                        string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
-                            ? ""
-                            : SalesLocale.T(session, "more_products_for",
-                                SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel)));
-            if (meta.WallGuideFamily is { } wallFamily
-                && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
-                reply = reply.TrimEnd() + "\n\n" + SalesProjectGuide.BuildWallChecklist(session, wallFamily);
+            string reply;
+            if (products.Count == 0)
+            {
+                reply = SalesLocale.MoreProductsEmpty(session);
+            }
+            else if (Guides.ProjectGuides.TryGet(session, out var guide) && guide is not null)
+            {
+                var focus = guide.ResolveNext(session, ctx.Text, meta);
+                reply = guide is Guides.MarkerProjectGuide marker
+                    ? SalesLocale.T(session, "guide_next_step", marker.FocusLabel(session, focus))
+                    : SalesLocale.T(session, "guide_next_step", guide.FocusLabel(focus));
+                reply = reply.TrimEnd() + "\n\n" + guide.BuildChecklist(session, focus);
+            }
+            else
+            {
+                reply = SalesLocale.T(session, "more_products",
+                    string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
+                        ? ""
+                        : SalesLocale.T(session, "more_products_for",
+                            SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel)));
+            }
             if (!string.IsNullOrWhiteSpace(budgetAlert)) reply = reply.TrimEnd() + "\n\n" + budgetAlert;
             var response = _turn.Finish(session, ctx.Text, reply, "PRODUCT_LIST", products, ctx.Guided);
             response.SearchFilter = meta; response.BudgetAlert = budgetAlert; response.Recommendations = _recommendations.SuggestComplements(session, products).ToList(); return response;
+        }
+
+        private static string ResolveMoreProductsSeed(StoreChatSession session, string? userText)
+        {
+            if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainId))
+            {
+                var label = SalesLocale.DomainDisplay(session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel);
+                if (!string.IsNullOrWhiteSpace(label))
+                    return label;
+                return session.ActiveProjectDomainId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel))
+                return session.ActiveProjectDomainLabel!;
+
+            var lastUser = session.History.LastOrDefault(h =>
+                h.Role == "user"
+                && h.Content.Length > 8
+                && !h.Content.Contains("autre", StringComparison.OrdinalIgnoreCase)
+                && !h.Content.Contains("volgende", StringComparison.OrdinalIgnoreCase)
+                && !h.Content.Contains("suivant", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(lastUser?.Content))
+                return lastUser!.Content;
+
+            if (!string.IsNullOrWhiteSpace(userText) && userText.Trim().Length > 8)
+                return userText.Trim();
+
+            // Dernier recours neutre — plus de seed « jardin » hors contexte.
+            return "product";
         }
     }
 }

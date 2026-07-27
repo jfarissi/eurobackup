@@ -1,0 +1,58 @@
+{
+  "id": "garden-landscaping-complete-grid",
+  "title": "Jardin — grille parcours aménagement",
+  "mainType": "Gereedschap",
+  "domainId": "garden_landscaping",
+  "notes": "Surface → bordure → géotextile → remplissage. MainType catalogue existant (pas de MainType jardin dédié).",
+  "turns": [
+    {
+      "user": "autres ?",
+      "cartBefore": ["Dalles jardin 40x40"],
+      "expect": {
+        "domainId": "garden_landscaping",
+        "guideStepId": "border",
+        "guideComplete": false,
+        "replyMustContain": [
+          "2. Bordure",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "et ensuite",
+      "cartBefore": [
+        "Dalles jardin gravel",
+        "Bordure opsluitband"
+      ],
+      "expect": {
+        "domainId": "garden_landscaping",
+        "guideStepId": "geo",
+        "guideComplete": false,
+        "replyMustContain": [
+          "3. Géotextile",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "c'est bon pour le panier ?",
+      "cartBefore": [
+        "Gravier split",
+        "Bordure border",
+        "Géotextile worteldoek",
+        "Sable zand stabilisé"
+      ],
+      "expect": {
+        "domainId": "garden_landscaping",
+        "guidedIntent": "Tips",
+        "guideComplete": true,
+        "replyMustContain": [
+          "Parcours complet"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    }
+  ]
+}

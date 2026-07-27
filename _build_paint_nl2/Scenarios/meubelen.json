@@ -1,0 +1,16 @@
+{
+  "id": "meubelen",
+  "title": "Meubelen — mobilier",
+  "mainType": "Meubelen",
+  "mainTypeId": "19",
+  "expectedCategoryHints": ["Meubel", "meuble"],
+  "forbiddenProductHints": ["snelbouw"],
+  "turns": [
+    {
+      "user": "je cherche une table de jardin",
+      "expect": {
+        "categoryMustMatchAny": ["Meubel", "table", "tuin", "meuble"]
+      }
+    }
+  ]
+}

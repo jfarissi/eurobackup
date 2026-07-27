@@ -47,6 +47,18 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (products.Count > 0)
             {
                 string intro;
+                var simpleSku = SalesMission.IsSimpleSku(session);
+
+                if (simpleSku)
+                {
+                    var socket = session.SkuConstraints?.Socket?.ToUpperInvariant() ?? "LED";
+                    intro = SalesLocale.T(session, "catalog_sku_found", products.Count, socket);
+                    if (session.SkuConstraints?.Kelvin is null)
+                        intro += "\n\n" + SalesLocale.T(session, "catalog_sku_soft_refine");
+                    intro += "\n\n" + SalesLocale.T(session, "adjust_qty");
+                    return intro.Trim();
+                }
+
                 if (!string.IsNullOrWhiteSpace(vagueFollowUp))
                 {
                     intro = vagueFollowUp + "\n\n" + SalesLocale.T(session, "here_examples");
@@ -151,12 +163,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                             + "\n\n" + SalesLocale.T(session, "qty_prefilled");
                 }
 
-                if (meta.WallGuideFamily is { } wallFamily
-                    && string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                if (!session.SuppressProjectGuide
+                    && Guides.ProjectGuides.TryGet(session, out var guide) && guide is not null
+                    && !guide.IsComplete(session))
                 {
-                    intro = intro.TrimEnd()
-                            + "\n\n"
-                            + SalesProjectGuide.BuildWallChecklist(session, wallFamily);
+                    var focus = guide.ResolveNext(session, null, meta);
+                    intro = intro.TrimEnd() + "\n\n" + guide.BuildChecklist(session, focus);
                 }
 
                 return intro.Trim();

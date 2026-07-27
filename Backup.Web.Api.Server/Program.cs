@@ -60,6 +60,10 @@ builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonPr
     client.Timeout = TimeSpan.FromMinutes(30);
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
+builder.Services.AddHttpClient("ErpProductImages", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.Pricing.IErpPricingService, Backup.Web.Api.Server.Services.Pricing.ErpPricingService>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProductSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncService>(client =>
 {
@@ -79,6 +83,8 @@ builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.StripeOption
 builder.Services.AddSingleton<Backup.Web.Api.Server.Services.StoreChat.IStoreChatSessionStore, Backup.Web.Api.Server.Services.StoreChat.InMemoryStoreChatSessionStore>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatPdfService, Backup.Web.Api.Server.Services.StoreChat.StoreChatPdfService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.StoreChat.IStoreChatStripeService, Backup.Web.Api.Server.Services.StoreChat.StoreChatStripeService>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.SalesAssistant.Guides.IProjectGuideRegistry>(
+    Backup.Web.Api.Server.Services.SalesAssistant.Guides.ProjectGuideRegistry.Default);
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesContextDetector, Backup.Web.Api.Server.Services.SalesAssistant.SalesContextDetector>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCatalogSearchTool, Backup.Web.Api.Server.Services.SalesAssistant.SalesCatalogSearchTool>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesCommerceTool, Backup.Web.Api.Server.Services.SalesAssistant.SalesCommerceTool>();
@@ -121,6 +127,7 @@ builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesR
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesLlmIntentRouter, Backup.Web.Api.Server.Services.SalesAssistant.SalesLlmIntentRouter>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesDeterministicReply, Backup.Web.Api.Server.Services.SalesAssistant.SalesDeterministicReply>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.ISalesAssistantFacade, Backup.Web.Api.Server.Services.SalesAssistant.SalesAssistantFacade>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SalesAssistant.IStoreChatTurnLogService, Backup.Web.Api.Server.Services.SalesAssistant.StoreChatTurnLogService>();
 builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.StoreChat.IStoreChatAiClient, Backup.Web.Api.Server.Services.StoreChat.StoreChatAiClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);

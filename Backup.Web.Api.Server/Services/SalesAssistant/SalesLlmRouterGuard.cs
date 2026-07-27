@@ -67,11 +67,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 list.Add(SalesLlmRouterAction.CreateQuote);
             }
 
-            if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+            // Parcours guidé actif non terminé → étape suivante (alias ProjectNextStep).
+            if (Guides.ProjectGuides.TryGet(session, out var guide)
+                && guide is not null
+                && !guide.IsComplete(session))
             {
-                // Complet → WallNextStep n'est pas proposé (évite de relancer l'outillage).
-                if (!SalesProjectGuide.IsWallGuideComplete(session))
-                    list.Add(SalesLlmRouterAction.WallNextStep);
+                list.Add(SalesLlmRouterAction.WallNextStep);
             }
 
             // ConfirmOrder volontairement absent.
@@ -82,14 +83,18 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             var cart = SalesProjectGuide.CartOnlyHay(session);
             var allowed = AllowedActions(session);
-            var next = string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase)
-                ? SalesProjectGuide.ResolveWallFamily(session, null).ToString()
-                : null;
+            string? next = null;
+            if (Guides.ProjectGuides.TryGet(session, out var activeGuide) && activeGuide is not null)
+            {
+                next = activeGuide is Guides.WallProjectGuide
+                    ? SalesProjectGuide.ResolveWallFamily(session, null).ToString()
+                    : activeGuide.ResolveNext(session, null).Id;
+            }
 
             return new SalesLlmRouterStateDto
             {
                 DomainId = session.ActiveProjectDomainId,
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session),
+                WallGuideComplete = Guides.ProjectGuides.IsComplete(session),
                 HasStructure = SalesProjectGuide.HasStructure(cart),
                 HasBinder = SalesProjectGuide.HasBinder(cart),
                 HasReinforcement = SalesProjectGuide.HasReinforcement(cart),

@@ -19,6 +19,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         /// <summary>Étape parcours mur (structure / liant / treillis / outils).</summary>
         public WallGuideFamily? WallGuideFamily { get; set; }
 
+        /// <summary>Id d'étape du guide projet actif (peinture, carrelage…).</summary>
+        public string? GuideStepId { get; set; }
+
         /// <summary>Alias historique — TypeHints = Categories.</summary>
         public List<string> TypeHints
         {

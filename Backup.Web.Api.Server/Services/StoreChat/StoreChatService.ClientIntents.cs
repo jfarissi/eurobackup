@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Services.SalesAssistant;
+using Backup.Web.Api.Server.Services.SalesAssistant.Guides;
 
 namespace Backup.Web.Api.Server.Services.StoreChat
 {
@@ -27,7 +28,7 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 await _commerce.AddToCartAsync(session, request.TargetProductId, request.TargetQuantity ?? 1, ct);
                 _workflow.ApplyTransition(session, WorkflowActions.AddToCart);
                 _sessions.Save(session);
-                return _turn.Ok(session, "Produit ajouté au panier.", "CART_UPDATED");
+                return _turn.Ok(session, SalesLocale.T(session, "cart_item_added"), "CART_UPDATED");
             }
 
             if (intent.Equals("RemoveFromCartFromList", StringComparison.OrdinalIgnoreCase))
@@ -66,23 +67,79 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             if (intent.Equals("ReviewCart", StringComparison.OrdinalIgnoreCase))
                 return BuildCartReviewIntentResponse(session, request.Text ?? "review cart");
 
-            if (intent.Equals("WallNextStep", StringComparison.OrdinalIgnoreCase))
+            if (intent.Equals("ProjectNextStep", StringComparison.OrdinalIgnoreCase)
+                || intent.Equals("WallNextStep", StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+                // Mission SKU (ampoule…) : pas de parcours — « Suivant » = autres refs du même SKU.
+                if (session.SuppressProjectGuide || SalesMission.IsSimpleSku(session))
                 {
-                    return _turn.Ok(session,
-                        "Aucun parcours mur actif. Décrivez d’abord votre mur (ex. 7 m × 2 m).",
-                        "NONE");
+                    var skuSeed = session.PendingRefineSeed
+                                  ?? SalesMission.EnrichSearchText(session, "ampoule led");
+                    return await HandleProductSearchTurnAsync(
+                        session,
+                        skuSeed,
+                        new GuidedSalesSlots { Intent = GuidedSalesIntent.MoreProducts },
+                        ct);
                 }
 
-                if (SalesProjectGuide.IsWallGuideComplete(session))
-                    return BuildCartReviewIntentResponse(session, request.Text ?? "étape suivante");
+                if (!ProjectGuides.TryGet(session, out var guide) || guide is null)
+                {
+                    // Pas de guide pour le domaine → même comportement que « Suivant » générique.
+                    var fallback = new GuidedSalesSlots { Intent = GuidedSalesIntent.MoreProducts };
+                    return await _guidedTurns.TryHandleAsync(
+                        session,
+                        string.IsNullOrWhiteSpace(request.Text) ? "autres produits" : request.Text!,
+                        fallback,
+                        ct);
+                }
+
+                // Seed court / texte UI réel — éviter « étape suivante » (faux mismatch NL↔FR).
+                var nextSeed = string.IsNullOrWhiteSpace(request.Text) ? "next step" : request.Text!;
+
+                if (guide.IsComplete(session))
+                    return BuildCartReviewIntentResponse(session, nextSeed);
 
                 return await HandleProductSearchTurnAsync(
                     session,
-                    "étape suivante",
+                    nextSeed,
                     new GuidedSalesSlots(),
                     ct);
+            }
+
+            if (intent.Equals("MoreProducts", StringComparison.OrdinalIgnoreCase))
+            {
+                if (session.SuppressProjectGuide || SalesMission.IsSimpleSku(session))
+                {
+                    var skuSeed = session.PendingRefineSeed
+                                  ?? SalesMission.EnrichSearchText(session, "ampoule led");
+                    return await HandleProductSearchTurnAsync(
+                        session,
+                        skuSeed,
+                        new GuidedSalesSlots { Intent = GuidedSalesIntent.MoreProducts },
+                        ct);
+                }
+
+                // Parcours guidé actif → « Suivant » = étape suivante (pas le seed jardin).
+                if (ProjectGuides.TryGet(session, out var activeGuide) && activeGuide is not null)
+                {
+                    var nextSeed = string.IsNullOrWhiteSpace(request.Text) ? "next step" : request.Text!;
+                    if (activeGuide.IsComplete(session))
+                        return BuildCartReviewIntentResponse(session, nextSeed);
+
+                    return await HandleProductSearchTurnAsync(
+                        session,
+                        nextSeed,
+                        new GuidedSalesSlots(),
+                        ct);
+                }
+
+                var guided = new GuidedSalesSlots { Intent = GuidedSalesIntent.MoreProducts };
+                var handled = await _guidedTurns.TryHandleAsync(
+                    session,
+                    string.IsNullOrWhiteSpace(request.Text) ? "autres produits" : request.Text!,
+                    guided,
+                    ct);
+                return handled;
             }
 
             return null;
@@ -91,11 +148,10 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         private StoreChatResponseDto BuildCartReviewIntentResponse(StoreChatSession session, string userText)
         {
             var reply = _recommendations.BuildCartReviewReply(session);
-            if (string.Equals(session.ActiveProjectDomainId, "wall_construction", StringComparison.OrdinalIgnoreCase))
+            if (ProjectGuides.TryGet(session, out var guide) && guide is not null)
             {
-                var family = SalesProjectGuide.ResolveWallFamily(session, userText);
-                var checklist = SalesProjectGuide.BuildWallChecklist(session, family);
-                reply = checklist + "\n\n" + reply;
+                var focus = guide.ResolveNext(session, userText);
+                reply = guide.BuildChecklist(session, focus) + "\n\n" + reply;
             }
 
             _sessions.Save(session);

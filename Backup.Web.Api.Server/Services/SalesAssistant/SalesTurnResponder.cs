@@ -61,6 +61,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             session.LastActionType = actionType;
             _sessions.Save(session);
 
+            reply = SalesLanguageMismatch.MaybePrependWarning(session, userText, reply);
+
             var response = new StoreChatResponseDto
             {
                 SessionId = session.SessionId,
@@ -70,34 +72,39 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 ActionData = products,
                 Products = products,
                 ActiveProjectDomainId = session.ActiveProjectDomainId,
-                ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
+                ActiveProjectDomainLabel = LocalizedDomainLabel(session),
                 SkillLevel = session.SkillLevel,
                 BudgetMax = session.BudgetMax,
                 WorkflowState = session.WorkflowState.ToString(),
                 ProjectSummary = session.Project.SummaryLine(),
                 ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-                WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
+                SuppressProjectGuide = session.SuppressProjectGuide || SalesMission.IsSimpleSku(session),
             };
+            Guides.ProjectGuides.ApplyCompleteFlags(response, session);
 
             if (guided.BudgetMentioned || session.BudgetMax is > 0)
                 response.BudgetMax = session.BudgetMax;
             return response;
         }
 
-        public StoreChatResponseDto Ok(StoreChatSession session, string text, string actionType) => new()
+        public StoreChatResponseDto Ok(StoreChatSession session, string text, string actionType)
         {
-            SessionId = session.SessionId,
-            ReplyText = text,
-            HasAction = !string.Equals(actionType, "NONE", StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(actionType, "WORKFLOW_DENIED", StringComparison.OrdinalIgnoreCase),
-            ActionType = actionType,
-            ActiveProjectDomainId = session.ActiveProjectDomainId,
-            ActiveProjectDomainLabel = session.ActiveProjectDomainLabel,
-            WorkflowState = session.WorkflowState.ToString(),
-            ProjectSummary = session.Project.SummaryLine(),
-            ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
-            WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session)
-        };
+            var response = new StoreChatResponseDto
+            {
+                SessionId = session.SessionId,
+                ReplyText = text,
+                HasAction = !string.Equals(actionType, "NONE", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(actionType, "WORKFLOW_DENIED", StringComparison.OrdinalIgnoreCase),
+                ActionType = actionType,
+                ActiveProjectDomainId = session.ActiveProjectDomainId,
+                ActiveProjectDomainLabel = LocalizedDomainLabel(session),
+                WorkflowState = session.WorkflowState.ToString(),
+                ProjectSummary = session.Project.SummaryLine(),
+                ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session),
+            };
+            Guides.ProjectGuides.ApplyCompleteFlags(response, session);
+            return response;
+        }
 
         public StoreChatResponseDto DenyWorkflow(StoreChatSession session, string action)
         {
@@ -113,6 +120,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var limit = Math.Max(4, _options.ChatHistoryLimit);
             if (session.History.Count > limit)
                 session.History = session.History.TakeLast(limit).ToList();
+        }
+
+        private static string? LocalizedDomainLabel(StoreChatSession session)
+        {
+            if (string.IsNullOrWhiteSpace(session.ActiveProjectDomainId)
+                && string.IsNullOrWhiteSpace(session.ActiveProjectDomainLabel))
+                return null;
+
+            var label = SalesLocale.DomainDisplay(
+                session,
+                session.ActiveProjectDomainId,
+                session.ActiveProjectDomainLabel);
+            session.ActiveProjectDomainLabel = label;
+            return label;
         }
     }
 }

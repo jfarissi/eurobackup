@@ -523,18 +523,26 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     return !!product.lastSyncAt;
   }
 
-  /** Même règle que le chatbot (SalesCatalogSearchTool.BuildProductImageUrl). */
+  /** Même règle que le chatbot — proxy same-origin (évite HSTS/HTTPS sur le port 15022). */
   productImageUrl(product: ErpProduct | null | undefined): string | null {
     const picName = product?.picName?.trim();
     if (!picName) return null;
 
-    if (/^https?:\/\//i.test(picName)) return picName;
+    let file = picName.replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(file)) {
+      try {
+        file = new URL(file).pathname;
+      } catch {
+        return null;
+      }
+    }
+    file = file.replace(/^\/+/, '');
+    const slash = file.lastIndexOf('/');
+    if (slash >= 0) file = file.slice(slash + 1);
+    if (!file || file.includes('..')) return null;
 
-    const base = (environment.erpImageBaseUrl ?? '').replace(/\/+$/, '');
-    if (!base) return null;
-
-    const file = picName.replace(/\\/g, '/').replace(/^\/+/, '');
-    return `${base}/${file}`;
+    const api = (environment.apiBaseUrl ?? '/api').replace(/\/+$/, '');
+    return `${api}/erp-products/image?f=${encodeURIComponent(file)}`;
   }
 
   onProductImageError(event: Event): void {

@@ -90,14 +90,48 @@ namespace Backup.Web.Api.Server.Services.StoreChat
         public string? ProjectSummary { get; set; }
         /// <summary>Structure + liant présents (hints projet).</summary>
         public bool ProjectBaseComplete { get; set; }
-        /// <summary>Parcours mur : structure + liant + ferraillage + outillage.</summary>
+        /// <summary>Parcours guidé actif terminé (tous domaines).</summary>
+        public bool GuideComplete { get; set; }
+        /// <summary>Compat : même sens que GuideComplete (historiquement mur-only).</summary>
         public bool WallGuideComplete { get; set; }
+        /// <summary>True = achat SKU simple, pas de CTA / checklist parcours.</summary>
+        public bool SuppressProjectGuide { get; set; }
+        /// <summary>Id du tour persisté (StoreChatTurns) pour feedback QA.</summary>
+        public Guid? TurnId { get; set; }
     }
 
     public class StoreChatConfirmPaymentDto
     {
         public Guid OrderId { get; set; }
         public string? SessionId { get; set; }
+    }
+
+    public class StoreChatTurnReviewRequest
+    {
+        public string Status { get; set; } = "bad";
+        public string? Note { get; set; }
+        /// <summary>manual (défaut UI) | auto</summary>
+        public string? Source { get; set; }
+    }
+
+    public class StoreChatTurnDto
+    {
+        public Guid Id { get; set; }
+        public string SessionId { get; set; } = string.Empty;
+        public Guid? SalesProjectId { get; set; }
+        public string? PreferredLanguage { get; set; }
+        public string? DomainId { get; set; }
+        public string? ClientIntent { get; set; }
+        public string? ActionType { get; set; }
+        public string? UserText { get; set; }
+        public string? ReplyText { get; set; }
+        public string? ProductsJson { get; set; }
+        public string? ReviewStatus { get; set; }
+        public string? ReviewNote { get; set; }
+        public string? ReviewSource { get; set; }
+        public bool IsCorrected { get; set; }
+        public DateTime? CorrectedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 
     public class StoreChatPaymentResultDto

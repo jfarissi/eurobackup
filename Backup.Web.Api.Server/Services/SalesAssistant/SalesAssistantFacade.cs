@@ -24,6 +24,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         private readonly ISalesProjectService _projects;
         private readonly ISalesProjectResumeService _resume;
         private readonly IStoreChatSessionStore _sessions;
+        private readonly IStoreChatTurnLogService _turnLog;
         private readonly ILogger<SalesAssistantFacade> _logger;
 
         public SalesAssistantFacade(
@@ -31,12 +32,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             ISalesProjectService projects,
             ISalesProjectResumeService resume,
             IStoreChatSessionStore sessions,
+            IStoreChatTurnLogService turnLog,
             ILogger<SalesAssistantFacade> logger)
         {
             _storeChat = storeChat;
             _projects = projects;
             _resume = resume;
             _sessions = sessions;
+            _turnLog = turnLog;
             _logger = logger;
         }
 
@@ -58,6 +61,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var response = await _storeChat.ProcessMessageAsync(request, ct);
 
             var session = _sessions.Get(response.SessionId);
+            response.TurnId = await _turnLog.LogTurnAsync(request, response, session, ct);
+
             if (session == null)
                 return response;
 
@@ -77,12 +82,25 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             _sessions.Save(session);
 
             response.SalesProjectId = project?.Id ?? session.ActiveSalesProjectId;
-            response.SalesProjectTitle = project?.Title
-                ?? session.ActiveProjectDomainLabel
-                ?? response.ActiveProjectDomainLabel;
+            var domainTitle = SalesLocale.DomainDisplay(
+                session,
+                session.ActiveProjectDomainId,
+                project?.Title ?? session.ActiveProjectDomainLabel ?? response.ActiveProjectDomainLabel);
+            if (!string.IsNullOrWhiteSpace(domainTitle))
+            {
+                response.SalesProjectTitle = domainTitle;
+                response.ActiveProjectDomainLabel = domainTitle;
+                session.ActiveProjectDomainLabel = domainTitle;
+            }
+            else
+            {
+                response.SalesProjectTitle = project?.Title
+                    ?? session.ActiveProjectDomainLabel
+                    ?? response.ActiveProjectDomainLabel;
+            }
             response.ProjectSummary ??= session.Project.SummaryLine();
             response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
-            response.WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session);
+            Guides.ProjectGuides.ApplyCompleteFlags(response, session);
 
             if (response.SearchFilter == null && HasFilterSignal(session))
             {
@@ -122,10 +140,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         private static void AttachProjectFields(StoreChatResponseDto response, StoreChatSession session)
         {
             response.SalesProjectId = session.ActiveSalesProjectId;
-            response.SalesProjectTitle ??= session.ActiveProjectDomainLabel;
+            var title = SalesLocale.DomainDisplay(
+                session, session.ActiveProjectDomainId, session.ActiveProjectDomainLabel);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                response.SalesProjectTitle = title;
+                response.ActiveProjectDomainLabel = title;
+                session.ActiveProjectDomainLabel = title;
+            }
+            else
+                response.SalesProjectTitle ??= session.ActiveProjectDomainLabel;
             response.ProjectSummary ??= session.Project.SummaryLine();
             response.ProjectBaseComplete = SalesComplementRules.IsBaseComplete(session);
-            response.WallGuideComplete = SalesProjectGuide.IsWallGuideComplete(session);
+            Guides.ProjectGuides.ApplyCompleteFlags(response, session);
         }
 
         private void LogAudit(StoreChatResponseDto response)

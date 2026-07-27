@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Services.SalesAssistant;
+using Backup.Web.Api.Server.Services.SalesAssistant.Guides;
 using Backup.Web.Api.Server.Services.SalesAssistant.Turns;
 
 namespace Backup.Web.Api.Server.Services.StoreChat
@@ -167,9 +168,13 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                     return BuildCartReviewIntentResponse(session, text);
 
                 case SalesLlmRouterAction.WallNextStep:
-                    if (SalesProjectGuide.IsWallGuideComplete(session))
+                    if (!ProjectGuides.HasGuide(session))
+                        return null;
+                    if (ProjectGuides.IsComplete(session))
                         return BuildCartReviewIntentResponse(session, text);
-                    return await HandleProductSearchTurnAsync(session, "étape suivante", guided, ct);
+                    // Texte utilisateur réel (sinon seed neutre) — évite faux lang_mismatch FR.
+                    var nextSeed = string.IsNullOrWhiteSpace(text) ? "next step" : text;
+                    return await HandleProductSearchTurnAsync(session, nextSeed, guided, ct);
 
                 case SalesLlmRouterAction.SuggestComplements:
                     guided.Intent = GuidedSalesIntent.CartComplements;
@@ -206,9 +211,14 @@ namespace Backup.Web.Api.Server.Services.StoreChat
             CancellationToken ct)
         {
             var keepSessionId = session.SessionId;
+            var keepLanguage = session.PreferredLanguage;
+            var keepReturnBaseUrl = session.ReturnBaseUrl;
             _sessions.Reset(keepSessionId);
             session = _sessions.GetOrCreate(keepSessionId);
             session.Project.Reset();
+            session.PreferredLanguage = keepLanguage;
+            if (!string.IsNullOrWhiteSpace(keepReturnBaseUrl))
+                session.ReturnBaseUrl = keepReturnBaseUrl;
             _workflow.ApplyTransition(session, WorkflowActions.Reset);
             _sessions.Save(session);
             await Task.CompletedTask;

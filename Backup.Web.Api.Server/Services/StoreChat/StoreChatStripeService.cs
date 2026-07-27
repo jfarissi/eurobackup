@@ -62,11 +62,12 @@ namespace Backup.Web.Api.Server.Services.StoreChat
                 if (string.Equals(baseUrl, "http://localhost", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(baseUrl, "https://localhost", StringComparison.OrdinalIgnoreCase))
                 {
-                    baseUrl = "http://localhost:4200";
+                    baseUrl = "https://localhost:55756";
                 }
 
-                var successUrl = $"{baseUrl}/assistant?payment=success&orderId={orderId:D}&session_id={{CHECKOUT_SESSION_ID}}";
-                var cancelUrl = $"{baseUrl}/assistant?payment=cancel&orderId={orderId:D}";
+                // SPA racine (pas /assistant) — query params lus par store-assistant.
+                var successUrl = $"{baseUrl}/?payment=success&orderId={orderId:D}&session_id={{CHECKOUT_SESSION_ID}}";
+                var cancelUrl = $"{baseUrl}/?payment=cancel&orderId={orderId:D}";
 
                 var lineItems = items.Select(i => new SessionLineItemOptions
                 {

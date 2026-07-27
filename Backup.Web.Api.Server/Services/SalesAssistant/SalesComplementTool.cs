@@ -421,23 +421,6 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         }
 
         private string? BuildProductImageUrl(string? picName)
-        {
-            if (string.IsNullOrWhiteSpace(picName))
-                return null;
-
-            var file = picName.Trim().Replace('\\', '/');
-            if (file.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || file.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                return file;
-
-            var baseUrl = (_erpOptions.ImageBaseUrl ?? string.Empty).TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl))
-                return null;
-
-            while (file.StartsWith('/'))
-                file = file[1..];
-
-            return $"{baseUrl}/{file}";
-        }
+            => ErpProductImageUrls.ToProxyUrl(picName);
     }
 }

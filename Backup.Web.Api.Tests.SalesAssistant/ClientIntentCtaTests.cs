@@ -1,10 +1,35 @@
 using Backup.Web.Api.Server.Services.SalesAssistant;
+using Backup.Web.Api.Server.Services.SalesAssistant.Guides;
 using Backup.Web.Api.Server.Services.StoreChat;
 
 namespace Backup.Web.Api.Tests.SalesAssistant;
 
 public class ClientIntentCtaTests
 {
+    [Fact]
+    public void Paint_next_after_paint_is_primer()
+    {
+        var session = new StoreChatSession { ActiveProjectDomainId = "painting" };
+        session.Cart.Add(new StoreChatCartItem { ErpProductId = 1, Name = "Muurverf latex", Quantity = 1, UnitPrice = 1 });
+        var step = PaintProjectGuide.Instance.ResolveNext(session, "étape suivante");
+        Assert.Equal("primer", step.Id);
+        Assert.False(PaintProjectGuide.Instance.IsComplete(session));
+    }
+
+    [Fact]
+    public void Registry_resolves_all_project_domains()
+    {
+        foreach (var domain in new[]
+                 {
+                     "wall_construction", "painting", "tiling", "garden_cleaning",
+                     "garden_landscaping", "garden_maintenance", "electrical", "roofing", "plumbing"
+                 })
+        {
+            Assert.True(ProjectGuides.TryGet(domain, out var guide));
+            Assert.Equal(domain, guide!.DomainId);
+        }
+    }
+
     [Fact]
     public void Wall_complete_grid_review_phrases_map_to_tips()
     {

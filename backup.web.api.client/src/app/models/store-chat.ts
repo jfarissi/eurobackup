@@ -104,7 +104,9 @@ export interface StoreChatResponse {
   projectSummary?: string | null;
   /** Structure + liant présents (hints projet). */
   projectBaseComplete?: boolean;
-  /** Parcours mur : structure + liant + ferraillage + outillage. */
+  /** Parcours guidé actif terminé (tous domaines). */
+  guideComplete?: boolean;
+  /** Compat : même sens que guideComplete. */
   wallGuideComplete?: boolean;
 }
 

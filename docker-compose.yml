@@ -71,6 +71,8 @@ services:
     build:
       context: .
       dockerfile: Backup.Web.Api.Server/Dockerfile
+      args:
+        CHATBOT_PUBLIC_URL: ${CHATBOT_PUBLIC_URL:-http://euro13:81}
     container_name: backup-api
     restart: unless-stopped
     depends_on:

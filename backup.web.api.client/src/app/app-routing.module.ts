@@ -17,7 +17,7 @@ const routes: Routes = [
     path: 'assistant',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./components/store-assistant/store-assistant.component').then(m => m.StoreAssistantComponent)
+      import('./components/assistant-launcher/assistant-launcher.component').then(m => m.AssistantLauncherComponent)
   },
   { path: 'upload', component: UploadComponent, canActivate: [authGuard] },
   { path: 'recherche', component: DocumentSearchComponent, canActivate: [authGuard] },

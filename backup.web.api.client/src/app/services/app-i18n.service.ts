@@ -363,6 +363,7 @@ const FR: Dict = {
   'assistant.close': 'Fermer',
   'assistant.remove': 'Retirer',
   'assistant.welcome': 'Bonjour ! Je suis l’assistant magasin. Demandez un produit, une marque ou un projet (peinture, électricité…).',
+  'assistant.redirecting': 'Redirection vers l’assistant magasin…',
   'assistant.placeholder': 'Ex. peinture blanche 10L, ampoule LED, perceuse…',
   'assistant.send': 'Envoyer',
   'assistant.quote': 'Demander un devis',
@@ -379,6 +380,7 @@ const FR: Dict = {
   'assistant.listening': 'Écoute en cours…',
   'assistant.lang': 'Langue',
   'assistant.nextStep': 'Étape suivante',
+  'assistant.next': 'Suivant',
   'assistant.reviewCart': 'Revue panier',
   'assistant.langSwitched': 'Langue : français.'
 };
@@ -728,6 +730,7 @@ const NL: Dict = {
   'assistant.close': 'Sluiten',
   'assistant.remove': 'Verwijderen',
   'assistant.welcome': 'Hallo! Ik ben de winkelassistent. Vraag een product, merk of project (verf, elektriciteit…).',
+  'assistant.redirecting': 'Doorverwijzen naar de winkelassistent…',
   'assistant.placeholder': 'Bv. witte muurverf 10L, LED-lamp, boormachine…',
   'assistant.send': 'Verzenden',
   'assistant.quote': 'Offerte vragen',
@@ -744,6 +747,7 @@ const NL: Dict = {
   'assistant.listening': 'Luisteren…',
   'assistant.lang': 'Taal',
   'assistant.nextStep': 'Volgende stap',
+  'assistant.next': 'Volgende',
   'assistant.reviewCart': 'Winkelwagen nalopen',
   'assistant.langSwitched': 'Taal: Nederlands.'
 };
@@ -1093,6 +1097,7 @@ const EN: Dict = {
   'assistant.close': 'Close',
   'assistant.remove': 'Remove',
   'assistant.welcome': 'Hello! I am the store assistant. Ask for a product, brand or project (paint, electrical…).',
+  'assistant.redirecting': 'Redirecting to the store assistant…',
   'assistant.placeholder': 'E.g. white wall paint 10L, LED bulb, drill…',
   'assistant.send': 'Send',
   'assistant.quote': 'Request quote',
@@ -1109,6 +1114,7 @@ const EN: Dict = {
   'assistant.listening': 'Listening…',
   'assistant.lang': 'Language',
   'assistant.nextStep': 'Next step',
+  'assistant.next': 'Next',
   'assistant.reviewCart': 'Review cart',
   'assistant.langSwitched': 'Language: English.'
 };

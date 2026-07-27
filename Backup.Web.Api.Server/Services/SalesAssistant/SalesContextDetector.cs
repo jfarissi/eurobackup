@@ -46,6 +46,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         {
             await DetectBrandAsync(session, text, ct);
             DetectDomain(session, text);
+            SalesMission.DetectAndApply(session, text);
             ParseProjectDimensions(session, text);
             CollectMaterialHints(session, text);
             UpdateStickySearchFilters(session, text);
@@ -73,8 +74,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var lower = text.ToLowerInvariant();
             return ContainsIgnoreCase(lower, "peindre")
                    || ContainsIgnoreCase(lower, "peinture")
-                   || ContainsIgnoreCase(lower, "chambre")
-                      && (ContainsIgnoreCase(lower, "peindre") || ContainsIgnoreCase(lower, "peinture"));
+                   || ContainsIgnoreCase(lower, "schilderen")
+                   || ContainsIgnoreCase(lower, "verven")
+                   || ContainsIgnoreCase(lower, "muurverf")
+                   || ContainsIgnoreCase(lower, "wall paint")
+                   || ContainsIgnoreCase(lower, "paint my wall")
+                   || ContainsIgnoreCase(lower, "paint a wall")
+                   || (ContainsIgnoreCase(lower, "chambre")
+                       && (ContainsIgnoreCase(lower, "peindre") || ContainsIgnoreCase(lower, "peinture")))
+                   || (ContainsIgnoreCase(lower, "muur")
+                       && (ContainsIgnoreCase(lower, "schilderen") || ContainsIgnoreCase(lower, "verven")));
         }
 
         public async Task DetectBrandAsync(StoreChatSession session, string text, CancellationToken ct = default)
@@ -87,8 +96,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             foreach (var brand in brands.OrderByDescending(b => b.Length))
             {
                 var needle = brand.ToLowerInvariant();
-                if (needle.Length < 2)
+                if (needle.Length < 3)
                     continue;
+                // Marques courtes / ambiguës : uniquement limite de mot (évite « led » → Leddle).
+                if (needle.Length <= 4)
+                {
+                    if (Regex.IsMatch(lower, $@"\b{Regex.Escape(needle)}\b", RegexOptions.IgnoreCase))
+                    {
+                        session.PreferredBrand = brand;
+                        return;
+                    }
+
+                    continue;
+                }
 
                 if (Regex.IsMatch(lower, $@"\b{Regex.Escape(needle)}\b", RegexOptions.IgnoreCase)
                     || lower.Contains(needle, StringComparison.OrdinalIgnoreCase))
@@ -100,8 +120,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             foreach (var alias in BrandTypoAliases.OrderByDescending(kv => kv.Key.Length))
             {
-                if (!Regex.IsMatch(lower, $@"\b{Regex.Escape(alias.Key)}\b", RegexOptions.IgnoreCase)
-                    && !lower.Contains(alias.Key, StringComparison.OrdinalIgnoreCase))
+                if (!Regex.IsMatch(lower, $@"\b{Regex.Escape(alias.Key)}\b", RegexOptions.IgnoreCase))
                     continue;
 
                 var resolved = brands.FirstOrDefault(b =>
@@ -114,10 +133,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 }
             }
 
+            // Tokens génériques — ne jamais en déduire une marque catalogue.
+            var brandNoise = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "led", "lamp", "lampe", "lampes", "ampoule", "ampoules", "bulb", "cable", "câble",
+                "pvc", "mur", "dak", "toit", "toiture", "verf", "paint", "tuin", "jardin"
+            };
+
             var tokens = Regex.Matches(lower, @"[a-z0-9][\w-]{2,}")
                 .Select(m => m.Value)
                 .Where(t => !SalesMaterialLexicon.StopWords.Contains(t)
-                            && !SalesMaterialLexicon.MaterialSynonyms.ContainsKey(t))
+                            && !SalesMaterialLexicon.MaterialSynonyms.ContainsKey(t)
+                            && !brandNoise.Contains(t)
+                            && t.Length >= 4)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -138,6 +166,9 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 return;
 
             var brandToken = marqueMatch.Groups[1].Value;
+            if (brandNoise.Contains(brandToken))
+                return;
+
             var hit = brands.FirstOrDefault(b =>
                 b.Equals(brandToken, StringComparison.OrdinalIgnoreCase)
                 || b.StartsWith(brandToken, StringComparison.OrdinalIgnoreCase)
@@ -159,8 +190,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     "muur bouwen", "metselwerk", "build a wall", "brick wall", "masonry wall",
                     "je construis un mur", "faire un mur", "monter un mur"
                 }),
-                ("painting", "Peinture", new[] { "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer" }),
-                ("tiling", "Carrelage", new[] { "carrelage", "carreau", "faïence", "faience" }),
+                ("painting", "Peinture", new[]
+                {
+                    "peinture", "peindre", "rouleau à peindre", "sous-couche", "lasurer",
+                    "schilderen", "verven", "muurverf", "latexverf", "grondverf", "voorstrijk",
+                    "verfroller", "schilderstape", "paint a wall", "paint my wall", "wall paint"
+                }),
+                ("tiling", "Carrelage", new[]
+                {
+                    "carrelage", "carreau", "faïence", "faience", "tegel zetten", "tegels leggen", "tegellijm"
+                }),
                 ("plumbing", "Plomberie", new[] { "plomberie", "robinet", "tuyau", "wc", "siphon" }),
                 ("electrical", "Électricité", new[]
                 {
@@ -201,7 +240,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     continue;
 
                 session.ActiveProjectDomainId = domain.id;
-                session.ActiveProjectDomainLabel = domain.label;
+                session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, domain.id, domain.label);
                 if (!string.Equals(previousDomain, domain.id, StringComparison.OrdinalIgnoreCase))
                     ClearStickyOnDomainChange(session, previousDomain, domain.id);
 
@@ -222,14 +261,14 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 && (lower.Contains("construire") || Regex.IsMatch(lower, @"\d+\s*m")))
             {
                 session.ActiveProjectDomainId = "wall_construction";
-                session.ActiveProjectDomainLabel = "Construction de mur";
+                session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, "wall_construction");
                 if (!string.Equals(previousDomain, "wall_construction", StringComparison.OrdinalIgnoreCase))
                     ClearStickyOnDomainChange(session, previousDomain, "wall_construction");
             }
         }
 
         /// <summary>
-        /// Changement de sujet (ex. mur → ampoules) : purge surface / hints maçonnerie
+        /// Changement de sujet (ex. toiture → ampoules) : purge marque / types / surface
         /// pour ne pas polluer la recherche suivante.
         /// </summary>
         private static void ClearStickyOnDomainChange(
@@ -242,20 +281,27 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             session.PendingComplementHints.Clear();
             session.AwaitingComplementConfirm = false;
+            session.AwaitingCatalogRefine = false;
+            session.PendingRefineSeed = null;
+            session.CatalogRefineHints.Clear();
+            session.ActiveMission = SalesMissionKind.Project;
+            session.ActiveMissionName = null;
+            session.SkuConstraints = null;
+            session.SuppressProjectGuide = false;
+
+            // Toujours purger marque + types collants (ex. « toiture » + Leddle après un dak).
+            session.PreferredBrand = null;
+            session.PreferredWeightKg = null;
+            session.SearchTypeHints.Clear();
+            session.MaterialHints.Clear();
+            session.LastSuggestedProducts.Clear();
 
             var leavingWall = string.Equals(fromDomain, "wall_construction", StringComparison.OrdinalIgnoreCase)
                               && !string.Equals(toDomain, "wall_construction", StringComparison.OrdinalIgnoreCase);
-            var enteringNonWall = !string.Equals(toDomain, "wall_construction", StringComparison.OrdinalIgnoreCase);
-
-            if (leavingWall || (enteringNonWall && !string.IsNullOrWhiteSpace(fromDomain)))
+            if (leavingWall)
             {
-                if (leavingWall || IsLightingOrNonMasonryDomain(toDomain))
-                {
-                    session.WallLengthM = null;
-                    session.WallHeightM = null;
-                    session.MaterialHints.RemoveAll(IsMasonryMaterialHint);
-                    session.SearchTypeHints.RemoveAll(IsMasonryMaterialHint);
-                }
+                session.WallLengthM = null;
+                session.WallHeightM = null;
             }
 
             if (string.Equals(fromDomain, "painting", StringComparison.OrdinalIgnoreCase)
@@ -399,34 +445,57 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
             if (total <= 0)
             {
-                // Fallback : première paire L×H × 4 (une pièce).
-                var pair = Regex.Match(lower,
-                    @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l)|"
-                    + @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h)");
-                if (pair.Success)
+                decimal length = 0, height = 0;
+                // FR : « 7m de longueur … 2m de hauteur »
+                var fr = Regex.Match(lower,
+                    @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h)|"
+                    + @"(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:haut(?:eur)?|h).{0,24}(\d+(?:\.\d+)?)\s*m\s*(?:de\s+)?(?:long(?:ueur)?|l)");
+                // NL/EN : « 7 meter lang … 2 meter hoog »
+                var nl = Regex.Match(lower,
+                    @"(\d+(?:\.\d+)?)\s*(?:m|meters?|metres?|mètres?)\s*(?:lang|lengte|long|length).{0,48}?(\d+(?:\.\d+)?)\s*(?:m|meters?|metres?|mètres?)\s*(?:hoog|hoogte|haut(?:eur)?|height|h)\b|"
+                    + @"(\d+(?:\.\d+)?)\s*(?:m|meters?|metres?|mètres?)\s*(?:hoog|hoogte|haut(?:eur)?|height|h)\b.{0,48}?(\d+(?:\.\d+)?)\s*(?:m|meters?|metres?|mètres?)\s*(?:lang|lengte|long|length)");
+
+                if (fr.Success)
                 {
-                    decimal a, b;
-                    if (pair.Groups[1].Success)
+                    if (fr.Groups[1].Success)
                     {
-                        a = ParseDec(pair.Groups[1].Value) ?? 0;
-                        b = ParseDec(pair.Groups[2].Value) ?? 0;
+                        length = ParseDec(fr.Groups[1].Value) ?? 0;
+                        height = ParseDec(fr.Groups[2].Value) ?? 0;
                     }
                     else
                     {
-                        b = ParseDec(pair.Groups[3].Value) ?? 0;
-                        a = ParseDec(pair.Groups[4].Value) ?? 0;
+                        height = ParseDec(fr.Groups[3].Value) ?? 0;
+                        length = ParseDec(fr.Groups[4].Value) ?? 0;
                     }
-
-                    if (a > 0 && b > 0)
+                }
+                else if (nl.Success)
+                {
+                    if (nl.Groups[1].Success)
                     {
-                        total = Math.Round(4m * a * b, 1);
-                        parts.Add($"pièce ≈ {total:0.#} m²");
+                        length = ParseDec(nl.Groups[1].Value) ?? 0;
+                        height = ParseDec(nl.Groups[2].Value) ?? 0;
                     }
+                    else
+                    {
+                        height = ParseDec(nl.Groups[3].Value) ?? 0;
+                        length = ParseDec(nl.Groups[4].Value) ?? 0;
+                    }
+                }
+
+                if (length > 0 && height > 0)
+                {
+                    var singleWall = LooksLikeSinglePaintWall(lower);
+                    var factor = singleWall ? 1m : 4m;
+                    total = Math.Round(factor * length * height, 1);
+                    parts.Add(singleWall
+                        ? SalesLocale.T(session, "paint_hint_wall", total)
+                        : SalesLocale.T(session, "paint_hint_room", total));
                 }
             }
 
             if (total > 0)
             {
+                // Toujours écraser une ancienne estimation (ex. session FR → NL).
                 session.PaintAreaM2 = total;
                 session.ProjectTypeHint = parts.Count > 0
                     ? string.Join(" · ", parts)
@@ -434,10 +503,36 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 if (string.IsNullOrWhiteSpace(session.ActiveProjectDomainId))
                 {
                     session.ActiveProjectDomainId = "painting";
-                    session.ActiveProjectDomainLabel = "Peinture";
+                    session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, "painting");
                 }
             }
         }
+
+        /// <summary>
+        /// « peindre mon mur 7×2 » = un panneau ; pas 4 murs d'une pièce.
+        /// </summary>
+        private static bool LooksLikeSinglePaintWall(string lower)
+        {
+            if (ContainsAny(lower,
+                    "chambre", "pièce", "piece", "salle de bain", "salle d",
+                    "maison", "appartement", "couloir", "etage", "étage",
+                    "slaapkamer", "badkamer", "huis ", "appartement"))
+                return false;
+
+            if (ContainsAny(lower,
+                    "peindre mon mur", "peindre mon mure", "peindre un mur", "peindre le mur",
+                    "peindre ma mur", "verf mijn muur", "paint my wall", "paint a wall",
+                    "muur schilderen", "mijn muur"))
+                return true;
+
+            // « mur / mure / muur » sans contexte multi-pièces.
+            return Regex.IsMatch(lower, @"\b(?:mon|ma|un|une|le|la|mijn|the|a)\s+mure?s?\b")
+                   || Regex.IsMatch(lower, @"\bmure?s?\s+(?:de|à|a|van|die)\s+\d")
+                   || Regex.IsMatch(lower, @"\bmuur\b");
+        }
+
+        private static bool ContainsAny(string hay, params string[] needles) =>
+            needles.Any(n => hay.Contains(n, StringComparison.OrdinalIgnoreCase));
 
         private static decimal? ParseDec(string? raw)
         {
@@ -495,11 +590,24 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public ProductSearchFilter BuildSearchMeta(StoreChatSession session, string text)
         {
             var fromText = SalesMaterialLexicon.ExtractTypeHints(text);
-            var types = fromText.Count > 0 ? fromText : session.SearchTypeHints.ToList();
+            var lighting = SalesCatalogSearchTool.IsLightingQueryPublic(text);
+            var types = fromText.Count > 0
+                ? fromText
+                : (lighting
+                    ? new List<string> { "ampoule", "lampe" }
+                    : session.SearchTypeHints.ToList());
+
+            // Éclairage : ignorer une marque collante sauf si elle est écrite dans le message.
+            string? brand = session.PreferredBrand;
+            if (lighting && !string.IsNullOrWhiteSpace(brand)
+                && text.IndexOf(brand, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                brand = null;
+            }
 
             return new ProductSearchFilter
             {
-                Brand = session.PreferredBrand,
+                Brand = brand,
                 Categories = types,
                 WeightKg = ParseWeightKgFromText(text) ?? session.PreferredWeightKg,
                 IsYesNoBrandQuestion = IsYesNoBrandQuestion(text)
@@ -511,11 +619,19 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             if (_cachedBrandNames != null && DateTime.UtcNow - _cachedBrandNamesAtUtc < BrandCacheTtl)
                 return _cachedBrandNames;
 
-            var fromTable = await _storage.SelectAllErpBrands()
-                .AsNoTracking()
-                .Where(b => b.IsActive && b.Name != null && b.Name != "")
-                .Select(b => b.Name)
-                .ToListAsync(ct);
+            List<string> fromTable = [];
+            try
+            {
+                fromTable = await _storage.SelectAllErpBrands()
+                    .AsNoTracking()
+                    .Where(b => b.IsActive && b.Name != null && b.Name != "")
+                    .Select(b => b.Name)
+                    .ToListAsync(ct);
+            }
+            catch (Exception)
+            {
+                // Table ErpBrands absente / pas encore migrée → fallback colonne Brand.
+            }
 
             var names = fromTable.Count > 0
                 ? fromTable

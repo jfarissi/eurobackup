@@ -15,10 +15,12 @@ namespace Backup.Web.Api.Server.Controllers
     public class StoreChatController : ControllerBase
     {
         private readonly ISalesAssistantFacade _assistant;
+        private readonly IStoreChatTurnLogService _turnLog;
 
-        public StoreChatController(ISalesAssistantFacade assistant)
+        public StoreChatController(ISalesAssistantFacade assistant, IStoreChatTurnLogService turnLog)
         {
             _assistant = assistant;
+            _turnLog = turnLog;
         }
 
         [HttpPost("message")]
@@ -71,6 +73,38 @@ namespace Backup.Web.Api.Server.Controllers
             if (result == null)
                 return NotFound();
             return Ok(result);
+        }
+
+        [HttpPost("turns/{turnId:guid}/review")]
+        public async Task<IActionResult> ReviewTurn(
+            Guid turnId,
+            [FromBody] StoreChatTurnReviewRequest request,
+            CancellationToken ct = default)
+        {
+            if (turnId == Guid.Empty)
+                return BadRequest(new { message = "Tour invalide" });
+
+            var status = request?.Status ?? "bad";
+            var ok = await _turnLog.SetReviewAsync(turnId, status, request?.Note, ct, request?.Source ?? "manual");
+            if (!ok)
+                return NotFound(new { message = "Tour introuvable ou statut invalide" });
+            return Ok(new
+            {
+                id = turnId,
+                reviewStatus = status.Trim().ToLowerInvariant(),
+                isCorrected = string.Equals(status, "fixed", StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        [HttpGet("turns")]
+        public async Task<IActionResult> ListTurns(
+            [FromQuery] int take = 50,
+            [FromQuery] string? reviewStatus = null,
+            [FromQuery] bool? isCorrected = null,
+            CancellationToken ct = default)
+        {
+            var items = await _turnLog.ListRecentAsync(take, reviewStatus, isCorrected, ct);
+            return Ok(items);
         }
     }
 }

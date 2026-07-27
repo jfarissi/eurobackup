@@ -148,10 +148,9 @@
 
           <div class="commerce-actions">
             <button type="button" class="btn-outline"
-                    *ngIf="showWallNextStep"
                     [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
-                    (click)="requestWallNextStep()">
-              {{ i18n.t('nextStep') }}
+                    (click)="requestNext()">
+              {{ showWallNextStep ? i18n.t('nextStep') : i18n.t('next') }}
             </button>
             <button type="button" class="btn-outline"
                     *ngIf="cartItemCount > 0"
@@ -201,12 +200,12 @@
   </main>
 
   <footer class="assistant-input">
-    <div class="journey-actions" *ngIf="showWallNextStep || cartItemCount > 0">
+    <div class="journey-actions" *ngIf="showNextCta || cartItemCount > 0">
       <button type="button" class="btn-outline"
-              *ngIf="showWallNextStep"
+              *ngIf="showNextCta"
               [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"
-              (click)="requestWallNextStep()">
-        {{ i18n.t('nextStep') }}
+              (click)="requestNext()">
+        {{ showWallNextStep ? i18n.t('nextStep') : i18n.t('next') }}
       </button>
       <button type="button" class="btn-outline"
               *ngIf="cartItemCount > 0"

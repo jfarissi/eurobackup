@@ -43,6 +43,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
         public List<string> PendingComplementHints { get; set; } = new();
         public bool AwaitingComplementConfirm { get; set; }
 
+        /// <summary>Recherche trop large (éclairage) : on attend kelvin / watts avant le tableau.</summary>
+        public bool AwaitingCatalogRefine { get; set; }
+        /// <summary>Texte de la recherche d’origine à rejouer après affinage.</summary>
+        public string? PendingRefineSeed { get; set; }
+        /// <summary>Hints d’affinage (ex. 2700k, 8w).</summary>
+        public List<string> CatalogRefineHints { get; set; } = new();
+
+        /// <summary>Project | SimpleSku — mission conversationnelle.</summary>
+        public SalesMissionKind ActiveMission { get; set; } = SalesMissionKind.Project;
+        public string? ActiveMissionName { get; set; }
+        public SalesSkuConstraints? SkuConstraints { get; set; }
+        /// <summary>True = pas de checklist / CTA parcours (achat SKU simple).</summary>
+        public bool SuppressProjectGuide { get; set; }
+
         /// <summary>Structure (briques/blocs) + liant détectés via hints projet.</summary>
         public bool HasStructureHint =>
             MaterialHints.Any(h => IsStructureHint(h));
@@ -74,6 +88,13 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             LastSuggestedProducts.Clear();
             PendingComplementHints.Clear();
             AwaitingComplementConfirm = false;
+            AwaitingCatalogRefine = false;
+            PendingRefineSeed = null;
+            CatalogRefineHints.Clear();
+            ActiveMission = SalesMissionKind.Project;
+            ActiveMissionName = null;
+            SkuConstraints = null;
+            SuppressProjectGuide = false;
         }
 
         public string SummaryLine()

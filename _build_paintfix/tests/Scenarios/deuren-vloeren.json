@@ -1,0 +1,16 @@
+{
+  "id": "deuren-vloeren",
+  "title": "Deuren _ Houten vloeren — portes / parquets",
+  "mainType": "Deuren _ Houten vloeren",
+  "mainTypeId": "43",
+  "expectedCategoryHints": ["Deur", "vloer", "parquet", "laminaat"],
+  "forbiddenProductHints": ["cement"],
+  "turns": [
+    {
+      "user": "je cherche une porte intérieure et du parquet",
+      "expect": {
+        "categoryMustMatchAny": ["deur", "vloer", "parquet", "laminaat", "Deuren"]
+      }
+    }
+  ]
+}

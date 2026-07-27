@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Backup.Web.Api.Server.Services.StoreChat;
 
 namespace Backup.Web.Api.Server.Services.SalesAssistant
@@ -33,7 +34,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             _ => "français"
         };
 
-        public static string T(StoreChatSession? session, string key, params object[] args)
+        public static string T(StoreChatSession? session, string key, params object?[] args)
         {
             var lang = Of(session);
             if (!Catalog.TryGetValue(key, out var byLang)
@@ -46,7 +47,11 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                     : key;
             }
 
-            return args.Length == 0 ? template : string.Format(template, args);
+            if (args.Length == 0)
+                return template;
+
+            var safe = args.Select(a => a ?? string.Empty).Cast<object>().ToArray();
+            return string.Format(template, safe);
         }
 
         private static readonly Dictionary<string, Dictionary<string, string>> Catalog = new(StringComparer.OrdinalIgnoreCase)
@@ -62,6 +67,30 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Fr] = "Nouveau projet démarré. Comment puis-je vous aider ?",
                 [Nl] = "Nieuw project gestart. Waarmee kan ik u helpen?",
                 [En] = "New project started. How can I help you?"
+            },
+            ["lang_mismatch_warn"] = new()
+            {
+                [Fr] = "Note : la langue de l'interface est {0}, mais votre message semble en {1}. Vous pouvez changer de langue en haut si besoin.",
+                [Nl] = "Let op: de interfacetaal is {0}, maar uw bericht lijkt in het {1}. U kunt bovenaan van taal wisselen indien nodig.",
+                [En] = "Note: the UI language is {0}, but your message looks like {1}. You can switch language at the top if needed."
+            },
+            ["lang_name_fr"] = new()
+            {
+                [Fr] = "français",
+                [Nl] = "Frans",
+                [En] = "French"
+            },
+            ["lang_name_nl"] = new()
+            {
+                [Fr] = "néerlandais",
+                [Nl] = "Nederlands",
+                [En] = "Dutch"
+            },
+            ["lang_name_en"] = new()
+            {
+                [Fr] = "anglais",
+                [Nl] = "Engels",
+                [En] = "English"
             },
             ["quote_ready"] = new()
             {
@@ -110,6 +139,156 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Fr] = "Compléments utiles :",
                 [Nl] = "Nuttige aanvullingen:",
                 [En] = "Useful complements:"
+            },
+            ["guide_painting_title"] = new()
+            {
+                [Fr] = "Parcours peinture (une famille à la fois) :",
+                [Nl] = "Verftraject (één productgroep tegelijk):",
+                [En] = "Paint journey (one family at a time):"
+            },
+            ["guide_family_suffix"] = new()
+            {
+                [Fr] = "une famille à la fois",
+                [Nl] = "één productgroep tegelijk",
+                [En] = "one family at a time"
+            },
+            ["guide_step_now"] = new()
+            {
+                [Fr] = " ← à choisir maintenant",
+                [Nl] = " ← nu kiezen",
+                [En] = " ← choose now"
+            },
+            ["guide_aisle"] = new()
+            {
+                [Fr] = " — rayon : {0}",
+                [Nl] = " — afdeling: {0}",
+                [En] = " — aisle: {0}"
+            },
+            ["guide_complete"] = new()
+            {
+                [Fr] = "Parcours complet — vous pouvez demander un devis ou passer commande.",
+                [Nl] = "Traject compleet — u kunt een offerte vragen of bestellen.",
+                [En] = "Journey complete — you can request a quote or place an order."
+            },
+            ["guide_next_hint"] = new()
+            {
+                [Fr] = "Ajoutez une référence au panier ou précisez un type pour passer à l’étape suivante.",
+                [Nl] = "Voeg een referentie toe aan de winkelwagen of preciseer een type om verder te gaan.",
+                [En] = "Add an item to the cart or specify a type to move to the next step."
+            },
+            ["guide_next_step"] = new()
+            {
+                [Fr] = "Étape suivante — {0} :",
+                [Nl] = "Volgende stap — {0}:",
+                [En] = "Next step — {0}:"
+            },
+            ["guide_painting_paint"] = new()
+            {
+                [Fr] = "Peinture",
+                [Nl] = "Muurverf",
+                [En] = "Paint"
+            },
+            ["guide_painting_primer"] = new()
+            {
+                [Fr] = "Sous-couche / primaire",
+                [Nl] = "Voorstrijk / primer",
+                [En] = "Primer / undercoat"
+            },
+            ["guide_painting_roller"] = new()
+            {
+                [Fr] = "Rouleau / pinceau",
+                [Nl] = "Verfroller / kwast",
+                [En] = "Roller / brush"
+            },
+            ["guide_painting_tape"] = new()
+            {
+                [Fr] = "Adhésif de masquage",
+                [Nl] = "Schilderstape",
+                [En] = "Masking tape"
+            },
+            ["guide_painting_aisle_paint"] = new()
+            {
+                [Fr] = "Peintures intérieur / extérieur",
+                [Nl] = "Binnen- / buitenverf",
+                [En] = "Interior / exterior paints"
+            },
+            ["guide_painting_aisle_primer"] = new()
+            {
+                [Fr] = "Primaires & sous-couches",
+                [Nl] = "Primers & voorstrijk",
+                [En] = "Primers & undercoats"
+            },
+            ["guide_painting_aisle_roller"] = new()
+            {
+                [Fr] = "Outillage peinture",
+                [Nl] = "Verfgereedschap",
+                [En] = "Paint tools"
+            },
+            ["guide_painting_aisle_tape"] = new()
+            {
+                [Fr] = "Rubans & protection",
+                [Nl] = "Tape & bescherming",
+                [En] = "Tapes & protection"
+            },
+            ["guide_roofing_title"] = new()
+            {
+                [Fr] = "Parcours toiture (une famille à la fois) :",
+                [Nl] = "Daktraject (één productgroep tegelijk):",
+                [En] = "Roofing journey (one family at a time):"
+            },
+            ["guide_roofing_cover"] = new()
+            {
+                [Fr] = "Couverture / tuiles",
+                [Nl] = "Dakbedekking / dakpannen",
+                [En] = "Covering / tiles"
+            },
+            ["guide_roofing_fixings"] = new()
+            {
+                [Fr] = "Crochets / fixations",
+                [Nl] = "Haken / bevestigingen",
+                [En] = "Hooks / fixings"
+            },
+            ["guide_roofing_gutter"] = new()
+            {
+                [Fr] = "Gouttière / évacuation",
+                [Nl] = "Dakgoot / afvoer",
+                [En] = "Gutter / drainage"
+            },
+            ["guide_roofing_aisle_cover"] = new()
+            {
+                [Fr] = "Tuiles, ardoises, plaques",
+                [Nl] = "Dakpannen, leien, platen",
+                [En] = "Tiles, slates, sheets"
+            },
+            ["guide_roofing_aisle_fixings"] = new()
+            {
+                [Fr] = "Fixations toiture",
+                [Nl] = "Dakbevestigingen",
+                [En] = "Roof fixings"
+            },
+            ["guide_roofing_aisle_gutter"] = new()
+            {
+                [Fr] = "Gouttières & descentes",
+                [Nl] = "Dakgoten & afvoeren",
+                [En] = "Gutters & downpipes"
+            },
+            ["paint_hint_wall"] = new()
+            {
+                [Fr] = "mur ≈ {0:0.#} m²",
+                [Nl] = "muur ≈ {0:0.#} m²",
+                [En] = "wall ≈ {0:0.#} m²"
+            },
+            ["paint_hint_room"] = new()
+            {
+                [Fr] = "pièce ≈ {0:0.#} m²",
+                [Nl] = "ruimte ≈ {0:0.#} m²",
+                [En] = "room ≈ {0:0.#} m²"
+            },
+            ["cart_item_added"] = new()
+            {
+                [Fr] = "Produit ajouté au panier.",
+                [Nl] = "Product toegevoegd aan de winkelwagen.",
+                [En] = "Product added to cart."
             },
             ["complements_none"] = new()
             {
@@ -242,6 +421,162 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Fr] = "(Affichage des {0} meilleures sur {1} — précisez pour affiner.)",
                 [Nl] = "(Weergave van de {0} beste op {1} — preciseer om te verfijnen.)",
                 [En] = "(Showing the top {0} of {1} — please refine for better matches.)"
+            },
+            ["catalog_refine_lighting"] = new()
+            {
+                [Fr] = "J’ai environ {0} références d’éclairage. Pour afficher les bonnes ampoules, précisez :\n"
+                       + "• Température : blanc chaud (2700K), neutre (4000K) ou froid (6500K)\n"
+                       + "• Ou l’usage : pièce de vie / bureau / extérieur\n"
+                       + "• Puissance (ex. 8W) si vous la connaissez\n\n"
+                       + "Sinon dites « montrez quand même » pour voir quelques références.",
+                [Nl] = "Ik heb ongeveer {0} verlichtingsreferenties. Om de juiste lampen te tonen, preciseer:\n"
+                       + "• Kleurtemperatuur: warm wit (2700K), neutraal (4000K) of koel wit (6500K)\n"
+                       + "• Of het gebruik: woonkamer / kantoor / buiten\n"
+                       + "• Vermogen (bv. 8W) indien bekend\n\n"
+                       + "Of zeg « toon toch » om enkele referenties te zien.",
+                [En] = "I have about {0} lighting references. To show the right bulbs, please specify:\n"
+                       + "• Colour temperature: warm white (2700K), neutral (4000K) or cool white (6500K)\n"
+                       + "• Or usage: living room / office / outdoor\n"
+                       + "• Wattage (e.g. 8W) if you know it\n\n"
+                       + "Or say « show anyway » to see a few references."
+            },
+            ["catalog_refine_painting"] = new()
+            {
+                [Fr] = "J’ai environ {0} références peinture. Pour afficher les bons produits, précisez :\n"
+                       + "• Intérieur ou extérieur ?\n"
+                       + "• Peinture murale (latex), sous-couche, ou outils (rouleau / pinceaux) ?\n"
+                       + "• Couleur / marque si vous en avez une\n"
+                       + "• Surface en m² si connue\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} verfreferenties. Preciseer:\n"
+                       + "• Binnen of buiten?\n"
+                       + "• Muurverf (latex), voorstrijk, of gereedschap (roller / penselen)?\n"
+                       + "• Kleur / merk indien bekend\n"
+                       + "• Oppervlakte in m² indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} paint references. Please specify:\n"
+                       + "• Indoor or outdoor?\n"
+                       + "• Wall paint (latex), primer, or tools (roller / brushes)?\n"
+                       + "• Colour / brand if you have one\n"
+                       + "• Area in m² if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_wall"] = new()
+            {
+                [Fr] = "J’ai environ {0} références maçonnerie. Pour afficher les bons matériaux, précisez :\n"
+                       + "• Briques, blocs / parpaings, ou mortier / ciment ?\n"
+                       + "• Marque (ex. Silka, Knauf) si connue\n"
+                       + "• Dimensions du mur (L × H) si connues\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} metselreferenties. Preciseer:\n"
+                       + "• Stenen, blokken, of mortel / cement?\n"
+                       + "• Merk (bv. Silka, Knauf) indien bekend\n"
+                       + "• Muurafmetingen (L × H) indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} masonry references. Please specify:\n"
+                       + "• Bricks, blocks, or mortar / cement?\n"
+                       + "• Brand (e.g. Silka, Knauf) if known\n"
+                       + "• Wall size (L × H) if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_tiling"] = new()
+            {
+                [Fr] = "J’ai environ {0} références carrelage. Précisez :\n"
+                       + "• Sol ou mur ?\n"
+                       + "• Carreaux, colle, ou joints ?\n"
+                       + "• Format / couleur / marque si connue\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} tegelreferenties. Preciseer:\n"
+                       + "• Vloer of muur?\n"
+                       + "• Tegels, lijm of voegen?\n"
+                       + "• Formaat / kleur / merk indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} tiling references. Please specify:\n"
+                       + "• Floor or wall?\n"
+                       + "• Tiles, adhesive, or grout?\n"
+                       + "• Size / colour / brand if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_plumbing"] = new()
+            {
+                [Fr] = "J’ai environ {0} références plomberie. Précisez :\n"
+                       + "• Robinetterie, PVC / tuyaux, évacuation, ou accessoires ?\n"
+                       + "• Marque / diamètre si connus\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} sanitairreferenties. Preciseer:\n"
+                       + "• Kranen, PVC / buizen, afvoer of accessoires?\n"
+                       + "• Merk / diameter indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} plumbing references. Please specify:\n"
+                       + "• Taps, PVC / pipes, drainage, or accessories?\n"
+                       + "• Brand / diameter if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_roofing"] = new()
+            {
+                [Fr] = "J’ai environ {0} références toiture. Précisez :\n"
+                       + "• Tuiles / panneaux, crochets / fixations, ou gouttière ?\n"
+                       + "• Marque / type si connus\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} dakreferenties. Preciseer:\n"
+                       + "• Dakpannen / panelen, haken / bevestiging, of goot?\n"
+                       + "• Merk / type indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} roofing references. Please specify:\n"
+                       + "• Tiles / panels, hooks / fixings, or gutter?\n"
+                       + "• Brand / type if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_electrical"] = new()
+            {
+                [Fr] = "J’ai environ {0} références électricité. Précisez :\n"
+                       + "• Ampoules / LED, prises & interrupteurs, câbles, ou tableaux / disjoncteurs ?\n"
+                       + "• Marque / modèle si connus\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} elektriciteitsreferenties. Preciseer:\n"
+                       + "• Lampen / LED, stopcontacten & schakelaars, kabels, of borden / automaten?\n"
+                       + "• Merk / model indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} electrical references. Please specify:\n"
+                       + "• Bulbs / LED, sockets & switches, cables, or panels / breakers?\n"
+                       + "• Brand / model if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_garden"] = new()
+            {
+                [Fr] = "J’ai environ {0} références jardin. Précisez :\n"
+                       + "• Aménagement (dalles, clôture), entretien (tondeuse, haie), ou nettoyage ?\n"
+                       + "• Marque / type si connus\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} tuinreferenties. Preciseer:\n"
+                       + "• Aanleg (tegels, omheining), onderhoud (maaier, haag), of reiniging?\n"
+                       + "• Merk / type indien bekend\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} garden references. Please specify:\n"
+                       + "• Landscaping (slabs, fence), maintenance (mower, hedge), or cleaning?\n"
+                       + "• Brand / type if known\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_refine_generic"] = new()
+            {
+                [Fr] = "J’ai environ {0} références ({1}). Pour afficher les bons produits, précisez type, marque ou usage.\n\n"
+                       + "Sinon dites « montrez quand même ».",
+                [Nl] = "Ik heb ongeveer {0} referenties ({1}). Preciseer type, merk of gebruik.\n\n"
+                       + "Of zeg « toon toch ».",
+                [En] = "I have about {0} references ({1}). Please specify type, brand or usage.\n\n"
+                       + "Or say « show anyway »."
+            },
+            ["catalog_sku_found"] = new()
+            {
+                [Fr] = "Voici {0} ampoule(s) {1} adaptées à votre demande.",
+                [Nl] = "Hier zijn {0} {1}-lamp(en) die bij uw vraag passen.",
+                [En] = "Here are {0} {1} bulb(s) matching your request."
+            },
+            ["catalog_sku_soft_refine"] = new()
+            {
+                [Fr] = "Préférez-vous une lumière chaleureuse (salon, 2700K), neutre (bureau, 4000K) ou très blanche (garage, 6500K) ?",
+                [Nl] = "Kiest u liever warm wit (woonkamer, 2700K), neutraal (kantoor, 4000K) of koel wit (garage, 6500K)?",
+                [En] = "Prefer warm white (living room, 2700K), neutral (office, 4000K) or cool white (garage, 6500K)?"
             },
             ["qty_prefilled"] = new()
             {
@@ -389,9 +724,27 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             },
             ["more_products_empty"] = new()
             {
-                [Fr] = "Je n'ai pas d'autres références pertinentes pour l'instant. Précisez (bordure, clôture, gravier…).",
-                [Nl] = "Ik heb voorlopig geen andere relevante referenties. Preciseer (boordsteen, omheining, grind…).",
-                [En] = "I don't have other relevant references right now. Please refine (edging, fence, gravel…)."
+                [Fr] = "Je n'ai pas d'autres références pertinentes pour l'instant. Précisez un type ou une marque.",
+                [Nl] = "Ik heb voorlopig geen andere relevante referenties. Preciseer een type of merk.",
+                [En] = "I don't have other relevant references right now. Please refine a type or brand."
+            },
+            ["more_products_empty_roofing"] = new()
+            {
+                [Fr] = "Je n'ai pas d'autres références toiture pour l'instant. Précisez (tuiles, crochets, gouttière…).",
+                [Nl] = "Ik heb voorlopig geen andere dakreferenties. Preciseer (dakpannen, panhaken, dakgoot…).",
+                [En] = "No more roofing references for now. Please refine (tiles, hooks, gutter…)."
+            },
+            ["more_products_empty_painting"] = new()
+            {
+                [Fr] = "Je n'ai pas d'autres références peinture pour l'instant. Précisez (peinture, primaire, rouleau…).",
+                [Nl] = "Ik heb voorlopig geen andere verfreferenties. Preciseer (muurverf, primer, roller…).",
+                [En] = "No more paint references for now. Please refine (wall paint, primer, roller…)."
+            },
+            ["more_products_empty_garden"] = new()
+            {
+                [Fr] = "Je n'ai pas d'autres références jardin pour l'instant. Précisez (bordure, clôture, gravier…).",
+                [Nl] = "Ik heb voorlopig geen andere tuinreferenties. Preciseer (boordsteen, omheining, grind…).",
+                [En] = "No more garden references for now. Please refine (edging, fence, gravel…)."
             },
             ["weight_not_found"] = new()
             {
@@ -505,6 +858,20 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             };
             if (key == null)
                 return fallback ?? domainId ?? "";
+            return T(session, key);
+        }
+
+        /// <summary>Message « plus de produits » adapté au domaine (évite le hint jardin hors contexte).</summary>
+        public static string MoreProductsEmpty(StoreChatSession? session)
+        {
+            var domain = (session?.ActiveProjectDomainId ?? string.Empty).ToLowerInvariant();
+            var key = domain switch
+            {
+                "roofing" => "more_products_empty_roofing",
+                "painting" => "more_products_empty_painting",
+                "garden_cleaning" or "garden_landscaping" or "garden_maintenance" => "more_products_empty_garden",
+                _ => "more_products_empty"
+            };
             return T(session, key);
         }
     }

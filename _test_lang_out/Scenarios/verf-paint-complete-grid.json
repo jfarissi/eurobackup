@@ -1,0 +1,79 @@
+{
+  "id": "verf-paint-complete-grid",
+  "title": "Verf — grille parcours peinture (familles → complet)",
+  "mainType": "Verf",
+  "mainTypeId": "3",
+  "domainId": "painting",
+  "notes": "Même process que le mur : avance d'après le panier, checklist, complet → pas de flèche focus.",
+  "turns": [
+    {
+      "user": "autres ?",
+      "cartBefore": ["Muurverf latex blanc 10L"],
+      "expect": {
+        "domainId": "painting",
+        "guideStepId": "primer",
+        "guideComplete": false,
+        "replyMustContain": [
+          "2. Sous-couche",
+          "← à choisir maintenant"
+        ],
+        "replyMustNotContain": [
+          "Parcours complet"
+        ]
+      }
+    },
+    {
+      "user": "et ensuite",
+      "cartBefore": [
+        "Muurverf latex blanc 10L",
+        "Grondverf voorstrijk 5L"
+      ],
+      "expect": {
+        "domainId": "painting",
+        "guideStepId": "roller",
+        "guideComplete": false,
+        "replyMustContain": [
+          "3. Rouleau",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "ok suivant",
+      "cartBefore": [
+        "Muurverf latex",
+        "Grondverf primer",
+        "Verfroller 25cm"
+      ],
+      "expect": {
+        "domainId": "painting",
+        "guideStepId": "tape",
+        "guideComplete": false,
+        "replyMustContain": [
+          "4. Adhésif",
+          "← à choisir maintenant"
+        ]
+      }
+    },
+    {
+      "user": "c'est bon pour le panier ?",
+      "cartBefore": [
+        "Muurverf latex blanc",
+        "Sous-couche primer",
+        "Rouleau verfroller",
+        "Schilderstape masking"
+      ],
+      "expect": {
+        "domainId": "painting",
+        "guidedIntent": "Tips",
+        "guideComplete": true,
+        "replyMustContain": [
+          "Parcours complet"
+        ],
+        "replyMustNotContain": [
+          "← à choisir maintenant"
+        ]
+      }
+    }
+  ]
+}

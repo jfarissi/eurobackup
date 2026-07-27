@@ -107,9 +107,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 Name = c.Name
             }).ToList());
 
-            // Parcours mur terminé : ne pas lister des « prochaines familles » (ex. gants)
-            // comme s'il manquait encore une étape.
-            if (SalesProjectGuide.IsWallGuideComplete(session))
+            // Parcours guidé terminé : compléments optionnels seulement (pas « prochaines familles »).
+            if (Guides.ProjectGuides.IsComplete(session))
             {
                 if (missing.Count > 0)
                 {

@@ -234,6 +234,28 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(o => o.LinesJson).HasColumnType("longtext");
             });
 
+            modelBuilder.Entity<StoreChatTurn>(entity =>
+            {
+                entity.ToTable("StoreChatTurns");
+                entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.SessionId);
+                entity.HasIndex(t => t.CreatedAt);
+                entity.HasIndex(t => t.SalesProjectId);
+                entity.HasIndex(t => t.ReviewStatus);
+                entity.Property(t => t.SessionId).IsRequired().HasMaxLength(64);
+                entity.Property(t => t.PreferredLanguage).HasMaxLength(8);
+                entity.Property(t => t.DomainId).HasMaxLength(64);
+                entity.Property(t => t.ClientIntent).HasMaxLength(64);
+                entity.Property(t => t.ActionType).HasMaxLength(64);
+                entity.Property(t => t.UserText).HasColumnType("longtext");
+                entity.Property(t => t.ReplyText).HasColumnType("longtext");
+                entity.Property(t => t.ProductsJson).HasColumnType("longtext");
+                entity.Property(t => t.ReviewStatus).HasMaxLength(16);
+                entity.Property(t => t.ReviewNote).HasMaxLength(2000);
+                entity.Property(t => t.ReviewSource).HasMaxLength(16);
+                entity.HasIndex(t => t.IsCorrected);
+            });
+
             modelBuilder.Entity<SalesProject>(entity =>
             {
                 entity.ToTable("SalesProjects");

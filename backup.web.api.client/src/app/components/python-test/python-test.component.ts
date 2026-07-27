@@ -606,7 +606,7 @@ export class PythonTestComponent implements OnInit {
   private formatHttpError(err: any, fallback: string): string {
     if (err?.status === 0 || String(err?.message || '').includes('Unknown Error')) {
       return (
-        'Impossible de joindre le backend (https://127.0.0.1:7157). ' +
+        'Impossible de joindre le backend (http://127.0.0.1:5243). ' +
         'Lancez dotnet run --launch-profile https (Backup.Web.Api.Server) et Python sur le port 8000.'
       );
     }

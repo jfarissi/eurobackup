@@ -538,4 +538,11 @@ local.settings.json
 *.md
 *.xlsx
 *.ps1
+!scripts/generate-lan-certs.ps1
 *.sql
+
+# TLS LAN certificates (generated locally)
+certs/*
+!certs/.gitkeep
+*.pfx
+*.crt

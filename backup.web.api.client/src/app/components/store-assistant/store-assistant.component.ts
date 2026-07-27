@@ -31,6 +31,8 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   isPlacingOrder = false;
   activeProjectDomainLabel: string | null = null;
   activeProjectDomainId: string | null = null;
+  guideComplete = false;
+  /** @deprecated alias de guideComplete (compat réponses API). */
   wallGuideComplete = false;
   salesProjectTitle: string | null = null;
   salesProjectId: string | null = null;
@@ -46,9 +48,33 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     return this.activeProjectDomainId === 'wall_construction';
   }
 
-  /** Afficher « Étape suivante » seulement tant que le parcours mur n'est pas terminé. */
+  /** Domaine avec parcours guidé actif (registre serveur). */
+  get hasActiveProjectGuide(): boolean {
+    return !!this.activeProjectDomainId;
+  }
+
+  /** Afficher « Étape suivante » tant que le parcours guidé n'est pas terminé. */
+  get showProjectNextStep(): boolean {
+    return this.hasActiveProjectGuide && !this.guideComplete;
+  }
+
+  /** @deprecated alias — templates / i18n. */
   get showWallNextStep(): boolean {
-    return this.isWallProject && !this.wallGuideComplete;
+    return this.showProjectNextStep;
+  }
+
+  /** CTA Suivant sous une liste produits (guide → étape, sinon plus de produits). */
+  get showNextCta(): boolean {
+    return this.showProjectNextStep || this.lastBotHasProducts;
+  }
+
+  get lastBotHasProducts(): boolean {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const m = this.messages[i];
+      if (m.sender !== 'bot') continue;
+      return !!(m.productSuggestions && m.productSuggestions.length > 0);
+    }
+    return false;
   }
 
   cartPanelOpen = false;
@@ -344,10 +370,26 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
   }
 
   requestWallNextStep(): void {
+    this.requestProjectNextStep();
+  }
+
+  requestProjectNextStep(): void {
     if (this.isTyping || this.isGeneratingQuote || this.isPlacingOrder) return;
     const text = this.i18n.t('nextStep');
     this.pushUser(text);
-    this.callApi({ text, clientIntent: 'WallNextStep' });
+    this.callApi({ text, clientIntent: 'ProjectNextStep' });
+  }
+
+  /** Un seul bouton Suivant : parcours guidé si domaine actif, sinon plus de produits. */
+  requestNext(): void {
+    if (this.isTyping || this.isGeneratingQuote || this.isPlacingOrder) return;
+    if (this.showProjectNextStep) {
+      this.requestProjectNextStep();
+      return;
+    }
+    const text = this.i18n.t('next');
+    this.pushUser(text);
+    this.callApi({ text, clientIntent: 'MoreProducts' });
   }
 
   requestCartReview(): void {
@@ -406,6 +448,7 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     }];
     this.activeProjectDomainLabel = null;
     this.activeProjectDomainId = null;
+    this.guideComplete = false;
     this.wallGuideComplete = false;
     this.salesProjectTitle = null;
     this.salesProjectId = null;
@@ -514,7 +557,11 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     if (res.activeProjectDomainId) {
       this.activeProjectDomainId = res.activeProjectDomainId;
     }
-    if (typeof res.wallGuideComplete === 'boolean') {
+    if (typeof res.guideComplete === 'boolean') {
+      this.guideComplete = res.guideComplete;
+      this.wallGuideComplete = res.guideComplete;
+    } else if (typeof res.wallGuideComplete === 'boolean') {
+      this.guideComplete = res.wallGuideComplete;
       this.wallGuideComplete = res.wallGuideComplete;
     }
 

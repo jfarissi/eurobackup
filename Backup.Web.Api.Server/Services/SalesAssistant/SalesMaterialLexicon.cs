@@ -87,6 +87,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "nokvorst", "onderdak", "dakgoot",
                 "roof", "roofing", "shingle", "tile roof"
             },
+            ["ampoule"] = new[]
+            {
+                "ampoule", "ampoules", "lampe", "lampes", "lamp", "bulb", "bulbs",
+                "gloeilamp", "spaarlamp", "lampje", "e27", "e14", "gu10",
+                "halogène", "halogene", "led lamp", "ledlampe"
+            },
         };
 
         public static List<string> ExtractTypeHints(string text)
