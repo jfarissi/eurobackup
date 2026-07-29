@@ -37,10 +37,15 @@ export class PermissionRealtimeService implements OnDestroy {
       this.connection = new signalR.HubConnectionBuilder()
         .withUrl(hubUrl, {
           accessTokenFactory: () => this.auth.token ?? '',
-          withCredentials: false
+          withCredentials: false,
+          // SSE/LongPolling si le reverse-proxy bloque encore WebSockets
+          transport:
+            signalR.HttpTransportType.WebSockets |
+            signalR.HttpTransportType.ServerSentEvents |
+            signalR.HttpTransportType.LongPolling
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Warning)
+        .configureLogging(environment.production ? signalR.LogLevel.Error : signalR.LogLevel.Warning)
         .build();
 
       this.connection.on('permissionsChanged', () => {
