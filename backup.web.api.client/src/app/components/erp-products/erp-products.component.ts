@@ -10,6 +10,8 @@ import { environment } from '../../../environments/environment';
 import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { PermissionService } from '../../services/permission.service';
+import { Permissions } from '../../constants/permissions';
 
 @Component({
   selector: 'app-erp-products',
@@ -54,8 +56,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   constructor(
     private erpService: ErpProductService,
     private snack: MatSnackBar,
-    private i18n: AppI18nService
+    private i18n: AppI18nService,
+    public perm: PermissionService
   ) {}
+
+  readonly P = Permissions;
 
   ngOnInit(): void {
     this.loadFilterOptions();

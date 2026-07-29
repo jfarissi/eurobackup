@@ -24,6 +24,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -60,6 +61,8 @@ builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonPr
     client.Timeout = TimeSpan.FromMinutes(30);
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Numbering.INumberingSequenceService, Backup.Web.Api.Server.Services.Numbering.NumberingSequenceService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.BusinessPdf.IBusinessDocumentPdfService, Backup.Web.Api.Server.Services.BusinessPdf.BusinessDocumentPdfService>();
 builder.Services.AddHttpClient("ErpProductImages", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
@@ -151,6 +154,10 @@ builder.Services.AddSwaggerGen(c =>
 
 
 builder.Services.AddTransient<IJwtUtils, JwtUtils>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.ICompanyContextService, Backup.Web.Api.Server.Services.Tenancy.CompanyContextService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.TenancySeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.SupplierSeedService>();
 builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AppSettings>(
     builder.Configuration.GetSection("AppSettings"));
 builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AuthSeedOptions>(
@@ -189,12 +196,43 @@ builder.Services.AddAuthentication(options =>
         NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
+    // SignalR WebSocket : token via ?access_token=
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) &&
+                path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
-builder.Services.AddAuthorization();
-// CORS for local dev (adjust as needed)
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider,
+    Backup.Web.Api.Server.Services.Security.JwtUserIdProvider>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.Security.IPermissionChangeNotifier,
+    Backup.Web.Api.Server.Services.Security.PermissionChangeNotifier>();
+builder.Services.AddAuthorization(options =>
+{
+    Backup.Web.Api.Server.Authorization.PermissionPolicyRegistration.RegisterPermissionPolicies(options);
+});
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider,
+    Backup.Web.Api.Server.Authorization.PermissionPolicyProvider>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    Backup.Web.Api.Server.Authorization.PermissionAuthorizationHandler>();
+// CORS for local dev (Angular :4200 → API :5243, SignalR inclus)
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+    options.AddDefaultPolicy(policy =>
+        policy.SetIsOriginAllowed(_ => true)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
 builder.Services.AddRequestTimeouts();
 
@@ -247,6 +285,23 @@ catch (Exception ex)
     startupLogger.LogError(ex, "Auth seed failed on startup");
 }
 
+try
+{
+    using var tenancyScope = app.Services.CreateScope();
+    var tenancySeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.TenancySeedService>();
+    await tenancySeed.EnsureDefaultsAsync();
+
+    var supplierSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.SupplierSeedService>();
+    await supplierSeed.EnsurePulseSuppliersAsync();
+}
+catch (Exception ex)
+{
+    var startupLogger = app.Services
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("TenancySeed");
+    startupLogger.LogError(ex, "Tenancy/supplier seed failed on startup");
+}
+
 if (builder.Configuration.GetValue("UseHttpsRedirection", true))
     app.UseHttpsRedirection();
 
@@ -260,6 +315,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapControllers();
+app.MapHub<Backup.Web.Api.Server.Hubs.PermissionsHub>(Backup.Web.Api.Server.Hubs.PermissionsHub.HubPath);
 
 app.MapFallbackToFile("/index.html");
 

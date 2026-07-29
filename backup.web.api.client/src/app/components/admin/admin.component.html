@@ -1,0 +1,428 @@
+<div class="page-container">
+  <div class="page-header">
+    <h2 class="page-title"><mat-icon>admin_panel_settings</mat-icon> {{ 'admin.title' | t }}</h2>
+  </div>
+
+  <div *ngIf="actionMessage" class="alert success" (click)="clearMessages()">{{ actionMessage }}</div>
+  <div *ngIf="actionError" class="alert error" (click)="clearMessages()">{{ actionError }}</div>
+
+  <mat-tab-group [(selectedIndex)]="selectedTab">
+
+    <!-- ── Tenants ──────────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'admin.tab.tenants' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <button class="btn-primary" type="button" (click)="openTenantModal()">
+          <mat-icon>add</mat-icon> {{ 'admin.btn.newTenant' | t }}
+        </button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead><tr><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.active' | t }}</th><th>{{ 'admin.col.companies' | t }}</th><th>{{ 'admin.col.createdAt' | t }}</th><th>{{ 'common.actions' | t }}</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let t of tenants">
+              <td><strong>{{ t.name }}</strong></td>
+              <td><span class="badge" [class.active]="t.isActive" [class.inactive]="!t.isActive">{{ t.isActive ? ('admin.active' | t) : ('admin.inactive' | t) }}</span></td>
+              <td>{{ t.companyCount }}</td>
+              <td>{{ t.createdAt | date:'dd/MM/yyyy' }}</td>
+              <td class="actions-cell crud-actions">
+                <button class="icon-action edit" type="button" (click)="openTenantModal(t)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
+              </td>
+            </tr>
+            <tr *ngIf="tenants.length === 0"><td colspan="5" class="empty">{{ 'admin.empty.tenants' | t }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <!-- ── Companies ────────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'admin.tab.companies' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <button class="btn-primary" type="button" (click)="openCompanyModal()">
+          <mat-icon>add</mat-icon> {{ 'admin.btn.newCompany' | t }}
+        </button>
+      </div>
+
+      <ng-container *ngFor="let tenant of tenants">
+        <div class="tenant-group" *ngIf="companiesForTenant(tenant.id).length > 0 || tenants.length === 1">
+          <h3 class="tenant-label"><mat-icon>domain</mat-icon> {{ tenant.name }}</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.language' | t }}</th><th>{{ 'admin.col.currency' | t }}</th><th>{{ 'admin.col.active' | t }}</th><th>{{ 'admin.col.createdAtF' | t }}</th><th>{{ 'common.actions' | t }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let c of companiesForTenant(tenant.id)">
+                  <td><strong>{{ c.name }}</strong><br/><small class="muted">{{ c.id }}</small></td>
+                  <td>{{ c.defaultLanguageCode }}</td>
+                  <td>{{ c.defaultCurrencyCode }}</td>
+                  <td><span class="badge" [class.active]="c.isActive" [class.inactive]="!c.isActive">{{ c.isActive ? ('admin.activeF' | t) : ('admin.inactiveF' | t) }}</span></td>
+                  <td>{{ c.createdAt | date:'dd/MM/yyyy' }}</td>
+                  <td class="actions-cell crud-actions">
+                    <button class="icon-action edit" type="button" (click)="openCompanyModal(c)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
+                  </td>
+                </tr>
+                <tr *ngIf="companiesForTenant(tenant.id).length === 0"><td colspan="6" class="empty">{{ 'admin.empty.companies' | t }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </ng-container>
+
+      <div *ngIf="companies.length === 0 && !loading" class="empty-state">
+        {{ 'admin.empty.companiesHint' | t }} <button class="btn-link" type="button" (click)="openCompanyModal()">{{ 'admin.empty.createCompany' | t }}</button>
+      </div>
+    </mat-tab>
+
+    <!-- ── Rôles ─────────────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'admin.tab.roles' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <button class="btn-primary" type="button" (click)="openRoleEditor()">
+          <mat-icon>shield</mat-icon> {{ 'admin.btn.newRole' | t }}
+        </button>
+      </div>
+
+      <!-- Panneau création (expandable) -->
+      <div *ngIf="expandedRoleId === '__new__'" class="role-editor-panel">
+        <ng-container *ngTemplateOutlet="roleEditorTpl; context: { title: 'admin.modal.newRole' }"></ng-container>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr><th></th><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.permissions' | t }}</th><th>{{ 'common.actions' | t }}</th></tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let r of roles">
+              <tr [class.row-expanded]="isRoleExpanded(r.id)">
+                <td>
+                  <button class="expand-btn" type="button" (click)="openRoleEditor(r)" [title]="'admin.title.editPermissions' | t">
+                    <mat-icon>{{ isRoleExpanded(r.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                </td>
+                <td><strong>{{ r.name }}</strong></td>
+                <td>
+                  <span *ngIf="isAdminRoleName(r.name)" class="perm-chip">{{ 'admin.role.allPermissions' | t }}</span>
+                  <ng-container *ngIf="!isAdminRoleName(r.name)">
+                    <span *ngFor="let p of r.permissions.slice(0, 5)" class="perm-chip">{{ permissionLabel(p) }}</span>
+                    <span *ngIf="r.permissions.length > 5" class="muted"> +{{ r.permissions.length - 5 }}</span>
+                    <span *ngIf="r.permissions.length === 0" class="muted">—</span>
+                  </ng-container>
+                </td>
+                <td class="actions-cell crud-actions">
+                  <button class="icon-action edit" type="button" (click)="openRoleEditor(r)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
+                  <button class="icon-action delete" type="button" (click)="deleteRole(r)" [title]="'admin.title.delete' | t" *ngIf="!isAdminRoleName(r.name)"><mat-icon>delete</mat-icon></button>
+                </td>
+              </tr>
+              <tr *ngIf="isRoleExpanded(r.id)" class="detail-expand-row">
+                <td colspan="4">
+                  <div class="expanded-content role-expanded">
+                    <ng-container *ngTemplateOutlet="roleEditorTpl; context: { title: 'admin.modal.editRole' }"></ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="roles.length === 0 && expandedRoleId !== '__new__'"><td colspan="4" class="empty">{{ 'admin.empty.roles' | t }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <!-- ── Utilisateurs ──────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'admin.tab.users' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <button class="btn-primary" type="button" (click)="openUserModal()">
+          <mat-icon>person_add</mat-icon> {{ 'admin.btn.newUser' | t }}
+        </button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{{ 'admin.col.user' | t }}</th>
+              <th>{{ 'admin.col.name' | t }}</th>
+              <th>{{ 'admin.col.email' | t }}</th>
+              <th>{{ 'admin.col.role' | t }}</th>
+              <th>{{ 'admin.col.activeCompany' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let u of users">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleUserCompanies(u)">
+                    <mat-icon>{{ expandedUserId === u.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                </td>
+                <td><strong>{{ u.username }}</strong></td>
+                <td>{{ u.firstName || '' }} {{ u.lastName || '' }}</td>
+                <td>{{ u.email || '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-admin]="u.isAdmin">{{ u.isAdmin ? ('admin.role.admin' | t) : (u.roles?.[0] || ('admin.role.user' | t)) }}</span>
+                </td>
+                <td>
+                  <span *ngIf="u.companyId">{{ companyName(u.companyId) }}</span>
+                  <span *ngIf="!u.companyId" class="muted">—</span>
+                </td>
+                <td class="actions-cell">
+                  <button class="icon-action edit" type="button" (click)="openUserModal(u)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
+                  <button class="icon-action" type="button" (click)="openResetPasswordModal(u)" [title]="'admin.title.resetPassword' | t"><mat-icon>lock_reset</mat-icon></button>
+                  <button class="icon-action" type="button" (click)="openAssignModal(u)" [title]="'admin.title.assignCompany' | t"><mat-icon>add_link</mat-icon></button>
+                  <button class="icon-action delete" type="button" (click)="deleteUser(u)" [title]="'admin.title.delete' | t"><mat-icon>delete</mat-icon></button>
+                </td>
+              </tr>
+              <tr *ngIf="expandedUserId === u.id" class="detail-expand-row">
+                <td colspan="7">
+                  <div class="expanded-content">
+                    <p class="detail-label">{{ 'admin.companiesAccessible' | t }}</p>
+                    <div *ngIf="!u.companies" class="empty">{{ 'common.loading' | t }}</div>
+                    <table *ngIf="u.companies" class="data-table nested">
+                      <thead><tr><th>{{ 'admin.col.company' | t }}</th><th>{{ 'admin.col.id' | t }}</th><th></th></tr></thead>
+                      <tbody>
+                        <tr *ngFor="let uc of u.companies">
+                          <td>{{ uc.name }}</td>
+                          <td><small class="muted">{{ uc.companyId | slice:0:8 }}…</small></td>
+                          <td>
+                            <button class="icon-action delete" type="button" (click)="removeUserFromCompany(u, uc.companyId)" [title]="'admin.title.remove' | t"><mat-icon>link_off</mat-icon></button>
+                          </td>
+                        </tr>
+                        <tr *ngIf="u.companies.length === 0"><td colspan="3" class="empty">{{ 'admin.empty.access' | t }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="users.length === 0"><td colspan="7" class="empty">{{ 'admin.empty.users' | t }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+</div>
+
+<!-- Template éditeur rôle (inline expandable) -->
+<ng-template #roleEditorTpl let-title="title">
+  <div class="role-editor">
+    <h4 class="role-editor-title">{{ title | t }}</h4>
+    <div class="form-group">
+      <label>{{ 'admin.role.nameRequired' | t }}</label>
+      <input type="text" [(ngModel)]="newRole.name" [placeholder]="'admin.role.namePlaceholder' | t" [disabled]="editingAdminRole" />
+    </div>
+    <div class="perm-section">
+      <p class="detail-label">{{ 'admin.permissions' | t }}</p>
+      <p class="muted" *ngIf="editingAdminRole" style="margin: 0 0 10px;">{{ 'admin.role.adminLocked' | t }}</p>
+      <div class="perm-scroll">
+        <div *ngFor="let cat of permissionCategories" class="perm-category">
+          <div class="perm-category-header">
+            <label class="perm-module-label">
+              <input type="checkbox"
+                     [checked]="isCategoryAllSelected(cat)"
+                     [indeterminate]="isCategoryPartialSelected(cat)"
+                     (change)="toggleCategoryPermissions(cat)"
+                     [disabled]="editingAdminRole" />
+              <strong>{{ cat.label | t }}</strong>
+              <small class="muted">({{ categoryPermissions(cat).length }})</small>
+            </label>
+          </div>
+          <div class="perm-sections">
+            <div *ngFor="let sec of cat.sections" class="perm-group">
+              <div class="perm-group-header">
+                <label class="perm-module-label perm-section-label">
+                  <input type="checkbox"
+                         [checked]="isSectionAllSelected(sec)"
+                         [indeterminate]="isSectionPartialSelected(sec)"
+                         (change)="toggleSectionPermissions(sec)"
+                         [disabled]="editingAdminRole" />
+                  <span>{{ sec.label | t }}</span>
+                </label>
+              </div>
+              <div class="perm-list">
+                <label *ngFor="let p of sec.permissions" class="perm-item" [title]="permissionLabel(p)">
+                  <input type="checkbox" [checked]="isPermissionSelected(p)" (change)="togglePermission(p)" [disabled]="editingAdminRole" />
+                  {{ permissionShortLabel(p) }}
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="role-editor-actions">
+      <button class="btn-secondary" type="button" (click)="closeRoleEditor()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveRole()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+      </button>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Modal Tenant -->
+<div class="modal-overlay" *ngIf="showTenantModal">
+  <div class="modal-content">
+    <h3>{{ editingTenantId ? ('admin.modal.editTenant' | t) : ('admin.modal.newTenant' | t) }}</h3>
+    <div class="form-group">
+      <label>{{ 'admin.nameRequired' | t }}</label>
+      <input type="text" [(ngModel)]="newTenant.name" [placeholder]="'admin.tenant.namePlaceholder' | t" />
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" [(ngModel)]="newTenant.isActive" /> {{ 'admin.col.active' | t }}</label>
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showTenantModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveTenant()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Company -->
+<div class="modal-overlay" *ngIf="showCompanyModal">
+  <div class="modal-content">
+    <h3>{{ editingCompanyId ? ('admin.modal.editCompany' | t) : ('admin.modal.newCompany' | t) }}</h3>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'admin.nameRequired' | t }}</label>
+        <input type="text" [(ngModel)]="newCompany.name" [placeholder]="'admin.company.namePlaceholder' | t" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'admin.company.tenantRequired' | t }}</label>
+        <select [(ngModel)]="newCompany.tenantId">
+          <option *ngFor="let t of tenants" [value]="t.id">{{ t.name }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'admin.col.language' | t }}</label>
+        <select [(ngModel)]="newCompany.defaultLanguageCode">
+          <option value="fr-BE">Français (BE)</option>
+          <option value="fr-FR">Français (FR)</option>
+          <option value="nl-BE">Nederlands (BE)</option>
+          <option value="en-GB">English (UK)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'admin.col.currency' | t }}</label>
+        <select [(ngModel)]="newCompany.defaultCurrencyCode">
+          <option value="EUR">EUR €</option>
+          <option value="USD">USD $</option>
+          <option value="GBP">GBP £</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" [(ngModel)]="newCompany.isActive" /> {{ 'admin.activeF' | t }}</label>
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showCompanyModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveCompany()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Utilisateur (créer / modifier) -->
+<div class="modal-overlay" *ngIf="showUserModal">
+  <div class="modal-content modal-large">
+    <h3>{{ editingUserId ? ('admin.modal.editUser' | t) : ('admin.modal.newUser' | t) }}</h3>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'admin.user.usernameRequired' | t }}</label>
+        <input type="text" [(ngModel)]="newUser.username" [placeholder]="'admin.user.usernamePlaceholder' | t" />
+      </div>
+      <div class="form-group grow">
+        <label>{{ 'admin.col.email' | t }}</label>
+        <input type="email" [(ngModel)]="newUser.email" [placeholder]="'admin.user.emailPlaceholder' | t" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'admin.user.firstName' | t }}</label>
+        <input type="text" [(ngModel)]="newUser.firstName" [placeholder]="'admin.user.firstName' | t" />
+      </div>
+      <div class="form-group grow">
+        <label>{{ 'admin.user.lastName' | t }}</label>
+        <input type="text" [(ngModel)]="newUser.lastName" [placeholder]="'admin.user.lastNamePlaceholder' | t" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ editingUserId ? ('admin.user.passwordOptional' | t) : ('admin.user.passwordRequired' | t) }}</label>
+        <input type="password" [(ngModel)]="newUser.password" placeholder="••••••••" autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'admin.user.defaultCompany' | t }}</label>
+        <select [(ngModel)]="newUser.companyId">
+          <option value="">—</option>
+          <option *ngFor="let c of companies" [value]="c.id">{{ c.name }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>{{ 'admin.user.businessRole' | t }}</label>
+      <select [(ngModel)]="newUser.roleName" [disabled]="newUser.isAdmin">
+        <option value="">{{ 'admin.user.standardRole' | t }}</option>
+        <option *ngFor="let r of roles" [value]="r.name" [hidden]="r.name === 'Admin'">{{ r.name }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" [(ngModel)]="newUser.isAdmin" (ngModelChange)="newUser.isAdmin && (newUser.roleName = '')" /> {{ 'admin.user.isAdmin' | t }}</label>
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showUserModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveUser()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reset Password -->
+<div class="modal-overlay" *ngIf="showPasswordResetModal">
+  <div class="modal-content">
+    <h3>{{ 'admin.modal.resetPassword' | t }}</h3>
+    <p class="muted">{{ 'admin.user.label' | t }} <strong>{{ resetPasswordUsername }}</strong></p>
+    <div class="form-group">
+      <label>{{ 'admin.user.newPassword' | t }}</label>
+      <input type="password" [(ngModel)]="newPassword" [placeholder]="'admin.user.newPasswordPlaceholder' | t" autocomplete="new-password" />
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showPasswordResetModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="submitResetPassword()" [disabled]="saving">
+        {{ saving ? ('admin.resetting' | t) : ('admin.reset' | t) }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Assigner utilisateur -->
+<div class="modal-overlay" *ngIf="showAssignModal">
+  <div class="modal-content">
+    <h3>{{ 'admin.modal.assign' | t:{ username: assigningUser?.username ?? '' } }}</h3>
+    <div class="form-group">
+      <label>{{ 'admin.col.company' | t }}</label>
+      <select [(ngModel)]="assignCompanyId">
+        <option *ngFor="let c of companies" [value]="c.id">{{ c.name }} <span *ngIf="c.tenantName">({{ c.tenantName }})</span></option>
+      </select>
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showAssignModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="assignUserToCompany()" [disabled]="saving">
+        {{ saving ? ('admin.assigning' | t) : ('admin.assign' | t) }}
+      </button>
+    </div>
+  </div>
+</div>

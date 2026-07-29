@@ -1,6 +1,4 @@
-﻿//using Backup.Web.Api.Server.Models.Entities;
-//using Backup.Web.Api.Server.Models.UserContacts;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
@@ -33,6 +31,10 @@ namespace Backup.Web.Api.Server.Models.Users
         public Role? Role { internal get; set; }
 
         public bool IsAdmin { internal get; set; }
+
+        /// <summary>Société active par défaut (claim JWT CompanyId).</summary>
+        public string? CompanyId { get; set; }
+
         [NotMapped]
         public string? Token { get; set; }
 

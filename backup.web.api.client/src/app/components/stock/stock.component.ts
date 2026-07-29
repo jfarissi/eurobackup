@@ -3,11 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { StockService } from '../../services/stock.service';
+import { BusinessService } from '../../services/business.service';
 import { StockItem } from '../../models/stock-item';
+import { StockMovement } from '../../models/business';
 import { MaterialModule } from '../../material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { PermissionService } from '../../services/permission.service';
+import { Permissions } from '../../constants/permissions';
 
 @Component({
   selector: 'app-stock',
@@ -17,21 +21,31 @@ import { TPipe } from '../../pipes/t.pipe';
   imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
 export class StockComponent implements OnInit {
+  selectedTab = 0;
   stockItems: StockItem[] = [];
   filteredItems: StockItem[] = [];
   stockBySupplier: { supplier: string; items: StockItem[] }[] = [];
-  searchQuery: string = '';
-  displayedColumns: string[] = ['productKey', 'description', 'quantityOnHand', 'unit', 'lastUpdated'];
+  movements: StockMovement[] = [];
+  searchQuery = '';
+  movementFilter = '';
   expandedSuppliers = new Set<string>();
+
+  showAdjustModal = false;
+  adjustError = '';
+  readonly P = Permissions;
+  newMovement: StockMovement = this.createEmptyMovement();
 
   constructor(
     private stockService: StockService,
+    private businessService: BusinessService,
     private snack: MatSnackBar,
-    private i18n: AppI18nService
+    private i18n: AppI18nService,
+    public perm: PermissionService
   ) {}
 
   ngOnInit(): void {
     this.loadStock();
+    this.loadMovements();
   }
 
   loadStock(): void {
@@ -48,10 +62,22 @@ export class StockComponent implements OnInit {
     });
   }
 
+  loadMovements(): void {
+    this.businessService.getStockMovements(this.movementFilter || undefined).subscribe({
+      next: (movements) => {
+        this.movements = movements;
+      },
+      error: (err) => {
+        console.error('Erreur lors du chargement des mouvements:', err);
+        this.snack.open(this.i18n.t('stock.movements.loadError'), this.i18n.t('common.close'), { duration: 3000 });
+      }
+    });
+  }
+
   groupBySupplier(): void {
     const grouped = new Map<string, StockItem[]>();
     const unspecified = this.i18n.t('stock.unspecifiedSupplier');
-    
+
     this.stockItems.forEach(item => {
       const supplier = item.supplier || unspecified;
       if (!grouped.has(supplier)) {
@@ -93,6 +119,47 @@ export class StockComponent implements OnInit {
     this.loadStock();
   }
 
+  onMovementFilter(): void {
+    this.loadMovements();
+  }
+
+  openAdjustModal(productKey?: string): void {
+    this.showAdjustModal = true;
+    this.adjustError = '';
+    this.newMovement = this.createEmptyMovement();
+    if (productKey) {
+      this.newMovement.productKey = productKey;
+    }
+  }
+
+  saveMovement(): void {
+    if (!this.newMovement.productKey?.trim()) {
+      this.adjustError = this.i18n.t('stock.adjust.productKey');
+      return;
+    }
+    if (!this.newMovement.quantity) {
+      this.adjustError = this.i18n.t('stock.adjust.quantity');
+      return;
+    }
+
+    this.adjustError = '';
+    this.businessService.createStockMovement(this.newMovement).subscribe({
+      next: () => {
+        this.showAdjustModal = false;
+        this.snack.open(this.i18n.t('stock.adjust.success'), this.i18n.t('common.close'), { duration: 2500 });
+        this.loadStock();
+        this.loadMovements();
+      },
+      error: (err) => {
+        this.adjustError = err?.error?.error || err?.error || this.i18n.t('stock.adjust.error');
+      }
+    });
+  }
+
+  movementTypeLabel(type: string): string {
+    return this.i18n.t(`stock.type.${type}` as any) || type;
+  }
+
   formatDate(dateString: string): string {
     if (!dateString) return '-';
     const date = new Date(dateString);
@@ -111,5 +178,15 @@ export class StockComponent implements OnInit {
 
   getSupplierTotalQuantity(items: StockItem[]): number {
     return items.reduce((sum, item) => sum + item.quantityOnHand, 0);
+  }
+
+  private createEmptyMovement(): StockMovement {
+    return {
+      productKey: '',
+      movementType: 'Adjustment',
+      quantity: 0,
+      reason: '',
+      referenceDocument: ''
+    };
   }
 }

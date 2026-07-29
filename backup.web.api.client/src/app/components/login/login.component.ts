@@ -4,10 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { AuthService } from '../../services/auth.service';
+import { PermissionService } from '../../services/permission.service';
 import { AppI18nService, AppLang } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
-
-const HOME_URL = '/upload';
 
 @Component({
   selector: 'app-login',
@@ -26,10 +25,11 @@ export class LoginComponent {
   constructor(
     private auth: AuthService,
     private router: Router,
+    private perm: PermissionService,
     public i18n: AppI18nService
   ) {
     if (this.auth.isLoggedIn) {
-      void this.router.navigateByUrl(HOME_URL);
+      void this.router.navigateByUrl(this.perm.getDefaultHomeUrl());
     }
   }
 
@@ -51,7 +51,7 @@ export class LoginComponent {
     }).subscribe({
       next: () => {
         this.loading = false;
-        void this.router.navigateByUrl(HOME_URL);
+        void this.router.navigateByUrl(this.perm.getDefaultHomeUrl());
       },
       error: (err) => {
         this.loading = false;

@@ -1,47 +1,49 @@
 <div class="app-shell" [class.login-mode]="isLoginPage">
-  <!-- Sidebar (desktop) -->
-  <aside class="sidebar" *ngIf="!isLoginPage">
-    <div class="sidebar-brand">
+  <!-- Barre unique : marque + outils (même niveau) -->
+  <header class="app-header" *ngIf="!isLoginPage">
+    <div class="header-brand">
       <span class="brand-title">DocManager Pro</span>
       <span class="brand-sub">{{ 'nav.brandSub' | t }}</span>
     </div>
-    <nav class="sidebar-nav">
-      <a *ngFor="let item of navItems"
-         [routerLink]="item.path"
-         routerLinkActive="active"
-         [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
-         class="sidebar-link">
-        <mat-icon>{{ item.icon }}</mat-icon>
-        <span>{{ item.literal ? item.labelKey : (item.labelKey | t) }}</span>
-      </a>
-    </nav>
-    <div class="sidebar-footer">
-      <button class="btn-primary sidebar-cta" routerLink="/upload">
-        <mat-icon>add</mat-icon>
-        {{ 'nav.newAnalysis' | t }}
-      </button>
-    </div>
-  </aside>
 
-  <div class="main-area">
-    <!-- Top bar -->
-    <header class="topbar" *ngIf="!isLoginPage">
+    <div class="topbar">
       <div class="topbar-left">
         <button class="mobile-menu-btn" (click)="mobileNavOpen = !mobileNavOpen" type="button">
           <mat-icon>menu</mat-icon>
         </button>
         <span class="topbar-title">{{ pageTitleLiteral ? pageTitleKey : (pageTitleKey | t) }}</span>
-        <nav class="topbar-tabs">
-          <a *ngFor="let item of mainNavItems"
-             [routerLink]="item.path"
-             routerLinkActive="tab-active"
-             [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
-             class="topbar-tab">
-            {{ item.tabLabelKey | t }}
-          </a>
-        </nav>
       </div>
+
+      <div class="topbar-search" *ngIf="canGlobalSearch">
+        <mat-icon class="topbar-search-icon">search</mat-icon>
+        <input type="search"
+               class="topbar-search-input"
+               [(ngModel)]="globalSearchQuery"
+               (keyup.enter)="submitGlobalSearch()"
+               [placeholder]="'search.placeholder' | t"
+               [attr.aria-label]="'nav.search' | t" />
+        <button type="button"
+                class="topbar-search-clear"
+                *ngIf="globalSearchQuery"
+                (click)="clearGlobalSearch()"
+                [attr.aria-label]="'Effacer'">
+          <mat-icon>close</mat-icon>
+        </button>
+        <button type="button" class="topbar-search-btn" (click)="submitGlobalSearch()">
+          {{ 'search.submit' | t }}
+        </button>
+      </div>
+
       <div class="topbar-right">
+        <div class="company-switch" *ngIf="companies.length > 0">
+          <mat-icon>business</mat-icon>
+          <select
+            [ngModel]="selectedCompanyId"
+            (ngModelChange)="onCompanyChange($event)"
+            [disabled]="switchingCompany">
+            <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+          </select>
+        </div>
         <div class="lang-switch" [attr.aria-label]="'common.lang' | t">
           <button type="button"
                   *ngFor="let l of i18n.languages"
@@ -49,7 +51,6 @@
                   [class.active]="i18n.lang === l.code"
                   (click)="setLanguage(l.code)">{{ l.label }}</button>
         </div>
-        <span class="env-badge label-caps" *ngIf="enablePythonTest">Python / Ollama</span>
         <span class="user-chip" *ngIf="user" title="{{ user.username }}">
           <mat-icon>account_circle</mat-icon>
           <span class="user-name">{{ displayName() }}</span>
@@ -59,23 +60,49 @@
           {{ 'nav.logout' | t }}
         </button>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <!-- Mobile nav overlay -->
-    <nav class="mobile-nav" *ngIf="!isLoginPage" [class.open]="mobileNavOpen">
-      <a *ngFor="let item of navItems"
-         [routerLink]="item.path"
-         routerLinkActive="active"
-         (click)="mobileNavOpen = false"
-         class="mobile-nav-link">
-        <mat-icon>{{ item.icon }}</mat-icon>
-        <span>{{ item.literal ? item.labelKey : (item.labelKey | t) }}</span>
-      </a>
-    </nav>
+  <div class="app-body" *ngIf="!isLoginPage">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a *ngFor="let item of navItems"
+           [routerLink]="item.path"
+           routerLinkActive="active"
+           [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+           class="sidebar-link">
+          <mat-icon>{{ item.icon }}</mat-icon>
+          <span>{{ item.labelKey | t }}</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button *ngIf="permissionService.has(Permissions.DocumentUpload)" class="btn-primary sidebar-cta" routerLink="/upload">
+          <mat-icon>add</mat-icon>
+          {{ 'nav.newAnalysis' | t }}
+        </button>
+      </div>
+    </aside>
 
-    <!-- Single outlet always present -->
-    <main class="page-content" [class.login-outlet]="isLoginPage">
-      <router-outlet></router-outlet>
-    </main>
+    <div class="main-area">
+      <nav class="mobile-nav" [class.open]="mobileNavOpen">
+        <a *ngFor="let item of navItems"
+           [routerLink]="item.path"
+           routerLinkActive="active"
+           (click)="mobileNavOpen = false"
+           class="mobile-nav-link">
+          <mat-icon>{{ item.icon }}</mat-icon>
+          <span>{{ item.labelKey | t }}</span>
+        </a>
+      </nav>
+
+      <main class="page-content">
+        <router-outlet></router-outlet>
+      </main>
+    </div>
   </div>
+
+  <!-- Login : outlet plein écran -->
+  <main class="page-content login-outlet" *ngIf="isLoginPage">
+    <router-outlet></router-outlet>
+  </main>
 </div>

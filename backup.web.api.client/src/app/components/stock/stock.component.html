@@ -1,5 +1,4 @@
 <div class="page stock-page">
-  <!-- Sub-header -->
   <section class="stock-subheader">
     <div class="stock-subheader-inner">
       <div class="stock-title-block">
@@ -7,21 +6,36 @@
         <p>{{ 'stock.subtitle' | t }}</p>
       </div>
 
-      <div class="search-bar-wrap">
-        <mat-icon class="search-icon">search</mat-icon>
-        <input class="search-input"
-               [(ngModel)]="searchQuery"
-               (keyup.enter)="onSearch()"
-               [placeholder]="'stock.placeholder' | t" />
-        <button class="search-btn" (click)="onSearch()">{{ 'stock.search' | t }}</button>
-        <button class="clear-btn" *ngIf="searchQuery" (click)="clearSearch()">
-          <mat-icon>clear</mat-icon>
+      <div class="header-actions-row">
+        <div class="search-bar-wrap" *ngIf="selectedTab === 0">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input class="search-input"
+                 [(ngModel)]="searchQuery"
+                 (keyup.enter)="onSearch()"
+                 [placeholder]="'stock.placeholder' | t" />
+          <button class="search-btn" (click)="onSearch()">{{ 'stock.search' | t }}</button>
+          <button class="clear-btn" *ngIf="searchQuery" (click)="clearSearch()">
+            <mat-icon>clear</mat-icon>
+          </button>
+        </div>
+
+        <div class="search-bar-wrap" *ngIf="selectedTab === 1">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input class="search-input"
+                 [(ngModel)]="movementFilter"
+                 (keyup.enter)="onMovementFilter()"
+                 [placeholder]="'stock.filter.movements' | t" />
+          <button class="search-btn" (click)="onMovementFilter()">{{ 'stock.search' | t }}</button>
+        </div>
+
+        <button class="adjust-btn" (click)="openAdjustModal()" *ngIf="perm.has(P.StockUpdate)">
+          <mat-icon>tune</mat-icon>
+          {{ 'stock.adjust' | t }}
         </button>
       </div>
     </div>
 
-    <!-- Stats bar -->
-    <div class="stats-bar" *ngIf="stockItems.length > 0">
+    <div class="stats-bar" *ngIf="selectedTab === 0 && stockItems.length > 0">
       <div class="stat-chip">
         <span class="stat-label label-caps">{{ 'stock.stat.productCount' | t }}</span>
         <span class="stat-value font-mono">{{ stockItems.length }}</span>
@@ -37,67 +51,157 @@
     </div>
   </section>
 
-  <!-- Data area -->
   <section class="stock-data-area">
     <div class="stock-data-inner">
+      <mat-tab-group [(selectedIndex)]="selectedTab">
+        <mat-tab [label]="'stock.tab.onHand' | t">
+          <div class="tab-body">
+            <div class="no-data" *ngIf="stockItems.length === 0">
+              <mat-icon>inventory_2</mat-icon>
+              <p>{{ 'stock.empty' | t }}</p>
+            </div>
 
-      <div class="no-data" *ngIf="stockItems.length === 0">
-        <mat-icon>inventory_2</mat-icon>
-        <p>{{ 'stock.empty' | t }}</p>
-      </div>
+            <div class="supplier-block card" *ngFor="let group of stockBySupplier; let i = index">
+              <div class="supplier-block-header" (click)="toggleSupplier(group.supplier)">
+                <div class="supplier-block-title">
+                  <mat-icon class="expand-icon" [class.expanded]="isSupplierExpanded(group.supplier)">
+                    {{ isSupplierExpanded(group.supplier) ? 'expand_less' : 'expand_more' }}
+                  </mat-icon>
+                  <mat-icon class="package-icon">inventory_2</mat-icon>
+                  <span class="supplier-name">{{ group.supplier }}</span>
+                  <span class="supplier-count">{{
+                    (group.items.length === 1 ? 'stock.productCount' : 'stock.productCountPlural') | t:{count: group.items.length}
+                  }}</span>
+                </div>
+                <div class="supplier-total">
+                  {{ 'stock.totalQuantity' | t }} <span class="font-mono">{{ getSupplierTotalQuantity(group.items) | number:'1.0-0' }}</span>
+                </div>
+              </div>
 
-      <div class="supplier-block card" *ngFor="let group of stockBySupplier; let i = index">
-        <!-- Supplier header -->
-        <div class="supplier-block-header" (click)="toggleSupplier(group.supplier)">
-          <div class="supplier-block-title">
-            <mat-icon class="expand-icon" [class.expanded]="isSupplierExpanded(group.supplier)">
-              {{ isSupplierExpanded(group.supplier) ? 'expand_less' : 'expand_more' }}
-            </mat-icon>
-            <mat-icon class="package-icon">inventory_2</mat-icon>
-            <span class="supplier-name">{{ group.supplier }}</span>
-            <span class="supplier-count">{{
-              (group.items.length === 1 ? 'stock.productCount' : 'stock.productCountPlural') | t:{count: group.items.length}
-            }}</span>
+              <div class="table-wrap" *ngIf="isSupplierExpanded(group.supplier)">
+                <table class="data-table stock-table">
+                  <thead>
+                    <tr>
+                      <th>{{ 'stock.col.code' | t }}</th>
+                      <th>{{ 'stock.col.label' | t }}</th>
+                      <th class="text-right">{{ 'stock.col.quantity' | t }}</th>
+                      <th class="text-center">{{ 'stock.col.unit' | t }}</th>
+                      <th>{{ 'stock.col.lastUpdated' | t }}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let item of group.items"
+                        [class.row-error]="item.quantityOnHand < 0"
+                        class="stock-row">
+                      <td class="col-mono code-cell">{{ item.productKey }}</td>
+                      <td class="label-cell">
+                        {{ item.description || '-' }}
+                        <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" [matTooltip]="'stock.negativeTooltip' | t">report</mat-icon>
+                      </td>
+                      <td class="text-right col-mono qty-cell"
+                          [class.negative]="item.quantityOnHand < 0"
+                          [class.zero]="item.quantityOnHand === 0">
+                        {{ item.quantityOnHand | number:'1.0-2' }}
+                      </td>
+                      <td class="text-center unit-cell">{{ item.unit || '-' }}</td>
+                      <td class="date-cell">{{ formatDate(item.lastUpdated) }}</td>
+                      <td>
+                        <button class="row-action" (click)="openAdjustModal(item.productKey)" *ngIf="perm.has(P.StockUpdate)">
+                          <mat-icon>tune</mat-icon>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="supplier-total">
-            {{ 'stock.totalQuantity' | t }} <span class="font-mono">{{ getSupplierTotalQuantity(group.items) | number:'1.0-0' }}</span>
+        </mat-tab>
+
+        <mat-tab [label]="'stock.tab.movements' | t">
+          <div class="tab-body">
+            <div class="no-data" *ngIf="movements.length === 0">
+              <mat-icon>swap_vert</mat-icon>
+              <p>{{ 'stock.movements.empty' | t }}</p>
+            </div>
+
+            <div class="movements-card card" *ngIf="movements.length > 0">
+              <table class="data-table stock-table">
+                <thead>
+                  <tr>
+                    <th>{{ 'stock.movements.col.date' | t }}</th>
+                    <th>{{ 'stock.movements.col.type' | t }}</th>
+                    <th>{{ 'stock.movements.col.code' | t }}</th>
+                    <th class="text-right">{{ 'stock.movements.col.qty' | t }}</th>
+                    <th>{{ 'stock.movements.col.reason' | t }}</th>
+                    <th>{{ 'stock.movements.col.ref' | t }}</th>
+                    <th>{{ 'stock.movements.col.by' | t }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let movement of movements">
+                    <td class="date-cell">{{ formatDate(movement.createdAt || '') }}</td>
+                    <td>
+                      <span class="movement-badge" [ngClass]="movement.movementType.toLowerCase()">
+                        {{ movementTypeLabel(movement.movementType) }}
+                      </span>
+                    </td>
+                    <td class="col-mono code-cell">{{ movement.productKey }}</td>
+                    <td class="text-right col-mono qty-cell">{{ movement.quantity | number:'1.0-2' }}</td>
+                    <td>{{ movement.reason || '-' }}</td>
+                    <td class="col-mono">{{ movement.referenceDocument || '-' }}</td>
+                    <td>{{ movement.createdBy || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-
-        <!-- Table -->
-        <div class="table-wrap" *ngIf="isSupplierExpanded(group.supplier)">
-          <table class="data-table stock-table">
-            <thead>
-              <tr>
-                <th>{{ 'stock.col.code' | t }}</th>
-                <th>{{ 'stock.col.label' | t }}</th>
-                <th class="text-right">{{ 'stock.col.quantity' | t }}</th>
-                <th class="text-center">{{ 'stock.col.unit' | t }}</th>
-                <th>{{ 'stock.col.lastUpdated' | t }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let item of group.items"
-                  [class.row-error]="item.quantityOnHand < 0"
-                  class="stock-row">
-                <td class="col-mono code-cell">{{ item.productKey }}</td>
-                <td class="label-cell">
-                  {{ item.description || '-' }}
-                  <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" [matTooltip]="'stock.negativeTooltip' | t">report</mat-icon>
-                </td>
-                <td class="text-right col-mono qty-cell"
-                    [class.negative]="item.quantityOnHand < 0"
-                    [class.zero]="item.quantityOnHand === 0">
-                  {{ item.quantityOnHand | number:'1.0-2' }}
-                </td>
-                <td class="text-center unit-cell">{{ item.unit || '-' }}</td>
-                <td class="date-cell">{{ formatDate(item.lastUpdated) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+        </mat-tab>
+      </mat-tab-group>
     </div>
   </section>
+
+  <div class="modal-overlay" *ngIf="showAdjustModal">
+    <div class="modal-content">
+      <h3>{{ 'stock.adjust.title' | t }}</h3>
+
+      <div class="form-group">
+        <label>{{ 'stock.adjust.productKey' | t }}</label>
+        <input type="text" [(ngModel)]="newMovement.productKey" />
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'stock.adjust.type' | t }}</label>
+        <select [(ngModel)]="newMovement.movementType">
+          <option value="In">{{ 'stock.type.In' | t }}</option>
+          <option value="Out">{{ 'stock.type.Out' | t }}</option>
+          <option value="Adjustment">{{ 'stock.type.Adjustment' | t }}</option>
+          <option value="Transfer">{{ 'stock.type.Transfer' | t }}</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'stock.adjust.quantity' | t }}</label>
+        <input type="number" [(ngModel)]="newMovement.quantity" />
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'stock.adjust.reason' | t }}</label>
+        <input type="text" [(ngModel)]="newMovement.reason" />
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'stock.adjust.reference' | t }}</label>
+        <input type="text" [(ngModel)]="newMovement.referenceDocument" />
+      </div>
+
+      <div class="error-box" *ngIf="adjustError">{{ adjustError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showAdjustModal = false">{{ 'stock.adjust.cancel' | t }}</button>
+        <button class="btn-primary" (click)="saveMovement()">{{ 'stock.adjust.submit' | t }}</button>
+      </div>
+    </div>
+  </div>
 </div>

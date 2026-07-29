@@ -1,4 +1,8 @@
+using Backup.Web.Api.Server.Authorization;
+using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RESTFulSense.Controllers;
@@ -11,18 +15,20 @@ namespace Backup.Web.Api.Server.Controllers
 	public class StockController : RESTFulController
 	{
 		private readonly IStorageBroker storage;
+		private readonly ICompanyContextService companyContext;
 
-		public StockController(IStorageBroker storage)
+		public StockController(IStorageBroker storage, ICompanyContextService companyContext)
 		{
 			this.storage = storage;
+			this.companyContext = companyContext;
 		}
 
 		[HttpGet]
+		[RequirePermission(Permissions.StockRead)]
 		public IActionResult GetAll([FromQuery] string? search = null)
 		{
-			var query = this.storage.SelectAllStock();
+			var query = this.storage.SelectAllStock().ForCompany(this.companyContext.GetCurrentCompanyId());
 			
-			// Filtrer par recherche si fourni
 			if (!string.IsNullOrWhiteSpace(search))
 			{
 				var searchLower = search.ToLowerInvariant();
@@ -39,9 +45,11 @@ namespace Backup.Web.Api.Server.Controllers
 		}
 
 		[HttpGet("{id:int}")]
+		[RequirePermission(Permissions.StockRead)]
 		public IActionResult GetById([FromRoute] int id)
 		{
 			var item = this.storage.SelectAllStock()
+				.ForCompany(this.companyContext.GetCurrentCompanyId())
 				.FirstOrDefault(s => s.Id == id);
 			
 			if (item == null) return NotFound();
@@ -49,6 +57,7 @@ namespace Backup.Web.Api.Server.Controllers
 		}
 
 		[HttpGet("updates/by-delivery/{deliveryId:int}")]
+		[RequirePermission(Permissions.StockRead)]
 		public IActionResult GetUpdatesByDelivery([FromRoute] int deliveryId)
 		{
 			var updates = this.storage.SelectStockUpdatesByDeliveryId(deliveryId).ToList();
@@ -56,6 +65,7 @@ namespace Backup.Web.Api.Server.Controllers
 		}
 
 		[HttpGet("updates/by-product")]
+		[RequirePermission(Permissions.StockRead)]
 		public IActionResult GetUpdatesByProduct([FromQuery] string productKey)
 		{
 			if (string.IsNullOrWhiteSpace(productKey)) return BadRequest("productKey required");
@@ -64,4 +74,3 @@ namespace Backup.Web.Api.Server.Controllers
 		}
 	}
 }
-

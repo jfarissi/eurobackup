@@ -1,13 +1,18 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { filter } from 'rxjs';
-import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
+import { CompanyService } from '../../services/company.service';
+import { Company } from '../../models/company';
 import { AuthUser } from '../../models/auth';
 import { AppI18nService, AppLang } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+
+import { PermissionService } from '../../services/permission.service';
+import { RoutePermissions, Permissions } from '../../constants/permissions';
 
 interface NavItem {
   path: string;
@@ -16,11 +21,14 @@ interface NavItem {
   icon: string;
   titleKey: string;
   exact?: boolean;
-  /** When set, shown as-is (no i18n) — e.g. dev tools */
   literal?: boolean;
 }
 
 const MAIN_NAV_ITEMS: NavItem[] = [
+  { path: '/sales', labelKey: 'nav.sales', tabLabelKey: 'nav.sales', icon: 'point_of_sale', titleKey: 'nav.title.sales' },
+  { path: '/purchases', labelKey: 'nav.purchases', tabLabelKey: 'nav.purchases', icon: 'shopping_cart', titleKey: 'nav.title.purchases' },
+  { path: '/cash', labelKey: 'nav.cash', tabLabelKey: 'nav.cash', icon: 'receipt_long', titleKey: 'nav.title.cash' },
+  { path: '/numbering', labelKey: 'nav.numbering', tabLabelKey: 'nav.numbering', icon: 'tag', titleKey: 'nav.title.numbering' },
   { path: '/upload', labelKey: 'nav.upload', tabLabelKey: 'nav.upload', icon: 'cloud_upload', titleKey: 'nav.title.upload' },
   { path: '/recherche', labelKey: 'nav.search', tabLabelKey: 'nav.search', icon: 'search', titleKey: 'nav.title.search' },
   { path: '/compare', labelKey: 'nav.compare', tabLabelKey: 'nav.compare', icon: 'link', titleKey: 'nav.title.compare' },
@@ -30,13 +38,12 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { path: '/assistant', labelKey: 'nav.assistant', tabLabelKey: 'nav.assistantTab', icon: 'smart_toy', titleKey: 'nav.title.assistant' },
 ];
 
-const PYTHON_TEST_NAV_ITEM: NavItem = {
-  path: '/python-test',
-  labelKey: 'Python / Ollama',
-  tabLabelKey: 'Dev',
-  icon: 'science',
-  titleKey: 'Python / Ollama',
-  literal: true,
+const ADMIN_NAV_ITEM: NavItem = {
+  path: '/admin',
+  labelKey: 'nav.admin',
+  tabLabelKey: 'nav.admin',
+  icon: 'admin_panel_settings',
+  titleKey: 'nav.title.admin',
 };
 
 @Component({
@@ -44,17 +51,25 @@ const PYTHON_TEST_NAV_ITEM: NavItem = {
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule, TPipe]
+  imports: [CommonModule, RouterModule, MaterialModule, TPipe, FormsModule]
 })
 export class NavbarComponent {
   mobileNavOpen = false;
   isLoginPage = false;
   user: AuthUser | null = null;
-  readonly enablePythonTest = environment.enablePythonTest;
-  readonly mainNavItems = MAIN_NAV_ITEMS;
-  readonly navItems: NavItem[] = environment.enablePythonTest
-    ? [...MAIN_NAV_ITEMS, PYTHON_TEST_NAV_ITEM]
-    : MAIN_NAV_ITEMS;
+  companies: Company[] = [];
+  selectedCompanyId: string | null = null;
+  switchingCompany = false;
+  globalSearchQuery = '';
+  readonly Permissions = Permissions;
+
+  get canGlobalSearch(): boolean {
+    return this.permissionService.hasAny(Permissions.DocumentRead);
+  }
+
+  get navItems(): NavItem[] {
+    return this.visibleItems([...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]);
+  }
 
   pageTitleKey = 'nav.title.default';
   pageTitleLiteral = false;
@@ -62,15 +77,36 @@ export class NavbarComponent {
   constructor(
     private router: Router,
     private auth: AuthService,
+    private companyService: CompanyService,
+    public permissionService: PermissionService,
     public i18n: AppI18nService
   ) {
-    this.auth.user$.subscribe(u => this.user = u);
+    this.auth.user$.subscribe(u => {
+      this.user = u;
+      if (u?.companies?.length) {
+        this.companyService.setCompanies(u.companies, u.companyId ?? undefined);
+      }
+    });
+    this.companyService.companies$.subscribe(c => this.companies = c);
+    this.companyService.activeCompanyId$.subscribe(id => this.selectedCompanyId = id);
+    if (this.auth.isLoggedIn) {
+      this.companyService.loadAvailable().subscribe();
+      const u = this.auth.currentUser;
+      if (u && !u.isAdmin && (!u.permissions || u.permissions.length === 0)) {
+        this.auth.me().subscribe();
+      }
+    }
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       this.updateTitle();
+      this.syncSearchFromUrl();
       this.mobileNavOpen = false;
       this.isLoginPage = this.router.url.startsWith('/login');
+      if (!this.isLoginPage && this.auth.isLoggedIn) {
+        this.auth.refreshSession();
+      }
     });
     this.updateTitle();
+    this.syncSearchFromUrl();
     this.isLoginPage = this.router.url.startsWith('/login');
   }
 
@@ -83,16 +119,60 @@ export class NavbarComponent {
     void this.router.navigate(['/login']);
   }
 
+  submitGlobalSearch(): void {
+    const q = this.globalSearchQuery.trim();
+    if (!q || !this.canGlobalSearch) return;
+    void this.router.navigate(['/recherche'], { queryParams: { q } });
+  }
+
+  clearGlobalSearch(): void {
+    this.globalSearchQuery = '';
+    if (this.router.url.startsWith('/recherche')) {
+      void this.router.navigate(['/recherche']);
+    }
+  }
+
+  onCompanyChange(companyId: string): void {
+    if (!companyId || companyId === this.selectedCompanyId) return;
+    this.switchingCompany = true;
+    this.auth.switchCompany(companyId).subscribe({
+      next: () => {
+        this.switchingCompany = false;
+        void this.router.navigateByUrl(this.router.url);
+      },
+      error: () => {
+        this.switchingCompany = false;
+      }
+    });
+  }
+
   displayName(): string {
     if (!this.user) return '';
     const name = [this.user.firstName, this.user.lastName].filter(Boolean).join(' ');
     return name || this.user.username;
   }
 
+  private syncSearchFromUrl(): void {
+    const tree = this.router.parseUrl(this.router.url);
+    if (tree.root.children['primary']?.segments[0]?.path === 'recherche') {
+      const q = tree.queryParams['q'];
+      this.globalSearchQuery = typeof q === 'string' ? q : '';
+    }
+  }
+
   private updateTitle(): void {
     const url = this.router.url.split('?')[0];
     const item = this.navItems.find(n => url.startsWith(n.path));
     this.pageTitleKey = item?.titleKey ?? 'nav.title.default';
-    this.pageTitleLiteral = !!item?.literal;
+    this.pageTitleLiteral = false;
+  }
+
+  private visibleItems(items: NavItem[]): NavItem[] {
+    void this.user;
+    return items.filter(item => {
+      const perms = RoutePermissions[item.path];
+      if (!perms?.length) return true;
+      return this.permissionService.hasAny(...perms);
+    });
   }
 }

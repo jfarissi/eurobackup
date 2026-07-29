@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Backup.Web.Api.Server.Models.AppSettings;
 using Backup.Web.Api.Server.Models.Users;
+using Backup.Web.Api.Server.Services.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -11,7 +13,7 @@ namespace Backup.Web.Api.Server.Authorization;
 
 public interface IJwtUtils
 {
-    string GenerateJwtToken(User user);
+    string GenerateJwtToken(User user, string? companyId = null, IEnumerable<string>? permissions = null);
     Guid? ValidateJwtToken(string token);
 }
 
@@ -25,7 +27,7 @@ public class JwtUtils : IJwtUtils
         _configuration = configuration;
     }
 
-    public string GenerateJwtToken(User user)
+    public string GenerateJwtToken(User user, string? companyId = null, IEnumerable<string>? permissions = null)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(GetJwtKey());
@@ -39,10 +41,17 @@ public class JwtUtils : IJwtUtils
             new(ClaimTypes.Role, roleName)
         };
 
+        var effectiveCompanyId = !string.IsNullOrWhiteSpace(companyId) ? companyId : user.CompanyId;
+        if (!string.IsNullOrWhiteSpace(effectiveCompanyId))
+            claims.Add(new Claim("CompanyId", effectiveCompanyId));
+
         if (!string.IsNullOrWhiteSpace(user.Email))
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
         if (!string.IsNullOrWhiteSpace(user.UserName))
             claims.Add(new Claim(ClaimTypes.Name, user.UserName!));
+
+        if (permissions != null)
+            claims.AddRange(PermissionResolver.ToPermissionClaims(permissions));
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {

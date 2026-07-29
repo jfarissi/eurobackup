@@ -1,0 +1,882 @@
+<div class="purchases-container">
+  <div class="purchases-header">
+    <div>
+      <h2>{{ 'purchases.title' | t }}</h2>
+      <p class="subtitle">{{ 'purchases.subtitle' | t }}</p>
+    </div>
+    <div class="header-actions">
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (input)="onSearch()"
+        [placeholder]="'purchases.searchPlaceholder' | t"
+        class="search-input" />
+      <button
+        *ngIf="selectedTab === 0"
+        class="btn-secondary"
+        type="button"
+        (click)="selectedTab = 2">
+        <mat-icon>description</mat-icon>
+        {{ 'purchases.btn.parsedDocuments' | t }}
+      </button>
+      <button *ngIf="showCreateButton" class="btn-primary" type="button" (click)="onCreateClick()">
+        <mat-icon>{{ createButtonIcon }}</mat-icon>
+        {{ createButtonLabel }}
+      </button>
+      <a *ngIf="selectedTab === 2 && perm.has(P.DocumentUpload)" class="btn-primary" routerLink="/upload">
+        <mat-icon>cloud_upload</mat-icon>
+        {{ 'purchases.btn.uploadDocument' | t }}
+      </a>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage || highlightMessage">
+    {{ actionMessage || highlightMessage }}
+  </div>
+
+  <mat-tab-group [(selectedIndex)]="selectedTab" (selectedIndexChange)="onSearch()">
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.supplierInvoices' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'purchases.col.document' | t }}</th>
+              <th>{{ 'purchases.col.order' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'purchases.col.dueDate' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let invoice of supplierInvoices">
+              <tr [class.highlight-row]="isHighlightedInvoice(invoice)">
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleSupplierInvoiceDetail(invoice)" [attr.aria-expanded]="isExpanded('SupplierInvoice', invoice.id)">
+                    <mat-icon>{{ isExpanded('SupplierInvoice', invoice.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ invoice.invoiceNumber }}</strong>
+                </td>
+                <td>{{ supplierName(invoice) }}</td>
+                <td>{{ invoice.documentId ? ('#' + invoice.documentId) : '-' }}</td>
+                <td>{{ invoice.purchaseOrder?.orderNumber || (invoice.purchaseOrderId ? ('#' + invoice.purchaseOrderId) : '-') }}</td>
+                <td>{{ invoice.date | date:'dd/MM/yyyy' }}</td>
+                <td>{{ invoice.dueDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ invoice.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ invoice.totalTTC | currency:'EUR' }}</strong></td>
+                <td><span class="status-badge" [ngClass]="invoice.status.toLowerCase()">{{ invoice.status }}</span></td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('SupplierInvoice', invoice.id, (invoice.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.SupplierInvoiceRead)">PDF</button>
+                  <button class="btn-sm" (click)="openLinkDocumentModal(invoice)" *ngIf="!invoice.documentId && perm.has(P.DocumentLink)">
+                    {{ 'purchases.btn.linkDocument' | t }}
+                  </button>
+                  <button class="btn-sm" (click)="openMatchPurchaseOrderModal(invoice)" *ngIf="!invoice.purchaseOrderId && perm.has(P.SupplierInvoiceCreate)">
+                    {{ 'purchases.btn.matchOrder' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('SupplierInvoice', invoice.id)" class="detail-expand-row">
+                <td colspan="10">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailSupplierInvoice as doc">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'purchases.label.supplier' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'purchases.label.status' | t }} <span class="status-badge" [ngClass]="doc.status.toLowerCase()">{{ doc.status }}</span></span>
+                        <span *ngIf="doc.documentId">{{ 'purchases.label.document' | t }} <strong>#{{ doc.documentId }}</strong></span>
+                        <span *ngIf="doc.purchaseOrder?.orderNumber">{{ 'purchases.label.order' | t }} <strong>{{ doc.purchaseOrder?.orderNumber }}</strong></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.qty' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailLines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="detailLines.length === 0">
+                            <td colspan="7" class="empty">{{ 'common.noLines' | t }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-box">
+                        <div>{{ 'common.totalHt' | t }}: <strong>{{ doc.totalHT | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalVat' | t }}: <strong>{{ doc.totalVat | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalTtc' | t }}: <strong>{{ doc.totalTTC | currency:'EUR' }}</strong></div>
+                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="supplierInvoices.length === 0">
+              <td colspan="10" class="empty">{{ 'purchases.empty.supplierInvoices' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.purchaseOrders' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.orderNumber' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'purchases.col.expectedDelivery' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let order of purchaseOrders">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="togglePurchaseOrderDetail(order)" [attr.aria-expanded]="isExpanded('PurchaseOrder', order.id)">
+                    <mat-icon>{{ isExpanded('PurchaseOrder', order.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ order.orderNumber }}</strong>
+                </td>
+                <td>{{ supplierNameForOrder(order) }}</td>
+                <td>{{ order.date | date:'dd/MM/yyyy' }}</td>
+                <td>{{ order.expectedDeliveryDate ? (order.expectedDeliveryDate | date:'dd/MM/yyyy') : '-' }}</td>
+                <td>{{ order.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ order.totalTTC | currency:'EUR' }}</strong></td>
+                <td><span class="status-badge" [ngClass]="order.status.toLowerCase()">{{ order.status }}</span></td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('PurchaseOrder', order.id, (order.orderNumber || 'commande') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.PurchaseOrderRead)">PDF</button>
+                  <button class="btn-sm" (click)="openReceiveDeliveryModal(order)" *ngIf="perm.has(P.PurchaseOrderUpdate)">
+                    {{ 'purchases.btn.receiveDelivery' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('PurchaseOrder', order.id)" class="detail-expand-row">
+                <td colspan="8">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailPurchaseOrder as doc">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'purchases.label.supplier' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'purchases.label.status' | t }} <span class="status-badge" [ngClass]="doc.status.toLowerCase()">{{ doc.status }}</span></span>
+                        <span *ngIf="doc.expectedDeliveryDate">{{ 'purchases.label.expectedDelivery' | t }} <strong>{{ doc.expectedDeliveryDate | date:'dd/MM/yyyy' }}</strong></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.qty' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                            <th>{{ 'purchases.col.received' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailLines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                            <td>{{ line.receivedQuantity ?? 0 }}</td>
+                          </tr>
+                          <tr *ngIf="detailLines.length === 0">
+                            <td colspan="8" class="empty">{{ 'common.noLines' | t }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-box">
+                        <div>{{ 'common.totalHt' | t }}: <strong>{{ doc.totalHT | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalVat' | t }}: <strong>{{ doc.totalVat | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalTtc' | t }}: <strong>{{ doc.totalTTC | currency:'EUR' }}</strong></div>
+                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="purchaseOrders.length === 0">
+              <td colspan="8" class="empty">{{ 'purchases.empty.purchaseOrders' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.parsedDocuments' | t }}</ng-template>
+      <div class="table-container">
+        <p class="hint" style="padding: 12px 16px 0;">
+          {{ 'purchases.hint.parsedDocuments' | t }}
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.documentNumber' | t }}</th>
+              <th>{{ 'purchases.col.type' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'purchases.col.file' | t }}</th>
+              <th>{{ 'purchases.col.documentDate' | t }}</th>
+              <th>{{ 'purchases.col.addedAt' | t }}</th>
+              <th>{{ 'purchases.col.target' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let doc of parsedDocuments()">
+              <td><strong>{{ doc.numero || ('#' + doc.id) }}</strong></td>
+              <td>
+                <span class="type-chip" [class.bl]="isDeliveryDocument(doc)" [class.invoice]="isInvoiceDocument(doc)">
+                  {{ doc.typeDocument || (isInvoiceDocument(doc) ? ('purchases.type.invoice' | t) : ('purchases.type.deliveryNote' | t)) }}
+                </span>
+              </td>
+              <td>{{ doc.supplier || '-' }}</td>
+              <td>{{ doc.originalFileName }}</td>
+              <td>{{ doc.dateDocument ? (doc.dateDocument | date:'dd/MM/yyyy') : '-' }}</td>
+              <td>{{ doc.dateAdded | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <span *ngIf="isDocumentComptabilise(doc)">
+                  {{ comptabilisationTargetKind(doc) }} {{ comptabilisationTargetLabel(doc) }}
+                </span>
+                <span *ngIf="!isDocumentComptabilise(doc)">-</span>
+              </td>
+              <td>
+                <span class="status-badge" [class.received]="isDocumentComptabilise(doc)" [class.draft]="!isDocumentComptabilise(doc)">
+                  {{ isDocumentComptabilise(doc) ? ('purchases.status.comptabilise' | t) : ('purchases.status.pending' | t) }}
+                </span>
+              </td>
+              <td class="actions-cell">
+                <button
+                  class="btn-sm"
+                  type="button"
+                  (click)="openComptabiliserModal(doc)"
+                  *ngIf="!isDocumentComptabilise(doc) && (perm.has(P.ReceiptCreate) || perm.has(P.SupplierInvoiceCreate))">
+                  {{ 'purchases.btn.comptabiliser' | t }}
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="parsedDocuments().length === 0">
+              <td colspan="9" class="empty">
+                {{ 'purchases.empty.parsedDocuments' | t }}
+                <a class="btn-link" routerLink="/upload" *ngIf="perm.has(P.DocumentUpload)">{{ 'purchases.btn.uploadDocument' | t }}</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.receipts' | t }}</ng-template>
+      <div class="table-container">
+        <p class="hint" style="padding: 12px 16px 0;">
+          {{ 'purchases.hint.receipts' | t }}
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.receiptNumber' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'purchases.col.sourceDocument' | t }}</th>
+              <th>{{ 'purchases.col.cfa' | t }}</th>
+              <th>{{ 'purchases.col.lines' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let receipt of receipts">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleReceiptDetail(receipt)" [attr.aria-expanded]="isExpanded('Receipt', receipt.id)">
+                    <mat-icon>{{ isExpanded('Receipt', receipt.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ receipt.receiptNumber }}</strong>
+                </td>
+                <td>{{ receipt.supplier?.name || ('purchases.supplierHash' | t:{id: receipt.supplierId}) }}</td>
+                <td>{{ receipt.receivedAt | date:'dd/MM/yyyy' }}</td>
+                <td>{{ receipt.documentId ? ('purchases.docHash' | t:{id: receipt.documentId}) : '-' }}</td>
+                <td>{{ receipt.purchaseOrder?.orderNumber || (receipt.purchaseOrderId ? ('#' + receipt.purchaseOrderId) : '-') }}</td>
+                <td>{{ receipt.lines?.length || 0 }}</td>
+                <td>
+                  <span class="status-badge received">{{ receipt.status === 'Posted' ? ('purchases.status.comptabilise' | t) : receipt.status }}</span>
+                </td>
+                <td></td>
+              </tr>
+              <tr *ngIf="isExpanded('Receipt', receipt.id)" class="detail-expand-row">
+                <td colspan="8">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailReceipt as doc">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'purchases.label.supplier' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.receivedAt | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'purchases.label.status' | t }} <span class="status-badge received">{{ doc.status === 'Posted' ? ('purchases.status.comptabilise' | t) : doc.status }}</span></span>
+                        <span *ngIf="doc.documentId">{{ 'purchases.label.document' | t }} <strong>#{{ doc.documentId }}</strong></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'purchases.col.qtyReceived' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of doc.lines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.quantityReceived }}</td>
+                            <td>{{ line.unitPriceExclTax | currency:'EUR' }}</td>
+                            <td>{{ line.taxRatePercent }}%</td>
+                            <td>{{ line.lineAmountExclTax | currency:'EUR' }}</td>
+                            <td><strong>{{ receiptLineTotalTtc(line) | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="!doc.lines?.length">
+                            <td colspan="7" class="empty">{{ 'common.noLines' | t }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-box">
+                        <div>{{ 'common.totalHt' | t }}: <strong>{{ receiptTotals.ht | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalVat' | t }}: <strong>{{ receiptTotals.vat | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalTtc' | t }}: <strong>{{ receiptTotals.ttc | currency:'EUR' }}</strong></div>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="receipts.length === 0">
+              <td colspan="8" class="empty">{{ 'purchases.empty.receipts' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.suppliers' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'common.code' | t }}</th>
+              <th>{{ 'common.name' | t }}</th>
+              <th>{{ 'purchases.col.vatNumber' | t }}</th>
+              <th>{{ 'common.city' | t }}</th>
+              <th>{{ 'common.phone' | t }}</th>
+              <th>{{ 'common.email' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let supplier of suppliers">
+              <td><strong>{{ supplier.supplierCode }}</strong></td>
+              <td>{{ supplier.name }}</td>
+              <td>{{ supplier.vatNumber || '-' }}</td>
+              <td>{{ supplier.city || '-' }}</td>
+              <td>{{ supplier.phone || '-' }}</td>
+              <td>{{ supplier.email || '-' }}</td>
+              <td class="actions-cell crud-actions">
+                <button class="icon-action edit" type="button" (click)="openEditSupplierModal(supplier)" [title]="'common.edit' | t" *ngIf="perm.has(P.SupplierUpdate)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button class="icon-action delete" type="button" (click)="deleteSupplier(supplier)" [title]="'common.delete' | t" *ngIf="perm.has(P.SupplierDelete)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="suppliers.length === 0">
+              <td colspan="7" class="empty">{{ 'purchases.empty.suppliers' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+
+  <div class="modal-overlay" *ngIf="showCreateFromDocumentModal">
+    <div class="modal-content">
+      <h3>{{ 'purchases.modal.comptabiliserFromDoc' | t }}</h3>
+
+      <div class="form-group">
+        <label>{{ 'common.supplier' | t }}</label>
+        <select [(ngModel)]="selectedSupplierId">
+          <option [ngValue]="null">{{ 'purchases.selectSupplier' | t }}</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }} ({{ supplier.supplierCode }})
+          </option>
+        </select>
+        <button class="btn-link" type="button" (click)="showCreateFromDocumentModal = false; openSupplierModal('document')">{{ 'purchases.btn.newSupplierLink' | t }}</button>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'purchases.parsedDocument' | t }}</label>
+        <select [(ngModel)]="selectedDocumentId">
+          <option [ngValue]="null">{{ 'purchases.selectDocument' | t }}</option>
+          <option *ngFor="let document of invoiceDocuments" [ngValue]="document.id">
+            #{{ document.id }} - {{ document.numero || document.originalFileName }}{{ document.supplier ? (' - ' + document.supplier) : '' }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'purchases.defaultVat' | t }}</label>
+        <input type="number" [(ngModel)]="defaultVatRate" />
+      </div>
+
+      <div class="hint" *ngIf="selectedDocumentId">
+        {{ 'purchases.detectedSupplier' | t }} <strong>{{ supplierForSelectedDocument() || ('common.notProvided' | t) }}</strong>
+      </div>
+
+      <div class="error-box" *ngIf="createError">
+        {{ createError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showCreateFromDocumentModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="createSupplierInvoiceFromDocument()" [disabled]="saving">
+          {{ saving ? ('purchases.comptabilising' | t) : ('purchases.btn.comptabiliser' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showManualInvoiceModal">
+    <div class="modal-content large">
+      <h3>{{ 'purchases.modal.newSupplierInvoice' | t }}</h3>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.supplier' | t }}</label>
+          <select [(ngModel)]="newInvoice.supplierId">
+            <option [ngValue]="0">{{ 'purchases.selectSupplier' | t }}</option>
+            <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+              {{ supplier.name }} ({{ supplier.supplierCode }})
+            </option>
+          </select>
+          <button class="btn-link" type="button" (click)="showManualInvoiceModal = false; openSupplierModal('invoice')">{{ 'purchases.btn.newSupplierLink' | t }}</button>
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.number' | t }}</label>
+          <input type="text" [(ngModel)]="newInvoice.invoiceNumber" [placeholder]="'purchases.numberPlaceholder' | t" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'common.date' | t }}</label>
+          <input type="date" [(ngModel)]="newInvoice.date" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.col.dueDate' | t }}</label>
+          <input type="date" [(ngModel)]="newInvoice.dueDate" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <input type="text" [(ngModel)]="newInvoice.notes" [placeholder]="'purchases.notesPlaceholder' | t" />
+      </div>
+
+      <h4>{{ 'purchases.invoiceLines' | t }}</h4>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th>{{ 'common.ref' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.qty' | t }}</th>
+            <th>{{ 'common.unitPriceHt' | t }}</th>
+            <th>{{ 'common.vatPercent' | t }}</th>
+            <th>{{ 'common.totalTtc' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of newInvoice.lines; let i = index">
+            <td>
+              <app-product-line-ref [line]="line" priceMode="purchase" (productSelected)="calculateInvoiceLine(line)"></app-product-line-ref>
+            </td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" (input)="calculateInvoiceLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calculateInvoiceLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calculateInvoiceLine(line)" /></td>
+            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+            <td><button class="icon-btn" (click)="removeInvoiceLine(i)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="line-actions">
+        <button class="btn-secondary" (click)="addInvoiceLine()">{{ 'common.addLine' | t }}</button>
+      </div>
+
+      <div class="totals-box">
+        <div>{{ 'common.totalHt' | t }}: <strong>{{ newInvoice.totalHT | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalVat' | t }}: <strong>{{ newInvoice.totalVat | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalTtc' | t }}: <strong>{{ newInvoice.totalTTC | currency:'EUR' }}</strong></div>
+      </div>
+
+      <div class="error-box" *ngIf="createError">
+        {{ createError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showManualInvoiceModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveManualInvoice()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('purchases.btn.saveInvoice' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showLinkDocumentModal">
+    <div class="modal-content">
+      <h3>{{ 'purchases.modal.linkDocument' | t }}</h3>
+      <p *ngIf="selectedInvoiceToLink">
+        {{ 'purchases.invoiceLabel' | t }} <strong>{{ selectedInvoiceToLink.invoiceNumber || ('common.noNumber' | t) }}</strong>
+      </p>
+
+      <div class="form-group">
+        <label>{{ 'purchases.parsedDocument' | t }}</label>
+        <select [(ngModel)]="selectedDocumentId">
+          <option [ngValue]="null">{{ 'purchases.selectDocument' | t }}</option>
+          <option *ngFor="let document of invoiceDocuments" [ngValue]="document.id">
+            #{{ document.id }} - {{ document.numero || document.originalFileName }}{{ document.supplier ? (' - ' + document.supplier) : '' }}
+          </option>
+        </select>
+      </div>
+
+      <div class="hint" *ngIf="selectedDocumentId">
+        {{ 'purchases.detectedSupplier' | t }} <strong>{{ supplierForSelectedDocument() || ('common.notProvided' | t) }}</strong>
+      </div>
+
+      <div class="error-box" *ngIf="linkError">
+        {{ linkError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showLinkDocumentModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" (click)="linkDocumentToInvoice()">{{ 'purchases.btn.linkDocumentSubmit' | t }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showManualPurchaseOrderModal">
+    <div class="modal-content large">
+      <h3>{{ 'purchases.modal.newPurchaseOrder' | t }}</h3>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.supplier' | t }}</label>
+          <select [(ngModel)]="newPurchaseOrder.supplierId">
+            <option [ngValue]="0">{{ 'purchases.selectSupplier' | t }}</option>
+            <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+              {{ supplier.name }} ({{ supplier.supplierCode }})
+            </option>
+          </select>
+          <button class="btn-link" type="button" (click)="showManualPurchaseOrderModal = false; openSupplierModal('order')">{{ 'purchases.btn.newSupplierLink' | t }}</button>
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.number' | t }}</label>
+          <input type="text" [(ngModel)]="newPurchaseOrder.orderNumber" [placeholder]="'purchases.numberPlaceholder' | t" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'common.date' | t }}</label>
+          <input type="date" [(ngModel)]="newPurchaseOrder.date" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.col.expectedDelivery' | t }}</label>
+          <input type="date" [(ngModel)]="newPurchaseOrder.expectedDeliveryDate" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <input type="text" [(ngModel)]="newPurchaseOrder.notes" [placeholder]="'purchases.notesPlaceholder' | t" />
+      </div>
+
+      <h4>{{ 'purchases.orderLines' | t }}</h4>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th>{{ 'common.ref' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.qty' | t }}</th>
+            <th>{{ 'common.unitPriceHt' | t }}</th>
+            <th>{{ 'common.vatPercent' | t }}</th>
+            <th>{{ 'common.totalTtc' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of newPurchaseOrder.lines; let i = index">
+            <td>
+              <app-product-line-ref [line]="line" priceMode="purchase" (productSelected)="calculatePurchaseOrderLine(line)"></app-product-line-ref>
+            </td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" (input)="calculatePurchaseOrderLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calculatePurchaseOrderLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calculatePurchaseOrderLine(line)" /></td>
+            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+            <td><button class="icon-btn" (click)="removePurchaseOrderLine(i)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="line-actions">
+        <button class="btn-secondary" (click)="addPurchaseOrderLine()">{{ 'common.addLine' | t }}</button>
+      </div>
+
+      <div class="totals-box">
+        <div>{{ 'common.totalHt' | t }}: <strong>{{ newPurchaseOrder.totalHT | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalVat' | t }}: <strong>{{ newPurchaseOrder.totalVat | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalTtc' | t }}: <strong>{{ newPurchaseOrder.totalTTC | currency:'EUR' }}</strong></div>
+      </div>
+
+      <div class="error-box" *ngIf="createError">
+        {{ createError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showManualPurchaseOrderModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveManualPurchaseOrder()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('purchases.btn.saveOrder' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showSupplierModal">
+    <div class="modal-content">
+      <h3>{{ editingSupplierId ? ('purchases.modal.editSupplier' | t) : ('purchases.modal.newSupplier' | t) }}</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'purchases.supplier.codeAuto' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.supplierCode" [placeholder]="'purchases.supplier.codePlaceholder' | t" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'purchases.supplier.nameRequired' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.name" [placeholder]="'purchases.supplier.namePlaceholder' | t" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'purchases.supplier.vatNumber' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.vatNumber" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.phone' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.phone" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.email' | t }}</label>
+          <input type="email" [(ngModel)]="newSupplier.email" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.country' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.country" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ 'common.address' | t }}</label>
+        <input type="text" [(ngModel)]="newSupplier.address" />
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.postalCode' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.postalCode" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.city' | t }}</label>
+          <input type="text" [(ngModel)]="newSupplier.city" />
+        </div>
+      </div>
+      <div class="error-box" *ngIf="createError">{{ createError }}</div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showSupplierModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveSupplier()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : (editingSupplierId ? ('common.save' | t) : ('purchases.btn.createSupplier' | t)) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showMatchPurchaseOrderModal">
+    <div class="modal-content">
+      <h3>{{ 'purchases.modal.matchOrder' | t }}</h3>
+      <p *ngIf="selectedInvoiceToMatch">
+        {{ 'purchases.invoiceLabel' | t }} <strong>{{ selectedInvoiceToMatch.invoiceNumber || ('common.noNumber' | t) }}</strong>
+      </p>
+
+      <div class="form-group">
+        <label>{{ 'purchases.purchaseOrder' | t }}</label>
+        <select [(ngModel)]="selectedPurchaseOrderId" (ngModelChange)="previewMatchPurchaseOrder()">
+          <option [ngValue]="null">{{ 'purchases.selectPurchaseOrder' | t }}</option>
+          <option *ngFor="let order of matchingPurchaseOrdersForSelectedInvoice()" [ngValue]="order.id">
+            {{ order.orderNumber }} - {{ supplierNameForOrder(order) }}
+          </option>
+        </select>
+      </div>
+
+      <div class="match-preview" *ngIf="purchaseOrderMatchPreview">
+        <div class="match-preview-header" [class.match-warning]="!purchaseOrderMatchPreview.isBalanced">
+          {{ purchaseOrderMatchPreview.isBalanced ? ('purchases.match.balanced' | t) : ('purchases.match.gaps' | t) }}
+        </div>
+
+        <div class="match-preview-grid">
+          <div>{{ 'purchases.match.invoiceHt' | t }} <strong>{{ purchaseOrderMatchPreview.invoiceTotalHt | currency:'EUR' }}</strong></div>
+          <div>{{ 'purchases.match.orderHt' | t }} <strong>{{ purchaseOrderMatchPreview.purchaseOrderTotalHt | currency:'EUR' }}</strong></div>
+          <div>{{ 'purchases.match.deltaHt' | t }} <strong>{{ purchaseOrderMatchPreview.totalHtDelta | currency:'EUR' }}</strong></div>
+          <div>{{ 'purchases.match.matchedLines' | t }} <strong>{{ purchaseOrderMatchPreview.matchedLineCount }}</strong></div>
+          <div>{{ 'purchases.match.qtyGaps' | t }} <strong>{{ purchaseOrderMatchPreview.quantityMismatchCount }}</strong></div>
+          <div>{{ 'purchases.match.priceGaps' | t }} <strong>{{ purchaseOrderMatchPreview.priceMismatchCount }}</strong></div>
+        </div>
+
+        <div class="warning-list" *ngIf="purchaseOrderMatchPreview.warnings.length">
+          <div class="warning-item" *ngFor="let warning of purchaseOrderMatchPreview.warnings.slice(0, 6)">
+            {{ warning }}
+          </div>
+          <div class="hint" *ngIf="purchaseOrderMatchPreview.warnings.length > 6">
+            {{ 'purchases.match.moreWarnings' | t:{count: purchaseOrderMatchPreview.warnings.length - 6} }}
+          </div>
+        </div>
+      </div>
+
+      <div class="error-box" *ngIf="linkError">
+        {{ linkError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showMatchPurchaseOrderModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" (click)="matchSupplierInvoiceToPurchaseOrder()">{{ 'purchases.btn.match' | t }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showReceiveDeliveryModal">
+    <div class="modal-content">
+      <h3>{{ 'purchases.modal.receiveDelivery' | t }}</h3>
+      <p *ngIf="selectedPurchaseOrderToReceive">
+        {{ 'purchases.orderLabel' | t }} <strong>{{ selectedPurchaseOrderToReceive.orderNumber }}</strong>
+      </p>
+
+      <div class="form-group">
+        <label>{{ 'purchases.deliveryDocument' | t }}</label>
+        <select [(ngModel)]="selectedDocumentId">
+          <option [ngValue]="null">{{ 'purchases.selectDeliveryNote' | t }}</option>
+          <option *ngFor="let document of deliveryDocuments" [ngValue]="document.id">
+            #{{ document.id }} - {{ document.numero || document.originalFileName }}{{ document.supplier ? (' - ' + document.supplier) : '' }}
+          </option>
+        </select>
+      </div>
+
+      <div class="hint" *ngIf="selectedDocumentId">
+        {{ 'purchases.detectedSupplier' | t }} <strong>{{ supplierForSelectedDocument() || ('common.notProvided' | t) }}</strong>
+      </div>
+
+      <div class="error-box" *ngIf="linkError">
+        {{ linkError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showReceiveDeliveryModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" (click)="receivePurchaseOrderFromDelivery()">{{ 'purchases.btn.applyDelivery' | t }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showComptabiliserModal">
+    <div class="modal-content">
+      <h3>{{ 'purchases.modal.comptabiliserDoc' | t }}</h3>
+      <p *ngIf="selectedDocumentToComptabiliser">
+        <strong>{{ selectedDocumentToComptabiliser.typeDocument || 'Document' }}</strong>
+        {{ selectedDocumentToComptabiliser.numero || ('#' + selectedDocumentToComptabiliser.id) }}
+        <span *ngIf="selectedDocumentToComptabiliser.supplier"> — {{ selectedDocumentToComptabiliser.supplier }}</span>
+      </p>
+      <p class="hint" *ngIf="selectedDocumentToComptabiliser && isInvoiceDocument(selectedDocumentToComptabiliser)">
+        {{ 'purchases.hint.invoiceCreates' | t }}
+      </p>
+      <p class="hint" *ngIf="selectedDocumentToComptabiliser && isDeliveryDocument(selectedDocumentToComptabiliser)">
+        {{ 'purchases.hint.deliveryCreates' | t }}
+      </p>
+
+      <div class="form-group">
+        <label>{{ 'purchases.supplier.required' | t }}</label>
+        <select [(ngModel)]="selectedSupplierId">
+          <option [ngValue]="null">{{ 'purchases.selectSupplier' | t }}</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'purchases.purchaseOrderOptional' | t }}</label>
+        <select [(ngModel)]="selectedPurchaseOrderId">
+          <option [ngValue]="null">{{ 'common.optionalNone' | t }}</option>
+          <option *ngFor="let order of matchingOrdersForSelectedDocument()" [ngValue]="order.id">
+            {{ order.orderNumber }} - {{ supplierNameForOrder(order) }}
+          </option>
+        </select>
+      </div>
+
+      <div class="error-box" *ngIf="linkError">
+        {{ linkError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showComptabiliserModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="comptabiliserDocument()" [disabled]="saving">
+          {{ saving ? ('purchases.comptabilising' | t) : ('purchases.btn.comptabiliser' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

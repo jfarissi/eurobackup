@@ -5,6 +5,10 @@ export interface AuthUser {
   username: string;
   role: string;
   isAdmin: boolean;
+  permissions?: string[];
+  companyId?: string | null;
+  companyName?: string | null;
+  companies?: { id: string; name: string }[];
 }
 
 export interface LoginRequest {
@@ -20,4 +24,8 @@ export interface LoginResponse {
   role: string;
   token: string;
   isAdmin: boolean;
+  permissions?: string[];
+  companyId?: string | null;
+  companyName?: string | null;
+  companies?: { id: string; name: string }[];
 }

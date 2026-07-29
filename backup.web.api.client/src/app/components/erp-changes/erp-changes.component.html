@@ -7,15 +7,15 @@
       </div>
 
       <div class="erp-actions">
-        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing">
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncing || importing" *ngIf="perm.has(P.ErpChangeUpdate)">
           <mat-icon>{{ syncing ? 'hourglass_top' : 'sync' }}</mat-icon>
           {{ syncing ? ('erpChanges.syncing' | t) : ('erpChanges.enrichFromErp' | t) }}
         </button>
-        <button class="btn-secondary" type="button" (click)="importExcel(false)" [disabled]="importing || syncing">
+        <button class="btn-secondary" type="button" (click)="importExcel(false)" [disabled]="importing || syncing" *ngIf="perm.has(P.ErpChangeUpdate)">
           <mat-icon>upload_file</mat-icon>
           {{ importing ? ('erpChanges.importing' | t) : ('erpChanges.importExcel' | t) }}
         </button>
-        <button class="btn-secondary" type="button" (click)="importExcel(true)" [disabled]="importing || syncing">
+        <button class="btn-secondary" type="button" (click)="importExcel(true)" [disabled]="importing || syncing" *ngIf="perm.has(P.ErpChangeUpdate)">
           <mat-icon>playlist_add_check</mat-icon>
           {{ 'erpChanges.excelPlusSync' | t }}
         </button>
@@ -75,19 +75,19 @@
              (ngModelChange)="onSearchInput()"
              [placeholder]="'erpChanges.searchPlaceholder' | t" />
 
-      <button class="btn-secondary btn-sm" type="button" (click)="markSelectedRead()" [disabled]="selectedIds.size === 0">
+      <button class="btn-secondary btn-sm" type="button" (click)="markSelectedRead()" [disabled]="selectedIds.size === 0" *ngIf="perm.has(P.ErpChangeUpdate)">
         <mat-icon>done</mat-icon>
         {{ 'erpChanges.markSelected' | t }}
       </button>
-      <button class="btn-secondary btn-sm" type="button" (click)="deleteSelected()" [disabled]="selectedIds.size === 0">
+      <button class="btn-secondary btn-sm" type="button" (click)="deleteSelected()" [disabled]="selectedIds.size === 0" *ngIf="perm.has(P.ErpChangeDelete)">
         <mat-icon>delete</mat-icon>
         {{ 'erpChanges.deleteSelected' | t }}
       </button>
-      <button class="btn-secondary btn-sm" type="button" (click)="markAllVisibleRead()">
+      <button class="btn-secondary btn-sm" type="button" (click)="markAllVisibleRead()" *ngIf="perm.has(P.ErpChangeUpdate)">
         <mat-icon>done_all</mat-icon>
         {{ 'erpChanges.markAllPage' | t }}
       </button>
-      <button class="btn-secondary btn-sm" type="button" (click)="cleanupFormattingFalsePositives()" [disabled]="cleaning">
+      <button class="btn-secondary btn-sm" type="button" (click)="cleanupFormattingFalsePositives()" [disabled]="cleaning" *ngIf="perm.has(P.ErpChangeUpdate)">
         <mat-icon>cleaning_services</mat-icon>
         {{ cleaning ? ('erpChanges.cleaning' | t) : ('erpChanges.cleanupFalsePositives' | t) }}
       </button>

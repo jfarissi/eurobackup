@@ -1,0 +1,70 @@
+<div class="numbering-container">
+  <div class="numbering-header">
+    <div>
+      <h2>{{ 'numbering.title' | t }}</h2>
+      <p class="subtitle">{{ 'numbering.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadSequences()" [disabled]="loading">{{ 'common.refresh' | t }}</button>
+      <button class="btn-primary" type="button" (click)="ensureDefaults()">
+        <mat-icon>playlist_add</mat-icon>
+        {{ 'numbering.initDefaults' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <div class="hint-box">
+    {{ 'numbering.placeholdersHint' | t }}
+    <code *ngFor="let token of placeholderExamples; let last = last">{{ token }}<ng-container *ngIf="!last">, </ng-container></code>.
+    {{ 'numbering.example' | t }} <code>{{ formatExample }}</code> → <strong>{{ formatExampleResult }}</strong>.
+  </div>
+
+  <div *ngIf="loading" class="empty">{{ 'common.loading' | t }}</div>
+
+  <div *ngIf="!loading && sequences.length === 0" class="empty-card">
+    <mat-icon class="large-icon">tag</mat-icon>
+    <h3>{{ 'numbering.empty.title' | t }}</h3>
+    <p>{{ 'numbering.empty.hint' | t }}</p>
+  </div>
+
+  <div class="sequence-grid" *ngIf="!loading && sequences.length > 0">
+    <div class="sequence-card" *ngFor="let seq of sequences">
+      <div class="card-top">
+        <div>
+          <span class="type-label">{{ typeLabel(seq.documentType) }}</span>
+          <span class="type-code">{{ seq.documentType }}</span>
+        </div>
+        <span class="preview" *ngIf="seq.id && previews[seq.id]">{{ previews[seq.id] }}</span>
+      </div>
+
+      <ng-container *ngIf="seq.id && drafts[seq.id] as draft">
+        <div class="form-row">
+          <div class="form-group">
+            <label>{{ 'numbering.prefix' | t }}</label>
+            <input type="text" [(ngModel)]="draft.prefix" (ngModelChange)="refreshPreview(seq)" />
+          </div>
+          <div class="form-group narrow">
+            <label>{{ 'numbering.year' | t }}</label>
+            <input type="number" [(ngModel)]="draft.year" (ngModelChange)="refreshPreview(seq)" />
+          </div>
+          <div class="form-group narrow">
+            <label>{{ 'numbering.nextNumber' | t }}</label>
+            <input type="number" min="1" [(ngModel)]="draft.nextNumber" (ngModelChange)="refreshPreview(seq)" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ 'numbering.format' | t }}</label>
+          <input type="text" [(ngModel)]="draft.formatPattern" (ngModelChange)="refreshPreview(seq)" />
+        </div>
+        <div class="card-actions">
+          <button class="btn-primary" type="button" (click)="save(seq)" [disabled]="savingId === seq.id">
+            {{ savingId === seq.id ? ('common.saving' | t) : ('common.save' | t) }}
+          </button>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

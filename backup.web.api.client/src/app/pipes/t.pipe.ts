@@ -6,7 +6,12 @@ import { AppI18nService } from '../services/app-i18n.service';
 export class TPipe implements PipeTransform {
   constructor(private i18n: AppI18nService) {}
 
-  transform(key: string, params?: Record<string, string | number>): string {
-    return this.i18n.t(key, params);
+  transform(key: string, params?: Record<string, string | number | null | undefined>): string {
+    if (!params) return this.i18n.t(key);
+    const cleaned: Record<string, string | number> = {};
+    for (const [k, v] of Object.entries(params)) {
+      cleaned[k] = v ?? '';
+    }
+    return this.i18n.t(key, cleaned);
   }
 }

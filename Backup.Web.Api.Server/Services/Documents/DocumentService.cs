@@ -1,7 +1,10 @@
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Entities;
 using Microsoft.AspNetCore.Http;
 using Backup.Web.Api.Server.Services;
+using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Tenancy;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using System.Text.RegularExpressions;
 
@@ -18,8 +21,10 @@ namespace Backup.Web.Api.Server.Services.Documents
 		private readonly Backup.Web.Api.Server.Services.Ocr.IOcrTextExtractionService ocrExtractor;
 		private readonly Backup.Web.Api.Server.Services.Documents.Ollama.IOllamaParsingService ollama;
 		private readonly Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient pythonExtractor;
+        private readonly INumberingSequenceService numberingService;
+        private readonly ICompanyContextService companyContext;
 
-			public DocumentService(IStorageBroker storageBroker, ITextExtractionService textExtractor, IPdfToTextService pdfToText, IDocumentParserService parser, IWebHostEnvironment env, IConfiguration config, Backup.Web.Api.Server.Services.Ocr.IOcrTextExtractionService ocrExtractor, Backup.Web.Api.Server.Services.Documents.Ollama.IOllamaParsingService ollama, Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient pythonExtractor)
+			public DocumentService(IStorageBroker storageBroker, ITextExtractionService textExtractor, IPdfToTextService pdfToText, IDocumentParserService parser, IWebHostEnvironment env, IConfiguration config, Backup.Web.Api.Server.Services.Ocr.IOcrTextExtractionService ocrExtractor, Backup.Web.Api.Server.Services.Documents.Ollama.IOllamaParsingService ollama, Backup.Web.Api.Server.Services.Documents.Python.IPythonExtractorClient pythonExtractor, INumberingSequenceService numberingService, ICompanyContextService companyContext)
         {
             this.storageBroker = storageBroker;
             this.textExtractor = textExtractor;
@@ -30,11 +35,19 @@ namespace Backup.Web.Api.Server.Services.Documents
             this.ocrExtractor = ocrExtractor;
 			this.ollama = ollama;
 			this.pythonExtractor = pythonExtractor;
+            this.numberingService = numberingService;
+            this.companyContext = companyContext;
         }
 
-        public IQueryable<Document> GetAll() => this.storageBroker.SelectAllDocuments().OrderByDescending(d => d.DateAdded);
+        public IQueryable<Document> GetAll() =>
+            this.storageBroker.SelectAllDocuments()
+                .ForCompany(this.companyContext.GetCurrentCompanyId())
+                .OrderByDescending(d => d.DateAdded);
 
-        public IQueryable<Document> Search(string query) => this.storageBroker.SearchDocuments(query).OrderByDescending(d => d.DateAdded);
+        public IQueryable<Document> Search(string query) =>
+            this.storageBroker.SearchDocuments(query)
+                .ForCompany(this.companyContext.GetCurrentCompanyId())
+                .OrderByDescending(d => d.DateAdded);
 
         public async Task<Document> UploadAsync(IFormFile file, string typeDocument, string? numero, string? client, DateTime? dateDocument, CancellationToken ct)
         {
@@ -119,6 +132,7 @@ namespace Backup.Web.Api.Server.Services.Documents
                 ContentText = extracted ?? string.Empty,
                 DateAdded = DateTime.UtcNow
             };
+            doc.EnsureCompanyId(this.companyContext.GetCurrentCompanyId());
 
 			var saved = await this.storageBroker.InsertDocumentAsync(doc);
 
@@ -141,6 +155,8 @@ namespace Backup.Web.Api.Server.Services.Documents
 				foreach (var l in linesToPersist) l.DocumentId = saved.Id;
 				await this.storageBroker.InsertDocumentLinesAsync(linesToPersist);
 			}
+
+            await TryCreateSupplierInvoiceFromParsedDocumentAsync(saved, linesToPersist);
 
 			return saved;
         }
@@ -293,6 +309,146 @@ namespace Backup.Web.Api.Server.Services.Documents
 				l.RawLine = Trunc(l.RawLine, 2048);
 			}
 		}
+
+        private async Task TryCreateSupplierInvoiceFromParsedDocumentAsync(Document document, List<DocumentLine> lines)
+        {
+            if (!IsSupplierInvoiceDocument(document.TypeDocument)) return;
+            if (string.IsNullOrWhiteSpace(document.Supplier)) return;
+
+            var normalizedSupplierName = document.Supplier.Trim();
+            var supplier = this.storageBroker.SelectAllSuppliers()
+                .FirstOrDefault(s => s.Name.ToLower() == normalizedSupplierName.ToLower());
+
+            if (supplier == null)
+            {
+                supplier = await this.storageBroker.InsertSupplierAsync(new Supplier
+                {
+                    SupplierCode = "SUP-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
+                    Name = normalizedSupplierName,
+                    CompanyId = null,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+
+            SupplierInvoiceEntity? existingInvoice = null;
+            if (!string.IsNullOrWhiteSpace(document.Numero))
+            {
+                var normalizedNumber = document.Numero.Trim().ToLowerInvariant();
+                existingInvoice = this.storageBroker.SelectAllSupplierInvoices()
+                    .FirstOrDefault(i => i.SupplierId == supplier.Id && i.InvoiceNumber.ToLower() == normalizedNumber);
+            }
+
+            if (existingInvoice != null)
+            {
+                if (!existingInvoice.DocumentId.HasValue)
+                {
+                    existingInvoice.DocumentId = document.Id;
+                    existingInvoice.Date = existingInvoice.Date == default ? (document.DateDocument ?? DateTime.UtcNow) : existingInvoice.Date;
+                    existingInvoice.Notes = AppendOriginNote(existingInvoice.Notes, document);
+                    if (existingInvoice.Lines == null || existingInvoice.Lines.Count == 0)
+                    {
+                        existingInvoice.Lines = MapSupplierInvoiceLines(lines);
+                    }
+
+                    NormalizeSupplierInvoice(existingInvoice);
+                    await this.storageBroker.UpdateSupplierInvoiceAsync(existingInvoice);
+                }
+
+                return;
+            }
+
+            var createdInvoice = new SupplierInvoiceEntity
+            {
+                SupplierId = supplier.Id,
+                DocumentId = document.Id,
+                InvoiceNumber = !string.IsNullOrWhiteSpace(document.Numero)
+                    ? document.Numero.Trim()
+                    : await this.numberingService.GetNextNumberAsync("SupplierInvoice", null),
+                Date = document.DateDocument ?? DateTime.UtcNow,
+                DueDate = (document.DateDocument ?? DateTime.UtcNow).AddDays(30),
+                Status = "Draft",
+                Notes = BuildOriginNote(document),
+                CreatedAt = DateTime.UtcNow,
+                Lines = MapSupplierInvoiceLines(lines)
+            };
+
+            NormalizeSupplierInvoice(createdInvoice);
+            await this.storageBroker.InsertSupplierInvoiceAsync(createdInvoice);
+        }
+
+        private static bool IsSupplierInvoiceDocument(string? typeDocument) =>
+            !string.IsNullOrWhiteSpace(typeDocument) &&
+            typeDocument.Contains("facture", StringComparison.OrdinalIgnoreCase);
+
+        private static List<SupplierInvoiceLineEntity> MapSupplierInvoiceLines(IEnumerable<DocumentLine> lines)
+        {
+            return lines.Select((line, index) =>
+            {
+                var quantity = line.Quantity == 0 ? 1m : line.Quantity;
+                var unitPrice = line.UnitPrice;
+                var totalHt = line.TotalValue != 0 ? line.TotalValue : quantity * unitPrice;
+                if (unitPrice == 0 && quantity != 0 && totalHt != 0)
+                {
+                    unitPrice = totalHt / quantity;
+                }
+
+                return new SupplierInvoiceLineEntity
+                {
+                    ProductKey = line.ProductCode ?? string.Empty,
+                    Description = string.IsNullOrWhiteSpace(line.Product) ? (line.RawLine ?? string.Empty) : line.Product,
+                    Quantity = quantity,
+                    UnitPrice = unitPrice,
+                    VatRate = 21.0m,
+                    TotalHT = totalHt,
+                    TotalTTC = totalHt * 1.21m,
+                    LineNumber = line.LineNumber > 0 ? line.LineNumber : index + 1
+                };
+            }).ToList();
+        }
+
+        private static void NormalizeSupplierInvoice(SupplierInvoiceEntity invoice)
+        {
+            invoice.Lines ??= new List<SupplierInvoiceLineEntity>();
+            invoice.Status = string.IsNullOrWhiteSpace(invoice.Status) ? "Draft" : invoice.Status.Trim();
+            invoice.Date = invoice.Date == default ? DateTime.UtcNow : invoice.Date;
+            invoice.DueDate = invoice.DueDate == default ? invoice.Date.AddDays(30) : invoice.DueDate;
+            invoice.CreatedAt = invoice.CreatedAt == default ? DateTime.UtcNow : invoice.CreatedAt;
+
+            for (int i = 0; i < invoice.Lines.Count; i++)
+            {
+                var line = invoice.Lines[i];
+                line.LineNumber = line.LineNumber <= 0 ? i + 1 : line.LineNumber;
+                line.Description = line.Description?.Trim() ?? string.Empty;
+                line.ProductKey = line.ProductKey?.Trim() ?? string.Empty;
+                line.TotalHT = line.Quantity * line.UnitPrice;
+                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
+            }
+
+            invoice.TotalHT = invoice.Lines.Sum(l => l.TotalHT);
+            invoice.TotalVat = invoice.Lines.Sum(l => l.TotalTTC - l.TotalHT);
+            invoice.TotalTTC = invoice.Lines.Sum(l => l.TotalTTC);
+        }
+
+        private static string BuildOriginNote(Document document)
+        {
+            var parts = new List<string> { $"Auto-created from parsed document #{document.Id}" };
+
+            if (!string.IsNullOrWhiteSpace(document.OriginalFileName))
+            {
+                parts.Add(document.OriginalFileName);
+            }
+
+            return string.Join(" | ", parts);
+        }
+
+        private static string AppendOriginNote(string? existingNotes, Document document)
+        {
+            var note = BuildOriginNote(document);
+            if (string.IsNullOrWhiteSpace(existingNotes)) return note;
+            if (existingNotes.Contains(note, StringComparison.OrdinalIgnoreCase)) return existingNotes;
+            return $"{existingNotes}{Environment.NewLine}{note}";
+        }
 
         public async Task<DocumentMetadata> InspectAsync(IFormFile file, CancellationToken ct)
         {

@@ -1,0 +1,6 @@
+{
+  "summary": "Plan de travail révisé après audit approfondi de Backup.Web.Api. Réutilisation maximale du moteur de parsing PDF/IA existant et du système de stock actuel. Focalisation sur la migration des modules manquants de Pulse.Desktop (Ventes, Commandes Achats/Ventes, Clients/Fournisseurs, Mouvements de Stock, Caisse & Numérotation chrono).",
+  "updatedAt": "2026-07-28T08:18:07.128882800Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

@@ -46,7 +46,7 @@
 }
 
 .erp-actions .btn-primary {
-  background: #3525cd !important;
+  background: #37474f !important;
   color: #ffffff !important;
   border: none !important;
 }
@@ -92,20 +92,20 @@
 .sync-progress-pct {
   font-size: 13px;
   font-weight: 700;
-  color: #3525cd;
+  color: #37474f;
 }
 
 .sync-progress-track {
   height: 10px;
   border-radius: 999px;
-  background: #e2dfff;
+  background: #eceff1;
   overflow: hidden;
 }
 
 .sync-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #3525cd;
+  background: #37474f;
   transition: width 0.35s ease;
 }
 
@@ -203,8 +203,8 @@
 }
 
 .filter-search:focus {
-  outline: 2px solid rgba(53, 37, 205, 0.25);
-  border-color: #3525cd;
+  outline: 2px solid rgba(55, 71, 79, 0.25);
+  border-color: #37474f;
 }
 
 .clear-link {
@@ -247,7 +247,7 @@
 }
 
 .no-data .btn-primary {
-  background: #3525cd !important;
+  background: #37474f !important;
   color: #ffffff !important;
 }
 

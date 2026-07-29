@@ -1,4 +1,7 @@
+using Backup.Web.Api.Server.Authorization;
+using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services;
 using Backup.Web.Api.Server.Services.Documents;
 using Microsoft.AspNetCore.Authorization;
@@ -26,12 +29,58 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAll()
+        [RequirePermission(Permissions.DocumentRead)]
+        public IActionResult GetAll([FromQuery] string? type = null)
         {
-            return Ok(this.documentService.GetAll().Take(200).ToList());
+            var documents = this.documentService.GetAll().Take(500).ToList();
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                documents = documents
+                    .Where(d => MatchesDocumentType(d.TypeDocument, type))
+                    .ToList();
+            }
+
+            return Ok(documents.Take(200).ToList());
+        }
+
+        private static bool MatchesDocumentType(string? typeDocument, string requestedType)
+        {
+            var requested = requestedType.Trim().ToLowerInvariant();
+            var actual = (typeDocument ?? string.Empty).Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(actual)) return false;
+
+            var isBl =
+                actual is "bonlivraison" or "bl" ||
+                actual.Contains("bonlivraison", StringComparison.Ordinal) ||
+                actual.Contains("bon de livraison", StringComparison.Ordinal) ||
+                actual.Contains("leveringsbon", StringComparison.Ordinal) ||
+                actual.Contains("leveringsbevestiging", StringComparison.Ordinal) ||
+                actual.Contains("delivery note", StringComparison.Ordinal) ||
+                (actual.Contains("delivery", StringComparison.Ordinal) && actual.Contains("confirmation", StringComparison.Ordinal)) ||
+                (actual.Contains("bon", StringComparison.Ordinal) && actual.Contains("livraison", StringComparison.Ordinal));
+
+            var isFacture =
+                !isBl && (
+                    actual is "facture" or "factuur" or "invoice" ||
+                    actual.Contains("facture", StringComparison.Ordinal) ||
+                    actual.Contains("factuur", StringComparison.Ordinal) ||
+                    actual.Contains("invoice", StringComparison.Ordinal));
+
+            if (requested is "bonlivraison" or "bl" or "delivery" or "deliverynote")
+            {
+                return isBl;
+            }
+
+            if (requested is "facture" or "invoice" or "factuur")
+            {
+                return isFacture;
+            }
+
+            return actual.Contains(requested, StringComparison.Ordinal);
         }
 
         [HttpGet("search")]
+        [RequirePermission(Permissions.DocumentRead)]
         public IActionResult Search([FromQuery] string q)
         {
             if (string.IsNullOrWhiteSpace(q)) return BadRequest("Query required");
@@ -40,6 +89,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("find-invoices-by-bl-number")]
+        [RequirePermission(Permissions.DocumentRead)]
         public IActionResult FindInvoicesByBlNumber([FromQuery] string blNumber, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage)
         {
             if (string.IsNullOrWhiteSpace(blNumber)) return BadRequest("BL number required");
@@ -74,15 +124,34 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("upload")]
+        [RequirePermission(Permissions.DocumentUpload)]
         [RequestSizeLimit(50_000_000)] // 50 MB
-        public async Task<IActionResult> Upload([FromForm] UploadRequest request, CancellationToken ct)
+        public async Task<IActionResult> Upload(
+            [FromForm] UploadRequest request,
+            [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage,
+            CancellationToken ct)
         {
             if (request.File == null || request.File.Length == 0) return BadRequest("Fichier manquant");
             
             try
             {
                 var doc = await this.documentService.UploadAsync(request.File, request.TypeDocument, request.Numero, request.Client, request.DateDocument, ct, request.Supplier);
-                return Ok(doc);
+                var supplierInvoice = storage.SelectAllSupplierInvoices().FirstOrDefault(i => i.DocumentId == doc.Id);
+                return Ok(new
+                {
+                    doc.Id,
+                    doc.TypeDocument,
+                    doc.Numero,
+                    doc.Client,
+                    doc.Supplier,
+                    doc.DateDocument,
+                    doc.OriginalFileName,
+                    doc.FilePath,
+                    doc.ContentText,
+                    doc.DateAdded,
+                    supplierInvoiceId = supplierInvoice?.Id,
+                    autoCreatedSupplierInvoice = supplierInvoice != null
+                });
             }
             catch (InvalidOperationException ex)
             {
@@ -105,6 +174,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("inspect")]
+        [RequirePermission(Permissions.DocumentUpload)]
         [RequestSizeLimit(50_000_000)]
         public async Task<IActionResult> Inspect([FromForm] IFormFile file, CancellationToken ct)
         {
@@ -121,6 +191,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("{id:int}/download")]
+        [RequirePermission(Permissions.DocumentRead)]
         public async Task<IActionResult> Download(int id)
         {
             var result = await this.documentService.DownloadAsync(id);
@@ -128,6 +199,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> Compare([FromQuery] int invoiceId, [FromQuery] int deliveryId, CancellationToken ct)
         {
             if (invoiceId <= 0 || deliveryId <= 0) return BadRequest("Ids required");
@@ -136,6 +208,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare-all-deliveries")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> CompareAllDeliveries([FromQuery] int invoiceId, CancellationToken ct)
         {
             if (invoiceId <= 0) return BadRequest("InvoiceId required");
@@ -144,6 +217,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare-invoices")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> CompareInvoices([FromQuery] int invoice1Id, [FromQuery] int invoice2Id, CancellationToken ct)
         {
             if (invoice1Id <= 0 || invoice2Id <= 0) return BadRequest("Invoice IDs required");
@@ -165,6 +239,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("link")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> Link([FromBody] LinkRequest request, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage)
         {
             if (request.InvoiceId <= 0 || request.DeliveryId <= 0) return BadRequest("Ids required");
@@ -202,6 +277,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("relations")]
+        [RequirePermission(Permissions.DocumentRead)]
         public IActionResult Relations([FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage)
         {
             var rels = storage.SelectAllRelations().ToList();
@@ -209,6 +285,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpDelete("link/{id:int}")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> Unlink([FromRoute] int id, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage)
         {
             var rel = storage.SelectAllRelations().FirstOrDefault(r => r.Id == id);
@@ -218,6 +295,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("generate-samples")]
+        [RequirePermission(Permissions.DocumentUpload)]
         public async Task<IActionResult> GenerateSamples([FromServices] IConfiguration config, CancellationToken ct)
         {
             // Define sample pairs
@@ -245,6 +323,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("{id:int}/reparse-lines")]
+        [RequirePermission(Permissions.DocumentUpload)]
         public async Task<IActionResult> ReparseLines([FromRoute] int id, [FromQuery] bool useAiFallback, CancellationToken ct)
         {
             var ok = await this.documentService.ReparseDocumentLinesAsync(id, useAiFallback, ct);
@@ -252,6 +331,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("{id:int}/reparse-preview")]
+        [RequirePermission(Permissions.DocumentUpload)]
         public async Task<IActionResult> ReparsePreview(
             [FromRoute] int id,
             [FromQuery] bool useAi,
@@ -321,6 +401,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare-and-stock")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> CompareAndStock([FromQuery] int invoiceId, [FromQuery] int deliveryId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
         {
             if (invoiceId <= 0 || deliveryId <= 0) return BadRequest("Ids required");
@@ -329,6 +410,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("compare-and-stock-all-deliveries")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> CompareAndStockAllDeliveries([FromQuery] int invoiceId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
         {
             if (invoiceId <= 0) return BadRequest("InvoiceId required");
@@ -348,6 +430,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("adjustments")]
+        [RequirePermission(Permissions.DocumentLink)]
         public async Task<IActionResult> SaveAdjustment([FromBody] SaveAdjustmentRequest request, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage, CancellationToken ct)
         {
             System.Diagnostics.Debug.WriteLine($"[SaveAdjustment] Received request: DeliveryId={request.DeliveryId}, InvoiceId={request.InvoiceId}, ProductKey={request.ProductKey}, ActualQuantity={request.ActualQuantity}, Validate={request.Validate}");
@@ -418,6 +501,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("{id:int}/lines")]
+        [RequirePermission(Permissions.DocumentRead)]
         public IActionResult GetLines([FromRoute] int id, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage)
         {
             var lines = storage.SelectLinesByDocumentId(id).OrderBy(l => l.LineNumber).ToList();
@@ -436,6 +520,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("{invoiceId:int}/price-diff")]
+        [RequirePermission(Permissions.DocumentRead)]
         public async Task<IActionResult> PriceDiff([FromRoute] int invoiceId, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage, CancellationToken ct)
         {
             var invoice = await storage.SelectDocumentByIdAsync(invoiceId);
@@ -505,6 +590,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("{invoiceId:int}/erp-price-diff")]
+        [RequirePermission(Permissions.DocumentRead)]
         public async Task<IActionResult> ErpPriceDiff([FromRoute] int invoiceId, [FromServices] Backup.Web.Api.Server.Brokers.Storage.IStorageBroker storage, [FromServices] Backup.Web.Api.Server.Services.Pricing.IErpPricingService erpPricing, CancellationToken ct)
         {
             var invoice = await storage.SelectDocumentByIdAsync(invoiceId);
@@ -551,6 +637,7 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(results.OrderBy(r => r.Product).ToList());
         }
         [HttpPost("generate-pro-samples")]
+        [RequirePermission(Permissions.DocumentUpload)]
         public async Task<IActionResult> GenerateProSamples(CancellationToken ct)
         {
             var created = new List<object>();

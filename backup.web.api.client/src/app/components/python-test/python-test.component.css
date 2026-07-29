@@ -5,7 +5,7 @@
 }
 
 h1 {
-  color: #1976d2;
+  color: #37474f;
   margin-bottom: 8px;
 }
 
@@ -108,7 +108,7 @@ h1 {
   padding: 8px;
   background: #e3f2fd;
   border-radius: 4px;
-  color: #1976d2;
+  color: #37474f;
 }
 
 .loading {
@@ -160,7 +160,7 @@ h1 {
   padding: 16px 20px;
   background: #e3f2fd;
   border-radius: 8px;
-  border-left: 5px solid #1976d2;
+  border-left: 5px solid #37474f;
 }
 
 .valeur-totale-label {
@@ -224,7 +224,7 @@ h1 {
 
 .stat-item {
   font-size: 1.5em;
-  color: #1976d2;
+  color: #37474f;
   font-weight: bold;
 }
 

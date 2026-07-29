@@ -4,8 +4,12 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Backup.Web.Api.Server.Authorization;
+using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
+using AllowAnonymous = Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.ErpSync;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
@@ -75,6 +79,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet]
+        [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetAll(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 50,
@@ -130,6 +135,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("{id:int}")]
+        [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetById([FromRoute] int id, CancellationToken ct = default)
         {
             var item = await _storage.SelectAllErpProducts()
@@ -141,6 +147,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("search")]
+        [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] int limit = 50, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(q))
@@ -164,6 +171,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("sync/{erpId}")]
+        [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> SyncOne([FromRoute] string erpId, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(erpId))
@@ -185,6 +193,7 @@ namespace Backup.Web.Api.Server.Controllers
 
         /// <summary>Sync par Id local (PK MySQL) — utilisé par l'UI Produits.</summary>
         [HttpPost("{id:int}/sync")]
+        [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> SyncByLocalId([FromRoute] int id, CancellationToken ct = default)
         {
             try
@@ -202,6 +211,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("sync-all")]
+        [RequireAnyPermission(Permissions.ProductUpdate, Permissions.ErpChangeUpdate)]
         public async Task<IActionResult> SyncAll(
             [FromQuery] bool wait = false,
             CancellationToken ct = default)
@@ -221,6 +231,7 @@ namespace Backup.Web.Api.Server.Controllers
         /// Même périmètre que le tableau filtré — pas un import complet de la branche ERP.
         /// </summary>
         [HttpPost("sync-catalog")]
+        [RequirePermission(Permissions.ProductUpdate)]
         [RequestTimeout(3_600_000)]
         public async Task<IActionResult> SyncCatalog(
             [FromQuery] string? mainTypeId = null,
@@ -270,6 +281,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("sync-cancel")]
+        [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> CancelRunningSync(CancellationToken ct = default)
         {
             var cancelled = await _syncService.CancelRunningSyncAsync(ct);
@@ -279,6 +291,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("sync-logs/{jobId}")]
+        [RequireAnyPermission(Permissions.ProductRead, Permissions.ErpChangeRead)]
         public async Task<IActionResult> GetSyncLogByJobId([FromRoute] string jobId, CancellationToken ct = default)
         {
             var log = await _syncService.GetSyncLogByJobIdAsync(jobId, ct);
@@ -292,6 +305,7 @@ namespace Backup.Web.Api.Server.Controllers
         /// puis optionnellement lance l'enrichissement ERP.
         /// </summary>
         [HttpPost("import-excel")]
+        [RequireAnyPermission(Permissions.ProductUpdate, Permissions.ErpChangeUpdate)]
         [RequestTimeout(3_600_000)]
         public async Task<IActionResult> ImportExcel(
             [FromQuery] bool syncAfter = false,
@@ -321,6 +335,7 @@ namespace Backup.Web.Api.Server.Controllers
         /// Les MainTypes absents des produits locaux apparaissent ainsi dans la table.
         /// </summary>
         [HttpPost("sync-main-types")]
+        [RequirePermission(Permissions.ProductUpdate)]
         [RequestTimeout(600_000)]
         public async Task<IActionResult> SyncMainTypes(
             [FromQuery] bool includeTypes = true,
@@ -344,6 +359,7 @@ namespace Backup.Web.Api.Server.Controllers
         /// Préfixe : sync MainTypes depuis l'API ERP pour ne manquer aucune catégorie racine.
         /// </summary>
         [HttpPost("rebuild-catalog")]
+        [RequirePermission(Permissions.ProductUpdate)]
         [RequestTimeout(3_600_000)]
         public async Task<IActionResult> RebuildCatalog(CancellationToken ct = default)
         {
@@ -365,6 +381,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("brands")]
+        [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetBrands(
             [FromQuery] string? mainTypeId = null,
             [FromQuery] string? typeId = null,
@@ -404,6 +421,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("categories")]
+        [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetCategories(
             [FromQuery] string? level = null,
             [FromQuery] int? parentId = null,
@@ -512,6 +530,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("changes")]
+        [RequirePermission(Permissions.ErpChangeRead)]
         public async Task<IActionResult> GetChanges(
             [FromQuery] bool? unreadOnly = null,
             [FromQuery] string? changeType = null,
@@ -612,6 +631,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("changes/mark-read")]
+        [RequirePermission(Permissions.ErpChangeUpdate)]
         public async Task<IActionResult> MarkChangesRead([FromBody] MarkChangesReadRequest request, CancellationToken ct = default)
         {
             if (request?.Ids == null || request.Ids.Count == 0)
@@ -622,6 +642,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("changes/delete")]
+        [RequirePermission(Permissions.ErpChangeDelete)]
         public async Task<IActionResult> DeleteChanges([FromBody] MarkChangesReadRequest request, CancellationToken ct = default)
         {
             if (request?.Ids == null || request.Ids.Count == 0)
@@ -632,6 +653,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpPost("changes/cleanup-formatting")]
+        [RequirePermission(Permissions.ErpChangeUpdate)]
         public async Task<IActionResult> CleanupFormattingFalsePositives(CancellationToken ct = default)
         {
             var deleted = await _syncService.CleanupFormattingFalsePositivesAsync(ct);
@@ -639,6 +661,7 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         [HttpGet("sync-logs")]
+        [RequireAnyPermission(Permissions.ProductRead, Permissions.ErpChangeRead)]
         public async Task<IActionResult> GetSyncLogs(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,

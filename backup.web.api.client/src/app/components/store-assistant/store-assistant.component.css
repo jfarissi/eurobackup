@@ -12,7 +12,7 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(circle at top left, rgba(53, 37, 205, 0.12), transparent 40%),
+    radial-gradient(circle at top left, rgba(55, 71, 79, 0.12), transparent 40%),
     linear-gradient(180deg, #f4f6fb 0%, #eef1f8 100%);
   color: #191c1e;
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
@@ -39,7 +39,7 @@
   font-size: 36px;
   width: 36px;
   height: 36px;
-  color: #3525cd;
+  color: #37474f;
 }
 
 .assistant-brand h1 {
@@ -81,7 +81,7 @@
 }
 
 .lang-btn.active {
-  background: #3525cd;
+  background: #37474f;
   color: #fff;
 }
 
@@ -90,7 +90,7 @@
   align-items: center;
   gap: 6px;
   background: #e8e7ff;
-  color: #3525cd;
+  color: #37474f;
   padding: 8px 12px;
   border-radius: 999px;
   font-weight: 600;
@@ -136,7 +136,7 @@
 }
 
 .message-row.user .bubble {
-  background: linear-gradient(135deg, #3525cd, #5a4dff);
+  background: linear-gradient(135deg, #37474f, #546e7a);
   color: #fff;
   border-bottom-right-radius: 6px;
 }
@@ -294,7 +294,7 @@
 .cart-toggle.has-items,
 .cart-toggle.open {
   background: #e8e7ff;
-  color: #3525cd;
+  color: #37474f;
   border-color: #b6b0ff;
 }
 
@@ -306,7 +306,7 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #3525cd;
+  background: #37474f;
   color: #fff;
   font-size: 0.7rem;
   line-height: 18px;
@@ -395,13 +395,13 @@
   align-items: center;
   justify-content: center;
   background: #e8e7ff;
-  color: #3525cd;
+  color: #37474f;
   margin-right: 4px;
   vertical-align: middle;
 }
 
 .cart-line-btn.in-cart {
-  background: #3525cd;
+  background: #37474f;
   color: #fff;
 }
 
@@ -419,12 +419,12 @@
 
 .btn-add {
   background: #e8e7ff;
-  color: #3525cd;
+  color: #37474f;
   padding: 8px 12px;
 }
 
 .btn-primary {
-  background: #3525cd;
+  background: #37474f;
   color: #fff;
   padding: 10px 16px;
 }

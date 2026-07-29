@@ -24,8 +24,10 @@ export class DocumentService {
     return this.http.post<Document>(`${this.baseUrl}/upload`, form);
   }
 
-  list(): Observable<Document[]> {
-    return this.http.get<Document[]>(`${this.baseUrl}`);
+  list(type?: string): Observable<Document[]> {
+    let params = new HttpParams();
+    if (type) params = params.set('type', type);
+    return this.http.get<Document[]>(`${this.baseUrl}`, { params });
   }
 
   search(q: string): Observable<Document[]> {

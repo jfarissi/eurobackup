@@ -1,0 +1,39 @@
+.product-ref-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.product-ref-input:focus {
+  outline: none;
+  border-color: #37474f;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+::ng-deep .mat-mdc-autocomplete-panel .mat-mdc-option {
+  min-height: 44px;
+}
+
+.opt-ref {
+  font-weight: 600;
+  color: #1e293b;
+  margin-right: 8px;
+}
+
+.opt-name {
+  color: #64748b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opt-price {
+  margin-left: auto;
+  color: #37474f;
+  font-weight: 600;
+  font-size: 0.85rem;
+}

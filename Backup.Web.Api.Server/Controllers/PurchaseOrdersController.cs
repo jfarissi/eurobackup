@@ -1,0 +1,262 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Backup.Web.Api.Server.Authorization;
+using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
+using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Models.Entities;
+using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Documents.Parsing;
+using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Tenancy;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using RESTFulSense.Controllers;
+
+namespace Backup.Web.Api.Server.Controllers
+{
+    [Authorize]
+    [ApiController]
+    [Route("api/[controller]")]
+    public class PurchaseOrdersController : RESTFulController
+    {
+        private readonly IStorageBroker storage;
+        private readonly INumberingSequenceService numberingService;
+        private readonly ICompanyContextService companyContext;
+
+        public PurchaseOrdersController(IStorageBroker storage, INumberingSequenceService numberingService, ICompanyContextService companyContext)
+        {
+            this.storage = storage;
+            this.numberingService = numberingService;
+            this.companyContext = companyContext;
+        }
+
+        public class ReceiveDeliveryRequest
+        {
+            public int DeliveryDocumentId { get; set; }
+            public bool UpdateStock { get; set; } = true;
+        }
+
+        public class ReceiveDeliveryResult
+        {
+            public PurchaseOrder PurchaseOrder { get; set; } = new();
+            public bool StockUpdated { get; set; }
+            public bool StockAlreadyApplied { get; set; }
+            public int StockMovementCount { get; set; }
+            public decimal StockQuantityIn { get; set; }
+            public List<string> Warnings { get; set; } = new();
+        }
+
+        [HttpGet]
+        [RequirePermission(Permissions.PurchaseOrderRead)]
+        public IActionResult GetAll([FromQuery] string? search = null)
+        {
+            var query = this.storage.SelectAllPurchaseOrders().ForCompany(this.companyContext.GetCurrentCompanyId());
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.ToLowerInvariant();
+                query = query.Where(p => p.OrderNumber.ToLower().Contains(s) || (p.Supplier != null && p.Supplier.Name.ToLower().Contains(s)));
+            }
+            return Ok(query.OrderByDescending(p => p.Date).ToList());
+        }
+
+        [HttpGet("{id:int}")]
+        [RequirePermission(Permissions.PurchaseOrderRead)]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var po = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (po == null || !po.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+            return Ok(po);
+        }
+
+        [HttpPost]
+        [RequirePermission(Permissions.PurchaseOrderCreate)]
+        public async Task<IActionResult> Post([FromBody] PurchaseOrder order)
+        {
+            order.EnsureCompanyId(this.companyContext.GetCurrentCompanyId());
+            if (string.IsNullOrWhiteSpace(order.OrderNumber))
+            {
+                order.OrderNumber = await this.numberingService.GetNextNumberAsync("PurchaseOrder", order.CompanyId);
+            }
+            order.Date = order.Date == default ? DateTime.UtcNow : order.Date;
+            order.CreatedAt = DateTime.UtcNow;
+            
+            order.TotalHT = order.Lines.Sum(l => l.Quantity * l.UnitPrice);
+            order.TotalVat = order.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.VatRate / 100m));
+            order.TotalTTC = order.TotalHT + order.TotalVat;
+
+            var created = await this.storage.InsertPurchaseOrderAsync(order);
+            return Created(created);
+        }
+
+        [HttpPut("{id:int}")]
+        [RequirePermission(Permissions.PurchaseOrderUpdate)]
+        public async Task<IActionResult> Put(int id, [FromBody] PurchaseOrder order)
+        {
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            existing.SupplierId = order.SupplierId;
+            existing.Date = order.Date;
+            existing.ExpectedDeliveryDate = order.ExpectedDeliveryDate;
+            existing.Status = order.Status;
+            existing.Notes = order.Notes;
+            existing.Lines = order.Lines;
+
+            existing.TotalHT = order.Lines.Sum(l => l.Quantity * l.UnitPrice);
+            existing.TotalVat = order.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.VatRate / 100m));
+            existing.TotalTTC = existing.TotalHT + existing.TotalVat;
+
+            var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
+            return Ok(updated);
+        }
+
+        [HttpPost("{id:int}/receive-delivery")]
+        [RequirePermission(Permissions.PurchaseOrderUpdate)]
+        public async Task<IActionResult> ReceiveDelivery(int id, [FromBody] ReceiveDeliveryRequest request)
+        {
+            if (request.DeliveryDocumentId <= 0) return BadRequest("DeliveryDocumentId required");
+
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound("Purchase order not found");
+
+            var delivery = await this.storage.SelectDocumentByIdAsync(request.DeliveryDocumentId);
+            if (delivery == null) return NotFound("Delivery document not found");
+            if (string.IsNullOrWhiteSpace(delivery.TypeDocument) || !delivery.TypeDocument.Contains("bonlivraison", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("The provided document is not a delivery note.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(delivery.Supplier) && existing.Supplier != null &&
+                !string.Equals(delivery.Supplier.Trim(), existing.Supplier.Name.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Delivery note supplier does not match the purchase order supplier.");
+            }
+
+            var receiptNote = $"Received from delivery #{request.DeliveryDocumentId}";
+            if (!string.IsNullOrWhiteSpace(existing.Notes) &&
+                existing.Notes.Contains(receiptNote, StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    error = $"Delivery note #{request.DeliveryDocumentId} has already been applied to this purchase order."
+                });
+            }
+
+            var deliveryLines = this.storage.SelectLinesByDocumentId(request.DeliveryDocumentId).ToList();
+            if (deliveryLines.Count == 0) return BadRequest("No parsed lines found on the delivery note.");
+
+            var receivedByKey = deliveryLines
+                .Where(l => l.Quantity > 0)
+                .GroupBy(l => ProductKeyHelper.Normalize(ProductKeyHelper.GetProductKey(l)), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Quantity: g.Sum(x => x.Quantity),
+                        Description: g.Select(x => x.Product).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)),
+                        Unit: g.Select(x => x.Unit).FirstOrDefault(u => !string.IsNullOrWhiteSpace(u))
+                    ),
+                    StringComparer.OrdinalIgnoreCase);
+
+            var appliedStockByKey = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var line in existing.Lines)
+            {
+                var orderKey = ProductKeyHelper.Normalize(ProductKeyHelper.GetProductKey(line.ProductKey, null, line.Description));
+                if (!receivedByKey.TryGetValue(orderKey, out var received))
+                {
+                    continue;
+                }
+
+                var remaining = Math.Max(0m, line.Quantity - line.ReceivedQuantity);
+                var appliedQty = Math.Min(remaining, received.Quantity);
+                if (appliedQty <= 0)
+                {
+                    continue;
+                }
+
+                line.ReceivedQuantity += appliedQty;
+                appliedStockByKey[orderKey] = appliedStockByKey.TryGetValue(orderKey, out var already)
+                    ? already + appliedQty
+                    : appliedQty;
+            }
+
+            var totalOrdered = existing.Lines.Sum(l => l.Quantity);
+            var totalReceived = existing.Lines.Sum(l => l.ReceivedQuantity);
+
+            existing.Status = totalReceived switch
+            {
+                <= 0 => existing.Status,
+                _ when totalReceived >= totalOrdered => "Received",
+                _ => "PartiallyReceived"
+            };
+
+            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
+                ? receiptNote
+                : $"{existing.Notes}{Environment.NewLine}{receiptNote}";
+
+            var result = new ReceiveDeliveryResult
+            {
+                PurchaseOrder = existing,
+                Warnings = new List<string>()
+            };
+
+            if (request.UpdateStock)
+            {
+                var alreadyStocked = this.storage.SelectStockUpdatesByDeliveryId(request.DeliveryDocumentId).Any();
+                if (alreadyStocked)
+                {
+                    result.StockAlreadyApplied = true;
+                    result.Warnings.Add($"Stock was already updated from delivery #{request.DeliveryDocumentId}; skipped duplicate stock entry.");
+                }
+                else if (appliedStockByKey.Count == 0)
+                {
+                    result.Warnings.Add("No matching purchase-order lines received; stock was not updated.");
+                }
+                else
+                {
+                    var supplierName = existing.Supplier?.Name ?? delivery.Supplier;
+                    var stockChanges = appliedStockByKey.Select(entry =>
+                    {
+                        receivedByKey.TryGetValue(entry.Key, out var meta);
+                        return (
+                            productKey: entry.Key,
+                            quantityDelta: entry.Value,
+                            supplier: supplierName,
+                            description: meta.Description,
+                            unit: meta.Unit
+                        );
+                    }).ToList();
+
+                    await this.storage.UpsertStockBatchAsync(stockChanges, request.DeliveryDocumentId, invoiceId: null);
+
+                    var createdBy = User.Identity?.Name ?? "System";
+                    var reference = $"PO:{existing.OrderNumber}|BL:{request.DeliveryDocumentId}";
+                    foreach (var entry in appliedStockByKey)
+                    {
+                        await this.storage.InsertStockMovementAsync(new StockMovement
+                        {
+                            ProductKey = entry.Key,
+                            MovementType = "In",
+                            Quantity = entry.Value,
+                            Reason = "Purchase order delivery receipt",
+                            ReferenceDocument = reference,
+                            CompanyId = existing.CompanyId,
+                            CreatedBy = createdBy,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    result.StockUpdated = true;
+                    result.StockMovementCount = appliedStockByKey.Count;
+                    result.StockQuantityIn = appliedStockByKey.Values.Sum();
+                }
+            }
+
+            var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
+            result.PurchaseOrder = updated;
+            return Ok(result);
+        }
+    }
+}

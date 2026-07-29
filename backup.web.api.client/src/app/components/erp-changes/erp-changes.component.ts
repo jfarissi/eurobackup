@@ -9,6 +9,8 @@ import { ErpProductService } from '../../services/erp-product.service';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap, takeWhile, timer } from 'rxjs';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { PermissionService } from '../../services/permission.service';
+import { Permissions } from '../../constants/permissions';
 
 @Component({
   selector: 'app-erp-changes',
@@ -59,8 +61,11 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
   constructor(
     private erpService: ErpProductService,
     private snack: MatSnackBar,
-    private i18n: AppI18nService
+    private i18n: AppI18nService,
+    public perm: PermissionService
   ) {}
+
+  readonly P = Permissions;
 
   ngOnInit(): void {
     this.searchSub = this.searchInput$.pipe(

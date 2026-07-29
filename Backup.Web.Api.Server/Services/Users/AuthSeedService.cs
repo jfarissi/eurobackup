@@ -1,6 +1,9 @@
+using System.Security.Claims;
 using Backup.Web.Api.Server.Models.AppSettings;
 using Backup.Web.Api.Server.Models.Rols;
+using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Models.Users;
+using Backup.Web.Api.Server.Services.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
@@ -8,17 +11,33 @@ namespace Backup.Web.Api.Server.Services.Users;
 
 public static class AuthSeedService
 {
+    /// <summary>
+    /// Permissions métier de base pour le rôle User (ajoutées si absentes, sans retirer les existantes).
+    /// </summary>
+    private static readonly string[] DefaultUserPermissions =
+    {
+        Permissions.ProductRead, Permissions.ProductCreate, Permissions.ProductUpdate,
+        Permissions.ErpChangeRead, Permissions.ErpChangeUpdate, Permissions.ErpChangeDelete,
+        Permissions.SupplierRead, Permissions.SupplierCreate, Permissions.SupplierUpdate,
+        Permissions.CustomerRead, Permissions.CustomerCreate, Permissions.CustomerUpdate,
+        Permissions.QuoteRead, Permissions.QuoteCreate, Permissions.QuoteUpdate,
+        Permissions.OrderRead, Permissions.OrderCreate, Permissions.OrderUpdate,
+        Permissions.DeliveryNoteRead,
+        Permissions.InvoiceRead, Permissions.InvoiceCreate, Permissions.InvoiceUpdate,
+        Permissions.PurchaseOrderRead, Permissions.PurchaseOrderCreate, Permissions.PurchaseOrderUpdate,
+        Permissions.ReceiptRead, Permissions.ReceiptCreate,
+        Permissions.SupplierInvoiceRead, Permissions.SupplierInvoiceCreate,
+        Permissions.StockRead, Permissions.StockUpdate,
+        Permissions.CashRead, Permissions.CashManage,
+        Permissions.NumberingManage,
+        Permissions.DocumentRead,
+    };
+
     public static async Task SeedAsync(IServiceProvider services, ILogger logger)
     {
         var options = services.GetRequiredService<IOptions<AuthSeedOptions>>().Value;
-        if (!options.Enabled || string.IsNullOrWhiteSpace(options.Email) || string.IsNullOrWhiteSpace(options.Password))
-            return;
-
         var userManager = services.GetRequiredService<UserManager<User>>();
         var roleManager = services.GetRequiredService<RoleManager<Role>>();
-        var userStore = services.GetRequiredService<IUserStore<User>>();
-        var passwordStore = userStore as IUserPasswordStore<User>
-            ?? throw new InvalidOperationException("IUserPasswordStore<User> is required for auth seed");
 
         foreach (var roleName in new[] { "Admin", "User" })
         {
@@ -39,6 +58,18 @@ public static class AuthSeedService
                 }
             }
         }
+
+        // Toujours synchroniser les permissions métier manquantes du rôle User
+        // (Cash, Numbering, Document, ErpChange, …) — indépendamment du seed admin.
+        await EnsureUserRolePermissionsAsync(roleManager, logger);
+        await EnsureAdminRolePermissionsAsync(roleManager, logger);
+
+        if (!options.Enabled || string.IsNullOrWhiteSpace(options.Email) || string.IsNullOrWhiteSpace(options.Password))
+            return;
+
+        var userStore = services.GetRequiredService<IUserStore<User>>();
+        var passwordStore = userStore as IUserPasswordStore<User>
+            ?? throw new InvalidOperationException("IUserPasswordStore<User> is required for auth seed");
 
         var email = options.Email.Trim();
         var existing = await userManager.FindByEmailAsync(email)
@@ -127,6 +158,80 @@ public static class AuthSeedService
         }
 
         logger.LogInformation("Auth seed: admin user ready ({Email})", email);
+    }
+
+    /// <summary>Ajoute au rôle User les permissions métier manquantes (Cash, Document, ErpChange, etc.).</summary>
+    private static async Task EnsureUserRolePermissionsAsync(RoleManager<Role> roleManager, ILogger logger)
+    {
+        var userRole = await roleManager.FindByNameAsync("User");
+        if (userRole == null) return;
+
+        var existing = await roleManager.GetClaimsAsync(userRole);
+        var have = existing
+            .Where(c => c.Type == PermissionResolver.PermissionClaimType)
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var perm in DefaultUserPermissions)
+        {
+            if (have.Contains(perm)) continue;
+            var result = await roleManager.AddClaimAsync(
+                userRole,
+                new Claim(PermissionResolver.PermissionClaimType, perm));
+            if (result.Succeeded)
+            {
+                have.Add(perm);
+                added++;
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Auth seed: failed to add {Permission} to User: {Errors}",
+                    perm,
+                    string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+        }
+
+        if (added > 0)
+            logger.LogInformation("Auth seed: added {Count} missing permission(s) to role User", added);
+    }
+
+    /// <summary>Le rôle Admin possède toujours toutes les permissions du catalogue.</summary>
+    private static async Task EnsureAdminRolePermissionsAsync(RoleManager<Role> roleManager, ILogger logger)
+    {
+        var adminRole = await roleManager.FindByNameAsync("Admin");
+        if (adminRole == null) return;
+
+        var existing = await roleManager.GetClaimsAsync(adminRole);
+        var have = existing
+            .Where(c => c.Type == PermissionResolver.PermissionClaimType)
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var perm in Permissions.All)
+        {
+            if (have.Contains(perm)) continue;
+            var result = await roleManager.AddClaimAsync(
+                adminRole,
+                new Claim(PermissionResolver.PermissionClaimType, perm));
+            if (result.Succeeded)
+            {
+                have.Add(perm);
+                added++;
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Auth seed: failed to add {Permission} to Admin: {Errors}",
+                    perm,
+                    string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+        }
+
+        if (added > 0)
+            logger.LogInformation("Auth seed: added {Count} missing permission(s) to role Admin (full access)", added);
     }
 
     /// <summary>

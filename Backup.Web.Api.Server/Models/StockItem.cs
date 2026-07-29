@@ -2,7 +2,7 @@ using System;
 
 namespace Backup.Web.Api.Server.Models
 {
-	public class StockItem
+	public class StockItem : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId
 	{
 		public int Id { get; set; }
 		public string ProductKey { get; set; } = string.Empty; // Prefer ProductCode, else Product name
@@ -25,6 +25,7 @@ namespace Backup.Web.Api.Server.Models
 		/// Unité du produit (ST, KG, PC, etc.)
 		/// </summary>
 		public string? Unit { get; set; }
+		public string? CompanyId { get; set; }
 	}
 }
 

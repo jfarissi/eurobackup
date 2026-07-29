@@ -1,0 +1,249 @@
+<div class="cash-container">
+  <div class="cash-header">
+    <div>
+      <h2>{{ 'cash.title' | t }}</h2>
+      <p class="subtitle">{{ 'cash.subtitle' | t }}</p>
+    </div>
+    <div class="actions" *ngIf="selectedTab === 0 && activeSession && perm.has(P.CashManage)">
+      <button class="btn-primary" (click)="showOpModal = true">
+        <mat-icon>monetization_on</mat-icon> {{ 'cash.btn.newOperation' | t }}
+      </button>
+      <button class="btn-danger" (click)="openCloseModal()">
+        <mat-icon>lock</mat-icon> {{ 'cash.btn.close' | t }}
+      </button>
+    </div>
+    <div class="actions" *ngIf="selectedTab === 0 && !activeSession && perm.has(P.CashManage)">
+      <button class="btn-primary" (click)="showOpenModal = true">
+        <mat-icon>lock_open</mat-icon> {{ 'cash.btn.open' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button type="button" [class.active]="selectedTab === 0" (click)="selectTab(0)">{{ 'cash.tab.active' | t }}</button>
+    <button type="button" [class.active]="selectedTab === 1" (click)="selectTab(1)">{{ 'cash.tab.history' | t }}</button>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <ng-container *ngIf="selectedTab === 0">
+    <div *ngIf="!activeSession && !loading" class="no-session-card">
+      <mat-icon class="large-icon">point_of_sale</mat-icon>
+      <h3>{{ 'cash.noSession.title' | t }}</h3>
+      <p>{{ 'cash.noSession.hint' | t }}</p>
+      <button class="btn-primary" (click)="showOpenModal = true" *ngIf="perm.has(P.CashManage)">{{ 'cash.btn.open' | t }}</button>
+    </div>
+
+    <div *ngIf="activeSession" class="session-dashboard">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.sessionNumber' | t }}</span>
+          <span class="metric-value">{{ activeSession.sessionNumber }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.openingBalance' | t }}</span>
+          <span class="metric-value">{{ activeSession.openingBalance | currency:'EUR' }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.theoretical' | t }}</span>
+          <span class="metric-value">{{ theoreticalBalance | currency:'EUR' }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.inOut' | t }}</span>
+          <span class="metric-value small">
+            +{{ depositsTotal | currency:'EUR' }} / -{{ withdrawalsTotal | currency:'EUR' }}
+          </span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.openedBy' | t }}</span>
+          <span class="metric-value small">{{ activeSession.openedBy }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">{{ 'cash.metric.status' | t }}</span>
+          <span class="status-badge open">{{ activeSession.status }}</span>
+        </div>
+      </div>
+
+      <h3>{{ 'cash.operationsTitle' | t }}</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'cash.col.date' | t }}</th>
+            <th>{{ 'cash.col.operationType' | t }}</th>
+            <th>{{ 'cash.col.description' | t }}</th>
+            <th>{{ 'cash.col.reference' | t }}</th>
+            <th>{{ 'cash.col.amount' | t }}</th>
+            <th>{{ 'cash.col.author' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let op of operations">
+            <td>{{ op.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td>
+              <span class="type-badge" [ngClass]="op.operationType.toLowerCase()">{{ operationLabel(op.operationType) }}</span>
+            </td>
+            <td>{{ op.description || '-' }}</td>
+            <td>{{ op.referenceDocument || '-' }}</td>
+            <td><strong>{{ op.amount | currency:'EUR' }}</strong></td>
+            <td>{{ op.createdBy }}</td>
+          </tr>
+          <tr *ngIf="operations.length === 0">
+            <td colspan="6" class="empty">{{ 'cash.empty.operations' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="selectedTab === 1">
+    <div class="history-layout">
+      <div class="history-list">
+        <div class="history-list-header">
+          <h3>{{ 'cash.historyTitle' | t }}</h3>
+          <button class="btn-secondary" type="button" (click)="loadHistory()" [disabled]="historyLoading">{{ 'common.refresh' | t }}</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'cash.col.number' | t }}</th>
+              <th>{{ 'cash.col.opening' | t }}</th>
+              <th>{{ 'cash.col.status' | t }}</th>
+              <th>{{ 'cash.col.float' | t }}</th>
+              <th>{{ 'cash.col.closing' | t }}</th>
+              <th>{{ 'cash.col.variance' | t }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let session of sessionHistory" [class.selected-row]="selectedHistorySession?.id === session.id">
+              <td>{{ session.sessionNumber }}</td>
+              <td>{{ session.openedAt | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <span class="status-badge" [class.open]="session.status === 'Open'" [class.closed]="session.status === 'Closed'">
+                  {{ session.status }}
+                </span>
+              </td>
+              <td>{{ session.openingBalance | currency:'EUR' }}</td>
+              <td>{{ session.closingBalance != null ? (session.closingBalance | currency:'EUR') : '-' }}</td>
+              <td>
+                <ng-container *ngIf="session.closingBalance != null && session.expectedClosingBalance != null; else noVariance">
+                  <span [class.diff-warn]="sessionVariance(session) !== 0">{{ sessionVariance(session) | currency:'EUR' }}</span>
+                </ng-container>
+                <ng-template #noVariance>-</ng-template>
+              </td>
+              <td>
+                <button class="btn-link" type="button" (click)="viewHistorySession(session)">{{ 'common.detail' | t }}</button>
+              </td>
+            </tr>
+            <tr *ngIf="!historyLoading && sessionHistory.length === 0">
+              <td colspan="7" class="empty">{{ 'cash.empty.sessions' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="history-detail" *ngIf="selectedHistorySession">
+        <h3>{{ 'cash.detailTitle' | t:{number: selectedHistorySession.sessionNumber} }}</h3>
+        <div class="detail-meta">
+          <span>{{ 'cash.openedAt' | t:{date: (selectedHistorySession.openedAt | date:'dd/MM/yyyy HH:mm') || '-', by: (selectedHistorySession.openedBy || '-')} }}</span>
+          <span *ngIf="selectedHistorySession.closedAt">
+            {{ 'cash.closedAt' | t:{date: (selectedHistorySession.closedAt | date:'dd/MM/yyyy HH:mm') || '-', by: (selectedHistorySession.closedBy || '-')} }}
+          </span>
+          <span *ngIf="selectedHistorySession.expectedClosingBalance != null">
+            {{ 'cash.expected' | t:{amount: (selectedHistorySession.expectedClosingBalance | currency:'EUR') || '-'} }}
+          </span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'cash.col.date' | t }}</th>
+              <th>{{ 'cash.col.type' | t }}</th>
+              <th>{{ 'cash.col.description' | t }}</th>
+              <th>{{ 'cash.col.reference' | t }}</th>
+              <th>{{ 'cash.col.amount' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let op of historyOperations">
+              <td>{{ op.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <span class="type-badge" [ngClass]="op.operationType.toLowerCase()">{{ operationLabel(op.operationType) }}</span>
+              </td>
+              <td>{{ op.description || '-' }}</td>
+              <td>{{ op.referenceDocument || '-' }}</td>
+              <td><strong>{{ op.amount | currency:'EUR' }}</strong></td>
+            </tr>
+            <tr *ngIf="historyOperations.length === 0">
+              <td colspan="5" class="empty">{{ 'cash.empty.historyOps' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </ng-container>
+
+  <div class="modal-overlay" *ngIf="showOpenModal">
+    <div class="modal-content small">
+      <h3>{{ 'cash.modal.open' | t }}</h3>
+      <div class="form-group">
+        <label>{{ 'cash.openingBalanceLabel' | t }}</label>
+        <input type="number" [(ngModel)]="openingBalanceInput" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showOpenModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" (click)="openSession()">{{ 'cash.confirmOpen' | t }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showCloseModal">
+    <div class="modal-content small">
+      <h3>{{ 'cash.modal.close' | t }}</h3>
+      <div class="hint">
+        {{ 'cash.theoreticalLabel' | t }} <strong>{{ theoreticalBalance | currency:'EUR' }}</strong>
+      </div>
+      <div class="form-group">
+        <label>{{ 'cash.realCountLabel' | t }}</label>
+        <input type="number" [(ngModel)]="closingBalanceInput" />
+      </div>
+      <div class="hint" [class.diff-warn]="closeDifference !== 0">
+        {{ 'cash.varianceLabel' | t }} <strong>{{ closeDifference | currency:'EUR' }}</strong>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showCloseModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-danger" (click)="closeSession()">{{ 'cash.btn.close' | t }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showOpModal">
+    <div class="modal-content small">
+      <h3>{{ 'cash.modal.newOp' | t }}</h3>
+      <div class="form-group">
+        <label>{{ 'cash.opTypeLabel' | t }}</label>
+        <select [(ngModel)]="opType">
+          <option value="Deposit">{{ 'cash.op.deposit' | t }}</option>
+          <option value="Withdrawal">{{ 'cash.op.withdrawal' | t }}</option>
+          <option value="SalePayment">{{ 'cash.op.salePayment' | t }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'cash.amountLabel' | t }}</label>
+        <input type="number" [(ngModel)]="opAmount" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'cash.descriptionLabel' | t }}</label>
+        <input type="text" [(ngModel)]="opDescription" [placeholder]="'cash.descriptionPlaceholder' | t" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'cash.referenceLabel' | t }}</label>
+        <input type="text" [(ngModel)]="opReference" [placeholder]="'cash.referencePlaceholder' | t" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="showOpModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" (click)="addOperation()">{{ 'common.save' | t }}</button>
+      </div>
+    </div>
+  </div>
+</div>

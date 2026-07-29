@@ -1,0 +1,19 @@
+<input
+  class="product-ref-input"
+  type="text"
+  [ngModel]="line.productKey"
+  (ngModelChange)="onInput($event)"
+  [matAutocomplete]="productAuto"
+  placeholder="Réf / code"
+  autocomplete="off" />
+<mat-autocomplete #productAuto="matAutocomplete" [displayWith]="displayRef.bind(this)" (optionSelected)="onOptionSelected($event)">
+  <mat-option *ngFor="let product of suggestions" [value]="product">
+    <span class="opt-ref">{{ productRef(product) }}</span>
+    <span class="opt-name">{{ product.name }}</span>
+    <span class="opt-price" *ngIf="productPrice(product) != null">{{ productPrice(product) | currency:'EUR' }}</span>
+  </mat-option>
+  <mat-option *ngIf="searching" disabled>Recherche…</mat-option>
+  <mat-option *ngIf="!searching && lastQuery.length >= 2 && suggestions.length === 0" disabled>
+    Aucun produit trouvé
+  </mat-option>
+</mat-autocomplete>

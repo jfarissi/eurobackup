@@ -1,8 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
-import { finalize } from 'rxjs';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Subscription, finalize } from 'rxjs';
 import { DocumentService } from '../../services/document.service';
 import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
@@ -16,7 +16,7 @@ import { TPipe } from '../../pipes/t.pipe';
   standalone: true,
   imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
 })
-export class DocumentSearchComponent {
+export class DocumentSearchComponent implements OnInit, OnDestroy {
   query = '';
   loading = false;
   hasSearched = false;
@@ -25,17 +25,40 @@ export class DocumentSearchComponent {
   factures: Document[] = [];
   bonsLivraison: Document[] = [];
   autresDocuments: Document[] = [];
+  private routeSub: Subscription | null = null;
 
   constructor(
     private docs: DocumentService,
     private router: Router,
+    private route: ActivatedRoute,
     private i18n: AppI18nService
   ) {}
+
+  ngOnInit(): void {
+    this.routeSub = this.route.queryParamMap.subscribe(params => {
+      const q = (params.get('q') || '').trim();
+      this.query = q;
+      if (q) this.search();
+      else this.clearResults();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.routeSub?.unsubscribe();
+  }
 
   search(): void {
     const term = this.query.trim();
     if (!term) {
       this.clearResults();
+      void this.router.navigate(['/recherche'], { queryParams: {} });
+      return;
+    }
+
+    // Garde l’URL synchronisée avec la barre du topbar
+    const current = this.route.snapshot.queryParamMap.get('q') || '';
+    if (current !== term) {
+      void this.router.navigate(['/recherche'], { queryParams: { q: term } });
       return;
     }
 
@@ -59,7 +82,7 @@ export class DocumentSearchComponent {
 
   clear(): void {
     this.query = '';
-    this.clearResults();
+    void this.router.navigate(['/recherche'], { queryParams: {} });
   }
 
   private clearResults(): void {

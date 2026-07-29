@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { PermissionRealtimeService } from './services/permission-realtime.service';
 
 @Component({
   selector: 'app-root',
@@ -8,4 +9,8 @@ import { Component } from '@angular/core';
 })
 export class AppComponent {
   title = 'backup.web.api.client';
+
+  constructor(_permissionsRealtime: PermissionRealtimeService) {
+    // Injecté pour démarrer la connexion SignalR dès le bootstrap.
+  }
 }

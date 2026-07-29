@@ -4,6 +4,8 @@ export const environment = {
   chatbotPublicUrl: 'http://localhost:81',
   /** Same-origin via Angular proxy / SpaProxy (HTTP en local). */
   apiBaseUrl: '/api',
+  /** Hub SignalR (direct API — le proxy WS Angular est fragile en local). */
+  signalRHubUrl: 'http://127.0.0.1:5243/hubs/permissions',
   /** Appel direct au backend (évite le proxy Angular qui casse les uploads multipart). */
   pythonServiceUrl: 'http://127.0.0.1:5243/api/python',
   enablePythonTest: true,

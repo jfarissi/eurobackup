@@ -6,7 +6,7 @@
         <p>{{ 'erpProducts.subtitle' | t }}</p>
       </div>
       <div class="products-actions">
-        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncingAll || syncingId != null">
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncingAll || syncingId != null" *ngIf="perm.has(P.ProductUpdate)">
           <mat-icon>{{ syncingAll ? 'hourglass_top' : 'sync' }}</mat-icon>
           {{ syncingAll ? ('erpProducts.syncing' | t) : ('erpProducts.enrichFromErp' | t) }}
         </button>
@@ -86,7 +86,8 @@
       <button class="btn-primary btn-sm filter-action-btn"
               type="button"
               (click)="triggerCatalogSync()"
-              [disabled]="!hasSyncFilter || syncingAll || syncingId != null">
+              [disabled]="!hasSyncFilter || syncingAll || syncingId != null"
+              *ngIf="perm.has(P.ProductUpdate)">
         <mat-icon>cloud_download</mat-icon>
         {{ 'erpProducts.syncFiltered' | t }}
       </button>
@@ -161,7 +162,8 @@
                             type="button"
                             [disabled]="syncingId === p.id"
                             (click)="syncProduct(p, $event)"
-                            [matTooltip]="'erpProducts.tooltip.syncErp' | t">
+                            [matTooltip]="'erpProducts.tooltip.syncErp' | t"
+                            *ngIf="perm.has(P.ProductUpdate)">
                       <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
                     </button>
                   </td>
@@ -198,7 +200,8 @@
         <div class="detail-actions">
           <button class="btn-primary" type="button"
                   [disabled]="syncingId === p.id"
-                  (click)="syncProduct(p)">
+                  (click)="syncProduct(p)"
+                  *ngIf="perm.has(P.ProductUpdate)">
             <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
             {{ syncingId === p.id ? ('erpProducts.syncingShort' | t) : ('erpProducts.syncErp' | t) }}
           </button>

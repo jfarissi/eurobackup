@@ -2,7 +2,7 @@ using System;
 
 namespace Backup.Web.Api.Server.Models
 {
-    public class Document
+    public class Document : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId
     {
         public int Id { get; set; }
 
@@ -23,6 +23,8 @@ namespace Backup.Web.Api.Server.Models
         public string ContentText { get; set; } = string.Empty; // extracted text for search
 
         public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+
+        public string? CompanyId { get; set; }
     }
 }
 

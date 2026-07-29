@@ -8,18 +8,18 @@
   --surface-container-highest: #e0e3e5;
   --surface-variant: #e0e3e5;
   --on-surface: #191c1e;
-  --on-surface-variant: #464555;
-  --outline: #777587;
-  --outline-variant: #c7c4d8;
-  --primary: #3525cd;
+  --on-surface-variant: #455a64;
+  --outline: #607d8b;
+  --outline-variant: #cfd8dc;
+  --primary: #37474f;
   --on-primary: #ffffff;
-  --primary-container: #4f46e5;
-  --on-primary-container: #dad7ff;
-  --primary-fixed: #e2dfff;
-  --secondary: #505f76;
+  --primary-container: #546e7a;
+  --on-primary-container: #eceff1;
+  --primary-fixed: #eceff1;
+  --secondary: #546e7a;
   --on-secondary: #ffffff;
-  --secondary-container: #d0e1fb;
-  --on-secondary-container: #54647a;
+  --secondary-container: #cfd8dc;
+  --on-secondary-container: #37474f;
   --tertiary: #00524b;
   --tertiary-container: #006c63;
   --on-tertiary-container: #81eddf;
@@ -80,7 +80,7 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #3525cd;
+  background: var(--primary);
   color: #ffffff;
   border: none;
   border-radius: var(--radius-md);
@@ -158,7 +158,7 @@ h1, h2, h3, h4 {
 
 .page-header-bar .icon-wrap {
   padding: 4px;
-  background: rgba(53, 37, 205, 0.1);
+  background: rgba(55, 71, 79, 0.1);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -272,7 +272,7 @@ h1, h2, h3, h4 {
 .field-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(53, 37, 205, 0.2);
+  box-shadow: 0 0 0 2px rgba(55, 71, 79, 0.2);
 }
 .field-input.mono {
   font-family: var(--font-mono);

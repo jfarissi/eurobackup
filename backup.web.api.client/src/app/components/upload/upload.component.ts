@@ -179,7 +179,23 @@ export class UploadComponent implements OnInit {
             this.suppliers.sort();
           }
           
-          this.snack.open(this.i18n.t('upload.snack.success'), this.i18n.t('common.ok'), { duration: 2000 });
+          if (doc.autoCreatedSupplierInvoice) {
+            const ref = this.snack.open(
+              'Document uploadé et facture fournisseur créée automatiquement.',
+              'Voir achats',
+              { duration: 6000 }
+            );
+            ref.onAction().subscribe(() => {
+              this.router.navigate(['/purchases'], {
+                queryParams: {
+                  supplierInvoiceId: doc.supplierInvoiceId,
+                  autoCreated: '1'
+                }
+              });
+            });
+          } else {
+            this.snack.open(this.i18n.t('upload.snack.success'), this.i18n.t('common.ok'), { duration: 2000 });
+          }
           this.loadRecentDocuments();
           
           // Si c'est un BL, rechercher les factures correspondantes

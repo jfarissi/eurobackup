@@ -9,6 +9,8 @@ export interface Document {
   filePath: string;
   contentText: string;
   dateAdded: string; // ISO string
+  supplierInvoiceId?: number | null;
+  autoCreatedSupplierInvoice?: boolean;
 }
 
 
