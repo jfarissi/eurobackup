@@ -34,15 +34,19 @@ export class PermissionRealtimeService implements OnDestroy {
       await this.disconnect();
 
       const hubUrl = environment.signalRHubUrl || '/hubs/permissions';
+      // Prod (nginx) : éviter WebSockets tant que le proxy renvoie 200 au handshake.
+      // Dev : WebSockets OK (API directe :5243).
+      const transport = environment.production
+        ? signalR.HttpTransportType.ServerSentEvents | signalR.HttpTransportType.LongPolling
+        : signalR.HttpTransportType.WebSockets |
+          signalR.HttpTransportType.ServerSentEvents |
+          signalR.HttpTransportType.LongPolling;
+
       this.connection = new signalR.HubConnectionBuilder()
         .withUrl(hubUrl, {
           accessTokenFactory: () => this.auth.token ?? '',
           withCredentials: false,
-          // SSE/LongPolling si le reverse-proxy bloque encore WebSockets
-          transport:
-            signalR.HttpTransportType.WebSockets |
-            signalR.HttpTransportType.ServerSentEvents |
-            signalR.HttpTransportType.LongPolling
+          transport
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
         .configureLogging(environment.production ? signalR.LogLevel.Error : signalR.LogLevel.Warning)
