@@ -72,20 +72,21 @@
                       <table class="data-table nested">
                         <thead>
                           <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
+                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr *ngFor="let line of detailLines">
                             <td>{{ line.productKey || '-' }}</td>
                             <td>{{ line.description || '-' }}</td>
+                            <td>{{ supplierName(line.supplierId) }}</td>
                             <td>{{ line.quantity }}</td>
                             <td>{{ line.unitPrice | currency:'EUR' }}</td>
                             <td>{{ line.vatRate }}%</td>
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="7" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
@@ -172,6 +173,7 @@
                           <tr>
                             <th>{{ 'common.ref' | t }}</th>
                             <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.supplier' | t }}</th>
                             <th>{{ 'common.qty' | t }}</th>
                             <th>{{ 'sales.col.deliveredQty' | t }}</th>
                             <th>{{ 'sales.col.remainingQty' | t }}</th>
@@ -185,6 +187,7 @@
                           <tr *ngFor="let line of detailLines" [class.row-backorder]="(line.remainingQuantity || 0) > 0.0001">
                             <td>{{ line.productKey || '-' }}</td>
                             <td>{{ line.description || '-' }}</td>
+                            <td>{{ supplierName(line.supplierId) }}</td>
                             <td>{{ line.quantity }}</td>
                             <td>{{ line.deliveredQuantity ?? 0 }}</td>
                             <td>
@@ -197,7 +200,7 @@
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="10" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
@@ -291,13 +294,14 @@
                       <table class="data-table nested">
                         <thead>
                           <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'sales.col.ordered' | t }}</th><th>{{ 'sales.col.delivered' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
+                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'sales.col.ordered' | t }}</th><th>{{ 'sales.col.delivered' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr *ngFor="let line of detailLines">
                             <td>{{ line.productKey || '-' }}</td>
                             <td>{{ line.description || '-' }}</td>
+                            <td>{{ supplierName(line.supplierId) }}</td>
                             <td>{{ line.extra || '-' }}</td>
                             <td>{{ line.quantity }}</td>
                             <td>{{ line.unitPrice | currency:'EUR' }}</td>
@@ -305,7 +309,7 @@
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
@@ -404,6 +408,7 @@
                           <tr>
                             <th>{{ 'common.ref' | t }}</th>
                             <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.supplier' | t }}</th>
                             <th>{{ 'sales.col.orderedQty' | t }}</th>
                             <th>{{ 'sales.col.deliveredQty' | t }}</th>
                             <th>{{ 'sales.col.invoicedQty' | t }}</th>
@@ -417,6 +422,7 @@
                           <tr *ngFor="let line of detailInvoice.lines">
                             <td>{{ line.productKey || '-' }}</td>
                             <td>{{ line.description || '-' }}</td>
+                            <td>{{ supplierName(line.supplierId) }}</td>
                             <td>{{ line.orderedQuantity ?? line.quantity }}</td>
                             <td>{{ line.deliveredQuantity ?? line.quantity }}</td>
                             <td>{{ line.quantity }}</td>
@@ -425,7 +431,7 @@
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="!detailInvoice.lines?.length"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="!detailInvoice.lines?.length"><td colspan="10" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
@@ -1008,6 +1014,7 @@
           <tr>
             <th>{{ 'sales.col.codeRef' | t }}</th>
             <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.supplier' | t }}</th>
             <th>{{ 'common.qty' | t }} <app-field-help helpKey="field.sales.lineQty"></app-field-help></th>
             <th>{{ 'common.unitPriceHt' | t }} <app-field-help helpKey="field.sales.linePrice"></app-field-help></th>
             <th>{{ 'common.vatPercent' | t }} <app-field-help helpKey="field.sales.lineVat"></app-field-help></th>
@@ -1019,10 +1026,20 @@
         <tbody>
           <tr *ngFor="let line of docLines; let i = index">
             <td>
-              <app-product-line-ref [line]="line" (productSelected)="calcLine(line)" *ngIf="!line.locked"></app-product-line-ref>
+              <app-product-line-ref
+                [line]="line"
+                [supplierId]="line.supplierId || null"
+                (productSelected)="calcLine(line)"
+                *ngIf="!line.locked"></app-product-line-ref>
               <span *ngIf="line.locked" class="font-mono">{{ line.productKey || '-' }}</span>
             </td>
             <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" [readonly]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)" /></td>
+            <td>
+              <select [(ngModel)]="line.supplierId" [disabled]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)">
+                <option [ngValue]="null">—</option>
+                <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+              </select>
+            </td>
             <td><input type="number" [(ngModel)]="line.quantity" (input)="calcLine(line)" class="num" [min]="docKind === 'Order' && line.locked ? (line.deliveredQuantity || line.invoicedQuantity || 0) : 0.01" [max]="docKind === 'Invoice' && line.locked && line.deliveredQuantity ? line.deliveredQuantity : null" /></td>
             <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calcLine(line)" class="num wide" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
             <td><input type="number" [(ngModel)]="line.vatRate" (input)="calcLine(line)" class="num" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>

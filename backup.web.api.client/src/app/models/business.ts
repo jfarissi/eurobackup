@@ -53,6 +53,7 @@ export interface QuoteLine {
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
+  supplierId?: number | null;
 }
 
 export interface Quote {
@@ -85,6 +86,7 @@ export interface SalesOrderLine {
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
+  supplierId?: number | null;
 }
 
 export interface SalesOrder {
@@ -170,6 +172,7 @@ export interface SalesInvoiceLine {
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
+  supplierId?: number | null;
 }
 
 export interface SalesInvoice {
@@ -379,6 +382,7 @@ export interface SalesDeliveryNoteLine {
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
+  supplierId?: number | null;
 }
 
 export interface SalesDeliveryNote {

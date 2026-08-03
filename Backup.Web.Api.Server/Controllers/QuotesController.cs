@@ -293,7 +293,8 @@ namespace Backup.Web.Api.Server.Controllers
                     VatRate = l.VatRate,
                     TotalHT = l.Quantity * l.UnitPrice,
                     TotalTTC = l.Quantity * l.UnitPrice * (1 + l.VatRate / 100m),
-                    LineNumber = i + 1
+                    LineNumber = i + 1,
+                    SupplierId = l.SupplierId
                 }).ToList()
             };
 
@@ -417,7 +418,8 @@ namespace Backup.Web.Api.Server.Controllers
                     VatRate = x.Line.VatRate,
                     TotalHT = x.Qty * x.Line.UnitPrice,
                     TotalTTC = x.Qty * x.Line.UnitPrice * (1 + x.Line.VatRate / 100m),
-                    LineNumber = i + 1
+                    LineNumber = i + 1,
+                    SupplierId = x.Line.SupplierId
                 }).ToList()
             };
 

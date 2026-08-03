@@ -313,7 +313,8 @@ namespace Backup.Web.Api.Server.Controllers
                     VatRate = vatRate,
                     TotalHT = lineHt,
                     TotalTTC = lineHt * (1 + vatRate / 100m),
-                    LineNumber = lineNumber
+                    LineNumber = lineNumber,
+                    SupplierId = incomingLine.SupplierId ?? prev?.SupplierId
                 });
             }
 

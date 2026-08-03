@@ -21,7 +21,8 @@ import {
   SalesTrashItem,
   SalesReturn,
   Proforma,
-  DepositInvoice
+  DepositInvoice,
+  Supplier
 } from '../../models/business';
 import { Observable, forkJoin } from 'rxjs';
 import { ProductLineRefComponent } from '../shared/product-line-ref/product-line-ref.component';
@@ -49,6 +50,7 @@ interface DocLineDraft {
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
+  supplierId?: number | null;
   deliveredQuantity?: number;
   invoicedQuantity?: number;
   locked?: boolean;
@@ -81,6 +83,7 @@ export class SalesComponent implements OnInit {
   creditNotes: CreditNote[] = [];
   deliveryNotes: SalesDeliveryNote[] = [];
   customers: Customer[] = [];
+  suppliers: Supplier[] = [];
   payments: Payment[] = [];
   paymentsLoading = false;
   pdfDownloading = false;
@@ -176,7 +179,7 @@ export class SalesComponent implements OnInit {
   dnSalesOrderId: number | null = null;
   dnDate = '';
   dnNotes = '';
-  dnLines: { productKey: string; description: string; orderedQuantity: number; deliveredQuantity: number; unitPrice: number; vatRate: number; totalHT: number; totalTTC: number; lineNumber: number }[] = [];
+  dnLines: { productKey: string; description: string; orderedQuantity: number; deliveredQuantity: number; unitPrice: number; vatRate: number; totalHT: number; totalTTC: number; lineNumber: number; supplierId?: number | null }[] = [];
 
   readonly P = Permissions;
 
@@ -343,6 +346,7 @@ export class SalesComponent implements OnInit {
   loadAllData(): void {
     this.loading = true;
     this.businessService.getCustomers().subscribe(c => this.customers = c);
+    this.businessService.getSuppliers().subscribe(s => this.suppliers = s);
     this.businessService.getQuotes().subscribe(q => this.quotes = q);
     this.businessService.getSalesOrders().subscribe(o => this.orders = o);
     this.businessService.getCreditNotes().subscribe(cn => this.creditNotes = cn);
@@ -699,6 +703,7 @@ export class SalesComponent implements OnInit {
             totalHT: l.totalHT,
             totalTTC: l.totalTTC,
             lineNumber: i + 1,
+            supplierId: l.supplierId ?? null,
             deliveredQuantity: Math.max(delivered, allocated),
             invoicedQuantity: invoiced,
             locked,
@@ -782,6 +787,7 @@ export class SalesComponent implements OnInit {
             totalHT: l.totalHT,
             totalTTC: l.totalTTC,
             lineNumber: i + 1,
+            supplierId: l.supplierId ?? null,
             deliveredQuantity: delivered,
             invoicedQuantity: 0,
             locked,
@@ -924,7 +930,8 @@ export class SalesComponent implements OnInit {
           vatRate: l.vatRate,
           totalHT: l.totalHT,
           totalTTC: l.totalTTC,
-          lineNumber: i + 1
+          lineNumber: i + 1,
+          supplierId: l.supplierId ?? null
         }));
         if (!this.docLines.length) this.docLines = [this.emptyLine(1)];
         this.docSourceLoading = false;
@@ -980,6 +987,7 @@ export class SalesComponent implements OnInit {
                 totalHT: 0,
                 totalTTC: 0,
                 lineNumber: lineNo,
+                supplierId: l.supplierId ?? null,
                 deliveredQuantity: Number(l.deliveredQuantity || 0),
                 locked: true,
                 priceLocked: true
@@ -1131,7 +1139,8 @@ export class SalesComponent implements OnInit {
           vatRate: l.vatRate,
           totalHT: l.totalHT,
           totalTTC: l.totalTTC,
-          lineNumber: i + 1
+          lineNumber: i + 1,
+          supplierId: l.supplierId || null
         } as SalesOrderLine))
       };
 
@@ -1176,7 +1185,8 @@ export class SalesComponent implements OnInit {
         vatRate: l.vatRate,
         totalHT: l.totalHT,
         totalTTC: l.totalTTC,
-        lineNumber: i + 1
+        lineNumber: i + 1,
+        supplierId: l.supplierId || null
       } as SalesInvoiceLine))
     };
 
@@ -1728,6 +1738,7 @@ export class SalesComponent implements OnInit {
     vatRate: number;
     totalHT: number;
     totalTTC: number;
+    supplierId?: number | null;
     deliveredQuantity?: number;
     remainingQuantity?: number;
     extra?: string;
@@ -1758,6 +1769,7 @@ export class SalesComponent implements OnInit {
         vatRate: l.vatRate,
         totalHT: l.totalHT,
         totalTTC: l.totalTTC,
+        supplierId: l.supplierId ?? null,
         extra: this.i18n.t('sales.label.ordered', { qty: l.orderedQuantity })
       }));
     }
@@ -1992,8 +2004,14 @@ export class SalesComponent implements OnInit {
       vatRate: 21,
       totalHT: 0,
       totalTTC: 0,
-      lineNumber
+      lineNumber,
+      supplierId: null
     };
+  }
+
+  supplierName(supplierId?: number | null): string {
+    if (!supplierId) return '-';
+    return this.suppliers.find(s => s.id === supplierId)?.name || `#${supplierId}`;
   }
 
   // ── Delivery Notes ───────────────────────────────────────────────────────────
@@ -2016,7 +2034,8 @@ export class SalesComponent implements OnInit {
         vatRate: l.vatRate,
         totalHT: l.totalHT,
         totalTTC: l.totalTTC,
-        lineNumber: i + 1
+        lineNumber: i + 1,
+        supplierId: l.supplierId ?? null
       }));
     } else {
       this.dnCustomerId = null;

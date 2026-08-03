@@ -53,5 +53,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }
         public int LineNumber { get; set; }
+        /// <summary>Fournisseur associé à la ligne (info / marge, optionnel).</summary>
+        public int? SupplierId { get; set; }
     }
 }

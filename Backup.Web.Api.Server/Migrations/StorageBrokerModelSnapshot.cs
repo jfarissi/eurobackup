@@ -715,9 +715,14 @@ namespace Backup.Web.Api.Server.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("QuoteId");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("QuoteLines", (string)null);
                 });
@@ -1022,9 +1027,14 @@ namespace Backup.Web.Api.Server.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SalesDeliveryNoteId");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("SalesDeliveryNoteLines", (string)null);
                 });
@@ -1135,9 +1145,14 @@ namespace Backup.Web.Api.Server.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SalesInvoiceId");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("SalesInvoiceLines", (string)null);
                 });
@@ -1245,9 +1260,14 @@ namespace Backup.Web.Api.Server.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("SalesOrderLines", (string)null);
                 });

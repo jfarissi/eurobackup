@@ -54,5 +54,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int LineNumber { get; set; }
         /// <summary>RG-LS1–5 lite : n° de lot saisi manuellement (traçabilité simple, sans FEFO).</summary>
         public string? LotNumber { get; set; }
+        /// <summary>Fournisseur associé à la ligne (repris de la commande).</summary>
+        public int? SupplierId { get; set; }
     }
 }

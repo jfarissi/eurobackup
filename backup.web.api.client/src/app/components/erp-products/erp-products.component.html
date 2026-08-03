@@ -214,8 +214,9 @@
           <div><dt>{{ 'erpProducts.detail.reference' | t }}</dt><dd class="font-mono">{{ p.reference || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.ean' | t }}</dt><dd class="font-mono">{{ p.ean || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.brand' | t }}</dt><dd>{{ p.brand || '—' }}</dd></div>
-          <div><dt>{{ 'erpProducts.detail.salePrice' | t }}</dt><dd class="font-mono">{{ formatPrice(p.unitPrice) }}</dd></div>
-          <div><dt>{{ 'erpProducts.detail.purchasePrice' | t }}</dt><dd class="font-mono">{{ formatPrice(p.priceHT) }}</dd></div>
+          <div><dt>{{ 'erpProducts.detail.salePrice' | t }}</dt><dd class="font-mono">{{ formatPrice(p.unitPrice ?? p.rPrice) }}</dd></div>
+          <div><dt>{{ 'erpProducts.detail.salePriceHt' | t }}</dt><dd class="font-mono">{{ formatPrice(salePriceHt(p)) }}</dd></div>
+          <div><dt>{{ 'erpProducts.detail.purchasePrice' | t }}</dt><dd class="font-mono">{{ formatPrice(p.cPrice) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.stock' | t }}</dt><dd class="font-mono">{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.vat' | t }}</dt><dd class="font-mono">{{ p.typeVatPerc != null ? p.typeVatPerc : '—' }}</dd></div>
           <div class="full"><dt>{{ 'erpProducts.detail.category' | t }}</dt><dd>{{ p.mainTypeName || '—' }} / {{ p.typeName || '—' }} / {{ p.subTypeName || '—' }}</dd></div>

@@ -342,7 +342,8 @@ namespace Backup.Web.Api.Server.Controllers
                         TotalTTC = l.TotalTTC,
                         LineNumber = i + 1,
                         // RG-LS1–5 lite : reprise du n° de lot saisi sur le BL.
-                        LotNumber = l.LotNumber
+                        LotNumber = l.LotNumber,
+                        SupplierId = l.SupplierId
                     }).ToList()
             };
             if (invoice.Lines.Count == 0)
@@ -421,7 +422,8 @@ namespace Backup.Web.Api.Server.Controllers
                     VatRate = l.VatRate,
                     TotalHT = delivered * l.UnitPrice,
                     TotalTTC = delivered * l.UnitPrice * (1 + l.VatRate / 100m),
-                    LineNumber = lineNumber
+                    LineNumber = lineNumber,
+                    SupplierId = l.SupplierId
                 });
             }
 

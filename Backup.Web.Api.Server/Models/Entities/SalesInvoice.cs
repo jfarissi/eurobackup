@@ -82,5 +82,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int LineNumber { get; set; }
         /// <summary>RG-LS1–5 lite : n° de lot repris depuis le BL source (traçabilité simple, sans FEFO).</summary>
         public string? LotNumber { get; set; }
+        /// <summary>Fournisseur associé à la ligne (info / marge, optionnel).</summary>
+        public int? SupplierId { get; set; }
     }
 }

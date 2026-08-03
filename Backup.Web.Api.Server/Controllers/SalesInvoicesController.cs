@@ -355,7 +355,8 @@ namespace Backup.Web.Api.Server.Controllers
                             DeliveredQuantity = 0,
                             UnitPrice = l.UnitPrice,
                             VatRate = l.VatRate,
-                            LineNumber = lineNumber
+                            LineNumber = lineNumber,
+                            SupplierId = l.SupplierId
                         };
                         map[key] = agg;
                     }
@@ -465,7 +466,8 @@ namespace Backup.Web.Api.Server.Controllers
                     TotalHT = lineHt,
                     TotalTTC = lineHt * (1 + vatRate / 100m),
                     LineNumber = lineNumber,
-                    LotNumber = incomingLine.LotNumber ?? prev?.LotNumber
+                    LotNumber = incomingLine.LotNumber ?? prev?.LotNumber,
+                    SupplierId = incomingLine.SupplierId ?? prev?.SupplierId
                 });
             }
 

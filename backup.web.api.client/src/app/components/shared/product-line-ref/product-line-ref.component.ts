@@ -113,9 +113,15 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   productPrice(product: ErpProduct): number | null {
-    const price = this.priceMode === 'purchase'
-      ? (product.cPrice ?? product.unitPrice ?? product.priceHT)
-      : (product.priceHT ?? product.unitPrice ?? product.rPrice);
+    if (this.priceMode === 'purchase') {
+      // Achat : coût catalogue (CPrice), pas le prix de vente.
+      const price = product.cPrice ?? product.priceHT;
+      return price != null ? price : null;
+    }
+
+    // Vente : même montant que « Prix vente » fiche / liste (UnitPrice, puis RPrice).
+    // Ne pas prioriser PriceHT : souvent égal au coût Excel (ancien bug) et ≠ prix affiché.
+    const price = product.unitPrice ?? product.rPrice ?? product.priceHT;
     return price != null ? price : null;
   }
 

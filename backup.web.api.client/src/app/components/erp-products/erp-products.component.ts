@@ -516,6 +516,21 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     return value.toLocaleString(this.i18n.numberLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   }
 
+  /** Prix vente HT : PriceHT s'il est fiable, sinon dérivé du TTC catalogue. */
+  salePriceHt(product: ErpProduct): number | null {
+    const vat = Number(product.typeVatPerc ?? 21);
+    const ttc = product.unitPrice ?? product.rPrice;
+    const ht = product.priceHT;
+    const cost = product.cPrice;
+    if (ht != null && (cost == null || Math.abs(ht - cost) > 0.0001)) {
+      return ht;
+    }
+    if (ttc != null && vat > 0) {
+      return +(ttc / (1 + vat / 100)).toFixed(4);
+    }
+    return ht ?? null;
+  }
+
   sourceClass(source?: string | null): string {
     switch (source) {
       case 'Excel': return 'src-excel';
