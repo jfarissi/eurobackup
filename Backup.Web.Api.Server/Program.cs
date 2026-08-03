@@ -37,6 +37,7 @@ builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentSer
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Ocr.IOcrTextExtractionService, Backup.Web.Api.Server.Services.Ocr.OcrTextExtractionService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentComparisonService, Backup.Web.Api.Server.Services.Documents.DocumentComparisonService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.IDocumentParserService, Backup.Web.Api.Server.Services.Documents.DocumentParserService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.ISupplierDocumentProductEnsureService, Backup.Web.Api.Server.Services.Documents.SupplierDocumentProductEnsureService>();
 // Parsing infrastructure
 builder.Services.AddSingleton<Backup.Web.Api.Server.Services.Documents.Parsing.DocumentParserConfig>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Documents.Parsing.LanguageDetector>();

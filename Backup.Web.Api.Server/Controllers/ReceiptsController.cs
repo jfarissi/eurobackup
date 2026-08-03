@@ -7,6 +7,7 @@ using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Documents;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
@@ -26,12 +27,18 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly INumberingSequenceService numberingService;
         private readonly ICompanyContextService companyContext;
+        private readonly ISupplierDocumentProductEnsureService productEnsure;
 
-        public ReceiptsController(IStorageBroker storage, INumberingSequenceService numberingService, ICompanyContextService companyContext)
+        public ReceiptsController(
+            IStorageBroker storage,
+            INumberingSequenceService numberingService,
+            ICompanyContextService companyContext,
+            ISupplierDocumentProductEnsureService productEnsure)
         {
             this.storage = storage;
             this.numberingService = numberingService;
             this.companyContext = companyContext;
+            this.productEnsure = productEnsure;
         }
 
         [HttpGet]
@@ -171,6 +178,10 @@ namespace Backup.Web.Api.Server.Controllers
                 return BadRequest("Aucune ligne parsée sur ce bon de livraison.");
             }
 
+            var ensureResult = await this.productEnsure.EnsureProductsForLinesAsync(
+                documentLines,
+                supplier.Name);
+
             var vat = request.DefaultVatRate > 0 ? request.DefaultVatRate : 21m;
             var receiptNumber = !string.IsNullOrWhiteSpace(document.Numero)
                 ? document.Numero!.Trim()
@@ -243,6 +254,7 @@ namespace Backup.Web.Api.Server.Controllers
                 Receipt = created,
                 Warnings = new List<string>()
             };
+            result.Warnings.AddRange(ensureResult.Warnings);
 
             if (hold)
             {

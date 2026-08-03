@@ -9,6 +9,7 @@ using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.Accounting;
+using Backup.Web.Api.Server.Services.Documents;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
@@ -27,12 +28,18 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly INumberingSequenceService numberingService;
         private readonly ICompanyContextService companyContext;
+        private readonly ISupplierDocumentProductEnsureService productEnsure;
 
-        public SupplierInvoicesController(IStorageBroker storage, INumberingSequenceService numberingService, ICompanyContextService companyContext)
+        public SupplierInvoicesController(
+            IStorageBroker storage,
+            INumberingSequenceService numberingService,
+            ICompanyContextService companyContext,
+            ISupplierDocumentProductEnsureService productEnsure)
         {
             this.storage = storage;
             this.numberingService = numberingService;
             this.companyContext = companyContext;
+            this.productEnsure = productEnsure;
         }
 
         public class CreateFromDocumentRequest
@@ -301,6 +308,10 @@ namespace Backup.Web.Api.Server.Controllers
                 return BadRequest("Aucune ligne parsée sur cette facture.");
             }
 
+            var ensureResult = await this.productEnsure.EnsureProductsForLinesAsync(
+                documentLines,
+                supplier.Name);
+
             var vat = request.DefaultVatRate > 0 ? request.DefaultVatRate : 21m;
             var invoice = new SupplierInvoiceEntity
             {
@@ -325,6 +336,7 @@ namespace Backup.Web.Api.Server.Controllers
             await this.AuditSupplierInvoice(created.Id, "Created", $"Comptabilisation facture fournisseur {created.InvoiceNumber} ({created.Status})");
 
             var result = new ComptabiliserResult { Invoice = created };
+            result.Warnings.AddRange(ensureResult.Warnings);
 
             if (request.PurchaseOrderId.HasValue)
             {
