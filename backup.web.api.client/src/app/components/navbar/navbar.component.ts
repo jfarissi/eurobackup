@@ -10,6 +10,8 @@ import { Company } from '../../models/company';
 import { AuthUser } from '../../models/auth';
 import { AppI18nService, AppLang } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { HelpContentService } from '../../services/help-content.service';
+import { HelpCenterComponent } from '../shared/help-center/help-center.component';
 
 import { PermissionService } from '../../services/permission.service';
 import { RoutePermissions, Permissions } from '../../constants/permissions';
@@ -25,9 +27,11 @@ interface NavItem {
 }
 
 const MAIN_NAV_ITEMS: NavItem[] = [
+  { path: '/dashboard', labelKey: 'nav.dashboard', tabLabelKey: 'nav.dashboard', icon: 'dashboard', titleKey: 'nav.title.dashboard' },
   { path: '/sales', labelKey: 'nav.sales', tabLabelKey: 'nav.sales', icon: 'point_of_sale', titleKey: 'nav.title.sales' },
   { path: '/purchases', labelKey: 'nav.purchases', tabLabelKey: 'nav.purchases', icon: 'shopping_cart', titleKey: 'nav.title.purchases' },
   { path: '/cash', labelKey: 'nav.cash', tabLabelKey: 'nav.cash', icon: 'receipt_long', titleKey: 'nav.title.cash' },
+  { path: '/accounting', labelKey: 'nav.accounting', tabLabelKey: 'nav.accounting', icon: 'menu_book', titleKey: 'nav.title.accounting' },
   { path: '/numbering', labelKey: 'nav.numbering', tabLabelKey: 'nav.numbering', icon: 'tag', titleKey: 'nav.title.numbering' },
   { path: '/upload', labelKey: 'nav.upload', tabLabelKey: 'nav.upload', icon: 'cloud_upload', titleKey: 'nav.title.upload' },
   { path: '/recherche', labelKey: 'nav.search', tabLabelKey: 'nav.search', icon: 'search', titleKey: 'nav.title.search' },
@@ -51,7 +55,7 @@ const ADMIN_NAV_ITEM: NavItem = {
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, MaterialModule, TPipe, FormsModule]
+  imports: [CommonModule, RouterModule, MaterialModule, TPipe, FormsModule, HelpCenterComponent]
 })
 export class NavbarComponent {
   mobileNavOpen = false;
@@ -79,7 +83,8 @@ export class NavbarComponent {
     private auth: AuthService,
     private companyService: CompanyService,
     public permissionService: PermissionService,
-    public i18n: AppI18nService
+    public i18n: AppI18nService,
+    private help: HelpContentService
   ) {
     this.auth.user$.subscribe(u => {
       this.user = u;
@@ -114,6 +119,10 @@ export class NavbarComponent {
     this.i18n.setLang(lang);
   }
 
+  openHelpCenter(): void {
+    this.help.openCenter();
+  }
+
   logout(): void {
     this.auth.logout();
     void this.router.navigate(['/login']);
@@ -138,11 +147,19 @@ export class NavbarComponent {
     this.auth.switchCompany(companyId).subscribe({
       next: () => {
         this.switchingCompany = false;
-        void this.router.navigateByUrl(this.router.url);
+        this.reloadCurrentRoute();
       },
       error: () => {
         this.switchingCompany = false;
       }
+    });
+  }
+
+  /** Force le remount du composant actif (même URL) pour recharger les données société. */
+  private reloadCurrentRoute(): void {
+    const url = this.router.url;
+    void this.router.navigateByUrl('/__reload', { skipLocationChange: true }).then(() => {
+      void this.router.navigateByUrl(url);
     });
   }
 

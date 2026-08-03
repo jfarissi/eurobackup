@@ -1,0 +1,200 @@
+<div class="dashboard-page">
+  <section class="dash-hero">
+    <div class="dash-hero-copy">
+      <p class="label-caps dash-eyebrow">{{ 'dashboard.eyebrow' | t }}</p>
+      <h1 class="dash-brand">DocManager Pro</h1>
+      <p class="dash-tagline">{{ 'nav.brandSub' | t }}</p>
+      <p class="dash-meta">
+        <span>{{ companyName }}</span>
+        <span class="dot">·</span>
+        <span>{{ today | date:'fullDate' }}</span>
+      </p>
+    </div>
+    <div class="dash-hero-actions">
+      <button type="button" class="btn-secondary" (click)="refresh()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon>
+        {{ 'common.refresh' | t }}
+      </button>
+      <button *ngIf="canUpload" type="button" class="btn-primary" (click)="go('/upload')">
+        <mat-icon>cloud_upload</mat-icon>
+        {{ 'dashboard.cta.upload' | t }}
+      </button>
+      <button *ngIf="canPurchases" type="button" class="btn-accent" (click)="go('/purchases')">
+        <mat-icon>shopping_cart</mat-icon>
+        {{ 'dashboard.cta.purchases' | t }}
+      </button>
+      <button *ngIf="canSales" type="button" class="btn-accent" (click)="go('/sales')">
+        <mat-icon>point_of_sale</mat-icon>
+        {{ 'dashboard.cta.sales' | t }}
+      </button>
+    </div>
+  </section>
+
+  <div *ngIf="loading" class="dash-loading">
+    <mat-spinner diameter="36"></mat-spinner>
+    <span>{{ 'common.loading' | t }}</span>
+  </div>
+
+  <div *ngIf="!loading && loadError" class="dash-error card">
+    <div class="card-body">
+      <p>{{ 'dashboard.loadError' | t }}</p>
+      <button type="button" class="btn-primary" (click)="refresh()">{{ 'common.refresh' | t }}</button>
+    </div>
+  </div>
+
+  <ng-container *ngIf="!loading && !loadError">
+    <section class="kpi-grid" *ngIf="kpis.length">
+      <button
+        type="button"
+        class="kpi-card"
+        *ngFor="let k of kpis; let i = index"
+        [style.animation-delay]="(i * 40) + 'ms'"
+        [class.warn]="k.warn"
+        (click)="go(k.route)">
+        <div class="kpi-icon"><mat-icon>{{ k.icon }}</mat-icon></div>
+        <div class="kpi-body">
+          <span class="label-caps">{{ k.labelKey | t }}</span>
+          <strong class="kpi-value">{{ k.value }}</strong>
+          <span class="kpi-hint" *ngIf="k.hintKey">
+            {{ k.hintKey | t }}<ng-container *ngIf="k.hintValue !== undefined">: {{ k.hintValue }}</ng-container>
+          </span>
+        </div>
+        <mat-icon class="kpi-chevron">chevron_right</mat-icon>
+      </button>
+    </section>
+
+    <p *ngIf="!kpis.length" class="dash-empty-hint">{{ 'dashboard.noModules' | t }}</p>
+
+    <section class="dash-columns">
+      <div class="card panel" *ngIf="permissions.has(P.DocumentRead)">
+        <div class="card-header panel-header">
+          <button type="button" class="panel-toggle" (click)="toggleTodo()" [attr.aria-expanded]="todoExpanded">
+            <mat-icon>{{ todoExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+            <h2>{{ 'dashboard.section.todo' | t }}</h2>
+          </button>
+          <a routerLink="/recherche" [queryParams]="{ view: 'all' }" class="panel-link">{{ 'dashboard.seeAll' | t }}</a>
+        </div>
+        <div class="card-body panel-body" *ngIf="todoExpanded">
+          <div class="panel-block" *ngIf="recentDocs.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('recentDocs')" [attr.aria-expanded]="isSectionOpen('recentDocs')">
+              <mat-icon>{{ isSectionOpen('recentDocs') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps">{{ 'dashboard.recentDocs' | t }}</h3>
+              <span class="section-count">{{ recentDocs.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('recentDocs')">
+              <li *ngFor="let d of recentDocs">
+                <button type="button" (click)="openDocument(d)">
+                  <span class="list-title">{{ docLabel(d) }}</span>
+                  <span class="list-meta">{{ d.typeDocument || '—' }} · {{ formatDate(d.dateAdded) }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="panel-block" *ngIf="permissions.has(P.DocumentLink) && unlinkedDeliveries.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('unlinkedBl')" [attr.aria-expanded]="isSectionOpen('unlinkedBl')">
+              <mat-icon>{{ isSectionOpen('unlinkedBl') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps">{{ 'dashboard.unlinkedBl' | t }}</h3>
+              <span class="section-count">{{ unlinkedDeliveries.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('unlinkedBl')">
+              <li *ngFor="let d of unlinkedDeliveries">
+                <button type="button" (click)="go('/compare')">
+                  <span class="list-title">{{ docLabel(d) }}</span>
+                  <span class="list-meta">{{ d.supplier || '—' }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="panel-block" *ngIf="permissions.has(P.StockRead) && lowStock.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('lowStock')" [attr.aria-expanded]="isSectionOpen('lowStock')">
+              <mat-icon>{{ isSectionOpen('lowStock') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps warn-text">{{ 'dashboard.lowStock' | t }}</h3>
+              <span class="section-count">{{ lowStock.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('lowStock')">
+              <li *ngFor="let s of lowStock">
+                <button type="button" (click)="go('/stock')">
+                  <span class="list-title font-mono">{{ s.productKey }}</span>
+                  <span class="list-meta">{{ s.quantityOnHand }} · {{ s.description || s.supplier || '—' }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <p *ngIf="!recentDocs.length && !unlinkedDeliveries.length && !lowStock.length" class="muted">
+            {{ 'dashboard.todoEmpty' | t }}
+          </p>
+        </div>
+      </div>
+
+      <div class="card panel" *ngIf="recentMovements.length || recentEntries.length || recentInvoices.length">
+        <div class="card-header panel-header">
+          <button type="button" class="panel-toggle" (click)="toggleActivity()" [attr.aria-expanded]="activityExpanded">
+            <mat-icon>{{ activityExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+            <h2>{{ 'dashboard.section.activity' | t }}</h2>
+          </button>
+        </div>
+        <div class="card-body panel-body" *ngIf="activityExpanded">
+          <div class="panel-block" *ngIf="recentMovements.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('movements')" [attr.aria-expanded]="isSectionOpen('movements')">
+              <mat-icon>{{ isSectionOpen('movements') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps">{{ 'dashboard.activity.movements' | t }}</h3>
+              <span class="section-count">{{ recentMovements.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('movements')">
+              <li *ngFor="let row of recentMovements">
+                <button type="button" (click)="go(row.route)">
+                  <span class="list-title">{{ row.label }}</span>
+                  <span class="list-meta">{{ row.meta }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="panel-block" *ngIf="recentEntries.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('entries')" [attr.aria-expanded]="isSectionOpen('entries')">
+              <mat-icon>{{ isSectionOpen('entries') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps">{{ 'dashboard.activity.entries' | t }}</h3>
+              <span class="section-count">{{ recentEntries.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('entries')">
+              <li *ngFor="let row of recentEntries">
+                <button type="button" (click)="go(row.route)">
+                  <span class="list-title">{{ row.label }}</span>
+                  <span class="list-meta">{{ row.meta }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="panel-block" *ngIf="recentInvoices.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('invoices')" [attr.aria-expanded]="isSectionOpen('invoices')">
+              <mat-icon>{{ isSectionOpen('invoices') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps">{{ 'dashboard.activity.invoices' | t }}</h3>
+              <span class="section-count">{{ recentInvoices.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('invoices')">
+              <li *ngFor="let row of recentInvoices">
+                <button type="button" (click)="go(row.route)">
+                  <span class="list-title">{{ row.label }}</span>
+                  <span class="list-meta">{{ row.meta }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card shortcuts-card">
+      <div class="card-header panel-header">
+        <h2>{{ 'dashboard.section.shortcuts' | t }}</h2>
+      </div>
+      <div class="card-body">
+        <div class="shortcut-grid">
+          <a *ngFor="let s of shortcuts" [routerLink]="s.path" class="shortcut-tile">
+            <mat-icon>{{ s.icon }}</mat-icon>
+            <span>{{ s.labelKey | t }}</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+</div>

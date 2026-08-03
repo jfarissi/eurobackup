@@ -1,0 +1,223 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.tabs" [abbrs]="['HT','TVA','TTC']">
+        <h2>{{ 'accounting.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'accounting.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadEntries()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openManualModal()"
+              *ngIf="perm.has(P.AccountingCreate)">
+        <mat-icon>post_add</mat-icon> {{ 'accounting.btn.newEntry' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form" (ngSubmit)="loadEntries()">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'common.search' | t }}</label>
+        <input type="text" [(ngModel)]="filterSearch" name="filterSearch" [placeholder]="'accounting.searchPlaceholder' | t" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.col.journalType' | t }}</label>
+        <select [(ngModel)]="filterJournalType" name="filterJournalType">
+          <option value="">{{ 'common.all' | t }}</option>
+          <option *ngFor="let j of journalTypes" [value]="j">{{ j }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.col.referenceType' | t }}</label>
+        <select [(ngModel)]="filterReferenceType" name="filterReferenceType">
+          <option value="">{{ 'common.all' | t }}</option>
+          <option *ngFor="let r of referenceTypes" [value]="r">{{ r }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.col.referenceId' | t }}</label>
+        <input type="number" [(ngModel)]="filterReferenceId" name="filterReferenceId" min="0" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
+        <button class="btn-secondary" type="button" (click)="resetFilters()">{{ 'common.reset' | t }}</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="history-layout">
+    <div class="history-list">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'accounting.col.number' | t }}</th>
+            <th>{{ 'accounting.col.date' | t }}</th>
+            <th>{{ 'accounting.col.journalType' | t }}</th>
+            <th>{{ 'accounting.col.reference' | t }}</th>
+            <th>{{ 'accounting.col.description' | t }}</th>
+            <th>{{ 'accounting.col.debit' | t }}</th>
+            <th>{{ 'accounting.col.credit' | t }}</th>
+            <th>{{ 'common.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let entry of entries"
+              [class.selected-row]="selected?.id === entry.id"
+              (click)="selectEntry(entry)">
+            <td><strong>{{ entry.entryNumber }}</strong></td>
+            <td>{{ entry.entryDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ entry.journalType }}</td>
+            <td>{{ entry.referenceType }}{{ entry.referenceId ? ' #' + entry.referenceId : '' }}</td>
+            <td>{{ entry.description }}</td>
+            <td>{{ entryDebit(entry) | currency:'EUR' }}</td>
+            <td>{{ entryCredit(entry) | currency:'EUR' }}</td>
+            <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ entry.status }}</span></td>
+          </tr>
+          <tr *ngIf="!loading && entries.length === 0">
+            <td colspan="8" class="empty">{{ 'accounting.empty' | t }}</td>
+          </tr>
+          <tr *ngIf="loading">
+            <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="history-detail" *ngIf="selected">
+      <h3>{{ 'accounting.detailTitle' | t:{ number: selected.entryNumber } }}</h3>
+      <div class="detail-meta">
+        <span>{{ 'accounting.col.date' | t }}: <strong>{{ selected.entryDate | date:'dd/MM/yyyy HH:mm' }}</strong></span>
+        <span>{{ 'accounting.col.journalType' | t }}: <strong>{{ selected.journalType }}</strong></span>
+        <span>{{ 'accounting.col.reference' | t }}: <strong>{{ selected.referenceType }} #{{ selected.referenceId }}</strong></span>
+        <span>{{ 'common.status' | t }}: <span class="status-badge" [ngClass]="(selected.status || '').toLowerCase()">{{ selected.status }}</span></span>
+        <span *ngIf="selected.createdBy">{{ 'accounting.col.author' | t }}: <strong>{{ selected.createdBy }}</strong></span>
+      </div>
+      <p class="detail-notes" *ngIf="selected.description">{{ selected.description }}</p>
+      <table class="data-table nested">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>{{ 'accounting.col.account' | t }}</th>
+            <th>{{ 'accounting.col.label' | t }}</th>
+            <th>{{ 'accounting.col.debit' | t }}</th>
+            <th>{{ 'accounting.col.credit' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of selected.lines">
+            <td>{{ line.lineNumber }}</td>
+            <td><strong>{{ line.accountCode }}</strong></td>
+            <td>{{ line.accountLabel }}</td>
+            <td>{{ line.debit | currency:'EUR' }}</td>
+            <td>{{ line.credit | currency:'EUR' }}</td>
+          </tr>
+          <tr *ngIf="!selected.lines?.length">
+            <td colspan="5" class="empty">{{ 'common.noLines' | t }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3"><strong>{{ 'accounting.totals' | t }}</strong></td>
+            <td><strong>{{ entryDebit(selected) | currency:'EUR' }}</strong></td>
+            <td><strong>{{ entryCredit(selected) | currency:'EUR' }}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showManualModal">
+  <div class="modal-content wide">
+    <app-form-help helpKey="accounting.newEntry">
+      <h3>{{ 'accounting.modal.newEntry' | t }}</h3>
+    </app-form-help>
+    <p class="subtitle">{{ 'accounting.modal.hint' | t }}</p>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'accounting.col.date' | t }}</label>
+        <input type="date" [(ngModel)]="manualDate" name="manualDate" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.col.journalType' | t }}</label>
+        <select [(ngModel)]="manualJournalType" name="manualJournalType">
+          <option *ngFor="let j of journalTypes" [value]="j">{{ j }}</option>
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>{{ 'accounting.col.description' | t }}</label>
+        <input type="text" [(ngModel)]="manualDescription" name="manualDescription" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'accounting.col.referenceType' | t }}</label>
+        <select [(ngModel)]="manualReferenceType" name="manualReferenceType">
+          <option *ngFor="let r of referenceTypes" [value]="r">{{ r }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.col.referenceId' | t }}</label>
+        <input type="number" [(ngModel)]="manualReferenceId" name="manualReferenceId" min="0" />
+      </div>
+    </div>
+
+    <table class="data-table nested">
+      <thead>
+        <tr>
+          <th>{{ 'accounting.col.account' | t }}</th>
+          <th>{{ 'accounting.col.label' | t }}</th>
+          <th>{{ 'accounting.col.debit' | t }}</th>
+          <th>{{ 'accounting.col.credit' | t }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let line of manualLines; let i = index">
+          <td>
+            <select (change)="applyAccountPreset(line, $any($event.target).value)" [ngModel]="line.accountCode" name="preset{{i}}">
+              <option value="">{{ 'accounting.pickAccount' | t }}</option>
+              <option *ngFor="let p of accountPresets" [value]="p.code">{{ p.code }} — {{ p.label }}</option>
+            </select>
+            <input type="text" [(ngModel)]="line.accountCode" name="code{{i}}" [placeholder]="'accounting.col.account' | t" />
+          </td>
+          <td><input type="text" [(ngModel)]="line.accountLabel" name="label{{i}}" /></td>
+          <td><input type="number" step="0.01" min="0" [(ngModel)]="line.debit" name="debit{{i}}" /></td>
+          <td><input type="number" step="0.01" min="0" [(ngModel)]="line.credit" name="credit{{i}}" /></td>
+          <td>
+            <button class="icon-action delete" type="button" (click)="removeManualLine(i)" [disabled]="manualLines.length <= 2">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">
+            <button class="btn-link" type="button" (click)="addManualLine()">+ {{ 'accounting.btn.addLine' | t }}</button>
+          </td>
+          <td><strong [class.unbalanced]="!isManualBalanced">{{ manualDebitTotal | currency:'EUR' }}</strong></td>
+          <td><strong [class.unbalanced]="!isManualBalanced">{{ manualCreditTotal | currency:'EUR' }}</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="error-box" *ngIf="!isManualBalanced">{{ 'accounting.unbalanced' | t }}</div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showManualModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveManualEntry()" [disabled]="saving || !isManualBalanced">
+        {{ saving ? ('common.saving' | t) : ('accounting.btn.post' | t) }}
+      </button>
+    </div>
+  </div>
+</div>

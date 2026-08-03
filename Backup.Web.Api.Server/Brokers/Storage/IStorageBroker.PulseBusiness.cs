@@ -23,20 +23,32 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         // Quotes
         ValueTask<Quote> InsertQuoteAsync(Quote quote);
         IQueryable<Quote> SelectAllQuotes();
+        IQueryable<Quote> SelectDeletedQuotes();
         ValueTask<Quote?> SelectQuoteByIdAsync(int id);
+        ValueTask<Quote?> SelectQuoteByIdIncludingDeletedAsync(int id);
         ValueTask<Quote> UpdateQuoteAsync(Quote quote);
+        ValueTask DeleteQuoteAsync(Quote quote);
+        ValueTask PurgeQuoteAsync(Quote quote);
 
         // Sales Orders
         ValueTask<SalesOrder> InsertSalesOrderAsync(SalesOrder salesOrder);
         IQueryable<SalesOrder> SelectAllSalesOrders();
+        IQueryable<SalesOrder> SelectDeletedSalesOrders();
         ValueTask<SalesOrder?> SelectSalesOrderByIdAsync(int id);
+        ValueTask<SalesOrder?> SelectSalesOrderByIdIncludingDeletedAsync(int id);
         ValueTask<SalesOrder> UpdateSalesOrderAsync(SalesOrder salesOrder);
+        ValueTask DeleteSalesOrderAsync(SalesOrder salesOrder);
+        ValueTask PurgeSalesOrderAsync(SalesOrder salesOrder);
 
         // Sales Invoices
         ValueTask<SalesInvoice> InsertSalesInvoiceAsync(SalesInvoice salesInvoice);
         IQueryable<SalesInvoice> SelectAllSalesInvoices();
+        IQueryable<SalesInvoice> SelectDeletedSalesInvoices();
         ValueTask<SalesInvoice?> SelectSalesInvoiceByIdAsync(int id);
+        ValueTask<SalesInvoice?> SelectSalesInvoiceByIdIncludingDeletedAsync(int id);
         ValueTask<SalesInvoice> UpdateSalesInvoiceAsync(SalesInvoice salesInvoice);
+        ValueTask DeleteSalesInvoiceAsync(SalesInvoice salesInvoice);
+        ValueTask PurgeSalesInvoiceAsync(SalesInvoice salesInvoice);
 
         // Credit Notes
         ValueTask<CreditNoteEntity> InsertCreditNoteAsync(CreditNoteEntity creditNote);
@@ -77,17 +89,95 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<CashOperation> InsertCashOperationAsync(CashOperation operation);
         IQueryable<CashOperation> SelectCashOperationsBySessionId(int sessionId);
 
+        // Payments (règlements factures vente)
+        ValueTask<Payment> InsertPaymentAsync(Payment payment);
+        IQueryable<Payment> SelectAllPayments();
+        ValueTask<Payment?> SelectPaymentByIdAsync(int id);
+        ValueTask<Payment?> SelectPaymentByIdForUpdateAsync(int id);
+        ValueTask<Payment> UpdatePaymentAsync(Payment payment);
+        IQueryable<Payment> SelectPaymentsBySalesInvoiceId(int salesInvoiceId);
+
         // Receipts (ErpReceipts / ErpReceiptLines)
         ValueTask<Receipt> InsertReceiptAsync(Receipt receipt);
         IQueryable<Receipt> SelectAllReceipts();
         ValueTask<Receipt?> SelectReceiptByIdAsync(int id);
         ValueTask<Receipt?> SelectReceiptByDocumentIdAsync(int documentId);
+        ValueTask<Receipt> UpdateReceiptAsync(Receipt receipt);
 
         // Sales Delivery Notes (BL vente)
         ValueTask<SalesDeliveryNote> InsertSalesDeliveryNoteAsync(SalesDeliveryNote note);
         IQueryable<SalesDeliveryNote> SelectAllSalesDeliveryNotes();
+        IQueryable<SalesDeliveryNote> SelectDeletedSalesDeliveryNotes();
         ValueTask<SalesDeliveryNote?> SelectSalesDeliveryNoteByIdAsync(int id);
+        ValueTask<SalesDeliveryNote?> SelectSalesDeliveryNoteByIdIncludingDeletedAsync(int id);
         ValueTask<SalesDeliveryNote> UpdateSalesDeliveryNoteAsync(SalesDeliveryNote note);
         ValueTask DeleteSalesDeliveryNoteAsync(SalesDeliveryNote note);
+        ValueTask PurgeSalesDeliveryNoteAsync(SalesDeliveryNote note);
+
+        // Accounting entries
+        ValueTask<AccountingEntry> InsertAccountingEntryAsync(AccountingEntry entry);
+        IQueryable<AccountingEntry> SelectAllAccountingEntries();
+        ValueTask<AccountingEntry?> SelectAccountingEntryByIdAsync(int id);
+
+        // Document audit (P3)
+        ValueTask<DocumentAuditLog> InsertDocumentAuditLogAsync(DocumentAuditLog log);
+        IQueryable<DocumentAuditLog> SelectAllDocumentAuditLogs();
+
+        // Sales Returns (BRC vente — RG-BR1–5)
+        ValueTask<SalesReturn> InsertSalesReturnAsync(SalesReturn salesReturn);
+        IQueryable<SalesReturn> SelectAllSalesReturns();
+        ValueTask<SalesReturn?> SelectSalesReturnByIdAsync(int id);
+        ValueTask<SalesReturn> UpdateSalesReturnAsync(SalesReturn salesReturn);
+        ValueTask DeleteSalesReturnAsync(SalesReturn salesReturn);
+
+        // Supplier Credit Notes (AF achat — RG-AF1–5)
+        ValueTask<SupplierCreditNoteEntity> InsertSupplierCreditNoteAsync(SupplierCreditNoteEntity creditNote);
+        IQueryable<SupplierCreditNoteEntity> SelectAllSupplierCreditNotes();
+        ValueTask<SupplierCreditNoteEntity?> SelectSupplierCreditNoteByIdAsync(int id);
+        ValueTask<SupplierCreditNoteEntity> UpdateSupplierCreditNoteAsync(SupplierCreditNoteEntity creditNote);
+
+        // Proformas (PF vente — RG-PF1–4)
+        ValueTask<Proforma> InsertProformaAsync(Proforma proforma);
+        IQueryable<Proforma> SelectAllProformas();
+        ValueTask<Proforma?> SelectProformaByIdAsync(int id);
+        ValueTask<Proforma> UpdateProformaAsync(Proforma proforma);
+        ValueTask DeleteProformaAsync(Proforma proforma);
+
+        // Deposit Invoices / Acomptes (AAC vente — RG-AA1–4)
+        ValueTask<DepositInvoice> InsertDepositInvoiceAsync(DepositInvoice deposit);
+        IQueryable<DepositInvoice> SelectAllDepositInvoices();
+        ValueTask<DepositInvoice?> SelectDepositInvoiceByIdAsync(int id);
+        ValueTask<DepositInvoice> UpdateDepositInvoiceAsync(DepositInvoice deposit);
+
+        // Supplier RFQ (DPF achat — RG-DPF1–4)
+        ValueTask<SupplierRfq> InsertSupplierRfqAsync(SupplierRfq rfq);
+        IQueryable<SupplierRfq> SelectAllSupplierRfqs();
+        ValueTask<SupplierRfq?> SelectSupplierRfqByIdAsync(int id);
+        ValueTask<SupplierRfq> UpdateSupplierRfqAsync(SupplierRfq rfq);
+        ValueTask DeleteSupplierRfqAsync(SupplierRfq rfq);
+
+        // Supplier Returns (BRF achat — RG-BRF1–5)
+        ValueTask<SupplierReturn> InsertSupplierReturnAsync(SupplierReturn supplierReturn);
+        IQueryable<SupplierReturn> SelectAllSupplierReturns();
+        ValueTask<SupplierReturn?> SelectSupplierReturnByIdAsync(int id);
+        ValueTask<SupplierReturn> UpdateSupplierReturnAsync(SupplierReturn supplierReturn);
+        ValueTask DeleteSupplierReturnAsync(SupplierReturn supplierReturn);
+
+        // Payment Allocations (RG-RG2 lite)
+        ValueTask<PaymentAllocation> InsertPaymentAllocationAsync(PaymentAllocation allocation);
+        IQueryable<PaymentAllocation> SelectAllPaymentAllocations();
+
+        // Lettering (RG-LT1–4 lite)
+        ValueTask<LetteringGroup> InsertLetteringGroupAsync(LetteringGroup group);
+        IQueryable<LetteringGroup> SelectAllLetteringGroups();
+        ValueTask<LetteringGroup?> SelectLetteringGroupByIdAsync(int id);
+        ValueTask<LetteringGroup> UpdateLetteringGroupAsync(LetteringGroup group);
+
+        // Customer Price List (RG-PT1–5 lite)
+        ValueTask<CustomerPriceListItem> InsertCustomerPriceListItemAsync(CustomerPriceListItem item);
+        IQueryable<CustomerPriceListItem> SelectAllCustomerPriceListItems();
+        ValueTask<CustomerPriceListItem?> SelectCustomerPriceListItemByIdAsync(int id);
+        ValueTask<CustomerPriceListItem> UpdateCustomerPriceListItemAsync(CustomerPriceListItem item);
+        ValueTask DeleteCustomerPriceListItemAsync(CustomerPriceListItem item);
     }
 }

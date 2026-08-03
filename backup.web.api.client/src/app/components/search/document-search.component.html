@@ -30,7 +30,8 @@
         <span class="stat-label label-caps">{{ 'search.stat.deliveryNotes' | t }}</span>
         <span class="stat-value font-mono">{{ bonsLivraison.length }}</span>
       </div>
-      <span class="search-hint" *ngIf="hasSearched">{{ 'search.activeFilter' | t:{query: query} }}</span>
+      <span class="search-hint" *ngIf="hasSearched && query">{{ 'search.activeFilter' | t:{query: query} }}</span>
+      <span class="search-hint" *ngIf="hasSearched && !query">{{ 'search.allDocuments' | t }}</span>
     </div>
   </section>
 

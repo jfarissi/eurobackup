@@ -453,3 +453,16 @@
 .page-content:has(.assistant-page) {
   overflow: hidden;
 }
+
+.help-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .help-nav-label {
+    display: none;
+  }
+}

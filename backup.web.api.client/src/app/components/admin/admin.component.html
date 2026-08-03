@@ -1,6 +1,8 @@
 <div class="page-container">
   <div class="page-header">
-    <h2 class="page-title"><mat-icon>admin_panel_settings</mat-icon> {{ 'admin.title' | t }}</h2>
+    <app-form-help helpKey="admin.tabs" [abbrs]="['CRUD']">
+      <h2 class="page-title"><mat-icon>admin_panel_settings</mat-icon> {{ 'admin.title' | t }}</h2>
+    </app-form-help>
   </div>
 
   <div *ngIf="actionMessage" class="alert success" (click)="clearMessages()">{{ actionMessage }}</div>
@@ -80,6 +82,7 @@
         <button class="btn-primary" type="button" (click)="openRoleEditor()">
           <mat-icon>shield</mat-icon> {{ 'admin.btn.newRole' | t }}
         </button>
+        <app-form-help helpKey="admin.roles"><span></span></app-form-help>
       </div>
 
       <!-- Panneau création (expandable) -->
@@ -202,6 +205,81 @@
       </div>
     </mat-tab>
 
+    <mat-tab *ngIf="perm.has(HelpP.HelpManage)">
+      <ng-template mat-tab-label>{{ 'admin.tab.help' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <app-form-help helpKey="admin.helpCms"><span>{{ 'admin.tab.help' | t }}</span></app-form-help>
+        <select [(ngModel)]="helpFilterLang" (ngModelChange)="loadHelp()">
+          <option value="fr">FR</option>
+          <option value="nl">NL</option>
+          <option value="en">EN</option>
+          <option value="">*</option>
+        </select>
+        <button class="btn-primary" type="button" (click)="openHelpModal()">
+          <mat-icon>add</mat-icon> {{ 'admin.help.new' | t }}
+        </button>
+      </div>
+
+      <div class="table-container" *ngIf="helpAnalytics as a">
+        <h3>{{ 'admin.help.analytics' | t }}</h3>
+        <p class="muted">
+          Published: {{ a.publishedCount }} · Draft/review: {{ a.draftCount }} ·
+          👎 {{ a.pendingDownReports }} ({{ a.days }}j)
+        </p>
+        <table class="data-table" *ngIf="a.byKey?.length">
+          <thead>
+            <tr>
+              <th>{{ 'admin.help.key' | t }}</th>
+              <th>{{ 'admin.help.opens' | t }}</th>
+              <th>👍</th>
+              <th>👎</th>
+              <th>{{ 'admin.help.usefulness' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of a.byKey">
+              <td>{{ row.helpKey }}</td>
+              <td>{{ row.opens }}</td>
+              <td>{{ row.up }}</td>
+              <td>{{ row.down }}</td>
+              <td>{{ row.usefulness != null ? row.usefulness : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container">
+        <h3>{{ 'admin.help.title' | t }}</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'admin.help.key' | t }}</th>
+              <th>{{ 'admin.help.lang' | t }}</th>
+              <th>{{ 'admin.col.name' | t }}</th>
+              <th>{{ 'admin.help.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let h of helpArticles">
+              <td><code>{{ h.helpKey }}</code></td>
+              <td>{{ h.lang }}</td>
+              <td>{{ h.title }}</td>
+              <td>{{ h.status }}</td>
+              <td class="actions-cell crud-actions">
+                <button class="icon-action edit" type="button" (click)="openHelpModal(h)"><mat-icon>edit</mat-icon></button>
+                <button class="btn-sm" type="button" (click)="publishHelp(h)" *ngIf="h.status !== 'Published'">{{ 'admin.help.publish' | t }}</button>
+                <button class="btn-sm" type="button" (click)="archiveHelp(h)" *ngIf="h.status !== 'Archived'">{{ 'admin.help.archive' | t }}</button>
+              </td>
+            </tr>
+            <tr *ngIf="helpArticles.length === 0">
+              <td colspan="5" class="empty">{{ 'admin.help.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+
   </mat-tab-group>
 </div>
 
@@ -265,7 +343,9 @@
 <!-- Modal Tenant -->
 <div class="modal-overlay" *ngIf="showTenantModal">
   <div class="modal-content">
-    <h3>{{ editingTenantId ? ('admin.modal.editTenant' | t) : ('admin.modal.newTenant' | t) }}</h3>
+    <app-form-help helpKey="admin.tenant">
+      <h3>{{ editingTenantId ? ('admin.modal.editTenant' | t) : ('admin.modal.newTenant' | t) }}</h3>
+    </app-form-help>
     <div class="form-group">
       <label>{{ 'admin.nameRequired' | t }}</label>
       <input type="text" [(ngModel)]="newTenant.name" [placeholder]="'admin.tenant.namePlaceholder' | t" />
@@ -286,7 +366,9 @@
 <!-- Modal Company -->
 <div class="modal-overlay" *ngIf="showCompanyModal">
   <div class="modal-content">
-    <h3>{{ editingCompanyId ? ('admin.modal.editCompany' | t) : ('admin.modal.newCompany' | t) }}</h3>
+    <app-form-help helpKey="admin.company">
+      <h3>{{ editingCompanyId ? ('admin.modal.editCompany' | t) : ('admin.modal.newCompany' | t) }}</h3>
+    </app-form-help>
     <div class="form-row">
       <div class="form-group grow">
         <label>{{ 'admin.nameRequired' | t }}</label>
@@ -334,7 +416,9 @@
 <!-- Modal Utilisateur (créer / modifier) -->
 <div class="modal-overlay" *ngIf="showUserModal">
   <div class="modal-content modal-large">
-    <h3>{{ editingUserId ? ('admin.modal.editUser' | t) : ('admin.modal.newUser' | t) }}</h3>
+    <app-form-help helpKey="admin.user">
+      <h3>{{ editingUserId ? ('admin.modal.editUser' | t) : ('admin.modal.newUser' | t) }}</h3>
+    </app-form-help>
     <div class="form-row">
       <div class="form-group grow">
         <label>{{ 'admin.user.usernameRequired' | t }}</label>
@@ -391,7 +475,9 @@
 <!-- Modal Reset Password -->
 <div class="modal-overlay" *ngIf="showPasswordResetModal">
   <div class="modal-content">
-    <h3>{{ 'admin.modal.resetPassword' | t }}</h3>
+    <app-form-help helpKey="admin.resetPassword">
+      <h3>{{ 'admin.modal.resetPassword' | t }}</h3>
+    </app-form-help>
     <p class="muted">{{ 'admin.user.label' | t }} <strong>{{ resetPasswordUsername }}</strong></p>
     <div class="form-group">
       <label>{{ 'admin.user.newPassword' | t }}</label>
@@ -410,7 +496,9 @@
 <!-- Modal Assigner utilisateur -->
 <div class="modal-overlay" *ngIf="showAssignModal">
   <div class="modal-content">
-    <h3>{{ 'admin.modal.assign' | t:{ username: assigningUser?.username ?? '' } }}</h3>
+    <app-form-help helpKey="admin.assign">
+      <h3>{{ 'admin.modal.assign' | t:{ username: assigningUser?.username ?? '' } }}</h3>
+    </app-form-help>
     <div class="form-group">
       <label>{{ 'admin.col.company' | t }}</label>
       <select [(ngModel)]="assignCompanyId">
@@ -423,6 +511,70 @@
       <button class="btn-primary" type="button" (click)="assignUserToCompany()" [disabled]="saving">
         {{ saving ? ('admin.assigning' | t) : ('admin.assign' | t) }}
       </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showHelpModal">
+  <div class="modal-content large">
+    <h3>{{ editingHelp.id ? ('admin.help.save' | t) : ('admin.help.new' | t) }}</h3>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'admin.help.key' | t }}</label>
+        <input type="text" [(ngModel)]="editingHelp.helpKey" [disabled]="!!editingHelp.id" placeholder="sales.order" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'admin.help.lang' | t }}</label>
+        <select [(ngModel)]="editingHelp.lang" [disabled]="!!editingHelp.id">
+          <option value="fr">fr</option>
+          <option value="nl">nl</option>
+          <option value="en">en</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'admin.help.status' | t }}</label>
+        <select [(ngModel)]="editingHelp.status">
+          <option>Draft</option>
+          <option>InReview</option>
+          <option>ValidatedBusiness</option>
+          <option>ValidatedLegal</option>
+          <option>Published</option>
+          <option>Archived</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>{{ 'admin.col.name' | t }}</label>
+      <input type="text" [(ngModel)]="editingHelp.title" />
+    </div>
+    <div class="form-group">
+      <label>N1</label>
+      <input type="text" [(ngModel)]="editingHelp.n1" maxlength="120" />
+    </div>
+    <div class="form-group">
+      <label>N2 / Body</label>
+      <textarea rows="4" [(ngModel)]="editingHelp.body"></textarea>
+    </div>
+    <div class="form-group">
+      <label>{{ 'help.section.rules' | t }}</label>
+      <textarea rows="3" [(ngModel)]="editingHelp.rules" placeholder="RG-CC1|..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>{{ 'help.section.example' | t }}</label>
+      <textarea rows="2" [(ngModel)]="editingHelp.example"></textarea>
+    </div>
+    <div class="form-group">
+      <label>{{ 'help.section.guide' | t }}</label>
+      <textarea rows="3" [(ngModel)]="editingHelp.guide"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Version</label>
+      <input type="text" [(ngModel)]="editingHelp.version" />
+    </div>
+    <div *ngIf="actionError" class="alert error">{{ actionError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showHelpModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveHelp()" [disabled]="saving">{{ 'admin.help.save' | t }}</button>
     </div>
   </div>
 </div>

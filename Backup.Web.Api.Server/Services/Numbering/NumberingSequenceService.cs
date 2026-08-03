@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backup.Web.Api.Server.Services.Numbering
 {
@@ -19,7 +21,15 @@ namespace Backup.Web.Api.Server.Services.Numbering
             "SupplierInvoice",
             "DeliveryNote",
             "SalesDeliveryNote",
-            "Receipt"
+            "Receipt",
+            "AccountingEntry",
+            "SalesReturn",
+            "SupplierCreditNote",
+            "Proforma",
+            "DepositInvoice",
+            "SupplierRfq",
+            "SupplierReturn",
+            "Lettering"
         };
 
         private readonly IStorageBroker storageBroker;
@@ -31,20 +41,54 @@ namespace Backup.Web.Api.Server.Services.Numbering
 
         public async Task<string> GetNextNumberAsync(string documentType, string? companyId = null)
         {
-            var sequence = await this.GetOrCreateSequenceAsync(documentType, companyId);
-            var currentYear = DateTime.UtcNow.Year;
-
-            if (sequence.Year != currentYear)
+            // RG-N2 : allocation atomique sous transaction (évite doublons / trous concurrentiels).
+            if (this.storageBroker is StorageBroker db)
             {
-                sequence.Year = currentYear;
-                sequence.NextNumber = 1;
+                await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                try
+                {
+                    var sequence = await db.DocumentNumberSequences
+                        .FirstOrDefaultAsync(s => s.DocumentType == documentType && s.CompanyId == companyId);
+
+                    if (sequence == null)
+                    {
+                        sequence = CreateDefaultSequence(documentType, companyId);
+                        await db.DocumentNumberSequences.AddAsync(sequence);
+                        await db.SaveChangesAsync();
+                    }
+
+                    var currentYear = DateTime.UtcNow.Year;
+                    if (sequence.Year != currentYear)
+                    {
+                        sequence.Year = currentYear;
+                        sequence.NextNumber = 1;
+                    }
+
+                    int number = sequence.NextNumber;
+                    sequence.NextNumber++;
+                    await db.SaveChangesAsync();
+                    await tx.CommitAsync();
+                    return FormatNumber(sequence, number);
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
             }
 
-            int number = sequence.NextNumber;
-            sequence.NextNumber++;
-            await this.storageBroker.UpdateNumberSequenceAsync(sequence);
+            var fallback = await this.GetOrCreateSequenceAsync(documentType, companyId);
+            var year = DateTime.UtcNow.Year;
+            if (fallback.Year != year)
+            {
+                fallback.Year = year;
+                fallback.NextNumber = 1;
+            }
 
-            return FormatNumber(sequence, number);
+            int n = fallback.NextNumber;
+            fallback.NextNumber++;
+            await this.storageBroker.UpdateNumberSequenceAsync(fallback);
+            return FormatNumber(fallback, n);
         }
 
         public async Task<string> PreviewNextNumberAsync(string documentType, string? companyId = null)
@@ -119,6 +163,14 @@ namespace Backup.Web.Api.Server.Services.Numbering
             "CreditNote" => "AV-",
             "PurchaseOrder" => "CFA-",
             "Receipt" => "REC-",
+            "AccountingEntry" => "EC-",
+            "SalesReturn" => "BRC-",
+            "SupplierCreditNote" => "AVF-",
+            "Proforma" => "PRO-",
+            "DepositInvoice" => "AAC-",
+            "SupplierRfq" => "DPF-",
+            "SupplierReturn" => "BRF-",
+            "Lettering" => "LET-",
             _ => "DOC-"
         };
 

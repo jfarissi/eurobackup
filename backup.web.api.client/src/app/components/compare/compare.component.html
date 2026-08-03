@@ -3,7 +3,9 @@
   <!-- Page header -->
   <section class="compare-page-header">
     <div class="compare-page-header-text">
-      <h1>{{ 'compare.title' | t }}</h1>
+      <app-form-help helpKey="compare.tabs" [abbrs]="['BL','FAC','OCR','ERP']">
+        <h1>{{ 'compare.title' | t }}</h1>
+      </app-form-help>
       <p>{{ 'compare.subtitle' | t }}</p>
     </div>
     <div class="compare-page-header-actions">
@@ -140,6 +142,10 @@
   <!-- Tableau des factures avec expansion -->
   <div class="table-card">
     <h2>📄 {{ 'compare.invoices' | t }} <span class="doc-count">({{ factures.length }})</span></h2>
+    <p class="section-hint" *ngIf="factures.length === 0 && bonsLivraison.length === 0">
+      {{ 'compare.empty.companyHint' | t:{ company: activeCompanyName } }}
+    </p>
+    <p class="section-hint" *ngIf="factures.length === 0 && bonsLivraison.length > 0">{{ 'compare.empty.invoices' | t }}</p>
     <div class="table-wrapper">
       <div class="invoices-list">
         <div *ngFor="let invoice of factures" class="invoice-item">
@@ -160,9 +166,6 @@
             <div class="invoice-status">
               <mat-chip-set *ngIf="getAssociatedDeliveries(invoice.id).length > 0">
                 <mat-chip class="linked-chip">{{ 'compare.status.linked' | t }}</mat-chip>
-                <mat-chip *ngIf="getBatchStatus(invoice.id) as bs" class="linked-chip">
-                  Traitement BL: {{ bs.updated }}/{{ bs.total }}
-                </mat-chip>
               </mat-chip-set>
               <span *ngIf="getAssociatedDeliveries(invoice.id).length === 0" class="not-linked">{{ 'compare.status.unlinked' | t }}</span>
             </div>
@@ -208,17 +211,6 @@
                 <button mat-raised-button color="primary" (click)="compareAllDeliveries(invoice.id)">
                   <mat-icon>compare_arrows</mat-icon>
                   {{ 'compare.compareInvoiceVsBl' | t }}
-                </button>
-                <button mat-raised-button color="primary" (click)="compareAndStockAllDeliveries(invoice.id, false)">
-                  <mat-icon>inventory_2</mat-icon>
-                  {{ 'compare.allBlCompareStock' | t }}
-                </button>
-                <button *ngIf="hasCorrectedQuantities()" mat-raised-button color="warn"
-                  (click)="compareAndStockAllDeliveries(invoice.id, true)"
-                  matTooltip="Appliquer les corrections de quantités validées sur tous les BL"
-                  style="margin-left: 8px;">
-                  <mat-icon>update</mat-icon>
-                  {{ 'compare.allBlStockCorrection' | t }}
                 </button>
               </div>
               <div class="delivery-details" *ngFor="let delivery of getAssociatedDeliveries(invoice.id)">
@@ -386,30 +378,46 @@
 
         <ng-container matColumnDef="actualQty">
           <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.actualQty' | t }}</th>
-          <td mat-cell *matCellDef="let l">
+          <td mat-cell *matCellDef="let l" class="actual-qty-col">
             <div class="actual-qty-cell">
-              <div *ngIf="l.stockUpdated" class="stock-updated-warning">
-                <mat-icon color="warn">info</mat-icon>
-                <span>Stock déjà mis à jour - Vous pouvez corriger en cas d'erreur de comptage</span>
+              <div class="actual-qty-editor">
+                <button
+                  *ngIf="l.stockUpdated"
+                  type="button"
+                  class="stock-updated-warning"
+                  [matTooltip]="'compare.stockAlreadyAppliedHint' | t">
+                  <mat-icon>info</mat-icon>
+                </button>
+                <input
+                  class="actual-qty-field"
+                  type="number"
+                  name="actualQty"
+                  [ngModel]="displayActualQty(l)"
+                  (ngModelChange)="onActualQuantityModelChange(l, $event)"
+                  [ngModelOptions]="{standalone: true}"
+                  (blur)="saveAdjustment(l)"
+                  min="0"
+                  step="0.01"
+                  [placeholder]="'' + (l.deliveryQty ?? '')"
+                  [attr.aria-label]="'compare.actualQtyLabel' | t"
+                />
+                <button
+                  *ngIf="l.actualQuantity != null && l.actualQuantity !== l.deliveryQty && l.actualQuantity !== '' && (!l.isValidated || hasQuantityChanged(l))"
+                  class="actual-qty-action"
+                  type="button"
+                  (click)="validateAdjustment(l); $event.stopPropagation()"
+                  [matTooltip]="l.isValidated ? 'Re-valider la quantité réelle modifiée' : 'Valider la quantité réelle'"
+                  [disabled]="!l.productKey">
+                  <mat-icon>check_circle</mat-icon>
+                </button>
+                <mat-icon
+                  *ngIf="l.isValidated && !hasQuantityChanged(l)"
+                  class="actual-qty-verified"
+                  matTooltip="Quantité validée">
+                  verified
+                </mat-icon>
               </div>
-              <mat-form-field appearance="outline" class="qty-input">
-                <mat-label>{{ 'compare.actualQtyLabel' | t }}</mat-label>
-                <input matInput type="number" [(ngModel)]="l.actualQuantity" [value]="l.actualQuantity ?? l.deliveryQty"
-                  (blur)="saveAdjustment(l)" (input)="onActualQuantityChange(l, $event)" [disabled]="false" min="0"
-                  step="0.01" placeholder="{{ l.deliveryQty }}" />
-              </mat-form-field>
-              <button
-                *ngIf="l.actualQuantity != null && l.actualQuantity !== l.deliveryQty && l.actualQuantity !== '' && (!l.isValidated || hasQuantityChanged(l))"
-                mat-icon-button color="primary" (click)="validateAdjustment(l); $event.stopPropagation()"
-                [matTooltip]="l.isValidated ? 'Re-valider la quantité réelle modifiée' : 'Valider la quantité réelle'"
-                type="button" [disabled]="!l.productKey">
-                <mat-icon>check_circle</mat-icon>
-              </button>
-              <mat-icon *ngIf="l.isValidated && !hasQuantityChanged(l)" color="primary" matTooltip="Quantité validée">
-                verified
-              </mat-icon>
-              <span *ngIf="!l.productKey" class="error-text" style="color: red; font-size: 0.8em;">Clé produit
-                manquante</span>
+              <span *ngIf="!l.productKey" class="actual-qty-error">Clé produit manquante</span>
             </div>
           </td>
         </ng-container>
@@ -632,6 +640,11 @@
             <mat-chip-set>
               <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">{{ l.status }}</mat-chip>
             </mat-chip-set>
+            <button class="btn-sm create-product-btn" type="button"
+                    *ngIf="canCreateMissingProduct(l)"
+                    (click)="openCreateProduct(l)">
+              {{ 'createProduct.btn.create' | t }}
+            </button>
           </td>
         </ng-container>
 
@@ -641,3 +654,10 @@
     </div>
   </div>
 </div>
+
+<app-create-product-from-line
+  [open]="showCreateProductModal"
+  [draft]="createProductDraft"
+  (closed)="showCreateProductModal = false"
+  (created)="onProductCreated($event)">
+</app-create-product-from-line>

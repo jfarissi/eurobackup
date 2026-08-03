@@ -1,0 +1,80 @@
+<div class="modal-overlay" *ngIf="open" (click)="close()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <app-form-help helpKey="createProduct" [abbrs]="['OCR','HT','TVA']">
+      <h3>{{ 'createProduct.title' | t }}</h3>
+    </app-form-help>
+    <p class="hint">{{ 'createProduct.hint' | t }}</p>
+
+    <div class="error-box" *ngIf="error">{{ error }}</div>
+
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'common.description' | t }}</label>
+        <input type="text" [(ngModel)]="name" name="cpName" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'common.ref' | t }}</label>
+        <input type="text" [(ngModel)]="reference" name="cpRef" />
+      </div>
+      <div class="form-group">
+        <label>EAN</label>
+        <input type="text" [(ngModel)]="ean" name="cpEan" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'createProduct.purchasePrice' | t }}</label>
+        <input type="number" step="0.01" [(ngModel)]="purchasePrice" name="cpPrice" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'erpProducts.col.brand' | t }}</label>
+        <select [(ngModel)]="brandId" name="cpBrand">
+          <option [ngValue]="null">{{ 'createProduct.pickBrand' | t }}</option>
+          <option *ngFor="let b of brands" [ngValue]="b.id">{{ b.name }}</option>
+        </select>
+        <small *ngIf="brandToken">{{ 'createProduct.brandToken' | t:{ token: brandToken } }}</small>
+      </div>
+      <div class="form-group">
+        <label>{{ 'common.supplier' | t }}</label>
+        <input type="text" [(ngModel)]="supplierName" name="cpSupplier" (change)="loadBrandSuggestion()" />
+      </div>
+    </div>
+
+    <h4>{{ 'createProduct.category' | t }}</h4>
+    <p class="hint">{{ 'createProduct.categoryHint' | t }}</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'createProduct.mainType' | t }}</label>
+        <select [(ngModel)]="mainTypeId" name="cpMain" (ngModelChange)="onMainTypeChange()">
+          <option [ngValue]="null">—</option>
+          <option *ngFor="let c of mainTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'createProduct.type' | t }}</label>
+        <select [(ngModel)]="typeId" name="cpType" (ngModelChange)="onTypeChange()" [disabled]="!mainTypeId">
+          <option [ngValue]="null">—</option>
+          <option *ngFor="let c of types" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'createProduct.subType' | t }}</label>
+        <select [(ngModel)]="subTypeId" name="cpSub" [disabled]="!typeId">
+          <option [ngValue]="null">—</option>
+          <option *ngFor="let c of subTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" (click)="close()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button type="button" class="btn-primary" (click)="save()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('createProduct.save' | t) }}
+      </button>
+    </div>
+  </div>
+</div>

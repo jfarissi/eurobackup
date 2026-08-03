@@ -12,13 +12,14 @@ import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
 
 @Component({
   selector: 'app-stock',
   templateUrl: './stock.component.html',
   styleUrls: ['./stock.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent]
 })
 export class StockComponent implements OnInit {
   selectedTab = 0;
@@ -100,10 +101,11 @@ export class StockComponent implements OnInit {
 
   toggleSupplier(supplier: string): void {
     if (this.expandedSuppliers.has(supplier)) {
-      this.expandedSuppliers.delete(supplier);
-    } else {
-      this.expandedSuppliers.add(supplier);
+      this.expandedSuppliers.clear();
+      return;
     }
+    this.expandedSuppliers.clear();
+    this.expandedSuppliers.add(supplier);
   }
 
   isSupplierExpanded(supplier: string): boolean {
@@ -178,6 +180,10 @@ export class StockComponent implements OnInit {
 
   getSupplierTotalQuantity(items: StockItem[]): number {
     return items.reduce((sum, item) => sum + item.quantityOnHand, 0);
+  }
+
+  availableQty(item: StockItem): number {
+    return Math.max(0, Number(item.quantityOnHand || 0) - Number(item.reservedQuantity || 0));
   }
 
   private createEmptyMovement(): StockMovement {

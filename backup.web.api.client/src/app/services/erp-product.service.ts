@@ -12,6 +12,9 @@ import {
   ErpProductsPage,
   ErpProductsQuery,
   ErpProductSummary,
+  CreateErpProductRequest,
+  CreateErpProductResult,
+  SuggestBrandResult,
   ErpSyncLog,
   ErpSyncLogsPage,
   ExcelImportResult
@@ -34,7 +37,19 @@ export class ErpProductService {
     if (query.mainTypeId) params = params.set('mainTypeId', query.mainTypeId);
     if (query.typeId) params = params.set('typeId', query.typeId);
     if (query.subTypeId) params = params.set('subTypeId', query.subTypeId);
+    if (query.supplierId != null && query.supplierId > 0) params = params.set('supplierId', String(query.supplierId));
     return this.http.get<ErpProductsPage>(this.baseUrl, { params });
+  }
+
+  createProduct(body: CreateErpProductRequest): Observable<CreateErpProductResult> {
+    return this.http.post<CreateErpProductResult>(this.baseUrl, body);
+  }
+
+  suggestBrand(query: { supplierName?: string; supplierId?: number } = {}): Observable<SuggestBrandResult> {
+    let params = new HttpParams();
+    if (query.supplierName) params = params.set('supplierName', query.supplierName);
+    if (query.supplierId != null) params = params.set('supplierId', String(query.supplierId));
+    return this.http.get<SuggestBrandResult>(`${this.baseUrl}/suggest-brand`, { params });
   }
 
   getById(id: number): Observable<ErpProduct> {

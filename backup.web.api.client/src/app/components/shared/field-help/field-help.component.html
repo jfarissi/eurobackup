@@ -1,0 +1,34 @@
+<span class="field-help" *ngIf="article">
+  <button
+    type="button"
+    class="field-help-btn"
+    [attr.aria-expanded]="open"
+    [attr.aria-label]="'help.aria.open' | t"
+    [matTooltip]="article.n1 || ('help.aria.open' | t)"
+    matTooltipShowDelay="300"
+    (click)="toggle($event)">
+    <mat-icon>help_outline</mat-icon>
+  </button>
+
+  <div class="field-help-panel" *ngIf="open" role="dialog">
+    <div class="field-help-head">
+      <strong>{{ article.title || article.n1 }}</strong>
+      <button type="button" class="field-help-close" (click)="close()" [attr.aria-label]="'common.close' | t">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+    <p *ngFor="let p of article.n2">{{ p }}</p>
+    <div class="field-help-rules" *ngIf="article.rules.length">
+      <div class="label">{{ 'help.section.rules' | t }}</div>
+      <ul>
+        <li *ngFor="let r of article.rules">
+          <code *ngIf="r.id">{{ r.id }}</code> {{ r.text }}
+        </li>
+      </ul>
+    </div>
+    <div class="field-help-example" *ngIf="article.example">
+      <div class="label">{{ 'help.section.example' | t }}</div>
+      <p>{{ article.example }}</p>
+    </div>
+  </div>
+</span>

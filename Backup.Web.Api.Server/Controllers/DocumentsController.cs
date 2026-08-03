@@ -402,20 +402,23 @@ namespace Backup.Web.Api.Server.Controllers
 
         [HttpPost("compare-and-stock")]
         [RequirePermission(Permissions.DocumentLink)]
-        public async Task<IActionResult> CompareAndStock([FromQuery] int invoiceId, [FromQuery] int deliveryId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
+        public Task<IActionResult> CompareAndStock([FromQuery] int invoiceId, [FromQuery] int deliveryId, [FromQuery] bool forceUpdate = false)
         {
-            if (invoiceId <= 0 || deliveryId <= 0) return BadRequest("Ids required");
-            var updated = await stockService.UpdateFromDeliveryIfMatchAsync(invoiceId, deliveryId, ct, forceUpdate);
-            return Ok(new { success = updated });
+            // Stock is owned by Achats > Comptabiliser (BL): updates Stock + StockMovements.
+            return Task.FromResult<IActionResult>(Conflict(new
+            {
+                message = "L'alimentation du stock se fait via Achats > Comptabiliser (BL), pas via Comparer. Cela alimente Stock et StockMovements."
+            }));
         }
 
         [HttpPost("compare-and-stock-all-deliveries")]
         [RequirePermission(Permissions.DocumentLink)]
-        public async Task<IActionResult> CompareAndStockAllDeliveries([FromQuery] int invoiceId, [FromServices] Backup.Web.Api.Server.Services.Stock.IStockService stockService, CancellationToken ct, [FromQuery] bool forceUpdate = false)
+        public Task<IActionResult> CompareAndStockAllDeliveries([FromQuery] int invoiceId, [FromQuery] bool forceUpdate = false)
         {
-            if (invoiceId <= 0) return BadRequest("InvoiceId required");
-            var result = await stockService.UpdateFromAllDeliveriesForInvoiceAsync(invoiceId, ct, forceUpdate);
-            return Ok(result);
+            return Task.FromResult<IActionResult>(Conflict(new
+            {
+                message = "L'alimentation du stock se fait via Achats > Comptabiliser (BL), pas via Comparer. Cela alimente Stock et StockMovements."
+            }));
         }
 
         public class SaveAdjustmentRequest
@@ -612,6 +615,23 @@ namespace Backup.Web.Api.Server.Controllers
                     Ean = l.Ean,
                     InvoiceUnitPrice = l.UnitPrice
                 };
+
+                // 1) Catalogue local (produits créés manuellement / sync)
+                var local = await storage.SelectAllErpProducts().AsNoTracking()
+                    .Where(p =>
+                        (!string.IsNullOrWhiteSpace(l.Ean) && p.Ean != null && p.Ean.ToLower() == l.Ean.ToLower())
+                        || (!string.IsNullOrWhiteSpace(l.ProductCode) && (
+                            (p.Reference != null && p.Reference.ToLower() == l.ProductCode.ToLower())
+                            || (p.ErpProductId != null && p.ErpProductId.ToLower() == l.ProductCode.ToLower()))))
+                    .FirstOrDefaultAsync(ct);
+
+                if (local != null)
+                {
+                    diff.ErpUnitPrice = local.CPrice ?? local.UnitPrice ?? local.PriceHT;
+                    diff.Status = "OK";
+                    results.Add(diff);
+                    continue;
+                }
 
                 if (string.IsNullOrWhiteSpace(l.ProductCode))
                 {

@@ -9,6 +9,7 @@ using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -75,18 +76,31 @@ namespace Backup.Web.Api.Server.Controllers
         public async Task<IActionResult> Post([FromBody] PurchaseOrder order)
         {
             order.EnsureCompanyId(this.companyContext.GetCurrentCompanyId());
+
+            var supplier = await this.storage.SelectSupplierByIdAsync(order.SupplierId);
+            if (supplier == null) return BadRequest("Fournisseur introuvable.");
+            var partyErr = SalesBusinessRules.RejectIfPartyNotActive(supplier.Status, supplier.Name);
+            if (partyErr != null) return BadRequest(partyErr);
+            if (!supplier.IsActive)
+                return BadRequest($"Le fournisseur ({supplier.Name}) est inactif.");
+
             if (string.IsNullOrWhiteSpace(order.OrderNumber))
             {
                 order.OrderNumber = await this.numberingService.GetNextNumberAsync("PurchaseOrder", order.CompanyId);
             }
             order.Date = order.Date == default ? DateTime.UtcNow : order.Date;
             order.CreatedAt = DateTime.UtcNow;
-            
+            if (string.IsNullOrWhiteSpace(order.Status)) order.Status = "Draft";
+
+            // RG-CP1 : devise figée à la création depuis Company.DefaultCurrencyCode.
+            order.CurrencyCode = await SalesBusinessRules.ResolveCompanyCurrencyAsync(this.storage, order.CompanyId);
+
             order.TotalHT = order.Lines.Sum(l => l.Quantity * l.UnitPrice);
             order.TotalVat = order.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.VatRate / 100m));
             order.TotalTTC = order.TotalHT + order.TotalVat;
 
             var created = await this.storage.InsertPurchaseOrderAsync(order);
+            await this.AuditPurchaseOrder(created.Id, "Created", $"Création {created.OrderNumber} ({created.Status})");
             return Created(created);
         }
 
@@ -96,6 +110,12 @@ namespace Backup.Web.Api.Server.Controllers
         {
             var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
             if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            // RG-CF2 : modification libre réservée aux commandes Draft (Confirmed/Sent figées).
+            if (!string.Equals(existing.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest($"Une commande fournisseur au statut {existing.Status} ne peut plus être modifiée (Draft uniquement).");
+            }
 
             existing.SupplierId = order.SupplierId;
             existing.Date = order.Date;
@@ -110,6 +130,55 @@ namespace Backup.Web.Api.Server.Controllers
 
             var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
             return Ok(updated);
+        }
+
+        /// <summary>RG-CF2 : Draft → Confirmed.</summary>
+        [HttpPost("{id:int}/confirm")]
+        [RequirePermission(Permissions.PurchaseOrderUpdate)]
+        public async Task<IActionResult> Confirm(int id)
+        {
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            if (!string.Equals(existing.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+                return Conflict(new { error = $"Commande fournisseur déjà au statut {existing.Status}." });
+
+            existing.Status = "Confirmed";
+            var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
+            await this.AuditPurchaseOrder(updated.Id, "Confirmed", $"Confirmation {updated.OrderNumber}");
+            return Ok(updated);
+        }
+
+        /// <summary>RG-CF2 : Confirmed → Sent (envoi au fournisseur).</summary>
+        [HttpPost("{id:int}/send")]
+        [RequirePermission(Permissions.PurchaseOrderUpdate)]
+        public async Task<IActionResult> Send(int id)
+        {
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            if (!string.Equals(existing.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
+                return BadRequest($"Seule une commande Confirmée peut être envoyée (statut actuel : {existing.Status}).");
+
+            existing.Status = "Sent";
+            var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
+            await this.AuditPurchaseOrder(updated.Id, "Sent", $"Envoi {updated.OrderNumber}");
+            return Ok(updated);
+        }
+
+        [HttpGet("{id:int}/audit")]
+        [RequirePermission(Permissions.PurchaseOrderRead)]
+        public async Task<IActionResult> GetAudit(int id)
+        {
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            var logs = this.storage.SelectAllDocumentAuditLogs()
+                .Where(a => a.DocumentType == "PurchaseOrder" && a.DocumentId == id)
+                .AsEnumerable()
+                .OrderByDescending(a => a.CreatedAt)
+                .ToList();
+            return Ok(logs);
         }
 
         [HttpPost("{id:int}/receive-delivery")]
@@ -257,6 +326,58 @@ namespace Backup.Web.Api.Server.Controllers
             var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
             result.PurchaseOrder = updated;
             return Ok(result);
+        }
+
+        public class CancelRequest
+        {
+            public string? Reason { get; set; }
+        }
+
+        /// <summary>RG-CF5 : annulation possible tant qu'aucun BR / quantité reçue.</summary>
+        [HttpPost("{id:int}/cancel")]
+        [RequirePermission(Permissions.PurchaseOrderUpdate)]
+        public async Task<IActionResult> Cancel(int id, [FromBody] CancelRequest? request)
+        {
+            var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
+            if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                return NotFound();
+
+            if (string.Equals(existing.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                return Conflict(new { error = "Commande fournisseur déjà annulée." });
+
+            var anyReceived = (existing.Lines ?? new List<PurchaseOrderLine>())
+                .Any(l => l.ReceivedQuantity > 0.0001m);
+            if (anyReceived
+                || string.Equals(existing.Status, "PartiallyReceived", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "Received", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "Closed", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "Invoiced", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Annulation impossible : des réceptions existent déjà. Annulez d'abord le(s) bon(s) de réception.");
+            }
+
+            existing.Status = "Cancelled";
+            var motif = string.IsNullOrWhiteSpace(request?.Reason) ? "Annulation" : request!.Reason!.Trim();
+            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
+                ? motif
+                : $"{existing.Notes}{Environment.NewLine}{motif}";
+
+            var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
+            await this.AuditPurchaseOrder(updated.Id, "Cancelled", $"Annulation {updated.OrderNumber}", motif);
+            return Ok(updated);
+        }
+
+        private async Task AuditPurchaseOrder(int orderId, string action, string summary, string? details = null)
+        {
+            await SalesDocumentAudit.LogAsync(
+                this.storage,
+                this.companyContext.GetCurrentCompanyId(),
+                "PurchaseOrder",
+                orderId,
+                action,
+                SalesDocumentAudit.ActorFrom(User),
+                summary,
+                details);
         }
     }
 }

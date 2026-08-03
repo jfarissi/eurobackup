@@ -1,0 +1,84 @@
+<div class="form-help">
+  <div class="modal-title-row">
+    <div class="form-help-title">
+      <ng-content></ng-content>
+    </div>
+    <button
+      type="button"
+      class="form-help-btn"
+      [attr.aria-expanded]="open"
+      [attr.aria-label]="'help.aria.open' | t"
+      [matTooltip]="article?.n1 || ('help.aria.open' | t)"
+      matTooltipShowDelay="400"
+      (click)="toggle($event)">
+      <mat-icon>help_outline</mat-icon>
+    </button>
+  </div>
+
+  <div class="form-help-panel" *ngIf="open && article" role="region" [attr.aria-label]="'help.aria.open' | t">
+    <div class="form-help-panel-header">
+      <div>
+        <strong *ngIf="article.title">{{ article.title }}</strong>
+        <span class="form-help-n1" *ngIf="article.n1">{{ article.n1 }}</span>
+      </div>
+      <button type="button" class="form-help-close" (click)="close()" [attr.aria-label]="'common.close' | t">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <p class="form-help-p" *ngFor="let p of article.n2">{{ p }}</p>
+
+    <div class="form-help-rules" *ngIf="article.rules.length">
+      <div class="form-help-abbrs-title">{{ 'help.section.rules' | t }}</div>
+      <ul>
+        <li *ngFor="let r of article.rules">
+          <code *ngIf="r.id">{{ r.id }}</code>
+          <span>{{ r.text }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="form-help-example" *ngIf="article.example">
+      <div class="form-help-abbrs-title">{{ 'help.section.example' | t }}</div>
+      <p>{{ article.example }}</p>
+    </div>
+
+    <div class="form-help-abbrs" *ngIf="glossaryEntries.length">
+      <div class="form-help-abbrs-title">{{ 'help.section.abbreviations' | t }}</div>
+      <dl>
+        <ng-container *ngFor="let e of glossaryEntries">
+          <dt>{{ e.code }}</dt>
+          <dd>{{ e.label }}</dd>
+        </ng-container>
+      </dl>
+    </div>
+
+    <div class="form-help-guide" *ngIf="article.guideSteps.length">
+      <button type="button" class="form-help-link" (click)="toggleGuide()">
+        {{ showGuide ? ('help.guide.hide' | t) : ('help.guide.show' | t) }}
+      </button>
+      <button type="button" class="form-help-link" style="margin-left:12px" (click)="openWalkthrough()">
+        {{ 'help.guide.walkthrough' | t }}
+      </button>
+      <ol *ngIf="showGuide">
+        <li *ngFor="let step of article.guideSteps">{{ step }}</li>
+      </ol>
+    </div>
+
+    <div class="form-help-footer">
+      <div class="form-help-feedback">
+        <span>{{ 'help.feedback.ask' | t }}</span>
+        <button type="button" class="vote" [class.active]="feedback === 'up'" (click)="vote('up', $event)" [attr.aria-label]="'help.feedback.up' | t">
+          <mat-icon>thumb_up_off_alt</mat-icon>
+        </button>
+        <button type="button" class="vote" [class.active]="feedback === 'down'" (click)="vote('down', $event)" [attr.aria-label]="'help.feedback.down' | t">
+          <mat-icon>thumb_down_off_alt</mat-icon>
+        </button>
+      </div>
+      <div class="form-help-meta">
+        <button type="button" class="form-help-link" (click)="openInCenter()">{{ 'help.openCenter' | t }}</button>
+        <span class="form-help-version">{{ article.version }}</span>
+      </div>
+    </div>
+  </div>
+</div>

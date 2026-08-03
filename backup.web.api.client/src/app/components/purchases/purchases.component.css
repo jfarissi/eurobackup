@@ -403,9 +403,206 @@ a.btn-primary {
   height: 18px;
 }
 
+/* Onglets type classeur (reliés au panneau), 2 lignes */
+:host ::ng-deep .erp-flow-tabs > .mat-mdc-tab-header {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-header-pagination {
+  display: none !important;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-list,
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-labels {
+  flex-wrap: wrap !important;
+  transform: none !important;
+  width: 100% !important;
+  align-items: flex-end;
+  gap: 0 4px;
+  row-gap: 8px;
+  padding: 0 2px;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-label-container {
+  overflow: visible !important;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-labels::after {
+  content: '';
+  flex: 1 0 100%;
+  width: 100%;
+  height: 0;
+  order: 50;
+  border: none;
+  margin: 0;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab {
+  min-width: 7rem;
+  max-width: 100%;
+  height: 38px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid #94a3b8;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: #e2e8f0;
+  opacity: 1;
+  position: relative;
+  top: 1px;
+  z-index: 1;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab .mdc-tab__content {
+  padding: 0;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab .mdc-tab__text-label {
+  color: #475569;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:hover {
+  background: #f1f5f9;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:hover .mdc-tab__text-label {
+  color: #1e293b;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab.mdc-tab--active {
+  background: #fff;
+  border-color: #64748b;
+  z-index: 3;
+  box-shadow: none;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: #0f172a;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:nth-child(-n+6) {
+  flex: 1 1 14%;
+  order: 1;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:nth-child(n+7) {
+  flex: 0 1 auto;
+  order: 100;
+  background: #edf2f7;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:nth-child(n+7) .mdc-tab__text-label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:nth-child(n+7).mdc-tab--active {
+  background: #fff;
+  border-color: #64748b;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab:nth-child(n+7).mdc-tab--active .mdc-tab__text-label {
+  color: #0f172a;
+}
+
+:host ::ng-deep .erp-flow-tabs .mdc-tab-indicator {
+  display: none !important;
+}
+
+:host ::ng-deep .erp-flow-tabs > .mat-mdc-tab-body-wrapper {
+  border: 1px solid #64748b;
+  border-radius: 0 8px 8px 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+:host ::ng-deep .erp-flow-tabs .mat-mdc-tab-body-content {
+  overflow: visible !important;
+}
+
+:host ::ng-deep .erp-flow-tabs .table-container {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+}
+
+/* Docs parsés — lots FAC + BL */
+.parsed-groups-table .group-kind-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.parsed-groups-table .group-kind-chip[data-kind="linked"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.parsed-groups-table .group-kind-chip[data-kind="suggested"] {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.parsed-groups-table tr.group-suggested {
+  background: #fffbeb;
+}
+
+.parsed-groups-table tr.group-linked {
+  background: #f0fdf4;
+}
+
+.bl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bl-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.status-badge.mini {
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+.group-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 400;
+  cursor: pointer;
 }

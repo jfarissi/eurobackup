@@ -3,36 +3,32 @@ using System.Linq;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
-using Backup.Web.Api.Server.Models.Entities.SaaS;
-using Backup.Web.Api.Server.Models.Users;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Backup.Web.Api.Server.Services.Tenancy
 {
-    /// <summary>Import des fournisseurs Pulse (CompanyId aligné sur Pulse.Desktop).</summary>
+    /// <summary>Import des fournisseurs Pulse (CompanyId = société active par défaut).</summary>
     public class SupplierSeedService
     {
+        /// <summary>Legacy : fournisseurs importés avant alignement sur DefaultCompanyId.</summary>
         public const string PulseCompanyId = "0B470A4F-F073-4B12-B54E-A4C1DC234F67";
 
         private readonly IStorageBroker storage;
-        private readonly UserManager<User> userManager;
         private readonly ILogger<SupplierSeedService> logger;
 
         public SupplierSeedService(
             IStorageBroker storage,
-            UserManager<User> userManager,
             ILogger<SupplierSeedService> logger)
         {
             this.storage = storage;
-            this.userManager = userManager;
             this.logger = logger;
         }
 
         public async Task EnsurePulseSuppliersAsync()
         {
-            await this.EnsurePulseCompanyAsync();
+            var companyId = TenancySeedService.DefaultCompanyId;
+            await this.MigrateLegacySupplierCompanyIdsAsync(companyId);
 
             foreach (var seed in PulseSuppliers)
             {
@@ -48,52 +44,41 @@ namespace Backup.Web.Api.Server.Services.Tenancy
                     existing.PaymentTerms = seed.PaymentTerms;
                     existing.LeadTimeDays = seed.LeadTimeDays;
                     existing.IsActive = seed.IsActive;
-                    existing.CompanyId = PulseCompanyId;
+                    existing.CompanyId = companyId;
                     existing.UpdatedAt = DateTime.UtcNow;
                     await this.storage.UpdateSupplierAsync(existing);
                     continue;
                 }
 
-                seed.CompanyId = PulseCompanyId;
+                seed.CompanyId = companyId;
                 await this.storage.InsertSupplierAsync(seed);
                 this.logger.LogInformation("Imported Pulse supplier {Code} — {Name}", seed.SupplierCode, seed.Name);
             }
         }
 
-        private async Task EnsurePulseCompanyAsync()
+        /// <summary>
+        /// Les fournisseurs étaient rattachés à PulseCompanyId alors que les utilisateurs
+        /// sont sur DefaultCompanyId → liste vide côté API (filtre ForCompany).
+        /// </summary>
+        private async Task MigrateLegacySupplierCompanyIdsAsync(string targetCompanyId)
         {
-            var company = await this.storage.SelectCompanyByIdAsync(PulseCompanyId);
-            if (company == null)
-            {
-                var tenantId = await this.storage.SelectAllTenants()
-                    .Select(t => t.Id)
-                    .FirstOrDefaultAsync() ?? TenancySeedService.DefaultTenantId;
+            var legacy = await this.storage.SelectAllSuppliers()
+                .Where(s => s.CompanyId == PulseCompanyId || s.CompanyId == null || s.CompanyId == "")
+                .ToListAsync();
 
-                await this.storage.InsertCompanyAsync(new Company
-                {
-                    Id = PulseCompanyId,
-                    TenantId = tenantId,
-                    Name = "Euro Brico",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow
-                });
-                this.logger.LogInformation("Created Pulse company {CompanyId}", PulseCompanyId);
+            if (legacy.Count == 0) return;
+
+            foreach (var supplier in legacy)
+            {
+                supplier.CompanyId = targetCompanyId;
+                supplier.UpdatedAt = DateTime.UtcNow;
+                await this.storage.UpdateSupplierAsync(supplier);
             }
 
-            var users = await this.userManager.Users.ToListAsync();
-            foreach (var user in users)
-            {
-                var hasLink = await this.storage.SelectUserCompaniesByUserId(user.Id)
-                    .AnyAsync(uc => uc.CompanyId == PulseCompanyId);
-                if (!hasLink)
-                {
-                    await this.storage.InsertUserCompanyAsync(new UserCompany
-                    {
-                        UserId = user.Id,
-                        CompanyId = PulseCompanyId
-                    });
-                }
-            }
+            this.logger.LogInformation(
+                "Migrated {Count} supplier(s) to company {CompanyId}",
+                legacy.Count,
+                targetCompanyId);
         }
 
         private static readonly Supplier[] PulseSuppliers =

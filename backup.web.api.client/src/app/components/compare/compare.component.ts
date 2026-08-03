@@ -16,15 +16,25 @@ import {
 } from '../../utils/comparison-excel.util';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import {
+  CreateProductFromLineComponent,
+  CreateProductLineDraft
+} from '../shared/create-product-from-line/create-product-from-line.component';
+import { CreateErpProductResult } from '../../models/erp-product';
+import { PermissionService } from '../../services/permission.service';
+import { Permissions } from '../../constants/permissions';
+import { CompanyService } from '../../services/company.service';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
 
 @Component({
   selector: 'app-compare',
   templateUrl: './compare.component.html',
   styleUrls: ['./compare.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, CreateProductFromLineComponent, FormHelpComponent]
 })
 export class CompareComponent implements OnInit {
+  readonly P = Permissions;
   documents: Document[] = [];
   factures: Document[] = [];
   bonsLivraison: Document[] = [];
@@ -33,8 +43,7 @@ export class CompareComponent implements OnInit {
   relations: DocumentRelation[] = [];
   relationMap: Record<number, string> = {};
   invoiceToDeliveriesMap: Record<number, Document[]> = {}; // Map facture -> BL associés
-  batchStatusMap: Record<number, { updated: number; total: number }> = {};
-  
+
   // Paramètres depuis la route (pour un BL uploadé)
   blId: number | null = null;
   blNumber: string | null = null;
@@ -53,12 +62,22 @@ export class CompareComponent implements OnInit {
   
   expandedInvoiceId: number | null = null;
 
+  showCreateProductModal = false;
+  createProductDraft: CreateProductLineDraft | null = null;
+  loadError = '';
+
+  get activeCompanyName(): string {
+    return this.companyService.activeCompanyName() || '—';
+  }
+
   constructor(
     private docs: DocumentService,
     private snack: MatSnackBar,
     private route: ActivatedRoute,
     private router: Router,
-    private i18n: AppI18nService
+    private i18n: AppI18nService,
+    public perm: PermissionService,
+    private companyService: CompanyService
   ) {}
 
   ngOnInit(): void {
@@ -79,21 +98,32 @@ export class CompareComponent implements OnInit {
   }
 
   load() {
-    this.docs.list().subscribe(d => {
-      this.documents = d;
-      this.partitionDocuments(d);
-      this.applySupplierFilterIfNeeded();
+    this.loadError = '';
+    this.docs.list().subscribe({
+      next: (d) => {
+        this.documents = d;
+        this.partitionDocuments(d);
+        this.applySupplierFilterIfNeeded();
       
-      // Si on arrive depuis l'upload avec un blId, sélectionner automatiquement le BL
-      if (this.blId && !this.selectedDelivery) {
-        const bl = this.bonsLivraison.find(b => b.id === this.blId);
-        if (bl) {
-          this.selectedDelivery = bl;
+        // Si on arrive depuis l'upload avec un blId, sélectionner automatiquement le BL
+        if (this.blId && !this.selectedDelivery) {
+          const bl = this.bonsLivraison.find(b => b.id === this.blId);
+          if (bl) {
+            this.selectedDelivery = bl;
+          }
         }
-      }
       
-      // Recharger les relations pour mettre à jour la map
-      this.loadRelations();
+        // Recharger les relations pour mettre à jour la map
+        this.loadRelations();
+      },
+      error: (err) => {
+        this.documents = [];
+        this.factures = [];
+        this.bonsLivraison = [];
+        this.autresDocuments = [];
+        this.loadError = err?.error?.message || err?.message || this.i18n.t('compare.empty.loadError');
+        this.snack.open(this.loadError, this.i18n.t('common.ok'), { duration: 4000 });
+      }
     });
   }
 
@@ -140,9 +170,10 @@ export class CompareComponent implements OnInit {
 
   private applySupplierFilterIfNeeded() {
     if (!this.supplier) return;
-    this.factures = this.factures.filter(f => f.supplier === this.supplier);
-    this.bonsLivraison = this.bonsLivraison.filter(b => b.supplier === this.supplier);
-    this.autresDocuments = this.autresDocuments.filter(x => x.supplier === this.supplier);
+    const s = this.supplier.trim().toLowerCase();
+    this.factures = this.factures.filter(f => (f.supplier || '').trim().toLowerCase() === s);
+    this.bonsLivraison = this.bonsLivraison.filter(b => (b.supplier || '').trim().toLowerCase() === s);
+    this.autresDocuments = this.autresDocuments.filter(x => (x.supplier || '').trim().toLowerCase() === s);
   }
 
   /** BL / livraison : testé en premier pour éviter les faux positifs « facture » dans le texte. */
@@ -273,18 +304,29 @@ export class CompareComponent implements OnInit {
     });
   }
 
-  onActualQuantityChange(line: any, event: any) {
-    const value = event.target?.value;
+  displayActualQty(line: any): number | null {
+    if (line?.actualQuantity === null || line?.actualQuantity === undefined || line?.actualQuantity === '') {
+      return line?.deliveryQty ?? null;
+    }
+    return Number(line.actualQuantity);
+  }
+
+  onActualQuantityModelChange(line: any, value: number | string | null) {
     if (value === '' || value === null || value === undefined) {
       line.actualQuantity = null;
-    } else {
-      const numValue = Number(value);
-      line.actualQuantity = isNaN(numValue) ? null : numValue;
+      return;
     }
+    const numValue = typeof value === 'number' ? value : Number(value);
+    line.actualQuantity = Number.isFinite(numValue) ? numValue : null;
   }
 
   saveAdjustment(line: any) {
-    if (!this.comparaisonResult || !this.selectedInvoice || !this.selectedDelivery) {
+    const invoiceId = this.comparaisonResult?.invoiceId;
+    const deliveryId = this.comparaisonResult?.deliveryId;
+    if (!invoiceId || !deliveryId || deliveryId <= 0) {
+      return;
+    }
+    if (!line?.productKey) {
       return;
     }
 
@@ -293,8 +335,8 @@ export class CompareComponent implements OnInit {
 
     // Sauvegarder l'ajustement sans validation (ou réinitialiser la validation si la quantité a changé)
     this.docs.saveAdjustment({
-      deliveryId: this.comparaisonResult.deliveryId,
-      invoiceId: this.comparaisonResult.invoiceId,
+      deliveryId,
+      invoiceId,
       documentLineId: line.documentLineId ?? null,
       productKey: line.productKey,
       deliveryQuantity: line.deliveryQty,
@@ -358,9 +400,9 @@ export class CompareComponent implements OnInit {
         next: (response) => {
           console.log('Validation response:', response);
           line.isValidated = true;
-          const message = line.stockUpdated 
-            ? 'Quantité réelle validée. Cliquez sur "Mettre à jour le stock (correction)" pour appliquer la correction.'
-            : 'Quantité réelle validée avec succès';
+          const message = line.stockUpdated
+            ? this.i18n.t('compare.snack.qtyValidatedTooLate')
+            : this.i18n.t('compare.snack.qtyValidatedForCompta');
           this.snack.open(message, 'OK', { duration: 4000 });
           // Recharger la comparaison pour mettre à jour les différences et recharger les ajustements
           setTimeout(() => {
@@ -438,63 +480,6 @@ export class CompareComponent implements OnInit {
     });
   }
 
-  compareAndStock(invoiceId: number, deliveryId: number, forceUpdate: boolean = false) {
-    this.docs.compareAndStock(invoiceId, deliveryId, forceUpdate).subscribe({
-      next: (r) => {
-        if (r.success) {
-          const message = forceUpdate 
-            ? this.i18n.t('compare.snack.stockCorrected') 
-            : this.i18n.t('compare.snack.stockUpdated');
-          this.snack.open(message, this.i18n.t('common.ok'), { duration: 2500 });
-          // Recharger la comparaison pour mettre à jour le statut stockUpdated
-          setTimeout(() => {
-            this.compare(invoiceId, deliveryId);
-          }, 500);
-        } else {
-          this.snack.open(this.i18n.t('compare.snack.stockSkippedDiffs'), this.i18n.t('common.ok'), { duration: 3000 });
-        }
-      },
-      error: (e) => {
-        console.error(e);
-        const errorMessage = e.error?.message || 'Erreur lors de l\'alimentation du stock';
-        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
-      }
-    });
-  }
-
-  compareAndStockAllDeliveries(invoiceId: number, forceUpdate: boolean = false) {
-    this.docs.compareAndStockAllDeliveries(invoiceId, forceUpdate).subscribe({
-      next: (r) => {
-        if (r.totalDeliveries === 0) {
-          this.snack.open(this.i18n.t('compare.snack.noLinkedBl'), this.i18n.t('common.ok'), { duration: 3000 });
-          return;
-        }
-
-        const actionLabel = forceUpdate ? 'correction stock' : 'comparaison + stock';
-        this.batchStatusMap[invoiceId] = { updated: r.updatedDeliveries, total: r.totalDeliveries };
-        this.snack.open(
-          `${actionLabel}: ${r.updatedDeliveries}/${r.totalDeliveries} BL traités`,
-          'OK',
-          { duration: 3500 }
-        );
-
-        this.loadRelations();
-        if (this.comparaisonResult && this.comparaisonResult.invoiceId === invoiceId && this.comparaisonResult.deliveryId > 0) {
-          this.compare(this.comparaisonResult.invoiceId, this.comparaisonResult.deliveryId);
-        }
-      },
-      error: (e) => {
-        console.error(e);
-        const errorMessage = e.error?.message || 'Erreur lors du traitement des BL';
-        this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
-      }
-    });
-  }
-
-  getBatchStatus(invoiceId: number): { updated: number; total: number } | null {
-    return this.batchStatusMap[invoiceId] ?? null;
-  }
-
   reparseDocument(documentId: number) {
     if (!documentId) return;
     this.docs.reparseLines(documentId, false).subscribe({
@@ -523,15 +508,6 @@ export class CompareComponent implements OnInit {
         this.snack.open(errorMessage, this.i18n.t('common.close'), { duration: 3000 });
       }
     });
-  }
-
-  hasCorrectedQuantities(): boolean {
-    if (!this.comparaisonResult || !this.comparaisonResult.lines) {
-      return false;
-    }
-    return this.comparaisonResult.lines.some(line => 
-      line.stockUpdated && line.isValidated && line.actualQuantity !== null && line.actualQuantity !== line.deliveryQty
-    );
   }
 
   hasQuantityChanged(line: any): boolean {
@@ -679,6 +655,35 @@ export class CompareComponent implements OnInit {
       ?? String(this.erpPriceComparisonInvoice?.id ?? 'facture');
     exportErpPriceToExcel(this.erpPriceComparisonResult, label);
     this.snack.open(this.i18n.t('compare.snack.excelDownloaded'), this.i18n.t('common.ok'), { duration: 2000 });
+  }
+
+  canCreateMissingProduct(line: ErpPriceDiffLine): boolean {
+    return line.status !== 'OK' && this.perm.has(Permissions.ProductCreate);
+  }
+
+  openCreateProduct(line: ErpPriceDiffLine): void {
+    this.createProductDraft = {
+      name: line.product,
+      reference: line.productCode,
+      ean: line.ean,
+      purchasePrice: line.invoiceUnitPrice,
+      supplierName: this.erpPriceComparisonInvoice?.supplier || this.supplier
+    };
+    this.showCreateProductModal = true;
+  }
+
+  onProductCreated(result: CreateErpProductResult): void {
+    this.showCreateProductModal = false;
+    this.createProductDraft = null;
+    this.snack.open(
+      result.created ? this.i18n.t('createProduct.created') : this.i18n.t('createProduct.alreadyExists'),
+      this.i18n.t('common.ok'),
+      { duration: 3000 }
+    );
+    const invoiceId = this.erpPriceComparisonInvoice?.id;
+    if (invoiceId) {
+      this.compareWithErp(invoiceId);
+    }
   }
 
   exportAllComparisonsExcel(): void {

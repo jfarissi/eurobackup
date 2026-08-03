@@ -2,7 +2,9 @@
   <section class="erp-subheader">
     <div class="erp-subheader-inner">
       <div class="erp-title-block">
-        <h2>{{ 'erpChanges.title' | t }}</h2>
+        <app-form-help helpKey="erpChanges.tabs" [abbrs]="['ERP']">
+          <h2>{{ 'erpChanges.title' | t }}</h2>
+        </app-form-help>
         <p>{{ 'erpChanges.subtitle' | t }}</p>
       </div>
 

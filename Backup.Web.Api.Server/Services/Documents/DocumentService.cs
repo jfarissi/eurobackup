@@ -58,15 +58,17 @@ namespace Backup.Web.Api.Server.Services.Documents
         {
             if (file == null || file.Length == 0) throw new ArgumentException("file");
 
-            // Vérifier les doublons avant l'upload
+                    // Vérifier les doublons avant l'upload (par société)
             if (!string.IsNullOrWhiteSpace(numero))
             {
+                var companyId = this.companyContext.GetCurrentCompanyId();
                 var existing = this.storageBroker.SelectAllDocuments()
-                    .Where(d => d.TypeDocument == typeDocument && 
+                    .ForCompany(companyId)
+                    .Where(d => d.TypeDocument == typeDocument &&
                                d.Numero == numero &&
                                (string.IsNullOrWhiteSpace(supplier) || d.Supplier == supplier))
                     .FirstOrDefault();
-                
+
                 if (existing != null)
                 {
                     throw new InvalidOperationException($"Un document avec le numéro '{numero}' de type '{typeDocument}'{(string.IsNullOrWhiteSpace(supplier) ? "" : $" du fournisseur '{supplier}'")} existe déjà (ID: {existing.Id}).");

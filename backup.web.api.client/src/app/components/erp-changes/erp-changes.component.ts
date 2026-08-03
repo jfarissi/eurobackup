@@ -11,13 +11,14 @@ import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
 
 @Component({
   selector: 'app-erp-changes',
   templateUrl: './erp-changes.component.html',
   styleUrls: ['./erp-changes.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent]
 })
 export class ErpChangesComponent implements OnInit, OnDestroy {
   changes: ErpProductChange[] = [];

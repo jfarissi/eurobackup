@@ -1,7 +1,9 @@
 <div class="purchases-container">
   <div class="purchases-header">
     <div>
-      <h2>{{ 'purchases.title' | t }}</h2>
+      <app-form-help [helpKey]="activeTabHelpKey" [abbrs]="activeTabHelpAbbrs">
+        <h2>{{ 'purchases.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'purchases.subtitle' | t }}</p>
     </div>
     <div class="header-actions">
@@ -12,10 +14,10 @@
         [placeholder]="'purchases.searchPlaceholder' | t"
         class="search-input" />
       <button
-        *ngIf="selectedTab === 0"
+        *ngIf="selectedTab === 3"
         class="btn-secondary"
         type="button"
-        (click)="selectedTab = 2">
+        (click)="selectedTab = 7; onSearch()">
         <mat-icon>description</mat-icon>
         {{ 'purchases.btn.parsedDocuments' | t }}
       </button>
@@ -23,7 +25,7 @@
         <mat-icon>{{ createButtonIcon }}</mat-icon>
         {{ createButtonLabel }}
       </button>
-      <a *ngIf="selectedTab === 2 && perm.has(P.DocumentUpload)" class="btn-primary" routerLink="/upload">
+      <a *ngIf="selectedTab === 7 && perm.has(P.DocumentUpload)" class="btn-primary" routerLink="/upload">
         <mat-icon>cloud_upload</mat-icon>
         {{ 'purchases.btn.uploadDocument' | t }}
       </a>
@@ -33,113 +35,47 @@
   <div class="success-box" *ngIf="actionMessage || highlightMessage">
     {{ actionMessage || highlightMessage }}
   </div>
-
-  <mat-tab-group [(selectedIndex)]="selectedTab" (selectedIndexChange)="onSearch()">
+  <mat-tab-group class="erp-flow-tabs" [(selectedIndex)]="selectedTab" (selectedIndexChange)="onSearch()">
+    <!-- DPF (primary) -->
     <mat-tab>
-      <ng-template mat-tab-label>{{ 'purchases.tab.supplierInvoices' | t }}</ng-template>
+      <ng-template mat-tab-label>{{ 'purchases.tab.rfqs' | t }}</ng-template>
       <div class="table-container">
+        <div style="padding: 12px 16px 0;" *ngIf="perm.has(P.PurchaseOrderCreate)">
+          <button class="btn-secondary" type="button" (click)="openRfqModal()">{{ 'purchases.rfqs.btn.new' | t }}</button>
+        </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th>{{ 'purchases.rfqs.col.number' | t }}</th>
               <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'purchases.col.document' | t }}</th>
-              <th>{{ 'purchases.col.order' | t }}</th>
               <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'purchases.col.dueDate' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
               <th>{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let invoice of supplierInvoices">
-              <tr [class.highlight-row]="isHighlightedInvoice(invoice)">
-                <td>
-                  <button class="expand-btn" type="button" (click)="toggleSupplierInvoiceDetail(invoice)" [attr.aria-expanded]="isExpanded('SupplierInvoice', invoice.id)">
-                    <mat-icon>{{ isExpanded('SupplierInvoice', invoice.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </button>
-                  <strong>{{ invoice.invoiceNumber }}</strong>
-                </td>
-                <td>{{ supplierName(invoice) }}</td>
-                <td>{{ invoice.documentId ? ('#' + invoice.documentId) : '-' }}</td>
-                <td>{{ invoice.purchaseOrder?.orderNumber || (invoice.purchaseOrderId ? ('#' + invoice.purchaseOrderId) : '-') }}</td>
-                <td>{{ invoice.date | date:'dd/MM/yyyy' }}</td>
-                <td>{{ invoice.dueDate | date:'dd/MM/yyyy' }}</td>
-                <td>{{ invoice.totalHT | currency:'EUR' }}</td>
-                <td><strong>{{ invoice.totalTTC | currency:'EUR' }}</strong></td>
-                <td><span class="status-badge" [ngClass]="invoice.status.toLowerCase()">{{ invoice.status }}</span></td>
-                <td class="actions-cell">
-                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('SupplierInvoice', invoice.id, (invoice.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.SupplierInvoiceRead)">PDF</button>
-                  <button class="btn-sm" (click)="openLinkDocumentModal(invoice)" *ngIf="!invoice.documentId && perm.has(P.DocumentLink)">
-                    {{ 'purchases.btn.linkDocument' | t }}
-                  </button>
-                  <button class="btn-sm" (click)="openMatchPurchaseOrderModal(invoice)" *ngIf="!invoice.purchaseOrderId && perm.has(P.SupplierInvoiceCreate)">
-                    {{ 'purchases.btn.matchOrder' | t }}
-                  </button>
-                </td>
-              </tr>
-              <tr *ngIf="isExpanded('SupplierInvoice', invoice.id)" class="detail-expand-row">
-                <td colspan="10">
-                  <div class="expanded-content">
-                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
-                    <ng-container *ngIf="!detailLoading && detailSupplierInvoice as doc">
-                      <div class="detail-meta">
-                        <span><strong>{{ detailTitle }}</strong></span>
-                        <span>{{ 'purchases.label.supplier' | t }} <strong>{{ detailPartyName }}</strong></span>
-                        <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.date | date:'dd/MM/yyyy' }}</strong></span>
-                        <span>{{ 'purchases.label.status' | t }} <span class="status-badge" [ngClass]="doc.status.toLowerCase()">{{ doc.status }}</span></span>
-                        <span *ngIf="doc.documentId">{{ 'purchases.label.document' | t }} <strong>#{{ doc.documentId }}</strong></span>
-                        <span *ngIf="doc.purchaseOrder?.orderNumber">{{ 'purchases.label.order' | t }} <strong>{{ doc.purchaseOrder?.orderNumber }}</strong></span>
-                      </div>
-                      <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
-                      <table class="data-table nested">
-                        <thead>
-                          <tr>
-                            <th>{{ 'common.ref' | t }}</th>
-                            <th>{{ 'common.description' | t }}</th>
-                            <th>{{ 'common.qty' | t }}</th>
-                            <th>{{ 'common.unitPriceHt' | t }}</th>
-                            <th>{{ 'common.vatPercent' | t }}</th>
-                            <th>{{ 'common.totalHt' | t }}</th>
-                            <th>{{ 'common.totalTtc' | t }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr *ngFor="let line of detailLines">
-                            <td>{{ line.productKey || '-' }}</td>
-                            <td>{{ line.description || '-' }}</td>
-                            <td>{{ line.quantity }}</td>
-                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
-                            <td>{{ line.vatRate }}%</td>
-                            <td>{{ line.totalHT | currency:'EUR' }}</td>
-                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
-                          </tr>
-                          <tr *ngIf="detailLines.length === 0">
-                            <td colspan="7" class="empty">{{ 'common.noLines' | t }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      <div class="totals-box">
-                        <div>{{ 'common.totalHt' | t }}: <strong>{{ doc.totalHT | currency:'EUR' }}</strong></div>
-                        <div>{{ 'common.totalVat' | t }}: <strong>{{ doc.totalVat | currency:'EUR' }}</strong></div>
-                        <div>{{ 'common.totalTtc' | t }}: <strong>{{ doc.totalTTC | currency:'EUR' }}</strong></div>
-                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
-                      </div>
-                    </ng-container>
-                  </div>
-                </td>
-              </tr>
-            </ng-container>
-            <tr *ngIf="supplierInvoices.length === 0">
-              <td colspan="10" class="empty">{{ 'purchases.empty.supplierInvoices' | t }}</td>
+            <tr *ngFor="let r of supplierRfqs">
+              <td><strong>{{ r.rfqNumber }}</strong></td>
+              <td>{{ r.supplier?.name || ('purchases.supplierHash' | t:{id: r.supplierId}) }}</td>
+              <td>{{ r.date | date:'dd/MM/yyyy' }}</td>
+              <td><span class="status-badge" [ngClass]="r.status.toLowerCase()">{{ r.status }}</span></td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="sendSupplierRfq(r)" *ngIf="canSendRfq(r)">{{ 'purchases.rfqs.btn.send' | t }}</button>
+                <button class="btn-sm" type="button" (click)="convertRfqToPurchaseOrder(r)" *ngIf="canConvertRfq(r)">{{ 'purchases.rfqs.btn.convert' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelSupplierRfq(r)" *ngIf="canCancelRfq(r)">{{ 'common.cancel' | t }}</button>
+                <button class="icon-action delete" type="button" (click)="deleteSupplierRfq(r)" [title]="'common.delete' | t" *ngIf="canDeleteRfq(r)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="supplierRfqs.length === 0">
+              <td colspan="5" class="empty">{{ 'purchases.rfqs.empty' | t }}</td>
             </tr>
           </tbody>
         </table>
       </div>
     </mat-tab>
-
+    <!-- CDF (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'purchases.tab.purchaseOrders' | t }}</ng-template>
       <div class="table-container">
@@ -238,71 +174,7 @@
         </table>
       </div>
     </mat-tab>
-
-    <mat-tab>
-      <ng-template mat-tab-label>{{ 'purchases.tab.parsedDocuments' | t }}</ng-template>
-      <div class="table-container">
-        <p class="hint" style="padding: 12px 16px 0;">
-          {{ 'purchases.hint.parsedDocuments' | t }}
-        </p>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ 'purchases.col.documentNumber' | t }}</th>
-              <th>{{ 'purchases.col.type' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'purchases.col.file' | t }}</th>
-              <th>{{ 'purchases.col.documentDate' | t }}</th>
-              <th>{{ 'purchases.col.addedAt' | t }}</th>
-              <th>{{ 'purchases.col.target' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'common.actions' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let doc of parsedDocuments()">
-              <td><strong>{{ doc.numero || ('#' + doc.id) }}</strong></td>
-              <td>
-                <span class="type-chip" [class.bl]="isDeliveryDocument(doc)" [class.invoice]="isInvoiceDocument(doc)">
-                  {{ doc.typeDocument || (isInvoiceDocument(doc) ? ('purchases.type.invoice' | t) : ('purchases.type.deliveryNote' | t)) }}
-                </span>
-              </td>
-              <td>{{ doc.supplier || '-' }}</td>
-              <td>{{ doc.originalFileName }}</td>
-              <td>{{ doc.dateDocument ? (doc.dateDocument | date:'dd/MM/yyyy') : '-' }}</td>
-              <td>{{ doc.dateAdded | date:'dd/MM/yyyy HH:mm' }}</td>
-              <td>
-                <span *ngIf="isDocumentComptabilise(doc)">
-                  {{ comptabilisationTargetKind(doc) }} {{ comptabilisationTargetLabel(doc) }}
-                </span>
-                <span *ngIf="!isDocumentComptabilise(doc)">-</span>
-              </td>
-              <td>
-                <span class="status-badge" [class.received]="isDocumentComptabilise(doc)" [class.draft]="!isDocumentComptabilise(doc)">
-                  {{ isDocumentComptabilise(doc) ? ('purchases.status.comptabilise' | t) : ('purchases.status.pending' | t) }}
-                </span>
-              </td>
-              <td class="actions-cell">
-                <button
-                  class="btn-sm"
-                  type="button"
-                  (click)="openComptabiliserModal(doc)"
-                  *ngIf="!isDocumentComptabilise(doc) && (perm.has(P.ReceiptCreate) || perm.has(P.SupplierInvoiceCreate))">
-                  {{ 'purchases.btn.comptabiliser' | t }}
-                </button>
-              </td>
-            </tr>
-            <tr *ngIf="parsedDocuments().length === 0">
-              <td colspan="9" class="empty">
-                {{ 'purchases.empty.parsedDocuments' | t }}
-                <a class="btn-link" routerLink="/upload" *ngIf="perm.has(P.DocumentUpload)">{{ 'purchases.btn.uploadDocument' | t }}</a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-tab>
-
+    <!-- Réceptions (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'purchases.tab.receipts' | t }}</ng-template>
       <div class="table-container">
@@ -398,7 +270,152 @@
         </table>
       </div>
     </mat-tab>
-
+    <!-- Factures F (primary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.supplierInvoices' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'purchases.col.document' | t }}</th>
+              <th>{{ 'purchases.col.order' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'purchases.col.dueDate' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let invoice of supplierInvoices">
+              <tr [class.highlight-row]="isHighlightedInvoice(invoice)">
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleSupplierInvoiceDetail(invoice)" [attr.aria-expanded]="isExpanded('SupplierInvoice', invoice.id)">
+                    <mat-icon>{{ isExpanded('SupplierInvoice', invoice.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ invoice.invoiceNumber }}</strong>
+                </td>
+                <td>{{ supplierName(invoice) }}</td>
+                <td>{{ invoice.documentId ? ('#' + invoice.documentId) : '-' }}</td>
+                <td>{{ invoice.purchaseOrder?.orderNumber || (invoice.purchaseOrderId ? ('#' + invoice.purchaseOrderId) : '-') }}</td>
+                <td>{{ invoice.date | date:'dd/MM/yyyy' }}</td>
+                <td>{{ invoice.dueDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ invoice.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ invoice.totalTTC | currency:'EUR' }}</strong></td>
+                <td><span class="status-badge" [ngClass]="invoice.status.toLowerCase()">{{ invoice.status }}</span></td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('SupplierInvoice', invoice.id, (invoice.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.SupplierInvoiceRead)">PDF</button>
+                  <button class="btn-sm" (click)="openLinkDocumentModal(invoice)" *ngIf="!invoice.documentId && perm.has(P.DocumentLink)">
+                    {{ 'purchases.btn.linkDocument' | t }}
+                  </button>
+                  <button class="btn-sm" (click)="openMatchPurchaseOrderModal(invoice)" *ngIf="!invoice.purchaseOrderId && perm.has(P.SupplierInvoiceCreate)">
+                    {{ 'purchases.btn.matchOrder' | t }}
+                  </button>
+                  <button class="btn-sm secondary" (click)="approveSupplierInvoice(invoice)" *ngIf="invoice.status === 'ApprovalRequired' && perm.has(P.SupplierInvoiceCreate)">
+                    {{ 'purchases.btn.approveMatch' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('SupplierInvoice', invoice.id)" class="detail-expand-row">
+                <td colspan="10">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailSupplierInvoice as doc">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'purchases.label.supplier' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'purchases.label.status' | t }} <span class="status-badge" [ngClass]="doc.status.toLowerCase()">{{ doc.status }}</span></span>
+                        <span *ngIf="doc.documentId">{{ 'purchases.label.document' | t }} <strong>#{{ doc.documentId }}</strong></span>
+                        <span *ngIf="doc.purchaseOrder?.orderNumber">{{ 'purchases.label.order' | t }} <strong>{{ doc.purchaseOrder?.orderNumber }}</strong></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.qty' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailLines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="detailLines.length === 0">
+                            <td colspan="7" class="empty">{{ 'common.noLines' | t }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-box">
+                        <div>{{ 'common.totalHt' | t }}: <strong>{{ doc.totalHT | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalVat' | t }}: <strong>{{ doc.totalVat | currency:'EUR' }}</strong></div>
+                        <div>{{ 'common.totalTtc' | t }}: <strong>{{ doc.totalTTC | currency:'EUR' }}</strong></div>
+                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="supplierInvoices.length === 0">
+              <td colspan="10" class="empty">{{ 'purchases.empty.supplierInvoices' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- AF (primary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.supplierCreditNotes' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.supplierCreditNotes.col.number' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let c of supplierCreditNotes">
+              <td><strong>{{ c.creditNoteNumber }}</strong></td>
+              <td>{{ c.supplier?.name || ('purchases.supplierHash' | t:{id: c.supplierId}) }}</td>
+              <td>{{ c.supplierInvoice?.invoiceNumber || ('#' + c.supplierInvoiceId) }}</td>
+              <td>{{ c.date | date:'dd/MM/yyyy' }}</td>
+              <td><strong>{{ c.totalTTC | currency:'EUR' }}</strong></td>
+              <td><span class="status-badge" [ngClass]="c.status.toLowerCase()">{{ c.status }}</span></td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="validateSupplierCreditNote(c)" *ngIf="canValidateSupplierCreditNote(c)">{{ 'common.validate' | t }}</button>
+                <button class="btn-sm" type="button" (click)="applySupplierCreditNote(c)" *ngIf="canApplySupplierCreditNote(c)">{{ 'purchases.supplierCreditNotes.btn.apply' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelSupplierCreditNote(c)" *ngIf="canCancelSupplierCreditNote(c)">{{ 'common.cancel' | t }}</button>
+              </td>
+            </tr>
+            <tr *ngIf="supplierCreditNotes.length === 0">
+              <td colspan="7" class="empty">{{ 'purchases.supplierCreditNotes.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Fournisseurs (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'purchases.tab.suppliers' | t }}</ng-template>
       <div class="table-container">
@@ -438,11 +455,123 @@
         </table>
       </div>
     </mat-tab>
+    <!-- BRF (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.supplierReturns' | t }}</ng-template>
+      <div class="table-container">
+        <div style="padding: 12px 16px 0;" *ngIf="perm.has(P.PurchaseOrderCreate)">
+          <button class="btn-secondary" type="button" (click)="openSupplierReturnModal()">{{ 'purchases.supplierReturns.btn.new' | t }}</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.supplierReturns.col.number' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of supplierReturns">
+              <td><strong>{{ r.returnNumber }}</strong></td>
+              <td>{{ r.supplier?.name || ('purchases.supplierHash' | t:{id: r.supplierId}) }}</td>
+              <td>{{ r.date | date:'dd/MM/yyyy' }}</td>
+              <td><strong>{{ r.totalTTC | currency:'EUR' }}</strong></td>
+              <td><span class="status-badge" [ngClass]="r.status.toLowerCase()">{{ r.status }}</span></td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="shipSupplierReturn(r)" *ngIf="canShipSupplierReturn(r)">{{ 'purchases.supplierReturns.btn.ship' | t }}</button>
+                <button class="btn-sm" type="button" (click)="createCreditNoteFromSupplierReturn(r)" *ngIf="canCreateCreditNoteForSupplierReturn(r)">{{ 'purchases.supplierReturns.btn.createCreditNote' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelSupplierReturn(r)" *ngIf="canCancelSupplierReturn(r)">{{ 'common.cancel' | t }}</button>
+              </td>
+            </tr>
+            <tr *ngIf="supplierReturns.length === 0">
+              <td colspan="6" class="empty">{{ 'purchases.supplierReturns.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Docs parsés (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.parsedDocuments' | t }}</ng-template>
+      <div class="table-container">
+        <p class="hint" style="padding: 12px 16px 0;">
+          {{ 'purchases.hint.parsedDocumentsGrouped' | t }}
+        </p>
+        <table class="data-table parsed-groups-table">
+          <thead>
+            <tr>
+              <th>{{ 'purchases.col.lot' | t }}</th>
+              <th>{{ 'common.supplier' | t }}</th>
+              <th>{{ 'purchases.col.invoice' | t }}</th>
+              <th>{{ 'purchases.col.attachedBl' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let group of parsedDocumentGroups()" [class.group-suggested]="group.kind === 'suggested'" [class.group-linked]="group.kind === 'linked'">
+              <td>
+                <span class="group-kind-chip" [attr.data-kind]="group.kind">{{ groupKindLabel(group) }}</span>
+              </td>
+              <td>{{ group.supplierName || '-' }}</td>
+              <td>
+                <ng-container *ngIf="group.invoice as inv; else noInvoice">
+                  <strong>{{ inv.numero || ('#' + inv.id) }}</strong>
+                  <div class="muted">{{ inv.originalFileName }}</div>
+                  <span class="status-badge" [class.received]="isDocumentComptabilise(inv)" [class.draft]="!isDocumentComptabilise(inv)">
+                    {{ isDocumentComptabilise(inv) ? ('purchases.status.comptabilise' | t) : ('purchases.status.pending' | t) }}
+                  </span>
+                </ng-container>
+                <ng-template #noInvoice><span class="muted">—</span></ng-template>
+              </td>
+              <td>
+                <ul class="bl-list" *ngIf="group.deliveries.length; else noBl">
+                  <li *ngFor="let bl of group.deliveries">
+                    <strong>{{ bl.numero || ('#' + bl.id) }}</strong>
+                    <span class="status-badge mini" [class.received]="isDocumentComptabilise(bl)" [class.draft]="!isDocumentComptabilise(bl)">
+                      {{ isDocumentComptabilise(bl) ? ('purchases.status.comptabilise' | t) : ('purchases.status.pending' | t) }}
+                    </span>
+                  </li>
+                </ul>
+                <ng-template #noBl><span class="muted">{{ 'purchases.group.noBl' | t }}</span></ng-template>
+              </td>
+              <td>
+                <span class="status-badge" [class.received]="isGroupFullyComptabilise(group)" [class.draft]="!isGroupFullyComptabilise(group)">
+                  {{ isGroupFullyComptabilise(group)
+                    ? ('purchases.status.comptabilise' | t)
+                    : ('purchases.group.pendingCount' | t:{ count: groupPendingCount(group) }) }}
+                </span>
+              </td>
+              <td class="actions-cell">
+                <button
+                  class="btn-sm"
+                  type="button"
+                  (click)="openComptabiliserGroupModal(group)"
+                  *ngIf="!isGroupFullyComptabilise(group) && (perm.has(P.ReceiptCreate) || perm.has(P.SupplierInvoiceCreate))">
+                  {{ 'purchases.btn.comptabiliserLot' | t }}
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="parsedDocumentGroups().length === 0">
+              <td colspan="6" class="empty">
+                {{ 'purchases.empty.parsedDocuments' | t }}
+                <a class="btn-link" routerLink="/upload" *ngIf="perm.has(P.DocumentUpload)">{{ 'purchases.btn.uploadDocument' | t }}</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
   </mat-tab-group>
 
   <div class="modal-overlay" *ngIf="showCreateFromDocumentModal">
     <div class="modal-content">
-      <h3>{{ 'purchases.modal.comptabiliserFromDoc' | t }}</h3>
+      <app-form-help helpKey="purchases.comptabiliserFromDoc" [abbrs]="['BL','FAC','FF','OCR']">
+        <h3>{{ 'purchases.modal.comptabiliserFromDoc' | t }}</h3>
+      </app-form-help>
 
       <div class="form-group">
         <label>{{ 'common.supplier' | t }}</label>
@@ -466,7 +595,7 @@
       </div>
 
       <div class="form-group">
-        <label>{{ 'purchases.defaultVat' | t }}</label>
+        <label>{{ 'purchases.defaultVat' | t }} <app-field-help helpKey="field.purchases.defaultVat"></app-field-help></label>
         <input type="number" [(ngModel)]="defaultVatRate" />
       </div>
 
@@ -489,7 +618,9 @@
 
   <div class="modal-overlay" *ngIf="showManualInvoiceModal">
     <div class="modal-content large">
-      <h3>{{ 'purchases.modal.newSupplierInvoice' | t }}</h3>
+      <app-form-help helpKey="purchases.newSupplierInvoice" [abbrs]="['FF','HT','TVA','TTC']">
+        <h3>{{ 'purchases.modal.newSupplierInvoice' | t }}</h3>
+      </app-form-help>
 
       <div class="form-grid">
         <div class="form-group">
@@ -540,7 +671,7 @@
         <tbody>
           <tr *ngFor="let line of newInvoice.lines; let i = index">
             <td>
-              <app-product-line-ref [line]="line" priceMode="purchase" (productSelected)="calculateInvoiceLine(line)"></app-product-line-ref>
+              <app-product-line-ref [line]="line" priceMode="purchase" [supplierId]="newInvoice.supplierId || null" (productSelected)="calculateInvoiceLine(line)"></app-product-line-ref>
             </td>
             <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
             <td><input type="number" [(ngModel)]="line.quantity" (input)="calculateInvoiceLine(line)" /></td>
@@ -577,7 +708,9 @@
 
   <div class="modal-overlay" *ngIf="showLinkDocumentModal">
     <div class="modal-content">
-      <h3>{{ 'purchases.modal.linkDocument' | t }}</h3>
+      <app-form-help helpKey="purchases.linkDocument" [abbrs]="['OCR','FF']">
+        <h3>{{ 'purchases.modal.linkDocument' | t }}</h3>
+      </app-form-help>
       <p *ngIf="selectedInvoiceToLink">
         {{ 'purchases.invoiceLabel' | t }} <strong>{{ selectedInvoiceToLink.invoiceNumber || ('common.noNumber' | t) }}</strong>
       </p>
@@ -609,7 +742,9 @@
 
   <div class="modal-overlay" *ngIf="showManualPurchaseOrderModal">
     <div class="modal-content large">
-      <h3>{{ 'purchases.modal.newPurchaseOrder' | t }}</h3>
+      <app-form-help helpKey="purchases.newPurchaseOrder" [abbrs]="['CDF','HT','TVA']">
+        <h3>{{ 'purchases.modal.newPurchaseOrder' | t }}</h3>
+      </app-form-help>
 
       <div class="form-grid">
         <div class="form-group">
@@ -660,7 +795,7 @@
         <tbody>
           <tr *ngFor="let line of newPurchaseOrder.lines; let i = index">
             <td>
-              <app-product-line-ref [line]="line" priceMode="purchase" (productSelected)="calculatePurchaseOrderLine(line)"></app-product-line-ref>
+              <app-product-line-ref [line]="line" priceMode="purchase" [supplierId]="newPurchaseOrder.supplierId || null" (productSelected)="calculatePurchaseOrderLine(line)"></app-product-line-ref>
             </td>
             <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
             <td><input type="number" [(ngModel)]="line.quantity" (input)="calculatePurchaseOrderLine(line)" /></td>
@@ -697,7 +832,9 @@
 
   <div class="modal-overlay" *ngIf="showSupplierModal">
     <div class="modal-content">
-      <h3>{{ editingSupplierId ? ('purchases.modal.editSupplier' | t) : ('purchases.modal.newSupplier' | t) }}</h3>
+      <app-form-help helpKey="purchases.supplier">
+        <h3>{{ editingSupplierId ? ('purchases.modal.editSupplier' | t) : ('purchases.modal.newSupplier' | t) }}</h3>
+      </app-form-help>
       <div class="form-grid">
         <div class="form-group">
           <label>{{ 'purchases.supplier.codeAuto' | t }}</label>
@@ -750,7 +887,9 @@
 
   <div class="modal-overlay" *ngIf="showMatchPurchaseOrderModal">
     <div class="modal-content">
-      <h3>{{ 'purchases.modal.matchOrder' | t }}</h3>
+      <app-form-help helpKey="purchases.matchOrder" [abbrs]="['CDF','FF','HT']">
+        <h3>{{ 'purchases.modal.matchOrder' | t }}</h3>
+      </app-form-help>
       <p *ngIf="selectedInvoiceToMatch">
         {{ 'purchases.invoiceLabel' | t }} <strong>{{ selectedInvoiceToMatch.invoiceNumber || ('common.noNumber' | t) }}</strong>
       </p>
@@ -802,7 +941,9 @@
 
   <div class="modal-overlay" *ngIf="showReceiveDeliveryModal">
     <div class="modal-content">
-      <h3>{{ 'purchases.modal.receiveDelivery' | t }}</h3>
+      <app-form-help helpKey="purchases.receiveDelivery" [abbrs]="['BL','CDF']">
+        <h3>{{ 'purchases.modal.receiveDelivery' | t }}</h3>
+      </app-form-help>
       <p *ngIf="selectedPurchaseOrderToReceive">
         {{ 'purchases.orderLabel' | t }} <strong>{{ selectedPurchaseOrderToReceive.orderNumber }}</strong>
       </p>
@@ -834,21 +975,58 @@
 
   <div class="modal-overlay" *ngIf="showComptabiliserModal">
     <div class="modal-content">
-      <h3>{{ 'purchases.modal.comptabiliserDoc' | t }}</h3>
-      <p *ngIf="selectedDocumentToComptabiliser">
-        <strong>{{ selectedDocumentToComptabiliser.typeDocument || 'Document' }}</strong>
-        {{ selectedDocumentToComptabiliser.numero || ('#' + selectedDocumentToComptabiliser.id) }}
-        <span *ngIf="selectedDocumentToComptabiliser.supplier"> — {{ selectedDocumentToComptabiliser.supplier }}</span>
-      </p>
-      <p class="hint" *ngIf="selectedDocumentToComptabiliser && isInvoiceDocument(selectedDocumentToComptabiliser)">
-        {{ 'purchases.hint.invoiceCreates' | t }}
-      </p>
-      <p class="hint" *ngIf="selectedDocumentToComptabiliser && isDeliveryDocument(selectedDocumentToComptabiliser)">
-        {{ 'purchases.hint.deliveryCreates' | t }}
-      </p>
+      <app-form-help
+        [helpKey]="selectedGroupToComptabiliser ? 'purchases.comptabiliserLot' : 'purchases.comptabiliserDoc'"
+        [abbrs]="['BL','FAC','FF','OCR']">
+        <h3>
+          {{ selectedGroupToComptabiliser
+            ? ('purchases.modal.comptabiliserLot' | t)
+            : ('purchases.modal.comptabiliserDoc' | t) }}
+        </h3>
+      </app-form-help>
+
+      <ng-container *ngIf="selectedGroupToComptabiliser as group; else singleDocCompta">
+        <p class="hint">{{ 'purchases.hint.groupComptabiliser' | t }}</p>
+        <div class="group-summary" *ngIf="group.invoice as inv">
+          <strong>{{ 'purchases.type.invoice' | t }}</strong>
+          {{ inv.numero || ('#' + inv.id) }}
+          <span class="status-badge mini" [class.received]="isDocumentComptabilise(inv)" [class.draft]="!isDocumentComptabilise(inv)">
+            {{ isDocumentComptabilise(inv) ? ('purchases.status.comptabilise' | t) : ('purchases.status.pending' | t) }}
+          </span>
+        </div>
+        <div class="form-group" *ngIf="group.deliveries.length">
+          <label>{{ 'purchases.col.attachedBl' | t }}</label>
+          <label class="checkbox-row" *ngFor="let bl of group.deliveries">
+            <input
+              type="checkbox"
+              [checked]="isGroupDeliverySelected(bl.id!)"
+              [disabled]="isDocumentComptabilise(bl)"
+              (change)="toggleGroupDelivery(bl.id!, $any($event.target).checked)" />
+            <span>
+              {{ bl.numero || ('#' + bl.id) }}
+              <span class="muted" *ngIf="isDocumentComptabilise(bl)"> — {{ 'purchases.status.comptabilise' | t }}</span>
+            </span>
+          </label>
+        </div>
+        <p class="hint" *ngIf="group.kind === 'suggested'">{{ 'purchases.hint.suggestedLink' | t }}</p>
+      </ng-container>
+
+      <ng-template #singleDocCompta>
+        <p *ngIf="selectedDocumentToComptabiliser">
+          <strong>{{ selectedDocumentToComptabiliser.typeDocument || 'Document' }}</strong>
+          {{ selectedDocumentToComptabiliser.numero || ('#' + selectedDocumentToComptabiliser.id) }}
+          <span *ngIf="selectedDocumentToComptabiliser.supplier"> — {{ selectedDocumentToComptabiliser.supplier }}</span>
+        </p>
+        <p class="hint" *ngIf="selectedDocumentToComptabiliser && isInvoiceDocument(selectedDocumentToComptabiliser)">
+          {{ 'purchases.hint.invoiceCreates' | t }}
+        </p>
+        <p class="hint" *ngIf="selectedDocumentToComptabiliser && isDeliveryDocument(selectedDocumentToComptabiliser)">
+          {{ 'purchases.hint.deliveryCreates' | t }}
+        </p>
+      </ng-template>
 
       <div class="form-group">
-        <label>{{ 'purchases.supplier.required' | t }}</label>
+        <label>{{ 'purchases.supplier.required' | t }} <app-field-help helpKey="field.purchases.supplier"></app-field-help></label>
         <select [(ngModel)]="selectedSupplierId">
           <option [ngValue]="null">{{ 'purchases.selectSupplier' | t }}</option>
           <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
@@ -858,7 +1036,7 @@
       </div>
 
       <div class="form-group">
-        <label>{{ 'purchases.purchaseOrderOptional' | t }}</label>
+        <label>{{ 'purchases.purchaseOrderOptional' | t }} <app-field-help helpKey="field.purchases.purchaseOrder"></app-field-help></label>
         <select [(ngModel)]="selectedPurchaseOrderId">
           <option [ngValue]="null">{{ 'common.optionalNone' | t }}</option>
           <option *ngFor="let order of matchingOrdersForSelectedDocument()" [ngValue]="order.id">
@@ -872,9 +1050,147 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" type="button" (click)="showComptabiliserModal = false">{{ 'common.cancel' | t }}</button>
+        <button class="btn-secondary" type="button" (click)="showComptabiliserModal = false; selectedGroupToComptabiliser = null">{{ 'common.cancel' | t }}</button>
         <button class="btn-primary" type="button" (click)="comptabiliserDocument()" [disabled]="saving">
-          {{ saving ? ('purchases.comptabilising' | t) : ('purchases.btn.comptabiliser' | t) }}
+          {{ saving
+            ? ('purchases.comptabilising' | t)
+            : (selectedGroupToComptabiliser ? ('purchases.btn.comptabiliserLot' | t) : ('purchases.btn.comptabiliser' | t)) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showRfqModal">
+    <div class="modal-content large">
+      <app-form-help helpKey="purchases.rfq" [abbrs]="['DPF','CDF']">
+        <h3>{{ 'purchases.rfqs.modal.title' | t }}</h3>
+      </app-form-help>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.supplier' | t }}</label>
+          <select [(ngModel)]="newRfq.supplierId">
+            <option [ngValue]="null">{{ 'purchases.selectSupplier' | t }}</option>
+            <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+              {{ supplier.name }} ({{ supplier.supplierCode }})
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.date' | t }}</label>
+          <input type="date" [(ngModel)]="newRfq.date" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <input type="text" [(ngModel)]="newRfq.notes" [placeholder]="'purchases.notesPlaceholder' | t" />
+      </div>
+
+      <h4>{{ 'purchases.rfqs.lines' | t }}</h4>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th>{{ 'common.ref' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.qty' | t }}</th>
+            <th>{{ 'purchases.rfqs.col.estimatedPrice' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of newRfq.lines; let i = index">
+            <td><input type="text" [(ngModel)]="line.productKey" /></td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" /></td>
+            <td><input type="number" [(ngModel)]="line.estimatedUnitPrice" /></td>
+            <td><button class="icon-btn" (click)="removeRfqLine(i)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="line-actions">
+        <button class="btn-secondary" (click)="addRfqLine()">{{ 'common.addLine' | t }}</button>
+      </div>
+
+      <div class="error-box" *ngIf="rfqError">{{ rfqError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showRfqModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveRfq()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showSupplierReturnModal">
+    <div class="modal-content large">
+      <app-form-help helpKey="purchases.supplierReturn" [abbrs]="['BRF','AF','BL']">
+        <h3>{{ 'purchases.supplierReturns.modal.title' | t }}</h3>
+      </app-form-help>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.supplier' | t }}</label>
+          <select [(ngModel)]="newSupplierReturn.supplierId">
+            <option [ngValue]="0">{{ 'purchases.selectSupplier' | t }}</option>
+            <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+              {{ supplier.name }} ({{ supplier.supplierCode }})
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.date' | t }}</label>
+          <input type="date" [(ngModel)]="newSupplierReturn.date" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'purchases.col.invoiceNumber' | t }} (#)</label>
+          <input type="number" [(ngModel)]="newSupplierReturn.supplierInvoiceId" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <input type="text" [(ngModel)]="newSupplierReturn.notes" [placeholder]="'purchases.notesPlaceholder' | t" />
+      </div>
+
+      <h4>{{ 'purchases.supplierReturns.lines' | t }}</h4>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th>{{ 'common.ref' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.qty' | t }}</th>
+            <th>{{ 'common.unitPriceHt' | t }}</th>
+            <th>{{ 'common.vatPercent' | t }}</th>
+            <th>{{ 'common.totalTtc' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of newSupplierReturn.lines; let i = index">
+            <td><input type="text" [(ngModel)]="line.productKey" /></td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" (input)="calcSupplierReturnLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calcSupplierReturnLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calcSupplierReturnLine(line)" /></td>
+            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+            <td><button class="icon-btn" (click)="removeSupplierReturnLine(i)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="line-actions">
+        <button class="btn-secondary" (click)="addSupplierReturnLine()">{{ 'common.addLine' | t }}</button>
+      </div>
+
+      <div class="error-box" *ngIf="supplierReturnError">{{ supplierReturnError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showSupplierReturnModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveSupplierReturn()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
         </button>
       </div>
     </div>

@@ -34,7 +34,8 @@ namespace Backup.Web.Api.Server.Controllers
         {
             var companyId = this.companyContext.GetCurrentCompanyId();
             var active = await this.storage.SelectActiveCashSessionAsync(companyId);
-            if (active == null) return NotFound("Aucune session de caisse ouverte");
+            // 200 + null (pas 404) : absence de session = état normal, évite le bruit console côté SPA
+            if (active == null) return new JsonResult(null);
             return Ok(active);
         }
 

@@ -8,11 +8,12 @@ import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
 
 @Component({
   selector: 'app-cash-register',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
   templateUrl: './cash-register.component.html',
   styleUrls: ['./cash-register.component.css']
 })
@@ -59,7 +60,7 @@ export class CashRegisterComponent implements OnInit {
     this.loading = true;
     this.businessService.getActiveCashSession().subscribe({
       next: (session) => {
-        this.activeSession = this.normalizeSession(session);
+        this.activeSession = session ? this.normalizeSession(session) : null;
         this.loading = false;
       },
       error: () => {

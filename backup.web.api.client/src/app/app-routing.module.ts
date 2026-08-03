@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
+import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { UploadComponent } from './components/upload/upload.component';
 import { CompareComponent } from './components/compare/compare.component';
 import { StockComponent } from './components/stock/stock.component';
@@ -8,6 +9,7 @@ import { ErpChangesComponent } from './components/erp-changes/erp-changes.compon
 import { ErpProductsComponent } from './components/erp-products/erp-products.component';
 import { SalesComponent } from './components/sales/sales.component';
 import { CashRegisterComponent } from './components/cash-register/cash-register.component';
+import { AccountingComponent } from './components/accounting/accounting.component';
 import { PurchasesComponent } from './components/purchases/purchases.component';
 import { NumberingSettingsComponent } from './components/numbering-settings/numbering-settings.component';
 import { LoginComponent } from './components/login/login.component';
@@ -20,6 +22,12 @@ import { homeRedirectGuard } from './guards/home-redirect.guard';
 const routes: Routes = [
   { path: 'login', component: LoginComponent },
   {
+    path: '__reload',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./components/route-reload/route-reload.component').then(m => m.RouteReloadComponent)
+  },
+  {
     path: '',
     pathMatch: 'full',
     canActivate: [authGuard, homeRedirectGuard],
@@ -29,6 +37,11 @@ const routes: Routes = [
     path: 'access-denied',
     canActivate: [authGuard],
     loadComponent: () => import('./components/access-denied/access-denied.component').then(m => m.AccessDeniedComponent)
+  },
+  {
+    path: 'dashboard',
+    component: DashboardComponent,
+    canActivate: [authGuard]
   },
   {
     path: 'assistant',
@@ -42,6 +55,7 @@ const routes: Routes = [
   { path: 'sales', component: SalesComponent, canActivate: [authGuard, permissionGuard(Permissions.CustomerRead, Permissions.QuoteRead, Permissions.OrderRead, Permissions.InvoiceRead, Permissions.DeliveryNoteRead)] },
   { path: 'purchases', component: PurchasesComponent, canActivate: [authGuard, permissionGuard(Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead)] },
   { path: 'cash', component: CashRegisterComponent, canActivate: [authGuard, permissionGuard(Permissions.CashRead, Permissions.CashManage)] },
+  { path: 'accounting', component: AccountingComponent, canActivate: [authGuard, permissionGuard(Permissions.AccountingRead, Permissions.AccountingCreate)] },
   { path: 'numbering', component: NumberingSettingsComponent, canActivate: [authGuard, permissionGuard(Permissions.NumberingManage)] },
   { path: 'stock', component: StockComponent, canActivate: [authGuard, permissionGuard(Permissions.StockRead)] },
   { path: 'erp-products', component: ErpProductsComponent, canActivate: [authGuard, permissionGuard(Permissions.ProductRead)] },
@@ -63,7 +77,7 @@ if (environment.enablePythonTest) {
 }
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
+  imports: [RouterModule.forRoot(routes, { onSameUrlNavigation: 'reload' })],
   exports: [RouterModule]
 })
 export class AppRoutingModule { }

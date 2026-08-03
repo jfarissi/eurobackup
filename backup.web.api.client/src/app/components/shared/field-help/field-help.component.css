@@ -1,0 +1,112 @@
+.field-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.field-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.field-help-btn:hover,
+.field-help-btn[aria-expanded='true'] {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.field-help-btn mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.field-help-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(320px, 70vw);
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.field-help-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.field-help-head strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.field-help-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+}
+
+.field-help-close mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.field-help-panel p {
+  margin: 0 0 6px;
+}
+
+.field-help-rules ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.field-help-rules code {
+  margin-right: 4px;
+  font-size: 10px;
+  background: #e2e8f0;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+.label {
+  font-weight: 600;
+  color: #0f172a;
+  margin-top: 6px;
+}
+
+.field-help-example {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.field-help-example p {
+  margin: 2px 0 0;
+}

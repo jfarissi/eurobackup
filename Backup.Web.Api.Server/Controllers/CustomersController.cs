@@ -82,6 +82,10 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Email = customer.Email;
             existing.Phone = customer.Phone;
             existing.Balance = customer.Balance;
+            existing.CreditLimit = customer.CreditLimit;
+            existing.PaymentTerms = customer.PaymentTerms;
+            if (!string.IsNullOrWhiteSpace(customer.Status))
+                existing.Status = customer.Status.Trim();
             existing.UpdatedAt = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(customer.CompanyId))
                 existing.CompanyId = customer.CompanyId;

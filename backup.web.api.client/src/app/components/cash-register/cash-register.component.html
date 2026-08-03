@@ -1,7 +1,9 @@
 <div class="cash-container">
   <div class="cash-header">
     <div>
-      <h2>{{ 'cash.title' | t }}</h2>
+      <app-form-help helpKey="cash.tabs" [abbrs]="['TTC']">
+        <h2>{{ 'cash.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'cash.subtitle' | t }}</p>
     </div>
     <div class="actions" *ngIf="selectedTab === 0 && activeSession && perm.has(P.CashManage)">
@@ -185,7 +187,9 @@
 
   <div class="modal-overlay" *ngIf="showOpenModal">
     <div class="modal-content small">
-      <h3>{{ 'cash.modal.open' | t }}</h3>
+      <app-form-help helpKey="cash.open">
+        <h3>{{ 'cash.modal.open' | t }}</h3>
+      </app-form-help>
       <div class="form-group">
         <label>{{ 'cash.openingBalanceLabel' | t }}</label>
         <input type="number" [(ngModel)]="openingBalanceInput" />
@@ -199,7 +203,9 @@
 
   <div class="modal-overlay" *ngIf="showCloseModal">
     <div class="modal-content small">
-      <h3>{{ 'cash.modal.close' | t }}</h3>
+      <app-form-help helpKey="cash.close">
+        <h3>{{ 'cash.modal.close' | t }}</h3>
+      </app-form-help>
       <div class="hint">
         {{ 'cash.theoreticalLabel' | t }} <strong>{{ theoreticalBalance | currency:'EUR' }}</strong>
       </div>
@@ -219,7 +225,9 @@
 
   <div class="modal-overlay" *ngIf="showOpModal">
     <div class="modal-content small">
-      <h3>{{ 'cash.modal.newOp' | t }}</h3>
+      <app-form-help helpKey="cash.newOp">
+        <h3>{{ 'cash.modal.newOp' | t }}</h3>
+      </app-form-help>
       <div class="form-group">
         <label>{{ 'cash.opTypeLabel' | t }}</label>
         <select [(ngModel)]="opType">

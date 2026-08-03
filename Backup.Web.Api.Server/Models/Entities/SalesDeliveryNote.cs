@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
@@ -7,7 +8,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// <summary>
     /// Bon de livraison client (vente) : Commande → BL → Facture.
     /// </summary>
-    public class SalesDeliveryNote : IHasCompanyId
+    public class SalesDeliveryNote : IHasCompanyId, IHasSoftDelete, IHasArchive
     {
         public int Id { get; set; }
         public string DeliveryNumber { get; set; } = string.Empty;
@@ -27,6 +28,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? Notes { get; set; }
         public string? CompanyId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public bool IsDeleted { get; set; }
+        public DateTime? DeletedAt { get; set; }
+        public string? DeletedBy { get; set; }
+        public bool IsArchived { get; set; }
+        public DateTime? ArchivedAt { get; set; }
+        public string? ArchivedBy { get; set; }
 
         public List<SalesDeliveryNoteLine> Lines { get; set; } = new();
     }
@@ -45,5 +52,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }
         public int LineNumber { get; set; }
+        /// <summary>RG-LS1–5 lite : n° de lot saisi manuellement (traçabilité simple, sans FEFO).</summary>
+        public string? LotNumber { get; set; }
     }
 }

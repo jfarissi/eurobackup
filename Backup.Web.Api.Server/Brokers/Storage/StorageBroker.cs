@@ -37,6 +37,28 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(d => d.OriginalFileName).HasMaxLength(512);
                 entity.Property(d => d.FilePath).HasMaxLength(1024);
             });
+            modelBuilder.Entity<HelpContent>(entity =>
+            {
+                entity.HasIndex(h => new { h.HelpKey, h.Lang }).IsUnique();
+                entity.Property(h => h.HelpKey).HasMaxLength(128);
+                entity.Property(h => h.Lang).HasMaxLength(8);
+                entity.Property(h => h.Title).HasMaxLength(256);
+                entity.Property(h => h.N1).HasMaxLength(256);
+                entity.Property(h => h.Version).HasMaxLength(32);
+                entity.Property(h => h.Status).HasMaxLength(32);
+            });
+            modelBuilder.Entity<HelpFeedbackEvent>(entity =>
+            {
+                entity.HasIndex(e => new { e.HelpKey, e.CreatedAt });
+                entity.Property(e => e.HelpKey).HasMaxLength(128);
+                entity.Property(e => e.Vote).HasMaxLength(8);
+            });
+            modelBuilder.Entity<HelpAnalyticsEvent>(entity =>
+            {
+                entity.HasIndex(e => new { e.HelpKey, e.CreatedAt });
+                entity.Property(e => e.HelpKey).HasMaxLength(128);
+                entity.Property(e => e.Action).HasMaxLength(32);
+            });
             modelBuilder.Entity<DocumentLine>(entity =>
             {
                 entity.HasIndex(l => l.DocumentId);
@@ -51,11 +73,16 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 .IsUnique();
             modelBuilder.Entity<StockItem>(entity =>
             {
-                entity.HasIndex(s => s.ProductKey).IsUnique();
+                entity.ToTable("Stock");
+                entity.Property(s => s.CompanyId).HasMaxLength(36);
+                entity.HasIndex(s => new { s.ProductKey, s.CompanyId }).IsUnique();
                 entity.Property(s => s.ProductKey).HasMaxLength(256);
                 entity.Property(s => s.Supplier).HasMaxLength(256);
                 entity.Property(s => s.Description).HasMaxLength(1024);
                 entity.Property(s => s.Unit).HasMaxLength(16);
+                entity.Property(s => s.QuantityOnHand).HasPrecision(18, 4);
+                entity.Property(s => s.ReservedQuantity).HasPrecision(18, 4);
+                entity.Property(s => s.MinStock).HasPrecision(18, 4);
             });
             modelBuilder.Entity<StockUpdate>(entity =>
             {
@@ -311,30 +338,40 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("Customers");
                 entity.HasKey(c => c.Id);
-                entity.HasIndex(c => c.CustomerCode).IsUnique();
+                entity.Property(c => c.CompanyId).HasMaxLength(36);
+                entity.HasIndex(c => new { c.CustomerCode, c.CompanyId }).IsUnique();
                 entity.Property(c => c.CustomerCode).IsRequired().HasMaxLength(64);
                 entity.Property(c => c.Name).IsRequired().HasMaxLength(256);
                 entity.Property(c => c.Balance).HasPrecision(18, 4);
+                entity.Property(c => c.CreditLimit).HasPrecision(18, 4);
+                entity.Property(c => c.PaymentTerms).HasMaxLength(128);
+                entity.Property(c => c.Status).IsRequired().HasMaxLength(32);
             });
 
             modelBuilder.Entity<Supplier>(entity =>
             {
                 entity.ToTable("Suppliers");
                 entity.HasKey(s => s.Id);
-                entity.HasIndex(s => s.SupplierCode).IsUnique();
+                entity.Property(s => s.CompanyId).HasMaxLength(36);
+                entity.HasIndex(s => new { s.SupplierCode, s.CompanyId }).IsUnique();
                 entity.Property(s => s.SupplierCode).IsRequired().HasMaxLength(64);
                 entity.Property(s => s.Name).IsRequired().HasMaxLength(256);
+                entity.Property(s => s.Balance).HasPrecision(18, 4);
+                entity.Property(s => s.Status).IsRequired().HasMaxLength(32);
             });
 
             modelBuilder.Entity<Quote>(entity =>
             {
                 entity.ToTable("Quotes");
                 entity.HasKey(q => q.Id);
-                entity.HasIndex(q => q.QuoteNumber).IsUnique();
+                entity.Property(q => q.CompanyId).HasMaxLength(36);
+                entity.HasIndex(q => new { q.QuoteNumber, q.CompanyId }).IsUnique();
                 entity.Property(q => q.QuoteNumber).IsRequired().HasMaxLength(64);
                 entity.Property(q => q.TotalHT).HasPrecision(18, 4);
                 entity.Property(q => q.TotalVat).HasPrecision(18, 4);
                 entity.Property(q => q.TotalTTC).HasPrecision(18, 4);
+                entity.Property(q => q.HeaderDiscountPercent).HasPrecision(9, 4);
+                entity.Property(q => q.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(q => q.Customer).WithMany().HasForeignKey(q => q.CustomerId);
             });
 
@@ -344,6 +381,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasKey(l => l.Id);
                 entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
                 entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.ConvertedQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.DiscountPercent).HasPrecision(9, 4);
                 entity.Property(l => l.VatRate).HasPrecision(18, 4);
                 entity.Property(l => l.TotalHT).HasPrecision(18, 4);
                 entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
@@ -354,11 +393,16 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("SalesOrders");
                 entity.HasKey(o => o.Id);
-                entity.HasIndex(o => o.OrderNumber).IsUnique();
+                entity.Property(o => o.CompanyId).HasMaxLength(36);
+                entity.HasIndex(o => new { o.OrderNumber, o.CompanyId }).IsUnique();
                 entity.Property(o => o.OrderNumber).IsRequired().HasMaxLength(64);
                 entity.Property(o => o.TotalHT).HasPrecision(18, 4);
                 entity.Property(o => o.TotalVat).HasPrecision(18, 4);
                 entity.Property(o => o.TotalTTC).HasPrecision(18, 4);
+                entity.Property(o => o.HeaderDiscountPercent).HasPrecision(9, 4);
+                entity.Property(o => o.CurrencyCode).HasMaxLength(8);
+                entity.Property(o => o.BillingAddress).HasMaxLength(512);
+                entity.Property(o => o.ShippingAddress).HasMaxLength(512);
                 entity.HasOne(o => o.Customer).WithMany().HasForeignKey(o => o.CustomerId);
             });
 
@@ -369,6 +413,9 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
                 entity.Property(l => l.Quantity).HasPrecision(18, 4);
                 entity.Property(l => l.DeliveredQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.InvoicedQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.ReservedQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.DiscountPercent).HasPrecision(9, 4);
                 entity.Property(l => l.VatRate).HasPrecision(18, 4);
                 entity.Property(l => l.TotalHT).HasPrecision(18, 4);
                 entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
@@ -379,12 +426,15 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("SalesInvoices");
                 entity.HasKey(i => i.Id);
-                entity.HasIndex(i => i.InvoiceNumber).IsUnique();
+                entity.Property(i => i.CompanyId).HasMaxLength(36);
+                entity.HasIndex(i => new { i.InvoiceNumber, i.CompanyId }).IsUnique();
                 entity.Property(i => i.InvoiceNumber).IsRequired().HasMaxLength(64);
                 entity.Property(i => i.TotalHT).HasPrecision(18, 4);
                 entity.Property(i => i.TotalVat).HasPrecision(18, 4);
                 entity.Property(i => i.TotalTTC).HasPrecision(18, 4);
                 entity.Property(i => i.PaidAmount).HasPrecision(18, 4);
+                entity.Property(i => i.HeaderDiscountPercent).HasPrecision(9, 4);
+                entity.Property(i => i.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(i => i.Customer).WithMany().HasForeignKey(i => i.CustomerId);
             });
 
@@ -394,9 +444,13 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasKey(l => l.Id);
                 entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
                 entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.OrderedQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.DeliveredQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.DiscountPercent).HasPrecision(9, 4);
                 entity.Property(l => l.VatRate).HasPrecision(18, 4);
                 entity.Property(l => l.TotalHT).HasPrecision(18, 4);
                 entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
+                entity.Property(l => l.LotNumber).HasMaxLength(64);
                 entity.HasOne(l => l.SalesInvoice).WithMany(i => i.Lines).HasForeignKey(l => l.SalesInvoiceId).OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -404,12 +458,16 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("CreditNotes");
                 entity.HasKey(c => c.Id);
-                entity.HasIndex(c => c.CreditNoteNumber).IsUnique();
+                entity.Property(c => c.CompanyId).HasMaxLength(36);
+                entity.HasIndex(c => new { c.CreditNoteNumber, c.CompanyId }).IsUnique();
                 entity.Property(c => c.CreditNoteNumber).IsRequired().HasMaxLength(64);
                 entity.Property(c => c.TotalHT).HasPrecision(18, 4);
                 entity.Property(c => c.TotalVat).HasPrecision(18, 4);
                 entity.Property(c => c.TotalTTC).HasPrecision(18, 4);
+                entity.Property(c => c.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId);
+                // RG-AC4 : retour physique (BRC) éventuellement à l'origine de l'avoir.
+                entity.HasOne(c => c.SalesReturn).WithMany().HasForeignKey(c => c.SalesReturnId).OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<CreditNoteLineEntity>(entity =>
@@ -428,11 +486,13 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("PurchaseOrders");
                 entity.HasKey(p => p.Id);
-                entity.HasIndex(p => p.OrderNumber).IsUnique();
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.HasIndex(p => new { p.OrderNumber, p.CompanyId }).IsUnique();
                 entity.Property(p => p.OrderNumber).IsRequired().HasMaxLength(64);
                 entity.Property(p => p.TotalHT).HasPrecision(18, 4);
                 entity.Property(p => p.TotalVat).HasPrecision(18, 4);
                 entity.Property(p => p.TotalTTC).HasPrecision(18, 4);
+                entity.Property(p => p.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId);
                 entity.HasMany(p => p.SupplierInvoices)
                     .WithOne(i => i.PurchaseOrder)
@@ -447,6 +507,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
                 entity.Property(l => l.Quantity).HasPrecision(18, 4);
                 entity.Property(l => l.ReceivedQuantity).HasPrecision(18, 4);
+                entity.Property(l => l.InvoicedQuantity).HasPrecision(18, 4);
                 entity.Property(l => l.VatRate).HasPrecision(18, 4);
                 entity.Property(l => l.TotalHT).HasPrecision(18, 4);
                 entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
@@ -457,11 +518,13 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("SupplierInvoices");
                 entity.HasKey(s => s.Id);
-                entity.HasIndex(s => s.InvoiceNumber);
+                entity.Property(s => s.CompanyId).HasMaxLength(36);
+                entity.HasIndex(s => new { s.InvoiceNumber, s.CompanyId }).IsUnique();
                 entity.Property(s => s.InvoiceNumber).IsRequired().HasMaxLength(64);
                 entity.Property(s => s.TotalHT).HasPrecision(18, 4);
                 entity.Property(s => s.TotalVat).HasPrecision(18, 4);
                 entity.Property(s => s.TotalTTC).HasPrecision(18, 4);
+                entity.Property(s => s.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(s => s.Supplier).WithMany().HasForeignKey(s => s.SupplierId);
                 entity.HasIndex(s => s.PurchaseOrderId);
             });
@@ -482,6 +545,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("StockMovements");
                 entity.HasKey(m => m.Id);
+                entity.Property(m => m.CompanyId).HasMaxLength(36);
                 entity.HasIndex(m => m.ProductKey);
                 entity.Property(m => m.ProductKey).IsRequired().HasMaxLength(256);
                 entity.Property(m => m.Quantity).HasPrecision(18, 4);
@@ -501,7 +565,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("CashSessions");
                 entity.HasKey(c => c.Id);
-                entity.HasIndex(c => c.SessionNumber).IsUnique();
+                entity.Property(c => c.CompanyId).HasMaxLength(36);
+                entity.HasIndex(c => new { c.SessionNumber, c.CompanyId }).IsUnique();
                 entity.Property(c => c.OpeningBalance).HasPrecision(18, 4);
                 entity.Property(c => c.ClosingBalance).HasPrecision(18, 4);
                 entity.Property(c => c.ExpectedClosingBalance).HasPrecision(18, 4);
@@ -515,11 +580,32 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasOne(o => o.CashSession).WithMany(c => c.Operations).HasForeignKey(o => o.CashSessionId).OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<Payment>(entity =>
+            {
+                entity.ToTable("Payments");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.Property(p => p.Method).HasMaxLength(50);
+                entity.Property(p => p.Reference).HasMaxLength(100);
+                entity.Property(p => p.Bank).HasMaxLength(100);
+                entity.Property(p => p.Status).IsRequired().HasMaxLength(20);
+                entity.Property(p => p.TerminalTransactionId).HasMaxLength(100);
+                entity.Property(p => p.CreatedBy).HasMaxLength(128);
+                entity.Property(p => p.Amount).HasPrecision(18, 4);
+                entity.Property(p => p.RoundingDifference).HasPrecision(18, 4);
+                entity.Property(p => p.ReceivedAmount).HasPrecision(18, 4);
+                entity.Property(p => p.ChangeAmount).HasPrecision(18, 4);
+                entity.HasIndex(p => new { p.CompanyId, p.SalesInvoiceId });
+                entity.HasIndex(p => p.PaidAt);
+                entity.HasOne(p => p.SalesInvoice).WithMany().HasForeignKey(p => p.SalesInvoiceId).OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<Receipt>(entity =>
             {
                 entity.ToTable("ErpReceipts");
                 entity.HasKey(r => r.Id);
-                entity.HasIndex(r => r.ReceiptNumber);
+                entity.Property(r => r.CompanyId).HasMaxLength(36);
+                entity.HasIndex(r => new { r.ReceiptNumber, r.CompanyId }).IsUnique();
                 entity.HasIndex(r => r.DocumentId).IsUnique();
                 entity.Property(r => r.ReceiptNumber).IsRequired().HasMaxLength(64);
                 entity.Property(r => r.Status).HasMaxLength(32);
@@ -573,7 +659,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             {
                 entity.ToTable("SalesDeliveryNotes");
                 entity.HasKey(n => n.Id);
-                entity.HasIndex(n => n.DeliveryNumber).IsUnique();
+                entity.Property(n => n.CompanyId).HasMaxLength(36);
+                entity.HasIndex(n => new { n.DeliveryNumber, n.CompanyId }).IsUnique();
                 entity.Property(n => n.DeliveryNumber).IsRequired().HasMaxLength(64);
                 entity.Property(n => n.TotalHT).HasPrecision(18, 4);
                 entity.Property(n => n.TotalVat).HasPrecision(18, 4);
@@ -596,16 +683,241 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasOne(l => l.SalesDeliveryNote).WithMany(n => n.Lines).HasForeignKey(l => l.SalesDeliveryNoteId).OnDelete(DeleteBehavior.Cascade);
             });
 
-            modelBuilder.Entity<Document>(entity =>
+            modelBuilder.Entity<AccountingEntry>(entity =>
             {
-                entity.HasIndex(d => d.CompanyId);
-                entity.Property(d => d.CompanyId).HasMaxLength(36);
+                entity.ToTable("AccountingEntries");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CompanyId).HasMaxLength(36);
+                entity.Property(e => e.EntryNumber).IsRequired().HasMaxLength(64);
+                entity.Property(e => e.JournalType).HasMaxLength(64);
+                entity.Property(e => e.ReferenceType).HasMaxLength(64);
+                entity.Property(e => e.Status).HasMaxLength(32);
+                entity.HasIndex(e => new { e.EntryNumber, e.CompanyId }).IsUnique();
+                entity.HasIndex(e => new { e.ReferenceType, e.ReferenceId, e.CompanyId });
             });
 
-            modelBuilder.Entity<StockItem>(entity =>
+            modelBuilder.Entity<AccountingEntryLine>(entity =>
             {
-                entity.HasIndex(s => s.CompanyId);
-                entity.Property(s => s.CompanyId).HasMaxLength(36);
+                entity.ToTable("AccountingEntryLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.AccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(l => l.AccountLabel).IsRequired().HasMaxLength(256);
+                entity.Property(l => l.Debit).HasPrecision(18, 4);
+                entity.Property(l => l.Credit).HasPrecision(18, 4);
+                entity.HasOne(l => l.AccountingEntry).WithMany(e => e.Lines).HasForeignKey(l => l.AccountingEntryId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<DocumentAuditLog>(entity =>
+            {
+                entity.ToTable("DocumentAuditLogs");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.DocumentType).IsRequired().HasMaxLength(40);
+                entity.Property(a => a.Action).IsRequired().HasMaxLength(40);
+                entity.Property(a => a.Summary).HasMaxLength(500);
+                entity.Property(a => a.Actor).HasMaxLength(128);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.HasIndex(a => new { a.DocumentType, a.DocumentId, a.CreatedAt });
+                entity.HasIndex(a => a.CompanyId);
+            });
+
+            modelBuilder.Entity<Document>(entity =>
+            {
+                entity.Property(d => d.CompanyId).HasMaxLength(36);
+                entity.HasIndex(d => new { d.TypeDocument, d.Numero, d.CompanyId });
+            });
+
+            modelBuilder.Entity<SalesReturn>(entity =>
+            {
+                entity.ToTable("SalesReturns");
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.CompanyId).HasMaxLength(36);
+                entity.HasIndex(r => new { r.ReturnNumber, r.CompanyId }).IsUnique();
+                entity.Property(r => r.ReturnNumber).IsRequired().HasMaxLength(64);
+                entity.Property(r => r.TotalHT).HasPrecision(18, 4);
+                entity.Property(r => r.TotalVat).HasPrecision(18, 4);
+                entity.Property(r => r.TotalTTC).HasPrecision(18, 4);
+                entity.Property(r => r.CurrencyCode).HasMaxLength(8);
+                entity.HasOne(r => r.Customer).WithMany().HasForeignKey(r => r.CustomerId);
+                entity.HasOne(r => r.SalesDeliveryNote).WithMany().HasForeignKey(r => r.SalesDeliveryNoteId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.SalesOrder).WithMany().HasForeignKey(r => r.SalesOrderId).IsRequired(false);
+                entity.HasIndex(r => r.IsDeleted);
+            });
+
+            modelBuilder.Entity<SalesReturnLine>(entity =>
+            {
+                entity.ToTable("SalesReturnLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
+                entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.VatRate).HasPrecision(18, 4);
+                entity.Property(l => l.TotalHT).HasPrecision(18, 4);
+                entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
+                entity.HasOne(l => l.SalesReturn).WithMany(r => r.Lines).HasForeignKey(l => l.SalesReturnId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SupplierCreditNoteEntity>(entity =>
+            {
+                entity.ToTable("SupplierCreditNotes");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.CompanyId).HasMaxLength(36);
+                entity.HasIndex(c => new { c.CreditNoteNumber, c.CompanyId }).IsUnique();
+                entity.Property(c => c.CreditNoteNumber).IsRequired().HasMaxLength(64);
+                entity.Property(c => c.TotalHT).HasPrecision(18, 4);
+                entity.Property(c => c.TotalVat).HasPrecision(18, 4);
+                entity.Property(c => c.TotalTTC).HasPrecision(18, 4);
+                entity.HasOne(c => c.Supplier).WithMany().HasForeignKey(c => c.SupplierId);
+                entity.HasOne(c => c.SupplierInvoice).WithMany().HasForeignKey(c => c.SupplierInvoiceId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<SupplierCreditNoteLineEntity>(entity =>
+            {
+                entity.ToTable("SupplierCreditNoteLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
+                entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.VatRate).HasPrecision(18, 4);
+                entity.Property(l => l.TotalHT).HasPrecision(18, 4);
+                entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
+                entity.HasOne(l => l.SupplierCreditNote).WithMany(c => c.Lines).HasForeignKey(l => l.SupplierCreditNoteEntityId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Proforma>(entity =>
+            {
+                entity.ToTable("Proformas");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.HasIndex(p => new { p.ProformaNumber, p.CompanyId }).IsUnique();
+                entity.Property(p => p.ProformaNumber).IsRequired().HasMaxLength(64);
+                entity.Property(p => p.TotalHT).HasPrecision(18, 4);
+                entity.Property(p => p.TotalVat).HasPrecision(18, 4);
+                entity.Property(p => p.TotalTTC).HasPrecision(18, 4);
+                entity.Property(p => p.CurrencyCode).HasMaxLength(8);
+                entity.HasOne(p => p.Customer).WithMany().HasForeignKey(p => p.CustomerId);
+                entity.HasOne(p => p.Quote).WithMany().HasForeignKey(p => p.QuoteId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(p => p.SalesOrder).WithMany().HasForeignKey(p => p.SalesOrderId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(p => p.IsDeleted);
+            });
+
+            modelBuilder.Entity<ProformaLine>(entity =>
+            {
+                entity.ToTable("ProformaLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
+                entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.VatRate).HasPrecision(18, 4);
+                entity.Property(l => l.TotalHT).HasPrecision(18, 4);
+                entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
+                entity.HasOne(l => l.Proforma).WithMany(p => p.Lines).HasForeignKey(l => l.ProformaId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<DepositInvoice>(entity =>
+            {
+                entity.ToTable("DepositInvoices");
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.CompanyId).HasMaxLength(36);
+                entity.HasIndex(d => new { d.DepositNumber, d.CompanyId }).IsUnique();
+                entity.Property(d => d.DepositNumber).IsRequired().HasMaxLength(64);
+                entity.Property(d => d.AmountHT).HasPrecision(18, 4);
+                entity.Property(d => d.VatRate).HasPrecision(18, 4);
+                entity.Property(d => d.AmountTTC).HasPrecision(18, 4);
+                entity.Property(d => d.CurrencyCode).HasMaxLength(8);
+                entity.HasOne(d => d.Customer).WithMany().HasForeignKey(d => d.CustomerId);
+                entity.HasOne(d => d.SalesOrder).WithMany().HasForeignKey(d => d.SalesOrderId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(d => d.AppliedSalesInvoice).WithMany().HasForeignKey(d => d.AppliedSalesInvoiceId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<SupplierRfq>(entity =>
+            {
+                entity.ToTable("SupplierRfqs");
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.CompanyId).HasMaxLength(36);
+                entity.HasIndex(r => new { r.RfqNumber, r.CompanyId }).IsUnique();
+                entity.Property(r => r.RfqNumber).IsRequired().HasMaxLength(64);
+                entity.HasOne(r => r.Supplier).WithMany().HasForeignKey(r => r.SupplierId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(r => r.IsDeleted);
+            });
+
+            modelBuilder.Entity<SupplierRfqLine>(entity =>
+            {
+                entity.ToTable("SupplierRfqLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.EstimatedUnitPrice).HasPrecision(18, 4);
+                entity.HasOne(l => l.SupplierRfq).WithMany(r => r.Lines).HasForeignKey(l => l.SupplierRfqId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<SupplierReturn>(entity =>
+            {
+                entity.ToTable("SupplierReturns");
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.CompanyId).HasMaxLength(36);
+                entity.HasIndex(r => new { r.ReturnNumber, r.CompanyId }).IsUnique();
+                entity.Property(r => r.ReturnNumber).IsRequired().HasMaxLength(64);
+                entity.Property(r => r.TotalHT).HasPrecision(18, 4);
+                entity.Property(r => r.TotalVat).HasPrecision(18, 4);
+                entity.Property(r => r.TotalTTC).HasPrecision(18, 4);
+                entity.Property(r => r.CurrencyCode).HasMaxLength(8);
+                entity.HasOne(r => r.Supplier).WithMany().HasForeignKey(r => r.SupplierId);
+                entity.HasOne(r => r.PurchaseOrder).WithMany().HasForeignKey(r => r.PurchaseOrderId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(r => r.Receipt).WithMany().HasForeignKey(r => r.ReceiptId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(r => r.SupplierInvoice).WithMany().HasForeignKey(r => r.SupplierInvoiceId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(r => r.IsDeleted);
+            });
+
+            modelBuilder.Entity<SupplierReturnLine>(entity =>
+            {
+                entity.ToTable("SupplierReturnLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.UnitPrice).HasPrecision(18, 4);
+                entity.Property(l => l.Quantity).HasPrecision(18, 4);
+                entity.Property(l => l.VatRate).HasPrecision(18, 4);
+                entity.Property(l => l.TotalHT).HasPrecision(18, 4);
+                entity.Property(l => l.TotalTTC).HasPrecision(18, 4);
+                entity.HasOne(l => l.SupplierReturn).WithMany(r => r.Lines).HasForeignKey(l => l.SupplierReturnId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // RG-RG2 lite : trace d'audit d'allocation de règlement par lot.
+            modelBuilder.Entity<PaymentAllocation>(entity =>
+            {
+                entity.ToTable("PaymentAllocations");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.Property(a => a.Amount).HasPrecision(18, 4);
+                entity.HasOne(a => a.Payment).WithMany().HasForeignKey(a => a.PaymentId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(a => a.BatchId);
+                entity.HasIndex(a => a.SalesInvoiceId);
+            });
+
+            // RG-LT1–4 lite : lettrage client simplifié (saisie manuelle).
+            modelBuilder.Entity<LetteringGroup>(entity =>
+            {
+                entity.ToTable("LetteringGroups");
+                entity.HasKey(g => g.Id);
+                entity.Property(g => g.CompanyId).HasMaxLength(36);
+                entity.Property(g => g.LetteringCode).IsRequired().HasMaxLength(64);
+                entity.HasIndex(g => new { g.LetteringCode, g.CompanyId }).IsUnique();
+                entity.HasOne(g => g.Customer).WithMany().HasForeignKey(g => g.CustomerId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<LetteringLine>(entity =>
+            {
+                entity.ToTable("LetteringLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Amount).HasPrecision(18, 4);
+                entity.HasOne(l => l.LetteringGroup).WithMany(g => g.Lines).HasForeignKey(l => l.LetteringGroupId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // RG-PT1–5 lite : tarif spécifique client.
+            modelBuilder.Entity<CustomerPriceListItem>(entity =>
+            {
+                entity.ToTable("CustomerPriceListItems");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.Property(p => p.ProductKey).IsRequired().HasMaxLength(128);
+                entity.Property(p => p.UnitPrice).HasPrecision(18, 4);
+                entity.Property(p => p.VatRate).HasPrecision(18, 4);
+                entity.HasOne(p => p.Customer).WithMany().HasForeignKey(p => p.CustomerId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(p => new { p.CustomerId, p.ProductKey });
             });
         }
 

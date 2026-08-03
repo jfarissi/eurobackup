@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backup.Web.Api.Server", "Ba
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backup.Web.Api.Tests.SalesAssistant", "Backup.Web.Api.Tests.SalesAssistant\Backup.Web.Api.Tests.SalesAssistant.csproj", "{48EE5F5C-0EF7-45F1-8090-052C3A2B2791}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backup.Web.Api.Tests.Business", "Backup.Web.Api.Tests.Business\Backup.Web.Api.Tests.Business.csproj", "{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -53,6 +55,18 @@ Global
 		{48EE5F5C-0EF7-45F1-8090-052C3A2B2791}.Release|x64.Build.0 = Release|Any CPU
 		{48EE5F5C-0EF7-45F1-8090-052C3A2B2791}.Release|x86.ActiveCfg = Release|Any CPU
 		{48EE5F5C-0EF7-45F1-8090-052C3A2B2791}.Release|x86.Build.0 = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|x64.Build.0 = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Debug|x86.Build.0 = Debug|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|x64.ActiveCfg = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|x64.Build.0 = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|x86.ActiveCfg = Release|Any CPU
+		{C4FD4EA8-E3A0-44C6-A09C-0CA4B689E737}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -142,6 +142,10 @@ namespace Backup.Web.Api.Server.Controllers
             if (!string.IsNullOrWhiteSpace(req.DefaultLanguageCode)) company.DefaultLanguageCode = req.DefaultLanguageCode;
             if (!string.IsNullOrWhiteSpace(req.DefaultCurrencyCode)) company.DefaultCurrencyCode = req.DefaultCurrencyCode;
             company.IsActive = req.IsActive;
+            company.AllowNegativeStock = req.AllowNegativeStock;
+            company.OpenFiscalPeriodStart = req.OpenFiscalPeriodStart;
+            company.OpenFiscalPeriodEnd = req.OpenFiscalPeriodEnd;
+            if (req.RetentionMonths > 0) company.RetentionMonths = req.RetentionMonths;
             var updated = await this.storage.UpdateCompanyAsync(company);
             return Ok(ToCompanyDto(updated));
         }
@@ -348,13 +352,42 @@ namespace Backup.Web.Api.Server.Controllers
             Id = c.Id, TenantId = c.TenantId, TenantName = c.Tenant?.Name,
             Name = c.Name, IsActive = c.IsActive,
             DefaultLanguageCode = c.DefaultLanguageCode, DefaultCurrencyCode = c.DefaultCurrencyCode,
+            AllowNegativeStock = c.AllowNegativeStock,
+            OpenFiscalPeriodStart = c.OpenFiscalPeriodStart,
+            OpenFiscalPeriodEnd = c.OpenFiscalPeriodEnd,
+            RetentionMonths = c.RetentionMonths,
             CreatedAt = c.CreatedAt
         };
 
         public class TenantDto { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public bool IsActive { get; set; } public DateTime CreatedAt { get; set; } public int CompanyCount { get; set; } }
         public class SaveTenantRequest { public string Name { get; set; } = ""; public bool IsActive { get; set; } = true; }
-        public class CompanyAdminDto { public string Id { get; set; } = ""; public string TenantId { get; set; } = ""; public string? TenantName { get; set; } public string Name { get; set; } = ""; public bool IsActive { get; set; } public string DefaultLanguageCode { get; set; } = "fr-BE"; public string DefaultCurrencyCode { get; set; } = "EUR"; public DateTime CreatedAt { get; set; } }
-        public class SaveCompanyRequest { public string Name { get; set; } = ""; public string TenantId { get; set; } = ""; public bool IsActive { get; set; } = true; public string? DefaultLanguageCode { get; set; } public string? DefaultCurrencyCode { get; set; } }
+        public class CompanyAdminDto
+        {
+            public string Id { get; set; } = "";
+            public string TenantId { get; set; } = "";
+            public string? TenantName { get; set; }
+            public string Name { get; set; } = "";
+            public bool IsActive { get; set; }
+            public string DefaultLanguageCode { get; set; } = "fr-BE";
+            public string DefaultCurrencyCode { get; set; } = "EUR";
+            public bool AllowNegativeStock { get; set; }
+            public DateTime? OpenFiscalPeriodStart { get; set; }
+            public DateTime? OpenFiscalPeriodEnd { get; set; }
+            public int RetentionMonths { get; set; } = 24;
+            public DateTime CreatedAt { get; set; }
+        }
+        public class SaveCompanyRequest
+        {
+            public string Name { get; set; } = "";
+            public string TenantId { get; set; } = "";
+            public bool IsActive { get; set; } = true;
+            public string? DefaultLanguageCode { get; set; }
+            public string? DefaultCurrencyCode { get; set; }
+            public bool AllowNegativeStock { get; set; }
+            public DateTime? OpenFiscalPeriodStart { get; set; }
+            public DateTime? OpenFiscalPeriodEnd { get; set; }
+            public int RetentionMonths { get; set; }
+        }
         public class UserAdminDto
         {
             public string Id { get; set; } = "";

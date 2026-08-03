@@ -20,6 +20,8 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public decimal TotalHT { get; set; }
         public decimal TotalVat { get; set; }
         public decimal TotalTTC { get; set; }
+        /// <summary>RG-CP1 : devise figée à la création (copiée de Company.DefaultCurrencyCode), gelée hors Draft.</summary>
+        public string CurrencyCode { get; set; } = "EUR";
         public string? Notes { get; set; }
         public string? CompanyId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

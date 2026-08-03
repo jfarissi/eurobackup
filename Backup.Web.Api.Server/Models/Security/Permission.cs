@@ -62,6 +62,11 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string DeliveryNoteCreate = "DeliveryNote.Create";
         public const string DeliveryNoteDelete = "DeliveryNote.Delete";
 
+        // Retours client (BRC — RG-BR1-5)
+        public const string SalesReturnRead    = "SalesReturn.Read";
+        public const string SalesReturnCreate  = "SalesReturn.Create";
+        public const string SalesReturnUpdate  = "SalesReturn.Update";
+
         // Factures vente
         public const string InvoiceRead      = "Invoice.Read";
         public const string InvoiceCreate    = "Invoice.Create";
@@ -84,6 +89,11 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string SupplierInvoiceCreate = "SupplierInvoice.Create";
         public const string SupplierInvoiceDelete = "SupplierInvoice.Delete";
 
+        // Avoirs fournisseur (AF — RG-AF1-5)
+        public const string SupplierCreditNoteRead   = "SupplierCreditNote.Read";
+        public const string SupplierCreditNoteCreate = "SupplierCreditNote.Create";
+        public const string SupplierCreditNoteUpdate = "SupplierCreditNote.Update";
+
         // Stock
         public const string StockRead        = "Stock.Read";
         public const string StockUpdate      = "Stock.Update";
@@ -92,8 +102,15 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string CashRead         = "Cash.Read";
         public const string CashManage       = "Cash.Manage";
 
+        // Comptabilité
+        public const string AccountingRead   = "Accounting.Read";
+        public const string AccountingCreate = "Accounting.Create";
+
         // Numérotation (admin)
         public const string NumberingManage  = "Numbering.Manage";
+
+        // Aide métier (CMS + analytics)
+        public const string HelpManage       = "Help.Manage";
 
         // Documents (upload / association)
         public const string DocumentRead     = "Document.Read";
@@ -119,13 +136,17 @@ namespace Backup.Web.Api.Server.Models.Security
             QuoteRead, QuoteCreate, QuoteUpdate, QuoteDelete,
             OrderRead, OrderCreate, OrderUpdate, OrderDelete,
             DeliveryNoteRead, DeliveryNoteCreate, DeliveryNoteDelete,
+            SalesReturnRead, SalesReturnCreate, SalesReturnUpdate,
             InvoiceRead, InvoiceCreate, InvoiceUpdate, InvoiceDelete,
             PurchaseOrderRead, PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderDelete,
             ReceiptRead, ReceiptCreate, ReceiptDelete,
             SupplierInvoiceRead, SupplierInvoiceCreate, SupplierInvoiceDelete,
+            SupplierCreditNoteRead, SupplierCreditNoteCreate, SupplierCreditNoteUpdate,
             StockRead, StockUpdate,
             CashRead, CashManage,
+            AccountingRead, AccountingCreate,
             NumberingManage,
+            HelpManage,
             DocumentRead, DocumentUpload, DocumentLink,
             UserRead, UserCreate, UserUpdate, UserDelete,
             RoleRead, RoleCreate, RoleUpdate, RoleDelete,

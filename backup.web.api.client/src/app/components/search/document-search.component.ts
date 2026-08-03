@@ -37,9 +37,15 @@ export class DocumentSearchComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.routeSub = this.route.queryParamMap.subscribe(params => {
       const q = (params.get('q') || '').trim();
+      const view = (params.get('view') || '').trim().toLowerCase();
       this.query = q;
-      if (q) this.search();
-      else this.clearResults();
+      if (q) {
+        this.search();
+      } else if (view === 'all' || view === 'recent') {
+        this.loadAllDocuments();
+      } else {
+        this.clearResults();
+      }
     });
   }
 
@@ -70,6 +76,32 @@ export class DocumentSearchComponent implements OnInit, OnDestroy {
       finalize(() => { this.loading = false; })
     ).subscribe({
       next: (docs) => this.applyResults(docs),
+      error: () => {
+        this.errorMessage = this.i18n.t('search.error.load');
+        this.results = [];
+        this.factures = [];
+        this.bonsLivraison = [];
+        this.autresDocuments = [];
+      }
+    });
+  }
+
+  /** Liste tous les documents (depuis le dashboard « Voir tout »). */
+  private loadAllDocuments(): void {
+    this.loading = true;
+    this.hasSearched = true;
+    this.errorMessage = null;
+    this.docs.list().pipe(
+      finalize(() => { this.loading = false; })
+    ).subscribe({
+      next: (docs) => {
+        const sorted = [...(docs || [])].sort((a, b) => {
+          const ta = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
+          const tb = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+          return tb - ta;
+        });
+        this.applyResults(sorted);
+      },
       error: () => {
         this.errorMessage = this.i18n.t('search.error.load');
         this.results = [];

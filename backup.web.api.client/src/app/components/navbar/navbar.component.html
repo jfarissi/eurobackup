@@ -51,6 +51,10 @@
                   [class.active]="i18n.lang === l.code"
                   (click)="setLanguage(l.code)">{{ l.label }}</button>
         </div>
+        <button type="button" class="btn-secondary help-nav-btn" (click)="openHelpCenter()" [matTooltip]="'help.nav.open' | t">
+          <mat-icon>help_outline</mat-icon>
+          <span class="help-nav-label">{{ 'help.nav.open' | t }}</span>
+        </button>
         <span class="user-chip" *ngIf="user" title="{{ user.username }}">
           <mat-icon>account_circle</mat-icon>
           <span class="user-name">{{ displayName() }}</span>
@@ -105,4 +109,6 @@
   <main class="page-content login-outlet" *ngIf="isLoginPage">
     <router-outlet></router-outlet>
   </main>
+
+  <app-help-center></app-help-center>
 </div>

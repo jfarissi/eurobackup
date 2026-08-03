@@ -20,7 +20,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         /// <summary>Document parsé source (BonLivraison) dans la table Documents.</summary>
         public int? DocumentId { get; set; }
         public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
-        public string Status { get; set; } = "Posted"; // Posted = Comptabilisé
+        public string Status { get; set; } = "Posted"; // Draft, QualityHold, Posted
         public string? Notes { get; set; }
         public string? CompanyId { get; set; }
         public string? CreatedBy { get; set; }

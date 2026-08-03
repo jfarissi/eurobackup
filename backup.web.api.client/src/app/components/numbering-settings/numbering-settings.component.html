@@ -1,7 +1,9 @@
 <div class="numbering-container">
   <div class="numbering-header">
     <div>
-      <h2>{{ 'numbering.title' | t }}</h2>
+      <app-form-help helpKey="numbering.tabs" [abbrs]="['FAC','BL','CMD']">
+        <h2>{{ 'numbering.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'numbering.subtitle' | t }}</p>
     </div>
     <div class="actions">

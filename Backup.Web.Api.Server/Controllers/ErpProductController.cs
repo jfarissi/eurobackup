@@ -11,6 +11,7 @@ using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.ErpSync;
+using Backup.Web.Api.Server.Services.Purchases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
@@ -90,6 +91,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? mainTypeId = null,
             [FromQuery] string? typeId = null,
             [FromQuery] string? subTypeId = null,
+            [FromQuery] int? supplierId = null,
             CancellationToken ct = default)
         {
             page = Math.Max(1, page);
@@ -101,6 +103,9 @@ namespace Backup.Web.Api.Server.Controllers
                 var brandTerm = brand.Trim().ToLowerInvariant();
                 query = query.Where(p => p.Brand != null && p.Brand.ToLower() == brandTerm);
             }
+
+            query = await ApplySupplierBrandFilterAsync(query, supplierId, ct);
+
             if (fromExcel.HasValue)
                 query = query.Where(p => p.FromExcel == fromExcel.Value);
             if (!string.IsNullOrWhiteSpace(dataSource))
@@ -146,6 +151,113 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(item);
         }
 
+        public class CreateErpProductRequest
+        {
+            public string? Name { get; set; }
+            public string? Reference { get; set; }
+            public string? Ean { get; set; }
+            public decimal? PurchasePrice { get; set; }
+            public decimal? VatPercent { get; set; }
+            public int? BrandId { get; set; }
+            public string? BrandName { get; set; }
+            public int? CategoryId { get; set; }
+            public string? SupplierName { get; set; }
+        }
+
+        /// <summary>
+        /// Crée un produit catalogue manquant (ex. ligne facture non trouvée).
+        /// Marque : BrandId / BrandName / suggestion via SupplierName.
+        /// Catégorie : CategoryId (optionnel) → remplit MainType/Type/SubType.
+        /// </summary>
+        [HttpPost]
+        [RequirePermission(Permissions.ProductCreate)]
+        public async Task<IActionResult> Create([FromBody] CreateErpProductRequest? request, CancellationToken ct = default)
+        {
+            if (request == null)
+                return BadRequest(new { message = "Body required" });
+
+            var name = (request.Name ?? string.Empty).Trim();
+            var reference = (request.Reference ?? string.Empty).Trim();
+            var ean = string.IsNullOrWhiteSpace(request.Ean) ? null : request.Ean.Trim();
+
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(reference) && string.IsNullOrWhiteSpace(ean))
+                return BadRequest(new { message = "Name, Reference or Ean required" });
+
+            if (string.IsNullOrWhiteSpace(reference))
+                reference = !string.IsNullOrWhiteSpace(ean) ? ean! : $"MAN-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+
+            var existing = await FindLocalCatalogProductAsync(reference, ean, ct);
+            if (existing != null)
+                return Ok(new { product = existing, created = false, message = "Produit déjà présent dans le catalogue" });
+
+            var (brandId, brandName) = await ResolveBrandForCreateAsync(
+                request.BrandId, request.BrandName, request.SupplierName, ct);
+
+            var product = new ErpProduct
+            {
+                ErpProductId = $"MAN-{reference}",
+                Name = string.IsNullOrWhiteSpace(name) ? reference : name,
+                Reference = reference,
+                Ean = ean,
+                BrandId = brandId,
+                Brand = brandName,
+                CPrice = request.PurchasePrice,
+                UnitPrice = request.PurchasePrice,
+                PriceHT = request.PurchasePrice,
+                TypeVatPerc = request.VatPercent ?? 21m,
+                DataSource = "Manual",
+                FromExcel = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            if (request.CategoryId is > 0)
+                await ApplyCategoryToProductAsync(product, request.CategoryId.Value, ct);
+
+            // Éviter collision ErpProductId unique
+            var erpIdTaken = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .AnyAsync(p => p.ErpProductId == product.ErpProductId, ct);
+            if (erpIdTaken)
+                product.ErpProductId = $"MAN-{reference}-{DateTime.UtcNow:HHmmss}";
+
+            var inserted = await _storage.InsertErpProductAsync(product);
+            return Ok(new { product = inserted, created = true });
+        }
+
+        [HttpGet("suggest-brand")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> SuggestBrand(
+            [FromQuery] string? supplierName = null,
+            [FromQuery] int? supplierId = null,
+            CancellationToken ct = default)
+        {
+            if (supplierId is > 0)
+            {
+                var supplier = await _storage.SelectSupplierByIdAsync(supplierId.Value);
+                supplierName = supplier?.Name ?? supplierName;
+            }
+
+            var token = SupplierBrandMatcher.DeriveBrandToken(supplierName);
+            if (string.IsNullOrWhiteSpace(token))
+                return Ok(new { token = (string?)null, brands = Array.Empty<object>(), suggestedBrandId = (int?)null });
+
+            var tokenLower = token.ToLowerInvariant();
+            var brands = await _storage.SelectAllErpBrands()
+                .AsNoTracking()
+                .Where(b => b.Name != null && b.Name.ToLower().Contains(tokenLower))
+                .OrderBy(b => b.Name)
+                .Select(b => new { b.Id, b.Name, b.Slug, b.IsActive })
+                .ToListAsync(ct);
+
+            return Ok(new
+            {
+                token,
+                brands,
+                suggestedBrandId = brands.Count == 1 ? brands[0].Id : (int?)null
+            });
+        }
+
         [HttpGet("search")]
         [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] int limit = 50, CancellationToken ct = default)
@@ -169,6 +281,123 @@ namespace Backup.Web.Api.Server.Controllers
 
             return Ok(items);
         }
+
+        private async Task<ErpProduct?> FindLocalCatalogProductAsync(string? reference, string? ean, CancellationToken ct)
+        {
+            var query = _storage.SelectAllErpProducts().AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(ean))
+            {
+                var eanTerm = ean.Trim().ToLowerInvariant();
+                var byEan = await query.FirstOrDefaultAsync(p => p.Ean != null && p.Ean.ToLower() == eanTerm, ct);
+                if (byEan != null) return byEan;
+            }
+
+            if (!string.IsNullOrWhiteSpace(reference))
+            {
+                var refTerm = reference.Trim().ToLowerInvariant();
+                return await query.FirstOrDefaultAsync(p =>
+                    (p.Reference != null && p.Reference.ToLower() == refTerm)
+                    || (p.ErpProductId != null && p.ErpProductId.ToLower() == refTerm), ct);
+            }
+
+            return null;
+        }
+
+        private async Task<(int? brandId, string? brandName)> ResolveBrandForCreateAsync(
+            int? brandId,
+            string? brandName,
+            string? supplierName,
+            CancellationToken ct)
+        {
+            if (brandId is > 0)
+            {
+                var brand = await _storage.SelectAllErpBrands()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.Id == brandId.Value, ct);
+                if (brand != null)
+                    return (brand.Id, brand.Name);
+            }
+
+            if (!string.IsNullOrWhiteSpace(brandName))
+            {
+                var name = brandName.Trim();
+                var existing = await _storage.SelectAllErpBrands()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.Name.ToLower() == name.ToLower(), ct);
+                if (existing != null)
+                    return (existing.Id, existing.Name);
+                return (null, name);
+            }
+
+            var token = SupplierBrandMatcher.DeriveBrandToken(supplierName);
+            if (string.IsNullOrWhiteSpace(token))
+                return (null, null);
+
+            var tokenLower = token.ToLowerInvariant();
+            var matches = await _storage.SelectAllErpBrands()
+                .AsNoTracking()
+                .Where(b => b.Name != null && b.Name.ToLower().Contains(tokenLower))
+                .OrderBy(b => b.Name.Length)
+                .ToListAsync(ct);
+
+            if (matches.Count == 1)
+                return (matches[0].Id, matches[0].Name);
+            if (matches.Count > 1)
+                return (matches[0].Id, matches[0].Name);
+
+            return (null, token);
+        }
+
+        private async Task ApplyCategoryToProductAsync(ErpProduct product, int categoryId, CancellationToken ct)
+        {
+            var leaf = await _storage.SelectAllErpCategories()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == categoryId, ct);
+            if (leaf == null) return;
+
+            product.CategoryId = leaf.Id;
+            ApplyCategoryLevel(product, leaf);
+
+            // Remonter parents pour MainType / Type
+            var parentId = leaf.ParentId;
+            var guard = 0;
+            while (parentId.HasValue && guard++ < 5)
+            {
+                var parent = await _storage.SelectAllErpCategories()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == parentId.Value, ct);
+                if (parent == null) break;
+                ApplyCategoryLevel(product, parent);
+                parentId = parent.ParentId;
+            }
+        }
+
+        private static void ApplyCategoryLevel(ErpProduct product, ErpCategory category)
+        {
+            var display = FirstNonEmpty(category.NameFr, category.NameNl, category.NameEn, category.ErpExternalId);
+            switch (category.Level)
+            {
+                case "SubType":
+                    product.SubTypeID = category.ErpExternalId;
+                    product.SubTypeName = display;
+                    break;
+                case "Type":
+                    product.TypeID = category.ErpExternalId;
+                    product.TypeName = display;
+                    break;
+                case "MainType":
+                    product.MainTypeID = category.ErpExternalId;
+                    product.MainTypeName = display;
+                    break;
+                case "MainSubType":
+                    product.MainSubTypeID = category.ErpExternalId;
+                    product.MainSubTypeName = display;
+                    break;
+            }
+        }
+
+        private static string FirstNonEmpty(params string?[] values) =>
+            values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim() ?? string.Empty;
 
         [HttpPost("sync/{erpId}")]
         [RequirePermission(Permissions.ProductUpdate)]
@@ -504,6 +733,43 @@ namespace Backup.Web.Api.Server.Controllers
             }
 
             return new List<string>();
+        }
+
+        /// <summary>
+        /// Filtre catalogue par marques du fournisseur (Brand.Name LIKE '%token%'),
+        /// token dérivé du nom fournisseur (ex. FF GROUP TOOL INDUSTRIES SA → FF GROUP).
+        /// </summary>
+        private async Task<IQueryable<ErpProduct>> ApplySupplierBrandFilterAsync(
+            IQueryable<ErpProduct> query,
+            int? supplierId,
+            CancellationToken ct)
+        {
+            if (!supplierId.HasValue || supplierId.Value <= 0)
+                return query;
+
+            var supplier = await _storage.SelectSupplierByIdAsync(supplierId.Value);
+            if (supplier == null)
+                return query.Where(_ => false);
+
+            var token = SupplierBrandMatcher.DeriveBrandToken(supplier.Name);
+            if (string.IsNullOrWhiteSpace(token))
+                return query.Where(_ => false);
+
+            var tokenLower = token.ToLowerInvariant();
+            var brandIds = await _storage.SelectAllErpBrands()
+                .AsNoTracking()
+                .Where(b => b.Name != null && b.Name.ToLower().Contains(tokenLower))
+                .Select(b => b.Id)
+                .ToListAsync(ct);
+
+            if (brandIds.Count > 0)
+            {
+                return query.Where(p =>
+                    (p.BrandId != null && brandIds.Contains(p.BrandId.Value))
+                    || (p.Brand != null && p.Brand.ToLower().Contains(tokenLower)));
+            }
+
+            return query.Where(p => p.Brand != null && p.Brand.ToLower().Contains(tokenLower));
         }
 
         private IQueryable<ErpProduct> BuildFilteredProductsQuery(

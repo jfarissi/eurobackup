@@ -188,22 +188,6 @@ export class UploadSearchComponent implements OnInit {
     });
   }
 
-  compareAndStock(invoiceId: number, deliveryId: number) {
-    this.docs.compareAndStock(invoiceId, deliveryId, false).subscribe({
-      next: (r) => {
-        if (r.success) {
-          this.snack.open('Stock mis à jour (quantités livrées)', 'OK', { duration: 2500 });
-        } else {
-          this.snack.open('Différences détectées: stock non mis à jour', 'OK', { duration: 3000 });
-        }
-      },
-      error: (e) => {
-        console.error(e);
-        this.snack.open('Erreur lors de l’alimentation du stock', 'Fermer', { duration: 3000 });
-      }
-    });
-  }
-
   onReparse(documentId: number) {
     if (!documentId) return;
     this.docs.reparseLines(documentId, false).subscribe({

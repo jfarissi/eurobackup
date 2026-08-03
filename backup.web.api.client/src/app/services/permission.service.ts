@@ -4,12 +4,14 @@ import { PermissionCode, RoutePermissions } from '../constants/permissions';
 
 /** Ordre de priorité pour la page d'accueil après login. */
 const HOME_CANDIDATES = [
+  '/dashboard',
   '/sales',
   '/purchases',
   '/upload',
   '/stock',
   '/erp-products',
   '/cash',
+  '/accounting',
   '/recherche',
   '/compare',
   '/erp-changes',
@@ -24,8 +26,10 @@ export class PermissionService {
   has(permission: PermissionCode | string): boolean {
     const user = this.auth.currentUser;
     if (!user) return false;
-    if (user.isAdmin) return true;
-    return user.permissions?.includes(permission) ?? false;
+    if (user.isAdmin || user.role?.toLowerCase() === 'admin') return true;
+    if (!permission) return false;
+    const needle = String(permission).toLowerCase();
+    return (user.permissions ?? []).some(p => String(p).toLowerCase() === needle);
   }
 
   hasAny(...permissions: (PermissionCode | string)[]): boolean {

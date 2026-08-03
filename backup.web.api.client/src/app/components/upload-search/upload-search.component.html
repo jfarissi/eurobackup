@@ -88,7 +88,6 @@
         <span>Facture #{{ r.invoiceId }} ↔ BL #{{ r.deliveryId }}</span>
         <span>
           <button mat-raised-button color="primary" (click)="compare(r.invoiceId, r.deliveryId)">Comparer</button>
-          <button mat-raised-button color="accent" style="margin-left:6px;" (click)="compareAndStock(r.invoiceId, r.deliveryId)">Comparer + Stock</button>
           <button mat-stroked-button color="warn" (click)="unlink(r.id)" style="margin-left:6px;">Dissocier</button>
         </span>
       </div>

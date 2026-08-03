@@ -6,23 +6,52 @@ import { MaterialModule } from '../../material.module';
 import { BusinessService } from '../../services/business.service';
 import { DocumentService } from '../../services/document.service';
 import { Document } from '../../models/document';
-import { PurchaseOrder, ReceiveDeliveryResult, Receipt, Supplier, SupplierInvoice, SupplierInvoicePurchaseOrderMatchResult } from '../../models/business';
+import {
+  PurchaseOrder,
+  ReceiveDeliveryResult,
+  Receipt,
+  Supplier,
+  SupplierInvoice,
+  SupplierInvoicePurchaseOrderMatchResult,
+  SupplierRfq,
+  SupplierRfqLine,
+  SupplierReturn,
+  SupplierReturnLine,
+  SupplierCreditNote
+} from '../../models/business';
 import { downloadBlob } from '../../utils/download-blob.util';
-import { Observable } from 'rxjs';
+import { Observable, from, of } from 'rxjs';
+import { concatMap, catchError, toArray } from 'rxjs/operators';
 import { ProductLineRefComponent } from '../shared/product-line-ref/product-line-ref.component';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { DocumentRelation } from '../../models/relation';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { FieldHelpComponent } from '../shared/field-help/field-help.component';
+
+/** Lot facture + BL(s) pour comptabilisation groupée. */
+export interface ParsedDocumentGroup {
+  id: string;
+  kind: 'linked' | 'suggested' | 'orphan-invoice' | 'orphan-delivery';
+  invoice: Document | null;
+  deliveries: Document[];
+  supplierName: string;
+}
 
 @Component({
   selector: 'app-purchases',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, ProductLineRefComponent, TPipe],
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, ProductLineRefComponent, TPipe, FormHelpComponent, FieldHelpComponent],
   templateUrl: './purchases.component.html',
   styleUrls: ['./purchases.component.css']
 })
 export class PurchasesComponent implements OnInit {
+  /**
+   * Flux ligne 1: 0 DPF, 1 CDF, 2 Réceptions, 3 Factures F, 4 AF, 5 Fournisseurs
+   * Annexes ligne 2: 6 BRF, 7 Docs parsés
+   */
   selectedTab = 0;
   loading = false;
   saving = false;
@@ -34,7 +63,23 @@ export class PurchasesComponent implements OnInit {
   supplierInvoices: SupplierInvoice[] = [];
   invoiceDocuments: Document[] = [];
   deliveryDocuments: Document[] = [];
+  documentRelations: DocumentRelation[] = [];
   receipts: Receipt[] = [];
+
+  // DPF / BRF / AF (P4)
+  supplierRfqs: SupplierRfq[] = [];
+  supplierReturns: SupplierReturn[] = [];
+  supplierCreditNotes: SupplierCreditNote[] = [];
+
+  showRfqModal = false;
+  newRfq: SupplierRfq = this.createEmptyRfq();
+
+  showSupplierReturnModal = false;
+  newSupplierReturn: SupplierReturn = this.createEmptySupplierReturn();
+
+  rfqError = '';
+  supplierReturnError = '';
+  creditNoteError = '';
 
   showCreateFromDocumentModal = false;
   showManualInvoiceModal = false;
@@ -43,6 +88,9 @@ export class PurchasesComponent implements OnInit {
   showReceiveDeliveryModal = false;
   showComptabiliserModal = false;
   selectedDocumentToComptabiliser: Document | null = null;
+  /** Lot FAC + BL(s) en cours de comptabilisation. */
+  selectedGroupToComptabiliser: ParsedDocumentGroup | null = null;
+  selectedGroupDeliveryIds: number[] = [];
   showMatchPurchaseOrderModal = false;
   showSupplierModal = false;
   editingSupplierId: number | null = null;
@@ -93,7 +141,7 @@ export class PurchasesComponent implements OnInit {
         : '';
 
       if (this.highlightedSupplierInvoiceId) {
-        this.selectedTab = 0;
+        this.selectedTab = 3;
       }
     });
 
@@ -103,25 +151,53 @@ export class PurchasesComponent implements OnInit {
   get createButtonLabel(): string {
     switch (this.selectedTab) {
       case 1: return this.i18n.t('purchases.btn.newOrder');
-      case 4: return this.i18n.t('purchases.btn.newSupplier');
+      case 5: return this.i18n.t('purchases.btn.newSupplier');
       default: return this.i18n.t('purchases.btn.newInvoice');
+    }
+  }
+
+  /** Aide F1 / panneau ? selon l’onglet actif. */
+  get activeTabHelpKey(): string {
+    const keys = [
+      'purchases.rfq',
+      'purchases.purchaseOrder',
+      'purchases.receipts',
+      'purchases.supplierInvoice',
+      'purchases.supplierCreditNote',
+      'purchases.supplier',
+      'purchases.supplierReturn',
+      'purchases.parsedDocuments'
+    ];
+    return keys[this.selectedTab] || 'purchases.tabs';
+  }
+
+  get activeTabHelpAbbrs(): string[] {
+    switch (this.selectedTab) {
+      case 0: return ['DPF', 'CDF'];
+      case 1: return ['CDF', 'BL', 'HT', 'TVA'];
+      case 2: return ['BL', 'CDF'];
+      case 3: return ['FF', 'FAC', 'HT', 'TVA', 'OCR'];
+      case 4: return ['AF', 'FF', 'BRF'];
+      case 6: return ['BRF', 'AF', 'BL'];
+      case 7: return ['OCR', 'BL', 'FAC', 'FF'];
+      default: return ['DPF', 'CDF', 'BL', 'BRF', 'AF', 'FAC', 'FF', 'OCR'];
     }
   }
 
   get createButtonIcon(): string {
     switch (this.selectedTab) {
       case 1: return 'shopping_cart';
-      case 4: return 'person_add';
+      case 5: return 'person_add';
       default: return 'add';
     }
   }
 
   get showCreateButton(): boolean {
-    if (this.selectedTab === 2 || this.selectedTab === 3) return false;
+    if (this.selectedTab === 2 || this.selectedTab === 7) return false;
     switch (this.selectedTab) {
-      case 0: return this.perm.has(Permissions.SupplierInvoiceCreate);
+      case 3: return this.perm.has(Permissions.SupplierInvoiceCreate);
       case 1: return this.perm.has(Permissions.PurchaseOrderCreate);
-      case 4: return this.perm.has(Permissions.SupplierCreate);
+      case 5: return this.perm.has(Permissions.SupplierCreate);
       default: return false;
     }
   }
@@ -131,7 +207,7 @@ export class PurchasesComponent implements OnInit {
       this.openManualPurchaseOrderModal();
       return;
     }
-    if (this.selectedTab === 4) {
+    if (this.selectedTab === 5) {
       this.openSupplierModal();
       return;
     }
@@ -157,23 +233,79 @@ export class PurchasesComponent implements OnInit {
     this.documentService.list('Facture').subscribe(documents => {
       this.invoiceDocuments = [...documents]
         .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
+      this.loadDocumentRelations();
     });
 
     this.documentService.list('BonLivraison').subscribe(documents => {
       this.deliveryDocuments = [...documents]
         .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
+      this.loadDocumentRelations();
     });
 
     this.businessService.getReceipts().subscribe(receipts => {
       this.receipts = receipts;
     });
+
+    this.loadDocumentRelations();
+    this.loadSupplierRfqs();
+    this.loadSupplierReturns();
+    this.loadSupplierCreditNotes();
+  }
+
+  /** Ferme le popup et recharge le formulaire principal. */
+  private finishModalSuccess(close: () => void, message?: string): void {
+    close();
+    if (message) this.actionMessage = message;
+    this.loadAllData();
+  }
+
+  loadDocumentRelations(): void {
+    this.documentService.relations().subscribe({
+      next: (rels) => this.documentRelations = rels || [],
+      error: () => this.documentRelations = []
+    });
+  }
+
+  loadSupplierRfqs(): void {
+    if (!this.perm.has(Permissions.PurchaseOrderRead)) {
+      this.supplierRfqs = [];
+      return;
+    }
+    this.businessService.getSupplierRfqs().subscribe({
+      next: (r) => this.supplierRfqs = r,
+      error: () => this.supplierRfqs = []
+    });
+  }
+
+  loadSupplierReturns(): void {
+    if (!this.perm.has(Permissions.PurchaseOrderRead)) {
+      this.supplierReturns = [];
+      return;
+    }
+    this.businessService.getSupplierReturns().subscribe({
+      next: (r) => this.supplierReturns = r,
+      error: () => this.supplierReturns = []
+    });
+  }
+
+  loadSupplierCreditNotes(): void {
+    if (!this.perm.has(Permissions.SupplierCreditNoteRead)) {
+      this.supplierCreditNotes = [];
+      return;
+    }
+    this.businessService.getSupplierCreditNotes().subscribe({
+      next: (c) => this.supplierCreditNotes = c,
+      error: () => this.supplierCreditNotes = []
+    });
   }
 
   onSearch(): void {
     if (this.selectedTab === 0) {
-      this.businessService.getSupplierInvoices(this.searchQuery || undefined).subscribe(res => {
-        this.supplierInvoices = this.sortSupplierInvoices(res);
-      });
+      if (this.searchQuery) {
+        this.businessService.getSupplierRfqs(this.searchQuery).subscribe(res => this.supplierRfqs = res);
+      } else {
+        this.loadSupplierRfqs();
+      }
       return;
     }
 
@@ -183,6 +315,41 @@ export class PurchasesComponent implements OnInit {
     }
 
     if (this.selectedTab === 2) {
+      this.businessService.getReceipts(this.searchQuery || undefined).subscribe(res => this.receipts = res);
+      return;
+    }
+
+    if (this.selectedTab === 3) {
+      this.businessService.getSupplierInvoices(this.searchQuery || undefined).subscribe(res => {
+        this.supplierInvoices = this.sortSupplierInvoices(res);
+      });
+      return;
+    }
+
+    if (this.selectedTab === 4) {
+      if (this.searchQuery) {
+        this.businessService.getSupplierCreditNotes(this.searchQuery).subscribe(res => this.supplierCreditNotes = res);
+      } else {
+        this.loadSupplierCreditNotes();
+      }
+      return;
+    }
+
+    if (this.selectedTab === 5) {
+      this.businessService.getSuppliers(this.searchQuery || undefined).subscribe(res => this.suppliers = res);
+      return;
+    }
+
+    if (this.selectedTab === 6) {
+      if (this.searchQuery) {
+        this.businessService.getSupplierReturns(this.searchQuery).subscribe(res => this.supplierReturns = res);
+      } else {
+        this.loadSupplierReturns();
+      }
+      return;
+    }
+
+    if (this.selectedTab === 7) {
       const q = (this.searchQuery || '').trim().toLowerCase();
       const filterDoc = (d: Document) => {
         if (!q) return true;
@@ -204,15 +371,8 @@ export class PurchasesComponent implements OnInit {
           .filter(filterDoc)
           .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
       });
-      return;
+      this.loadDocumentRelations();
     }
-
-    if (this.selectedTab === 3) {
-      this.businessService.getReceipts(this.searchQuery || undefined).subscribe(res => this.receipts = res);
-      return;
-    }
-
-    this.businessService.getSuppliers(this.searchQuery || undefined).subscribe(res => this.suppliers = res);
   }
 
   openCreateFromDocumentModal(): void {
@@ -340,6 +500,8 @@ export class PurchasesComponent implements OnInit {
   }
 
   openComptabiliserModal(doc: Document): void {
+    this.selectedGroupToComptabiliser = null;
+    this.selectedGroupDeliveryIds = [];
     this.showComptabiliserModal = true;
     this.selectedDocumentToComptabiliser = doc;
     this.selectedPurchaseOrderId = null;
@@ -347,7 +509,39 @@ export class PurchasesComponent implements OnInit {
     this.linkError = '';
   }
 
+  openComptabiliserGroupModal(group: ParsedDocumentGroup): void {
+    this.selectedDocumentToComptabiliser = null;
+    this.selectedGroupToComptabiliser = group;
+    this.selectedGroupDeliveryIds = group.deliveries
+      .filter(d => d.id && !this.isDocumentComptabilise(d))
+      .map(d => d.id!);
+    this.showComptabiliserModal = true;
+    this.selectedPurchaseOrderId = null;
+    const seed = group.invoice || group.deliveries[0] || null;
+    this.selectedSupplierId = seed ? this.resolveSupplierIdForDocument(seed) : null;
+    this.linkError = '';
+  }
+
+  toggleGroupDelivery(deliveryId: number, checked: boolean): void {
+    if (checked) {
+      if (!this.selectedGroupDeliveryIds.includes(deliveryId)) {
+        this.selectedGroupDeliveryIds = [...this.selectedGroupDeliveryIds, deliveryId];
+      }
+      return;
+    }
+    this.selectedGroupDeliveryIds = this.selectedGroupDeliveryIds.filter(id => id !== deliveryId);
+  }
+
+  isGroupDeliverySelected(deliveryId: number): boolean {
+    return this.selectedGroupDeliveryIds.includes(deliveryId);
+  }
+
   comptabiliserDocument(): void {
+    if (this.selectedGroupToComptabiliser) {
+      this.comptabiliserGroup();
+      return;
+    }
+
     if (!this.selectedDocumentToComptabiliser?.id) {
       this.linkError = this.i18n.t('purchases.documentMissing');
       return;
@@ -378,7 +572,7 @@ export class PurchasesComponent implements OnInit {
             warnings
           });
           this.actionMessage = this.highlightMessage;
-          this.selectedTab = 0;
+          this.selectedTab = 3;
           this.loadAllData();
         },
         error: (error) => {
@@ -402,12 +596,113 @@ export class PurchasesComponent implements OnInit {
         this.selectedDocumentToComptabiliser = null;
         this.highlightMessage = this.buildComptabiliserMessage(result);
         this.actionMessage = this.highlightMessage;
-        this.selectedTab = 3;
+        this.selectedTab = 2;
         this.loadAllData();
       },
       error: (error) => {
         this.saving = false;
         this.linkError = error?.error?.error || error?.error || this.i18n.t('purchases.comptabiliseError');
+      }
+    });
+  }
+
+  private comptabiliserGroup(): void {
+    const group = this.selectedGroupToComptabiliser;
+    if (!group) return;
+
+    if (!this.selectedSupplierId) {
+      this.linkError = this.i18n.t('purchases.selectSupplierError');
+      return;
+    }
+
+    const deliveryIds = this.selectedGroupDeliveryIds.filter(id => {
+      const doc = group.deliveries.find(d => d.id === id);
+      return !!doc && !this.isDocumentComptabilise(doc);
+    });
+    const invoicePending = group.invoice && !this.isDocumentComptabilise(group.invoice)
+      ? group.invoice
+      : null;
+
+    if (!invoicePending && deliveryIds.length === 0) {
+      this.linkError = this.i18n.t('purchases.group.nothingToPost');
+      return;
+    }
+
+    this.linkError = '';
+    this.saving = true;
+    const supplierId = this.selectedSupplierId;
+    const purchaseOrderId = this.selectedPurchaseOrderId || undefined;
+    const messages: string[] = [];
+
+    const steps: Array<() => Observable<string>> = [];
+
+    for (const deliveryId of deliveryIds) {
+      steps.push(() =>
+        this.businessService.comptabiliserDeliveryNote({
+          documentId: deliveryId,
+          supplierId,
+          purchaseOrderId,
+          updateStock: true,
+          defaultVatRate: this.defaultVatRate
+        }).pipe(
+          concatMap((result) => {
+            const msg = this.buildComptabiliserMessage(result);
+            // Auto-lier si suggestion et facture connue
+            if (group.kind === 'suggested' && group.invoice?.id && deliveryId) {
+              return this.documentService.link(group.invoice.id, deliveryId).pipe(
+                concatMap(() => of(msg)),
+                catchError(() => of(msg))
+              );
+            }
+            return of(msg);
+          })
+        )
+      );
+    }
+
+    if (invoicePending?.id) {
+      steps.push(() =>
+        this.businessService.comptabiliserSupplierInvoice({
+          documentId: invoicePending.id!,
+          supplierId,
+          purchaseOrderId,
+          defaultVatRate: this.defaultVatRate
+        }).pipe(
+          concatMap((result) => {
+            const warnings = result.warnings?.length ? ` ${result.warnings.join(' ')}` : '';
+            return of(this.i18n.t('purchases.invoiceComptabilised', {
+              number: result.invoice.invoiceNumber,
+              warnings
+            }));
+          })
+        )
+      );
+    }
+
+    from(steps).pipe(
+      concatMap(step => step().pipe(
+        catchError((error) => {
+          const msg = error?.error?.error || error?.error || this.i18n.t('purchases.comptabiliseError');
+          throw new Error(typeof msg === 'string' ? msg : this.i18n.t('purchases.comptabiliseError'));
+        })
+      )),
+      toArray()
+    ).subscribe({
+      next: (parts) => {
+        messages.push(...parts);
+        this.saving = false;
+        this.showComptabiliserModal = false;
+        this.selectedGroupToComptabiliser = null;
+        this.selectedGroupDeliveryIds = [];
+        this.highlightMessage = messages.join(' · ');
+        this.actionMessage = this.highlightMessage;
+        this.selectedTab = invoicePending ? 3 : 2;
+        this.loadAllData();
+      },
+      error: (error: Error) => {
+        this.saving = false;
+        this.linkError = error?.message || this.i18n.t('purchases.comptabiliseError');
+        this.loadAllData();
       }
     });
   }
@@ -438,7 +733,11 @@ export class PurchasesComponent implements OnInit {
     if (supplierId) {
       return this.purchaseOrders.filter(order => order.supplierId === supplierId);
     }
-    const supplierName = (this.selectedDocumentToComptabiliser?.supplier || '').trim().toLowerCase();
+    const seed = this.selectedDocumentToComptabiliser
+      || this.selectedGroupToComptabiliser?.invoice
+      || this.selectedGroupToComptabiliser?.deliveries[0]
+      || null;
+    const supplierName = (seed?.supplier || '').trim().toLowerCase();
     if (!supplierName) return this.purchaseOrders;
     return this.purchaseOrders.filter(order =>
       (order.supplier?.name || '').trim().toLowerCase() === supplierName
@@ -448,6 +747,143 @@ export class PurchasesComponent implements OnInit {
   parsedDocuments(): Document[] {
     return [...this.invoiceDocuments, ...this.deliveryDocuments]
       .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
+  }
+
+  /** Lots FAC + BL(s) : relations officielles, suggestions fournisseur, orphelins. */
+  parsedDocumentGroups(): ParsedDocumentGroup[] {
+    const q = (this.searchQuery || '').trim().toLowerCase();
+    const matchesSearch = (doc: Document) => {
+      if (!q) return true;
+      return (
+        (doc.numero || '').toLowerCase().includes(q) ||
+        (doc.supplier || '').toLowerCase().includes(q) ||
+        (doc.originalFileName || '').toLowerCase().includes(q) ||
+        (doc.typeDocument || '').toLowerCase().includes(q) ||
+        String(doc.id).includes(q)
+      );
+    };
+
+    const invoices = this.invoiceDocuments.filter(matchesSearch);
+    const deliveries = this.deliveryDocuments.filter(matchesSearch);
+    const invoiceById = new Map(invoices.map(i => [i.id!, i]));
+    const deliveryById = new Map(deliveries.map(d => [d.id!, d]));
+
+    const usedInvoiceIds = new Set<number>();
+    const usedDeliveryIds = new Set<number>();
+    const groups: ParsedDocumentGroup[] = [];
+
+    // 1) Relations explicites Compare
+    const byInvoice = new Map<number, number[]>();
+    for (const rel of this.documentRelations) {
+      if (!invoiceById.has(rel.invoiceId) && !this.invoiceDocuments.some(i => i.id === rel.invoiceId)) continue;
+      const list = byInvoice.get(rel.invoiceId) ?? [];
+      list.push(rel.deliveryId);
+      byInvoice.set(rel.invoiceId, list);
+    }
+
+    for (const [invoiceId, deliveryIds] of byInvoice) {
+      const invoice = invoiceById.get(invoiceId)
+        || this.invoiceDocuments.find(i => i.id === invoiceId)
+        || null;
+      if (!invoice) continue;
+      const linkedDeliveries = deliveryIds
+        .map(id => deliveryById.get(id) || this.deliveryDocuments.find(d => d.id === id))
+        .filter((d): d is Document => !!d);
+      if (!matchesSearch(invoice) && !linkedDeliveries.some(matchesSearch)) continue;
+
+      usedInvoiceIds.add(invoiceId);
+      linkedDeliveries.forEach(d => { if (d.id) usedDeliveryIds.add(d.id); });
+      groups.push({
+        id: `linked-${invoiceId}`,
+        kind: 'linked',
+        invoice,
+        deliveries: linkedDeliveries,
+        supplierName: invoice.supplier || linkedDeliveries[0]?.supplier || ''
+      });
+    }
+
+    // 2) Suggestions : même fournisseur, docs encore libres
+    const freeInvoices = invoices.filter(i => i.id && !usedInvoiceIds.has(i.id));
+    const freeDeliveries = deliveries.filter(d => d.id && !usedDeliveryIds.has(d.id));
+
+    for (const invoice of freeInvoices) {
+      const supplierKey = this.normalizeSupplierKey(invoice.supplier);
+      if (!supplierKey) continue;
+      const candidates = freeDeliveries.filter(d =>
+        d.id && !usedDeliveryIds.has(d.id) && this.normalizeSupplierKey(d.supplier) === supplierKey
+      );
+      if (candidates.length === 0) continue;
+
+      usedInvoiceIds.add(invoice.id!);
+      candidates.forEach(d => { if (d.id) usedDeliveryIds.add(d.id); });
+      groups.push({
+        id: `suggested-${invoice.id}`,
+        kind: 'suggested',
+        invoice,
+        deliveries: candidates,
+        supplierName: invoice.supplier || candidates[0]?.supplier || ''
+      });
+    }
+
+    // 3) Orphelins
+    for (const invoice of invoices) {
+      if (!invoice.id || usedInvoiceIds.has(invoice.id)) continue;
+      groups.push({
+        id: `orphan-inv-${invoice.id}`,
+        kind: 'orphan-invoice',
+        invoice,
+        deliveries: [],
+        supplierName: invoice.supplier || ''
+      });
+    }
+    for (const delivery of deliveries) {
+      if (!delivery.id || usedDeliveryIds.has(delivery.id)) continue;
+      groups.push({
+        id: `orphan-bl-${delivery.id}`,
+        kind: 'orphan-delivery',
+        invoice: null,
+        deliveries: [delivery],
+        supplierName: delivery.supplier || ''
+      });
+    }
+
+    return groups.sort((a, b) => {
+      const da = this.groupSortDate(a);
+      const db = this.groupSortDate(b);
+      return db - da;
+    });
+  }
+
+  private normalizeSupplierKey(name?: string | null): string {
+    return (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  private groupSortDate(group: ParsedDocumentGroup): number {
+    const dates = [
+      group.invoice?.dateAdded,
+      ...group.deliveries.map(d => d.dateAdded)
+    ].filter(Boolean) as string[];
+    return Math.max(0, ...dates.map(d => new Date(d).getTime()));
+  }
+
+  groupPendingCount(group: ParsedDocumentGroup): number {
+    let n = 0;
+    if (group.invoice && !this.isDocumentComptabilise(group.invoice)) n++;
+    n += group.deliveries.filter(d => !this.isDocumentComptabilise(d)).length;
+    return n;
+  }
+
+  isGroupFullyComptabilise(group: ParsedDocumentGroup): boolean {
+    return this.groupPendingCount(group) === 0;
+  }
+
+  groupKindLabel(group: ParsedDocumentGroup): string {
+    switch (group.kind) {
+      case 'linked': return this.i18n.t('purchases.group.kind.linked');
+      case 'suggested': return this.i18n.t('purchases.group.kind.suggested');
+      case 'orphan-invoice': return this.i18n.t('purchases.group.kind.orphanInvoice');
+      default: return this.i18n.t('purchases.group.kind.orphanDelivery');
+    }
   }
 
   isInvoiceDocument(doc: Document): boolean {
@@ -533,7 +969,7 @@ export class PurchasesComponent implements OnInit {
         next: (result) => {
           this.saving = false;
           this.showCreateFromDocumentModal = false;
-          this.selectedTab = 0;
+          this.selectedTab = 3;
           this.actionMessage = this.i18n.t('purchases.invoiceFromDoc', { number: result.invoice.invoiceNumber });
           this.loadAllData();
         },
@@ -562,7 +998,7 @@ export class PurchasesComponent implements OnInit {
       next: (invoice) => {
         this.saving = false;
         this.showManualInvoiceModal = false;
-        this.selectedTab = 0;
+        this.selectedTab = 3;
         this.actionMessage = this.i18n.t('purchases.supplierInvoiceCreated', { number: invoice.invoiceNumber });
         this.loadAllData();
       },
@@ -640,6 +1076,7 @@ export class PurchasesComponent implements OnInit {
         this.actionMessage = this.i18n.t('purchases.supplierSaved', { name: saved.name, code: saved.supplierCode, verb });
         this.editingSupplierId = null;
         this.openSupplierFrom = null;
+        this.loadAllData();
         this.businessService.getSuppliers().subscribe(suppliers => {
           this.suppliers = suppliers;
           if (!wasEdit && saved.id) {
@@ -653,7 +1090,7 @@ export class PurchasesComponent implements OnInit {
               this.selectedSupplierId = saved.id;
               this.showCreateFromDocumentModal = true;
             } else {
-              this.selectedTab = 4;
+              this.selectedTab = 5;
             }
           }
         });
@@ -725,6 +1162,20 @@ export class PurchasesComponent implements OnInit {
       },
       error: (error) => {
         this.linkError = error?.error?.error || error?.error || this.i18n.t('purchases.matchError');
+      }
+    });
+  }
+
+  approveSupplierInvoice(invoice: SupplierInvoice): void {
+    if (!invoice.id || !this.perm.has(Permissions.SupplierInvoiceCreate)) return;
+    const reason = prompt(this.i18n.t('purchases.approveMatchPrompt')) || undefined;
+    this.businessService.approveSupplierInvoice(invoice.id, reason).subscribe({
+      next: () => {
+        this.actionMessage = this.i18n.t('purchases.approveMatchOk', { number: invoice.invoiceNumber });
+        this.loadAllData();
+      },
+      error: (error) => {
+        this.linkError = error?.error?.error || error?.error || this.i18n.t('purchases.approveMatchError');
       }
     });
   }
@@ -926,7 +1377,10 @@ export class PurchasesComponent implements OnInit {
   private buildMatchResultMessage(result: SupplierInvoicePurchaseOrderMatchResult): string {
     const baseMessage = result.isBalanced
       ? this.i18n.t('purchases.matchOk', { invoice: result.invoice.invoiceNumber, order: result.purchaseOrder.orderNumber })
-      : this.i18n.t('purchases.matchWithGaps', { invoice: result.invoice.invoiceNumber, order: result.purchaseOrder.orderNumber });
+      : this.i18n.t(result.requiresApproval ? 'purchases.matchNeedsApproval' : 'purchases.matchWithGaps', {
+          invoice: result.invoice.invoiceNumber,
+          order: result.purchaseOrder.orderNumber
+        });
 
     if (!result.warnings.length) {
       return baseMessage;
@@ -1051,6 +1505,325 @@ export class PurchasesComponent implements OnInit {
       if (a.id === this.highlightedSupplierInvoiceId) return -1;
       if (b.id === this.highlightedSupplierInvoiceId) return 1;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }
+
+  // ── DPF — Demandes de prix fournisseur ───────────────────────────────────────
+
+  private createEmptyRfq(): SupplierRfq {
+    return {
+      rfqNumber: '',
+      supplierId: undefined,
+      date: new Date().toISOString().slice(0, 10),
+      status: 'Draft',
+      notes: '',
+      lines: [
+        { productKey: '', description: '', quantity: 1, estimatedUnitPrice: 0, lineNumber: 1 }
+      ]
+    };
+  }
+
+  openRfqModal(): void {
+    if (!this.perm.has(Permissions.PurchaseOrderCreate)) return;
+    this.newRfq = this.createEmptyRfq();
+    this.rfqError = '';
+    this.showRfqModal = true;
+  }
+
+  addRfqLine(): void {
+    this.newRfq.lines.push({ productKey: '', description: '', quantity: 1, estimatedUnitPrice: 0, lineNumber: this.newRfq.lines.length + 1 });
+  }
+
+  removeRfqLine(index: number): void {
+    this.newRfq.lines.splice(index, 1);
+    this.newRfq.lines.forEach((l, i) => l.lineNumber = i + 1);
+  }
+
+  saveRfq(): void {
+    if (!this.newRfq.lines.length || this.newRfq.lines.every(l => !l.description && !l.productKey)) {
+      this.rfqError = this.i18n.t('purchases.addLineError');
+      return;
+    }
+    this.rfqError = '';
+    this.saving = true;
+    this.businessService.createSupplierRfq(this.newRfq).subscribe({
+      next: (created) => {
+        this.saving = false;
+        this.finishModalSuccess(
+          () => { this.showRfqModal = false; },
+          this.i18n.t('purchases.rfqs.created', { number: created.rfqNumber })
+        );
+      },
+      error: (err) => {
+        this.saving = false;
+        this.rfqError = err?.error?.error || err?.error || this.i18n.t('purchases.rfqs.error');
+      }
+    });
+  }
+
+  canSendRfq(r: SupplierRfq): boolean {
+    return !!r.id && this.perm.has(Permissions.PurchaseOrderUpdate) && (r.status || '').toLowerCase() === 'draft';
+  }
+
+  canConvertRfq(r: SupplierRfq): boolean {
+    if (!r.id || !this.perm.has(Permissions.PurchaseOrderCreate)) return false;
+    const s = (r.status || '').toLowerCase();
+    return s !== 'processed' && s !== 'cancelled';
+  }
+
+  canCancelRfq(r: SupplierRfq): boolean {
+    if (!r.id || !this.perm.has(Permissions.PurchaseOrderUpdate)) return false;
+    const s = (r.status || '').toLowerCase();
+    return s !== 'processed' && s !== 'cancelled';
+  }
+
+  canDeleteRfq(r: SupplierRfq): boolean {
+    return !!r.id && this.perm.has(Permissions.PurchaseOrderUpdate) && (r.status || '').toLowerCase() === 'draft';
+  }
+
+  sendSupplierRfq(r: SupplierRfq): void {
+    if (!r.id || !this.canSendRfq(r)) return;
+    this.rfqError = '';
+    this.businessService.sendSupplierRfq(r.id).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.rfqs.sent', { number: updated.rfqNumber });
+        this.loadSupplierRfqs();
+      },
+      error: (err) => {
+        this.rfqError = err?.error?.error || err?.error || this.i18n.t('purchases.rfqs.error');
+      }
+    });
+  }
+
+  convertRfqToPurchaseOrder(r: SupplierRfq): void {
+    if (!r.id || !this.canConvertRfq(r)) return;
+    this.rfqError = '';
+    this.businessService.convertRfqToPurchaseOrder(r.id).subscribe({
+      next: (order) => {
+        this.actionMessage = this.i18n.t('purchases.rfqs.converted', { order: order.orderNumber });
+        this.loadSupplierRfqs();
+        this.businessService.getPurchaseOrders().subscribe(o => this.purchaseOrders = o);
+      },
+      error: (err) => {
+        this.rfqError = err?.error?.error || err?.error || this.i18n.t('purchases.rfqs.error');
+      }
+    });
+  }
+
+  cancelSupplierRfq(r: SupplierRfq): void {
+    if (!r.id || !this.canCancelRfq(r)) return;
+    const reason = prompt(this.i18n.t('purchases.cancelReasonPrompt'));
+    if (reason == null) return;
+    this.rfqError = '';
+    this.businessService.cancelSupplierRfq(r.id, reason.trim() || undefined).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.rfqs.cancelled', { number: updated.rfqNumber });
+        this.loadSupplierRfqs();
+      },
+      error: (err) => {
+        this.rfqError = err?.error?.error || err?.error || this.i18n.t('purchases.rfqs.error');
+      }
+    });
+  }
+
+  deleteSupplierRfq(r: SupplierRfq): void {
+    if (!r.id || !this.canDeleteRfq(r)) return;
+    if (!confirm(this.i18n.t('purchases.rfqs.confirmDelete', { number: r.rfqNumber }))) return;
+    this.businessService.deleteSupplierRfq(r.id).subscribe({
+      next: () => {
+        this.actionMessage = this.i18n.t('purchases.rfqs.deleted', { number: r.rfqNumber });
+        this.supplierRfqs = this.supplierRfqs.filter(x => x.id !== r.id);
+      },
+      error: (err) => {
+        this.rfqError = err?.error?.error || err?.error || this.i18n.t('purchases.rfqs.error');
+      }
+    });
+  }
+
+  // ── BRF — Retours fournisseur ─────────────────────────────────────────────────
+
+  private createEmptySupplierReturn(): SupplierReturn {
+    return {
+      returnNumber: '',
+      supplierId: 0,
+      date: new Date().toISOString().slice(0, 10),
+      status: 'Draft',
+      totalHT: 0,
+      totalVat: 0,
+      totalTTC: 0,
+      notes: '',
+      lines: [
+        { productKey: '', description: '', quantity: 1, unitPrice: 0, vatRate: 21, totalHT: 0, totalTTC: 0, lineNumber: 1 }
+      ]
+    };
+  }
+
+  openSupplierReturnModal(): void {
+    if (!this.perm.has(Permissions.PurchaseOrderCreate)) return;
+    this.newSupplierReturn = this.createEmptySupplierReturn();
+    this.supplierReturnError = '';
+    this.showSupplierReturnModal = true;
+  }
+
+  addSupplierReturnLine(): void {
+    this.newSupplierReturn.lines.push({ productKey: '', description: '', quantity: 1, unitPrice: 0, vatRate: 21, totalHT: 0, totalTTC: 0, lineNumber: this.newSupplierReturn.lines.length + 1 });
+  }
+
+  removeSupplierReturnLine(index: number): void {
+    this.newSupplierReturn.lines.splice(index, 1);
+    this.newSupplierReturn.lines.forEach((l, i) => l.lineNumber = i + 1);
+  }
+
+  calcSupplierReturnLine(line: SupplierReturnLine): void {
+    line.totalHT = (line.quantity || 0) * (line.unitPrice || 0);
+    line.totalTTC = line.totalHT * (1 + (line.vatRate || 0) / 100);
+  }
+
+  saveSupplierReturn(): void {
+    if (!this.newSupplierReturn.supplierId) {
+      this.supplierReturnError = this.i18n.t('purchases.selectSupplierError');
+      return;
+    }
+    if (!this.newSupplierReturn.lines.length || this.newSupplierReturn.lines.every(l => !l.description && !l.productKey)) {
+      this.supplierReturnError = this.i18n.t('purchases.addLineError');
+      return;
+    }
+    this.newSupplierReturn.lines.forEach(l => this.calcSupplierReturnLine(l));
+    this.supplierReturnError = '';
+    this.saving = true;
+    this.businessService.createSupplierReturn(this.newSupplierReturn).subscribe({
+      next: (created) => {
+        this.saving = false;
+        this.finishModalSuccess(
+          () => { this.showSupplierReturnModal = false; },
+          this.i18n.t('purchases.supplierReturns.created', { number: created.returnNumber })
+        );
+      },
+      error: (err) => {
+        this.saving = false;
+        this.supplierReturnError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierReturns.error');
+      }
+    });
+  }
+
+  canShipSupplierReturn(r: SupplierReturn): boolean {
+    return !!r.id && this.perm.has(Permissions.PurchaseOrderUpdate) && (r.status || '').toLowerCase() === 'draft';
+  }
+
+  canCancelSupplierReturn(r: SupplierReturn): boolean {
+    if (!r.id || !this.perm.has(Permissions.PurchaseOrderUpdate)) return false;
+    return (r.status || '').toLowerCase() !== 'cancelled' && !r.creditNoteId;
+  }
+
+  canCreateCreditNoteForSupplierReturn(r: SupplierReturn): boolean {
+    if (!r.id || r.creditNoteId || !this.perm.has(Permissions.SupplierCreditNoteCreate)) return false;
+    return (r.status || '').toLowerCase() !== 'cancelled';
+  }
+
+  shipSupplierReturn(r: SupplierReturn): void {
+    if (!r.id || !this.canShipSupplierReturn(r)) return;
+    this.supplierReturnError = '';
+    this.businessService.shipSupplierReturn(r.id).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.supplierReturns.shipped', { number: updated.returnNumber });
+        this.loadSupplierReturns();
+      },
+      error: (err) => {
+        this.supplierReturnError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierReturns.error');
+      }
+    });
+  }
+
+  cancelSupplierReturn(r: SupplierReturn): void {
+    if (!r.id || !this.canCancelSupplierReturn(r)) return;
+    const reason = prompt(this.i18n.t('purchases.cancelReasonPrompt'));
+    if (reason == null) return;
+    this.supplierReturnError = '';
+    this.businessService.cancelSupplierReturn(r.id, reason.trim() || undefined).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.supplierReturns.cancelled', { number: updated.returnNumber });
+        this.loadSupplierReturns();
+      },
+      error: (err) => {
+        this.supplierReturnError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierReturns.error');
+      }
+    });
+  }
+
+  createCreditNoteFromSupplierReturn(r: SupplierReturn): void {
+    if (!r.id || !this.canCreateCreditNoteForSupplierReturn(r)) return;
+    this.supplierReturnError = '';
+    this.businessService.createCreditNoteFromSupplierReturn(r.id, r.supplierInvoiceId).subscribe({
+      next: (creditNote) => {
+        this.actionMessage = this.i18n.t('purchases.supplierReturns.creditNoteCreated', { number: creditNote.creditNoteNumber });
+        this.loadSupplierReturns();
+        this.loadSupplierCreditNotes();
+      },
+      error: (err) => {
+        this.supplierReturnError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierReturns.error');
+      }
+    });
+  }
+
+  // ── AF — Avoirs fournisseur ───────────────────────────────────────────────────
+
+  canValidateSupplierCreditNote(c: SupplierCreditNote): boolean {
+    return !!c.id && this.perm.has(Permissions.SupplierCreditNoteUpdate) && (c.status || '').toLowerCase() === 'draft';
+  }
+
+  canApplySupplierCreditNote(c: SupplierCreditNote): boolean {
+    if (!c.id || !this.perm.has(Permissions.SupplierCreditNoteUpdate)) return false;
+    const s = (c.status || '').toLowerCase();
+    return s === 'draft' || s === 'validated';
+  }
+
+  canCancelSupplierCreditNote(c: SupplierCreditNote): boolean {
+    if (!c.id || !this.perm.has(Permissions.SupplierCreditNoteUpdate)) return false;
+    const s = (c.status || '').toLowerCase();
+    return s !== 'applied' && s !== 'cancelled';
+  }
+
+  validateSupplierCreditNote(c: SupplierCreditNote): void {
+    if (!c.id || !this.canValidateSupplierCreditNote(c)) return;
+    this.creditNoteError = '';
+    this.businessService.validateSupplierCreditNote(c.id).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.supplierCreditNotes.validated', { number: updated.creditNoteNumber });
+        this.loadSupplierCreditNotes();
+      },
+      error: (err) => {
+        this.creditNoteError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierCreditNotes.error');
+      }
+    });
+  }
+
+  applySupplierCreditNote(c: SupplierCreditNote): void {
+    if (!c.id || !this.canApplySupplierCreditNote(c)) return;
+    this.creditNoteError = '';
+    this.businessService.applySupplierCreditNote(c.id).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.supplierCreditNotes.applied', { number: updated.creditNoteNumber });
+        this.loadSupplierCreditNotes();
+      },
+      error: (err) => {
+        this.creditNoteError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierCreditNotes.error');
+      }
+    });
+  }
+
+  cancelSupplierCreditNote(c: SupplierCreditNote): void {
+    if (!c.id || !this.canCancelSupplierCreditNote(c)) return;
+    const reason = prompt(this.i18n.t('purchases.cancelReasonPrompt'));
+    if (reason == null) return;
+    this.creditNoteError = '';
+    this.businessService.cancelSupplierCreditNote(c.id, reason.trim() || undefined).subscribe({
+      next: (updated) => {
+        this.actionMessage = this.i18n.t('purchases.supplierCreditNotes.cancelled', { number: updated.creditNoteNumber });
+        this.loadSupplierCreditNotes();
+      },
+      error: (err) => {
+        this.creditNoteError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierCreditNotes.error');
+      }
     });
   }
 }

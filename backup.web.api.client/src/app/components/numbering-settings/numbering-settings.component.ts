@@ -6,11 +6,12 @@ import { BusinessService } from '../../services/business.service';
 import { DocumentNumberSequence } from '../../models/business';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
 
 @Component({
   selector: 'app-numbering-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
   templateUrl: './numbering-settings.component.html',
   styleUrls: ['./numbering-settings.component.css']
 })

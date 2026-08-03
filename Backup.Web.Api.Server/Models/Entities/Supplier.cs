@@ -17,8 +17,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? PaymentTerms { get; set; }
+        /// <summary>RG-CT2 : Active | Blocked | Closed (en plus de IsActive historique).</summary>
+        public string Status { get; set; } = "Active";
         public int LeadTimeDays { get; set; } = 7;
         public bool IsActive { get; set; } = true;
+        /// <summary>Encours fournisseur TTC (RG-AC6).</summary>
+        public decimal Balance { get; set; } = 0m;
         public string? CompanyId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

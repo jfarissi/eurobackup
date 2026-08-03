@@ -1,0 +1,20 @@
+<div class="wt-overlay" *ngIf="open && steps.length" (click)="close()">
+  <div class="wt-card" (click)="$event.stopPropagation()" role="dialog">
+    <header>
+      <div>
+        <h3>{{ 'help.section.guide' | t }}</h3>
+        <span class="muted">{{ 'help.guide.step' | t:{ current: index + 1, total: steps.length } }}</span>
+      </div>
+      <button type="button" class="icon-btn" (click)="close()" [attr.aria-label]="'common.close' | t">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+    <p class="wt-step">{{ current }}</p>
+    <footer>
+      <button type="button" class="btn-secondary" (click)="prev()" [disabled]="index === 0">{{ 'help.guide.prev' | t }}</button>
+      <button type="button" class="btn-primary" (click)="next()">
+        {{ index >= steps.length - 1 ? ('common.close' | t) : ('help.guide.next' | t) }}
+      </button>
+    </footer>
+  </div>
+</div>

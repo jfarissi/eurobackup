@@ -68,6 +68,8 @@ export interface ErpProductsQuery {
   mainTypeId?: string;
   typeId?: string;
   subTypeId?: string;
+  /** Filtre marques du fournisseur (Brand LIKE token dérivé du nom). */
+  supplierId?: number;
 }
 
 export interface ErpProductChange {
@@ -160,4 +162,28 @@ export interface ErpCatalogSyncFilter {
   typeId?: string;
   subTypeId?: string;
   brand?: string;
+}
+
+export interface CreateErpProductRequest {
+  name?: string;
+  reference?: string;
+  ean?: string;
+  purchasePrice?: number;
+  vatPercent?: number;
+  brandId?: number;
+  brandName?: string;
+  categoryId?: number;
+  supplierName?: string;
+}
+
+export interface CreateErpProductResult {
+  product: ErpProduct;
+  created: boolean;
+  message?: string;
+}
+
+export interface SuggestBrandResult {
+  token: string | null;
+  brands: Array<{ id: number; name: string; slug?: string; isActive?: boolean }>;
+  suggestedBrandId: number | null;
 }

@@ -2,7 +2,9 @@
   <section class="products-subheader">
     <div class="products-subheader-inner">
       <div class="products-title-block">
-        <h2>{{ 'erpProducts.title' | t }}</h2>
+        <app-form-help helpKey="erpProducts.tabs" [abbrs]="['EAN','ERP']">
+          <h2>{{ 'erpProducts.title' | t }}</h2>
+        </app-form-help>
         <p>{{ 'erpProducts.subtitle' | t }}</p>
       </div>
       <div class="products-actions">

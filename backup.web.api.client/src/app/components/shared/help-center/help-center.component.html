@@ -1,0 +1,74 @@
+<div class="help-center-overlay" *ngIf="open" (click)="close()">
+  <aside class="help-center" (click)="$event.stopPropagation()" role="dialog" [attr.aria-label]="'help.center.title' | t">
+    <header class="help-center-header">
+      <div>
+        <h2>{{ 'help.center.title' | t }}</h2>
+        <p class="muted">{{ 'help.center.hint' | t }}</p>
+      </div>
+      <button type="button" class="icon-btn" (click)="close()" [attr.aria-label]="'common.close' | t">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <div class="help-center-search">
+      <mat-icon>search</mat-icon>
+      <input
+        type="search"
+        [(ngModel)]="query"
+        (ngModelChange)="onQueryChange($event)"
+        [placeholder]="'help.center.searchPlaceholder' | t"
+        autofocus />
+    </div>
+
+    <div class="help-center-body">
+      <div class="help-center-list">
+        <div class="section-title">{{ 'help.center.articles' | t }}</div>
+        <button
+          type="button"
+          class="help-result"
+          *ngFor="let a of results"
+          [class.active]="selected?.key === a.key"
+          (click)="select(a)">
+          <strong>{{ a.title || a.key }}</strong>
+          <span>{{ a.n1 }}</span>
+        </button>
+        <p class="empty" *ngIf="results.length === 0">{{ 'help.center.noResults' | t }}</p>
+
+        <div class="section-title" *ngIf="glossary.length">{{ 'help.section.abbreviations' | t }}</div>
+        <div class="glossary-row" *ngFor="let g of glossary">
+          <code>{{ g.code }}</code>
+          <span>{{ g.label }}</span>
+        </div>
+      </div>
+
+      <div class="help-center-detail" *ngIf="selected as a">
+        <h3>{{ a.title || a.key }}</h3>
+        <p class="n1" *ngIf="a.n1">{{ a.n1 }}</p>
+        <p *ngFor="let p of a.n2">{{ p }}</p>
+
+        <div *ngIf="a.rules.length">
+          <h4>{{ 'help.section.rules' | t }}</h4>
+          <ul>
+            <li *ngFor="let r of a.rules">
+              <code *ngIf="r.id">{{ r.id }}</code> {{ r.text }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="example" *ngIf="a.example">
+          <h4>{{ 'help.section.example' | t }}</h4>
+          <p>{{ a.example }}</p>
+        </div>
+
+        <div *ngIf="a.guideSteps.length">
+          <h4>{{ 'help.section.guide' | t }}</h4>
+          <ol>
+            <li *ngFor="let s of a.guideSteps">{{ s }}</li>
+          </ol>
+        </div>
+
+        <p class="version">{{ a.version }}</p>
+      </div>
+    </div>
+  </aside>
+</div>

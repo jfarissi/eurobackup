@@ -7,6 +7,10 @@ namespace Backup.Web.Api.Server.Models
 		public int Id { get; set; }
 		public string ProductKey { get; set; } = string.Empty; // Prefer ProductCode, else Product name
 		public decimal QuantityOnHand { get; set; }
+		/// <summary>P4 — quantité réservée par commandes confirmées (ATP = OnHand − Reserved).</summary>
+		public decimal ReservedQuantity { get; set; }
+		/// <summary>P4 — seuil de réappro auto (0 = désactivé).</summary>
+		public decimal MinStock { get; set; }
 		public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 		/// <summary>
 		/// ID du dernier BL qui a mis à jour ce produit.

@@ -80,6 +80,12 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Country = supplier.Country;
             existing.Email = supplier.Email;
             existing.Phone = supplier.Phone;
+            existing.PaymentTerms = supplier.PaymentTerms;
+            existing.IsActive = supplier.IsActive;
+            if (!string.IsNullOrWhiteSpace(supplier.Status))
+                existing.Status = supplier.Status.Trim();
+            else if (!supplier.IsActive)
+                existing.Status = "Blocked";
             existing.UpdatedAt = DateTime.UtcNow;
 
             var updated = await this.storage.UpdateSupplierAsync(existing);

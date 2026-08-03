@@ -40,11 +40,20 @@ export const Permissions = {
   SupplierInvoiceRead: 'SupplierInvoice.Read',
   SupplierInvoiceCreate: 'SupplierInvoice.Create',
   SupplierInvoiceDelete: 'SupplierInvoice.Delete',
+  SalesReturnRead: 'SalesReturn.Read',
+  SalesReturnCreate: 'SalesReturn.Create',
+  SalesReturnUpdate: 'SalesReturn.Update',
+  SupplierCreditNoteRead: 'SupplierCreditNote.Read',
+  SupplierCreditNoteCreate: 'SupplierCreditNote.Create',
+  SupplierCreditNoteUpdate: 'SupplierCreditNote.Update',
   StockRead: 'Stock.Read',
   StockUpdate: 'Stock.Update',
   CashRead: 'Cash.Read',
   CashManage: 'Cash.Manage',
+  AccountingRead: 'Accounting.Read',
+  AccountingCreate: 'Accounting.Create',
   NumberingManage: 'Numbering.Manage',
+  HelpManage: 'Help.Manage',
   DocumentRead: 'Document.Read',
   DocumentUpload: 'Document.Upload',
   DocumentLink: 'Document.Link',
@@ -62,12 +71,14 @@ export type PermissionCode = typeof Permissions[keyof typeof Permissions];
 
 /** Route → any of these permissions grants menu/route access */
 export const RoutePermissions: Record<string, PermissionCode[]> = {
+  '/dashboard': [],
   '/sales': [Permissions.CustomerRead, Permissions.QuoteRead, Permissions.OrderRead, Permissions.InvoiceRead, Permissions.DeliveryNoteRead],
   '/purchases': [Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead],
   '/stock': [Permissions.StockRead],
   '/erp-products': [Permissions.ProductRead],
   '/erp-changes': [Permissions.ErpChangeRead],
   '/cash': [Permissions.CashRead, Permissions.CashManage],
+  '/accounting': [Permissions.AccountingRead, Permissions.AccountingCreate],
   '/numbering': [Permissions.NumberingManage],
   '/upload': [Permissions.DocumentUpload],
   '/recherche': [Permissions.DocumentRead],
@@ -99,6 +110,7 @@ export const PermissionCategories: PermissionCategory[] = [
       { label: 'admin.perm.sec.orders', permissions: [Permissions.OrderRead, Permissions.OrderCreate, Permissions.OrderUpdate, Permissions.OrderDelete] },
       { label: 'admin.perm.sec.deliveryNotes', permissions: [Permissions.DeliveryNoteRead, Permissions.DeliveryNoteCreate, Permissions.DeliveryNoteDelete] },
       { label: 'admin.perm.sec.invoices', permissions: [Permissions.InvoiceRead, Permissions.InvoiceCreate, Permissions.InvoiceUpdate, Permissions.InvoiceDelete] },
+      { label: 'admin.perm.sec.salesReturns', permissions: [Permissions.SalesReturnRead, Permissions.SalesReturnCreate, Permissions.SalesReturnUpdate] },
     ],
   },
   {
@@ -109,6 +121,7 @@ export const PermissionCategories: PermissionCategory[] = [
       { label: 'admin.perm.sec.purchaseOrders', permissions: [Permissions.PurchaseOrderRead, Permissions.PurchaseOrderCreate, Permissions.PurchaseOrderUpdate, Permissions.PurchaseOrderDelete] },
       { label: 'admin.perm.sec.receipts', permissions: [Permissions.ReceiptRead, Permissions.ReceiptCreate, Permissions.ReceiptDelete] },
       { label: 'admin.perm.sec.supplierInvoices', permissions: [Permissions.SupplierInvoiceRead, Permissions.SupplierInvoiceCreate, Permissions.SupplierInvoiceDelete] },
+      { label: 'admin.perm.sec.supplierCreditNotes', permissions: [Permissions.SupplierCreditNoteRead, Permissions.SupplierCreditNoteCreate, Permissions.SupplierCreditNoteUpdate] },
     ],
   },
   {
@@ -141,10 +154,18 @@ export const PermissionCategories: PermissionCategory[] = [
     ],
   },
   {
+    id: 'accounting',
+    label: 'admin.perm.cat.accounting',
+    sections: [
+      { label: 'admin.perm.sec.accounting', permissions: [Permissions.AccountingRead, Permissions.AccountingCreate] },
+    ],
+  },
+  {
     id: 'settings',
     label: 'admin.perm.cat.settings',
     sections: [
       { label: 'admin.perm.sec.numbering', permissions: [Permissions.NumberingManage] },
+      { label: 'admin.perm.sec.help', permissions: [Permissions.HelpManage] },
     ],
   },
   {

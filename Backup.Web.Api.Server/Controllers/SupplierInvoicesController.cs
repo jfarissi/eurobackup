@@ -8,8 +8,10 @@ using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Accounting;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -64,8 +66,10 @@ namespace Backup.Web.Api.Server.Controllers
             public int MissingInvoiceLineCount { get; set; }
             public int MissingPurchaseOrderLineCount { get; set; }
             public int QuantityMismatchCount { get; set; }
+            public int ReceivedQuantityMismatchCount { get; set; }
             public int PriceMismatchCount { get; set; }
             public bool IsBalanced { get; set; }
+            public bool RequiresApproval { get; set; }
             public List<string> Warnings { get; set; } = new();
         }
 
@@ -115,9 +119,14 @@ namespace Backup.Web.Api.Server.Controllers
             if (validation != null) return validation;
 
             await this.EnsureInvoiceNumberAsync(invoice, preferDocumentNumber: false);
+            await this.ApplySupplierDueDateAsync(invoice);
             NormalizeSupplierInvoice(invoice);
 
+            // RG-CP1 : devise figée à la création depuis Company.DefaultCurrencyCode.
+            invoice.CurrencyCode = await SalesBusinessRules.ResolveCompanyCurrencyAsync(this.storage, invoice.CompanyId);
+
             var created = await this.storage.InsertSupplierInvoiceAsync(invoice);
+            await this.AuditSupplierInvoice(created.Id, "Created", $"Création facture fournisseur {created.InvoiceNumber}");
             return Created(created);
         }
 
@@ -128,6 +137,16 @@ namespace Backup.Web.Api.Server.Controllers
             var existing = await this.storage.SelectSupplierInvoiceByIdAsync(id);
             if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
 
+            // RG-FF4 : immuable après validation / comptabilisation.
+            if (string.Equals(existing.Status, "Validated", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "Paid", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "PartiallyPaid", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(existing.Status, "Posted", StringComparison.OrdinalIgnoreCase)
+                || AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefSupplierInvoice, existing.Id, existing.CompanyId))
+            {
+                return BadRequest($"Une facture fournisseur au statut {existing.Status} ne peut plus être modifiée. Utilisez un avoir fournisseur.");
+            }
+
             var validation = await this.ValidateSupplierInvoiceAsync(invoice, id);
             if (validation != null) return validation;
 
@@ -137,6 +156,7 @@ namespace Backup.Web.Api.Server.Controllers
             existing.PurchaseOrderId = invoice.PurchaseOrderId;
             existing.Date = invoice.Date == default ? existing.Date : invoice.Date;
             existing.DueDate = invoice.DueDate == default ? existing.DueDate : invoice.DueDate;
+            existing.DueDate = PaymentTermsHelper.EnsureNotBeforeInvoiceDate(existing.Date, existing.DueDate);
             existing.Status = string.IsNullOrWhiteSpace(invoice.Status) ? existing.Status : invoice.Status.Trim();
             existing.Notes = invoice.Notes;
             existing.CompanyId = invoice.CompanyId;
@@ -182,7 +202,7 @@ namespace Backup.Web.Api.Server.Controllers
                 SupplierId = request.SupplierId,
                 DocumentId = request.DocumentId,
                 Date = document.DateDocument ?? DateTime.UtcNow,
-                DueDate = (document.DateDocument ?? DateTime.UtcNow).AddDays(30),
+                DueDate = default,
                 Status = "Draft",
                 Notes = BuildDocumentOriginNote(document),
                 CompanyId = request.CompanyId ?? this.companyContext.GetCurrentCompanyId(),
@@ -191,6 +211,7 @@ namespace Backup.Web.Api.Server.Controllers
             };
 
             await this.EnsureInvoiceNumberAsync(invoice, request.UseDocumentNumberWhenAvailable, document);
+            await this.ApplySupplierDueDateAsync(invoice);
             NormalizeSupplierInvoice(invoice);
 
             var created = await this.storage.InsertSupplierInvoiceAsync(invoice);
@@ -287,7 +308,7 @@ namespace Backup.Web.Api.Server.Controllers
                 DocumentId = request.DocumentId,
                 PurchaseOrderId = request.PurchaseOrderId,
                 Date = document.DateDocument ?? DateTime.UtcNow,
-                DueDate = (document.DateDocument ?? DateTime.UtcNow).AddDays(30),
+                DueDate = default,
                 Status = "Validated",
                 Notes = $"Facture fournisseur créée depuis le document #{request.DocumentId} ({document.OriginalFileName})",
                 CompanyId = this.companyContext.GetCurrentCompanyId(),
@@ -296,10 +317,12 @@ namespace Backup.Web.Api.Server.Controllers
             };
 
             await this.EnsureInvoiceNumberAsync(invoice, preferDocumentNumber: true, document);
+            invoice.DueDate = PaymentTermsHelper.ComputeDueDate(invoice.Date, supplier.PaymentTerms);
             NormalizeSupplierInvoice(invoice);
 
             var created = await this.storage.InsertSupplierInvoiceAsync(invoice);
             created = await this.storage.SelectSupplierInvoiceByIdAsync(created.Id) ?? created;
+            await this.AuditSupplierInvoice(created.Id, "Created", $"Comptabilisation facture fournisseur {created.InvoiceNumber} ({created.Status})");
 
             var result = new ComptabiliserResult { Invoice = created };
 
@@ -312,15 +335,24 @@ namespace Backup.Web.Api.Server.Controllers
                     if (!matchResult.IsBalanced)
                     {
                         result.Warnings.AddRange(matchResult.Warnings);
+                        created.Status = "ApprovalRequired";
+                        created = await this.storage.UpdateSupplierInvoiceAsync(created);
+                        result.Invoice = created;
                     }
 
                     if (po.Status is "Received" or "PartiallyReceived")
                     {
                         po.Status = matchResult.IsBalanced ? "Invoiced" : "PartiallyInvoiced";
-                        await this.storage.UpdatePurchaseOrderAsync(po);
                     }
+
+                    // RG-CF6 : cohérence qté commande/réception/facture — bump InvoicedQuantity lignes PO.
+                    ApplyInvoicedQuantities(po, created);
+                    await this.storage.UpdatePurchaseOrderAsync(po);
                 }
             }
+
+            var postError = await TryPostSupplierAccountingAsync(created);
+            if (postError != null) result.Warnings.Add(postError);
 
             return Ok(result);
         }
@@ -409,20 +441,70 @@ namespace Backup.Web.Api.Server.Controllers
                 purchaseOrder.Status = matchResult.IsBalanced ? "Invoiced" : "PartiallyInvoiced";
             }
 
-            if (string.Equals(invoice.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+            // RG-CF6 : cohérence qté commande/réception/facture — bump InvoicedQuantity lignes PO.
+            ApplyInvoicedQuantities(purchaseOrder, invoice);
+
+            // RG-AC4/AC5 : matching 3 voies — écart → ApprovalRequired
+            if (matchResult.IsBalanced)
             {
-                invoice.Status = "Validated";
+                if (string.Equals(invoice.Status, "Draft", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(invoice.Status, "ApprovalRequired", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoice.Status = "Matched";
+                }
+            }
+            else
+            {
+                invoice.Status = "ApprovalRequired";
+                matchResult.RequiresApproval = true;
             }
 
             NormalizeSupplierInvoice(invoice);
 
             var updatedInvoice = await this.storage.UpdateSupplierInvoiceAsync(invoice);
             var updatedPurchaseOrder = await this.storage.UpdatePurchaseOrderAsync(purchaseOrder);
+            await this.AuditSupplierInvoice(updatedInvoice.Id, "Matched", $"Rapprochement facture {updatedInvoice.InvoiceNumber} ↔ CDF {updatedPurchaseOrder.OrderNumber}");
+
+            var postError = await TryPostSupplierAccountingAsync(updatedInvoice);
+            if (postError != null) matchResult.Warnings.Add(postError);
 
             matchResult.Invoice = updatedInvoice;
             matchResult.PurchaseOrder = updatedPurchaseOrder;
 
             return Ok(matchResult);
+        }
+
+        /// <summary>RG-AC5 : validation manuelle après écart de matching.</summary>
+        [HttpPost("{id:int}/approve")]
+        [RequirePermission(Permissions.SupplierInvoiceCreate)]
+        public async Task<IActionResult> Approve(int id, [FromBody] CancelOrApproveRequest? request)
+        {
+            var invoice = await this.storage.SelectSupplierInvoiceByIdAsync(id);
+            if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+            if (!string.Equals(invoice.Status, "ApprovalRequired", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(invoice.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new { error = $"Facture au statut {invoice.Status} — approbation non applicable." });
+            }
+
+            invoice.Status = "Validated";
+            var note = string.IsNullOrWhiteSpace(request?.Reason)
+                ? "Approuvée manuellement (écart matching)"
+                : $"Approuvée manuellement : {request!.Reason!.Trim()}";
+            invoice.Notes = string.IsNullOrWhiteSpace(invoice.Notes) ? note : $"{invoice.Notes}\n{note}";
+            NormalizeSupplierInvoice(invoice);
+            var updated = await this.storage.UpdateSupplierInvoiceAsync(invoice);
+            await this.AuditSupplierInvoice(updated.Id, "Validated", $"Approbation facture fournisseur {updated.InvoiceNumber}");
+
+            var postError = await TryPostSupplierAccountingAsync(updated);
+            if (postError != null) return BadRequest(postError);
+
+            return Ok(updated);
+        }
+
+        public class CancelOrApproveRequest
+        {
+            public string? Reason { get; set; }
         }
 
         [HttpPost("{id:int}/preview-match-purchase-order")]
@@ -518,10 +600,32 @@ namespace Backup.Web.Api.Server.Controllers
             invoice.InvoiceNumber = await this.numberingService.GetNextNumberAsync("SupplierInvoice", invoice.CompanyId);
         }
 
+        private async Task ApplySupplierDueDateAsync(SupplierInvoiceEntity invoice)
+        {
+            if (invoice.DueDate != default)
+            {
+                invoice.DueDate = PaymentTermsHelper.EnsureNotBeforeInvoiceDate(
+                    invoice.Date == default ? DateTime.UtcNow : invoice.Date,
+                    invoice.DueDate);
+                return;
+            }
+
+            string? terms = null;
+            if (invoice.SupplierId > 0)
+            {
+                var supplier = await this.storage.SelectSupplierByIdAsync(invoice.SupplierId);
+                terms = supplier?.PaymentTerms;
+            }
+
+            var date = invoice.Date == default ? DateTime.UtcNow : invoice.Date;
+            invoice.DueDate = PaymentTermsHelper.ComputeDueDate(date, terms);
+        }
+
         private static void NormalizeSupplierInvoice(SupplierInvoiceEntity invoice)
         {
             invoice.Date = invoice.Date == default ? DateTime.UtcNow : invoice.Date;
             invoice.DueDate = invoice.DueDate == default ? invoice.Date.AddDays(30) : invoice.DueDate;
+            invoice.DueDate = PaymentTermsHelper.EnsureNotBeforeInvoiceDate(invoice.Date, invoice.DueDate);
             invoice.CreatedAt = invoice.CreatedAt == default ? DateTime.UtcNow : invoice.CreatedAt;
             invoice.Status = string.IsNullOrWhiteSpace(invoice.Status) ? "Draft" : invoice.Status.Trim();
             invoice.Lines ??= new List<SupplierInvoiceLineEntity>();
@@ -652,11 +756,20 @@ namespace Backup.Web.Api.Server.Controllers
                 result.MatchedLineCount += Math.Min(purchaseOrderEntry.Value.Count, invoiceLines.Count);
 
                 var purchaseQty = purchaseOrderEntry.Value.Sum(line => line.Quantity);
+                var receivedQty = purchaseOrderEntry.Value.Sum(line => line.ReceivedQuantity);
                 var invoiceQty = invoiceLines.Sum(line => line.Quantity);
+
                 if (Math.Abs(purchaseQty - invoiceQty) > tolerance)
                 {
                     result.QuantityMismatchCount++;
-                    result.Warnings.Add($"Quantity mismatch for '{purchaseOrderEntry.Key}': PO {purchaseQty} vs invoice {invoiceQty}.");
+                    result.Warnings.Add($"Écart qté PO/facture pour '{purchaseOrderEntry.Key}': PO {purchaseQty} vs facture {invoiceQty}.");
+                }
+
+                // RG-AC4 : 3e voie = réception (GRN via ReceivedQuantity)
+                if (Math.Abs(receivedQty - invoiceQty) > tolerance || Math.Abs(receivedQty - purchaseQty) > tolerance)
+                {
+                    result.ReceivedQuantityMismatchCount++;
+                    result.Warnings.Add($"Écart qté réception pour '{purchaseOrderEntry.Key}': PO {purchaseQty} / reçu {receivedQty} / facture {invoiceQty}.");
                 }
 
                 var purchasePrice = purchaseOrderEntry.Value.Average(line => line.UnitPrice);
@@ -664,7 +777,7 @@ namespace Backup.Web.Api.Server.Controllers
                 if (Math.Abs(purchasePrice - invoicePrice) > tolerance)
                 {
                     result.PriceMismatchCount++;
-                    result.Warnings.Add($"Price mismatch for '{purchaseOrderEntry.Key}': PO {purchasePrice:0.##} vs invoice {invoicePrice:0.##}.");
+                    result.Warnings.Add($"Écart prix pour '{purchaseOrderEntry.Key}': PO {purchasePrice:0.##} vs facture {invoicePrice:0.##}.");
                 }
             }
 
@@ -673,23 +786,69 @@ namespace Backup.Web.Api.Server.Controllers
                 if (!purchaseOrderLinesByKey.ContainsKey(invoiceEntry.Key))
                 {
                     result.MissingPurchaseOrderLineCount += invoiceEntry.Value.Count;
-                    result.Warnings.Add($"Invoice line '{invoiceEntry.Key}' not found on purchase order.");
+                    result.Warnings.Add($"Ligne facture '{invoiceEntry.Key}' absente de la commande.");
                 }
             }
 
             if (Math.Abs(result.TotalHtDelta) > tolerance)
             {
-                result.Warnings.Add($"Total HT delta detected: {result.TotalHtDelta:0.##}.");
+                result.Warnings.Add($"Écart total HT : {result.TotalHtDelta:0.##}.");
             }
 
             result.IsBalanced =
                 result.MissingInvoiceLineCount == 0 &&
                 result.MissingPurchaseOrderLineCount == 0 &&
                 result.QuantityMismatchCount == 0 &&
+                result.ReceivedQuantityMismatchCount == 0 &&
                 result.PriceMismatchCount == 0 &&
                 Math.Abs(result.TotalHtDelta) <= tolerance;
+            result.RequiresApproval = !result.IsBalanced;
 
             return result;
+        }
+
+        private async Task<string?> TryPostSupplierAccountingAsync(SupplierInvoiceEntity invoice)
+        {
+            if (!string.Equals(invoice.Status, "Validated", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(invoice.Status, "Matched", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefSupplierInvoice, invoice.Id, invoice.CompanyId))
+                return null;
+
+            var (_, error) = await AccountingLedger.PostSupplierInvoiceAsync(
+                this.storage, this.numberingService, invoice, User.Identity?.Name);
+            return error;
+        }
+
+        /// <summary>RG-CF6 : cohérence qté commande/réception/facture — cumule l'InvoicedQuantity par ligne PO (cap Quantity).</summary>
+        private static void ApplyInvoicedQuantities(PurchaseOrder purchaseOrder, SupplierInvoiceEntity invoice)
+        {
+            var invoicedByKey = invoice.Lines
+                .GroupBy(l => ProductKeyHelper.Normalize(ProductKeyHelper.GetProductKey(l.ProductKey, null, l.Description)), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var line in purchaseOrder.Lines)
+            {
+                var key = ProductKeyHelper.Normalize(ProductKeyHelper.GetProductKey(line.ProductKey, null, line.Description));
+                if (!invoicedByKey.TryGetValue(key, out var qty)) continue;
+                line.InvoicedQuantity = Math.Min(line.Quantity, line.InvoicedQuantity + qty);
+            }
+        }
+
+        private async Task AuditSupplierInvoice(int invoiceId, string action, string summary, string? details = null)
+        {
+            await SalesDocumentAudit.LogAsync(
+                this.storage,
+                this.companyContext.GetCurrentCompanyId(),
+                "SupplierInvoice",
+                invoiceId,
+                action,
+                SalesDocumentAudit.ActorFrom(User),
+                summary,
+                details);
         }
 
         private static bool IsSupplierInvoiceDocument(Document document)

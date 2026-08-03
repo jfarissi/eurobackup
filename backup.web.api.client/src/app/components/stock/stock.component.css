@@ -234,43 +234,89 @@
   overflow-x: auto;
   max-height: 600px;
   overflow-y: auto;
+  width: 100%;
+}
+
+.stock-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
 
 .stock-table th,
 .stock-table td {
-  padding: 8px 16px;
+  padding: 8px 12px;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
+
+.stock-onhand-table .col-code { width: 12%; }
+.stock-onhand-table .col-label { width: 28%; }
+.stock-onhand-table .col-qty { width: 10%; }
+.stock-onhand-table .col-unit { width: 7%; }
+.stock-onhand-table .col-date { width: 15%; }
+.stock-onhand-table .col-actions { width: 6%; }
+
+.stock-movements-table .col-date { width: 14%; }
+.stock-movements-table .col-type { width: 12%; }
+.stock-movements-table .col-code { width: 14%; }
+.stock-movements-table .col-qty { width: 10%; }
+.stock-movements-table .col-reason { width: 22%; }
+.stock-movements-table .col-ref { width: 14%; }
+.stock-movements-table .col-by { width: 14%; }
 
 .stock-table .code-cell {
   background: var(--surface-container-lowest);
   color: var(--on-surface-variant);
   border-right: 1px solid rgba(199, 196, 216, 0.1);
-  width: 120px;
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
 
 .stock-table .qty-cell {
   font-weight: 700;
   color: var(--primary);
   border-right: 1px solid rgba(199, 196, 216, 0.1);
-  width: 100px;
+}
+
+.stock-table .qty-cell.muted-qty {
+  font-weight: 500;
+  color: var(--on-surface-variant);
 }
 
 .stock-table .unit-cell {
   color: var(--on-surface-variant);
   border-right: 1px solid rgba(199, 196, 216, 0.1);
-  width: 80px;
 }
 
 .stock-table .date-cell {
   color: var(--on-surface-variant);
-  opacity: 0.7;
-  width: 180px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 
 .stock-table .label-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  /* Ne pas mettre display:flex sur <td> — ça décale les colonnes */
+  white-space: normal;
+  overflow: hidden;
+}
+
+.stock-table .label-cell .label-text {
+  display: inline;
+  vertical-align: middle;
+}
+
+.stock-table .reason-cell,
+.stock-table .ref-cell,
+.stock-table .by-cell {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.stock-table .actions-cell {
+  text-align: center;
 }
 
 .warn-icon {
@@ -278,10 +324,16 @@
   width: 16px;
   height: 16px;
   color: var(--error);
+  vertical-align: middle;
+  margin-left: 4px;
 }
 
 .stock-row:hover {
   background: #f1f5f9 !important;
+}
+
+.stock-row.row-warn td {
+  background: #fffbeb;
 }
 
 .negative {

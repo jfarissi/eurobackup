@@ -3,13 +3,17 @@
 
     <div class="page-header-bar">
       <div class="icon-wrap"><mat-icon>upload_file</mat-icon></div>
-      <h1>{{ 'upload.title' | t }}</h1>
+      <app-form-help helpKey="upload.tabs" [abbrs]="['OCR','BL','FAC']">
+        <h1>{{ 'upload.title' | t }}</h1>
+      </app-form-help>
     </div>
 
     <!-- Upload form -->
     <section class="card upload-form-card">
       <div class="card-header">
-        <h2>{{ 'upload.newDocument' | t }}</h2>
+        <app-form-help helpKey="upload.newDocument">
+          <h2>{{ 'upload.newDocument' | t }}</h2>
+        </app-form-help>
       </div>
       <div class="card-body upload-form-body">
 

@@ -6,6 +6,11 @@ import { MaterialModule } from '../../material.module';
 import { PermissionCategory, PermissionSection, PermissionCategories, buildPermissionCategories, allCatalogPermissions, permissionActionLabel } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { HelpApiService, HelpAnalyticsSummary, HelpContentDto } from '../../services/help-api.service';
+import { HelpContentService } from '../../services/help-content.service';
+import { PermissionService } from '../../services/permission.service';
+import { Permissions } from '../../constants/permissions';
 
 interface Tenant { id: string; name: string; isActive: boolean; createdAt: string; companyCount: number; }
 interface CompanyAdmin { id: string; tenantId: string; tenantName?: string; name: string; isActive: boolean; defaultLanguageCode: string; defaultCurrencyCode: string; createdAt: string; }
@@ -21,7 +26,7 @@ interface UserAdmin {
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
   templateUrl: './admin.component.html',
   styleUrls: ['./admin.component.css']
 })
@@ -66,15 +71,102 @@ export class AdminComponent implements OnInit {
   assigningUser: UserAdmin | null = null;
   assignCompanyId = '';
 
+  // Help CMS
+  readonly HelpP = Permissions;
+  helpArticles: HelpContentDto[] = [];
+  helpAnalytics: HelpAnalyticsSummary | null = null;
+  showHelpModal = false;
+  editingHelp: HelpContentDto = this.emptyHelp();
+  helpFilterLang = 'fr';
+
   loading = false;
   saving = false;
   actionMessage = '';
   actionError = '';
 
-  constructor(private http: HttpClient, private i18n: AppI18nService) {}
+  constructor(
+    private http: HttpClient,
+    private i18n: AppI18nService,
+    private helpApi: HelpApiService,
+    private helpContent: HelpContentService,
+    public perm: PermissionService
+  ) {}
 
   ngOnInit(): void {
     this.loadAll();
+  }
+
+  emptyHelp(): HelpContentDto {
+    return {
+      helpKey: '',
+      lang: 'fr',
+      title: '',
+      n1: '',
+      body: '',
+      rules: '',
+      example: '',
+      guide: '',
+      version: 'v1.0.0',
+      status: 'Draft'
+    };
+  }
+
+  loadHelp(): void {
+    if (!this.perm.has(Permissions.HelpManage)) return;
+    this.helpApi.listAdmin(this.helpFilterLang || undefined).subscribe({
+      next: a => this.helpArticles = a,
+      error: () => this.helpArticles = []
+    });
+    this.helpApi.analyticsSummary(30).subscribe({
+      next: s => this.helpAnalytics = s,
+      error: () => this.helpAnalytics = null
+    });
+  }
+
+  openHelpModal(item?: HelpContentDto): void {
+    this.editingHelp = item ? { ...item } : this.emptyHelp();
+    this.showHelpModal = true;
+    this.actionError = '';
+  }
+
+  saveHelp(): void {
+    if (!this.editingHelp.helpKey || !this.editingHelp.title) {
+      this.actionError = 'HelpKey + Title required';
+      return;
+    }
+    this.saving = true;
+    const req = this.editingHelp.id
+      ? this.helpApi.update(this.editingHelp.id, this.editingHelp)
+      : this.helpApi.create(this.editingHelp);
+    req.subscribe({
+      next: () => {
+        this.saving = false;
+        this.showHelpModal = false;
+        this.actionMessage = this.i18n.t('admin.help.save');
+        this.loadHelp();
+        this.helpContent.reloadPublished();
+      },
+      error: (e) => {
+        this.saving = false;
+        this.actionError = e?.error?.error || 'Error';
+      }
+    });
+  }
+
+  publishHelp(item: HelpContentDto): void {
+    if (!item.id) return;
+    this.helpApi.transition(item.id, 'Published').subscribe({
+      next: () => { this.loadHelp(); this.helpContent.reloadPublished(); },
+      error: (e) => this.actionError = e?.error?.error || 'Error'
+    });
+  }
+
+  archiveHelp(item: HelpContentDto): void {
+    if (!item.id) return;
+    this.helpApi.archive(item.id).subscribe({
+      next: () => { this.loadHelp(); this.helpContent.reloadPublished(); },
+      error: (e) => this.actionError = e?.error?.error || 'Error'
+    });
   }
 
   loadAll(): void {
@@ -87,6 +179,7 @@ export class AdminComponent implements OnInit {
       next: p => this.applyPermissionCatalog(p),
       error: () => this.applyPermissionCatalog([])
     });
+    this.loadHelp();
   }
 
   /** Fusionne API + constantes locales puis regroupe par catégorie métier. */

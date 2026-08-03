@@ -2,7 +2,9 @@
   <section class="stock-subheader">
     <div class="stock-subheader-inner">
       <div class="stock-title-block">
-        <h2>{{ 'stock.title' | t }}</h2>
+        <app-form-help helpKey="stock.tabs" [abbrs]="['CMP','FIFO','BL']">
+          <h2>{{ 'stock.title' | t }}</h2>
+        </app-form-help>
         <p>{{ 'stock.subtitle' | t }}</p>
       </div>
 
@@ -79,12 +81,24 @@
               </div>
 
               <div class="table-wrap" *ngIf="isSupplierExpanded(group.supplier)">
-                <table class="data-table stock-table">
+                <table class="data-table stock-table stock-onhand-table">
+                  <colgroup>
+                    <col class="col-code" />
+                    <col class="col-label" />
+                    <col class="col-qty" />
+                    <col class="col-qty" />
+                    <col class="col-qty" />
+                    <col class="col-unit" />
+                    <col class="col-date" />
+                    <col class="col-actions" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>{{ 'stock.col.code' | t }}</th>
                       <th>{{ 'stock.col.label' | t }}</th>
                       <th class="text-right">{{ 'stock.col.quantity' | t }}</th>
+                      <th class="text-right">{{ 'stock.col.reserved' | t }}</th>
+                      <th class="text-right">{{ 'stock.col.available' | t }}</th>
                       <th class="text-center">{{ 'stock.col.unit' | t }}</th>
                       <th>{{ 'stock.col.lastUpdated' | t }}</th>
                       <th></th>
@@ -93,10 +107,11 @@
                   <tbody>
                     <tr *ngFor="let item of group.items"
                         [class.row-error]="item.quantityOnHand < 0"
+                        [class.row-warn]="availableQty(item) <= 0 && item.quantityOnHand > 0"
                         class="stock-row">
                       <td class="col-mono code-cell">{{ item.productKey }}</td>
                       <td class="label-cell">
-                        {{ item.description || '-' }}
+                        <span class="label-text">{{ item.description || '-' }}</span>
                         <mat-icon class="warn-icon" *ngIf="item.quantityOnHand < 0" [matTooltip]="'stock.negativeTooltip' | t">report</mat-icon>
                       </td>
                       <td class="text-right col-mono qty-cell"
@@ -104,10 +119,18 @@
                           [class.zero]="item.quantityOnHand === 0">
                         {{ item.quantityOnHand | number:'1.0-2' }}
                       </td>
+                      <td class="text-right col-mono qty-cell muted-qty">
+                        {{ (item.reservedQuantity || 0) | number:'1.0-2' }}
+                      </td>
+                      <td class="text-right col-mono qty-cell"
+                          [class.zero]="availableQty(item) === 0"
+                          [class.negative]="availableQty(item) < 0">
+                        {{ availableQty(item) | number:'1.0-2' }}
+                      </td>
                       <td class="text-center unit-cell">{{ item.unit || '-' }}</td>
                       <td class="date-cell">{{ formatDate(item.lastUpdated) }}</td>
-                      <td>
-                        <button class="row-action" (click)="openAdjustModal(item.productKey)" *ngIf="perm.has(P.StockUpdate)">
+                      <td class="actions-cell">
+                        <button class="row-action" type="button" (click)="openAdjustModal(item.productKey)" *ngIf="perm.has(P.StockUpdate)">
                           <mat-icon>tune</mat-icon>
                         </button>
                       </td>
@@ -127,34 +150,45 @@
             </div>
 
             <div class="movements-card card" *ngIf="movements.length > 0">
-              <table class="data-table stock-table">
-                <thead>
-                  <tr>
-                    <th>{{ 'stock.movements.col.date' | t }}</th>
-                    <th>{{ 'stock.movements.col.type' | t }}</th>
-                    <th>{{ 'stock.movements.col.code' | t }}</th>
-                    <th class="text-right">{{ 'stock.movements.col.qty' | t }}</th>
-                    <th>{{ 'stock.movements.col.reason' | t }}</th>
-                    <th>{{ 'stock.movements.col.ref' | t }}</th>
-                    <th>{{ 'stock.movements.col.by' | t }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let movement of movements">
-                    <td class="date-cell">{{ formatDate(movement.createdAt || '') }}</td>
-                    <td>
-                      <span class="movement-badge" [ngClass]="movement.movementType.toLowerCase()">
-                        {{ movementTypeLabel(movement.movementType) }}
-                      </span>
-                    </td>
-                    <td class="col-mono code-cell">{{ movement.productKey }}</td>
-                    <td class="text-right col-mono qty-cell">{{ movement.quantity | number:'1.0-2' }}</td>
-                    <td>{{ movement.reason || '-' }}</td>
-                    <td class="col-mono">{{ movement.referenceDocument || '-' }}</td>
-                    <td>{{ movement.createdBy || '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="table-wrap">
+                <table class="data-table stock-table stock-movements-table">
+                  <colgroup>
+                    <col class="col-date" />
+                    <col class="col-type" />
+                    <col class="col-code" />
+                    <col class="col-qty" />
+                    <col class="col-reason" />
+                    <col class="col-ref" />
+                    <col class="col-by" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>{{ 'stock.movements.col.date' | t }}</th>
+                      <th>{{ 'stock.movements.col.type' | t }}</th>
+                      <th>{{ 'stock.movements.col.code' | t }}</th>
+                      <th class="text-right">{{ 'stock.movements.col.qty' | t }}</th>
+                      <th>{{ 'stock.movements.col.reason' | t }}</th>
+                      <th>{{ 'stock.movements.col.ref' | t }}</th>
+                      <th>{{ 'stock.movements.col.by' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let movement of movements">
+                      <td class="date-cell">{{ formatDate(movement.createdAt || '') }}</td>
+                      <td>
+                        <span class="movement-badge" [ngClass]="(movement.movementType || '').toLowerCase()">
+                          {{ movementTypeLabel(movement.movementType) }}
+                        </span>
+                      </td>
+                      <td class="col-mono code-cell">{{ movement.productKey }}</td>
+                      <td class="text-right col-mono qty-cell">{{ movement.quantity | number:'1.0-2' }}</td>
+                      <td class="reason-cell">{{ movement.reason || '-' }}</td>
+                      <td class="col-mono ref-cell">{{ movement.referenceDocument || '-' }}</td>
+                      <td class="by-cell">{{ movement.createdBy || '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </mat-tab>
@@ -164,7 +198,9 @@
 
   <div class="modal-overlay" *ngIf="showAdjustModal">
     <div class="modal-content">
-      <h3>{{ 'stock.adjust.title' | t }}</h3>
+      <app-form-help helpKey="stock.adjust">
+        <h3>{{ 'stock.adjust.title' | t }}</h3>
+      </app-form-help>
 
       <div class="form-group">
         <label>{{ 'stock.adjust.productKey' | t }}</label>

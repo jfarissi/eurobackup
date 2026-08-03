@@ -5,7 +5,6 @@ import { environment } from '../../environments/environment';
 import { Document } from '../models/document';
 import { DocumentRelation } from '../models/relation';
 import { ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonResult } from '../models/comparison';
-import { BatchCompareAndStockResponse, CompareAndStockResponse } from '../models/stock';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
@@ -65,21 +64,6 @@ export class DocumentService {
 
   getErpPriceDiff(invoiceId: number): Observable<ErpPriceDiffLine[]> {
     return this.http.get<ErpPriceDiffLine[]>(`${this.baseUrl}/${invoiceId}/erp-price-diff`);
-  }
-
-  compareAndStock(invoiceId: number, deliveryId: number, forceUpdate: boolean = false): Observable<CompareAndStockResponse> {
-    const params = new HttpParams()
-      .set('invoiceId', invoiceId.toString())
-      .set('deliveryId', deliveryId.toString())
-      .set('forceUpdate', forceUpdate.toString());
-    return this.http.post<CompareAndStockResponse>(`${this.baseUrl}/compare-and-stock`, {}, { params });
-  }
-
-  compareAndStockAllDeliveries(invoiceId: number, forceUpdate: boolean = false): Observable<BatchCompareAndStockResponse> {
-    const params = new HttpParams()
-      .set('invoiceId', invoiceId.toString())
-      .set('forceUpdate', forceUpdate.toString());
-    return this.http.post<BatchCompareAndStockResponse>(`${this.baseUrl}/compare-and-stock-all-deliveries`, {}, { params });
   }
 
   saveAdjustment(request: {

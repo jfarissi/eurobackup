@@ -1,12 +1,14 @@
 <div class="sales-container">
   <div class="sales-header">
     <div>
-      <h2>{{ 'sales.title' | t }}</h2>
+      <app-form-help [helpKey]="activeTabHelpKey" [abbrs]="activeTabHelpAbbrs">
+        <h2>{{ 'sales.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'sales.subtitle' | t }}</p>
     </div>
     <div class="header-actions">
       <input type="text" [(ngModel)]="searchQuery" (input)="onSearch()" [placeholder]="'sales.searchPlaceholder' | t" class="search-input" />
-      <button class="btn-primary" type="button" (click)="onCreateClick()" *ngIf="selectedTab !== 3 && canCreateOnTab()">
+      <button class="btn-primary" type="button" (click)="onCreateClick()" *ngIf="selectedTab !== 4 && canCreateOnTab()">
         <mat-icon>add</mat-icon> {{ createButtonLabel }}
       </button>
     </div>
@@ -14,195 +16,8 @@
 
   <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
   <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
-
-  <mat-tab-group [(selectedIndex)]="selectedTab" (selectedIndexChange)="onSearch()">
-    <!-- Factures -->
-    <mat-tab>
-      <ng-template mat-tab-label>{{ 'sales.tab.invoices' | t }}</ng-template>
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ 'sales.col.invoiceNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.col.dueDate' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'sales.col.paid' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'common.actions' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <ng-container *ngFor="let inv of invoices">
-              <tr>
-                <td>
-                  <button class="expand-btn" type="button" (click)="toggleInvoiceDetail(inv)" [attr.aria-expanded]="isExpanded('Invoice', inv.id)">
-                    <mat-icon>{{ isExpanded('Invoice', inv.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </button>
-                  <strong>{{ inv.invoiceNumber }}</strong>
-                </td>
-                <td>{{ inv.customer?.name || ('sales.customerHash' | t:{id: inv.customerId}) }}</td>
-                <td>{{ inv.date | date:'dd/MM/yyyy' }}</td>
-                <td>{{ inv.dueDate | date:'dd/MM/yyyy' }}</td>
-                <td>{{ inv.totalHT | currency:'EUR' }}</td>
-                <td><strong>{{ inv.totalTTC | currency:'EUR' }}</strong></td>
-                <td>{{ inv.paidAmount | currency:'EUR' }}</td>
-                <td>
-                  <span class="status-badge" [ngClass]="inv.status.toLowerCase()">{{ inv.status }}</span>
-                </td>
-                <td class="actions-cell">
-                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Invoice', inv.id, (inv.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.InvoiceRead)">PDF</button>
-                  <button class="btn-sm" (click)="openPaymentModal(inv)" *ngIf="inv.status !== 'Paid' && perm.has(P.InvoiceUpdate)">{{ 'sales.btn.pay' | t }}</button>
-                  <button class="btn-sm" (click)="createCreditNoteFromInvoice(inv)" *ngIf="perm.has(P.InvoiceCreate)">{{ 'sales.btn.createCreditNote' | t }}</button>
-                </td>
-              </tr>
-              <tr *ngIf="isExpanded('Invoice', inv.id)" class="detail-expand-row">
-                <td colspan="9">
-                  <div class="expanded-content">
-                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
-                    <ng-container *ngIf="!detailLoading && detailInvoice">
-                      <div class="detail-meta">
-                        <span><strong>{{ detailTitle }}</strong></span>
-                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
-                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
-                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
-                        <span *ngIf="detailTotals.paid != null">{{ 'sales.label.paid' | t }} <strong>{{ detailTotals.paid | currency:'EUR' }}</strong></span>
-                      </div>
-                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
-                      <table class="data-table nested">
-                        <thead>
-                          <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr *ngFor="let line of detailLines">
-                            <td>{{ line.productKey || '-' }}</td>
-                            <td>{{ line.description || '-' }}</td>
-                            <td>{{ line.quantity }}</td>
-                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
-                            <td>{{ line.vatRate }}%</td>
-                            <td>{{ line.totalHT | currency:'EUR' }}</td>
-                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
-                          </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="7" class="empty">{{ 'common.noLines' | t }}</td></tr>
-                        </tbody>
-                      </table>
-                      <div class="totals-bar">
-                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
-                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
-                      </div>
-                    </ng-container>
-                  </div>
-                </td>
-              </tr>
-            </ng-container>
-            <tr *ngIf="invoices.length === 0">
-              <td colspan="9" class="empty">
-                {{ 'sales.empty.invoices' | t }}
-                <button class="btn-link" type="button" (click)="openDocModal('Invoice')">{{ 'sales.btn.createInvoice' | t }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-tab>
-
-    <!-- Commandes -->
-    <mat-tab>
-      <ng-template mat-tab-label>{{ 'sales.tab.orders' | t }}</ng-template>
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ 'sales.col.orderNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'common.actions' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <ng-container *ngFor="let ord of orders">
-              <tr>
-                <td>
-                  <button class="expand-btn" type="button" (click)="toggleOrderDetail(ord)" [attr.aria-expanded]="isExpanded('Order', ord.id)">
-                    <mat-icon>{{ isExpanded('Order', ord.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </button>
-                  <strong>{{ ord.orderNumber }}</strong>
-                </td>
-                <td>{{ ord.customer?.name || ('sales.customerHash' | t:{id: ord.customerId}) }}</td>
-                <td>{{ ord.date | date:'dd/MM/yyyy' }}</td>
-                <td>{{ ord.totalHT | currency:'EUR' }}</td>
-                <td><strong>{{ ord.totalTTC | currency:'EUR' }}</strong></td>
-                <td><span class="status-badge" [ngClass]="ord.status.toLowerCase()">{{ ord.status }}</span></td>
-                <td class="actions-cell">
-                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Order', ord.id, (ord.orderNumber || 'commande') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.OrderRead)">PDF</button>
-                  <button class="btn-sm secondary" type="button" (click)="createDeliveryNoteFromOrder(ord)" *ngIf="ord.status !== 'Invoiced' && ord.status !== 'Delivered' && perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.createDeliveryNote' | t }}</button>
-                  <button class="btn-sm" (click)="convertOrderToInvoice(ord)" *ngIf="ord.status !== 'Invoiced' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
-                </td>
-              </tr>
-              <tr *ngIf="isExpanded('Order', ord.id)" class="detail-expand-row">
-                <td colspan="7">
-                  <div class="expanded-content">
-                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
-                    <ng-container *ngIf="!detailLoading && detailOrder">
-                      <div class="detail-meta">
-                        <span><strong>{{ detailTitle }}</strong></span>
-                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
-                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
-                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
-                      </div>
-                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
-                      <table class="data-table nested">
-                        <thead>
-                          <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th><th>{{ 'sales.col.delivered' | t }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr *ngFor="let line of detailLines">
-                            <td>{{ line.productKey || '-' }}</td>
-                            <td>{{ line.description || '-' }}</td>
-                            <td>{{ line.quantity }}</td>
-                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
-                            <td>{{ line.vatRate }}%</td>
-                            <td>{{ line.totalHT | currency:'EUR' }}</td>
-                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
-                            <td>{{ line.extra || '-' }}</td>
-                          </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
-                        </tbody>
-                      </table>
-                      <div class="totals-bar">
-                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
-                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
-                      </div>
-                    </ng-container>
-                  </div>
-                </td>
-              </tr>
-            </ng-container>
-            <tr *ngIf="orders.length === 0">
-              <td colspan="7" class="empty">
-                {{ 'sales.empty.orders' | t }}
-                <button class="btn-link" type="button" (click)="openDocModal('Order')">{{ 'sales.btn.createOrder' | t }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-tab>
-
-    <!-- Devis -->
+  <mat-tab-group class="erp-flow-tabs" [(selectedIndex)]="selectedTab" (selectedIndexChange)="onSearch()">
+    <!-- Devis (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'sales.tab.quotes' | t }}</ng-template>
       <div class="table-container">
@@ -234,7 +49,12 @@
                 <td><span class="status-badge" [ngClass]="q.status.toLowerCase()">{{ q.status }}</span></td>
                 <td class="actions-cell">
                   <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Quote', q.id, (q.quoteNumber || 'devis') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.QuoteRead)">PDF</button>
-                  <button class="btn-sm" (click)="convertQuoteToOrder(q)" *ngIf="q.status !== 'Converted' && perm.has(P.OrderCreate)">{{ 'sales.btn.order' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="acceptQuote(q)" *ngIf="canAcceptQuote(q)">{{ 'sales.btn.acceptQuote' | t }}</button>
+                  <button class="btn-sm" (click)="convertQuoteToOrder(q)" *ngIf="canConvertQuote(q)">{{ 'sales.btn.order' | t }}</button>
+                  <button class="btn-sm ghost" type="button" (click)="duplicateQuote(q)" *ngIf="perm.has(P.QuoteCreate)">{{ 'sales.btn.duplicateQuote' | t }}</button>
+                  <button class="icon-action delete" type="button" (click)="deleteQuote(q)" [title]="'common.delete' | t" *ngIf="canDeleteQuote(q)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
                 </td>
               </tr>
               <tr *ngIf="isExpanded('Quote', q.id)" class="detail-expand-row">
@@ -289,8 +109,360 @@
         </table>
       </div>
     </mat-tab>
-
-    <!-- Avoirs -->
+    <!-- Commandes (primary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.orders' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.col.orderNumber' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let ord of orders">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleOrderDetail(ord)" [attr.aria-expanded]="isExpanded('Order', ord.id)">
+                    <mat-icon>{{ isExpanded('Order', ord.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ ord.orderNumber }}</strong>
+                </td>
+                <td>{{ ord.customer?.name || ('sales.customerHash' | t:{id: ord.customerId}) }}</td>
+                <td>{{ ord.date | date:'dd/MM/yyyy' }}</td>
+                <td>{{ ord.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ ord.totalTTC | currency:'EUR' }}</strong></td>
+                <td>
+                  <span class="status-badge" [ngClass]="ord.status.toLowerCase()">{{ ord.status }}</span>
+                  <span class="chip chip-warn" *ngIf="orderHasBackorder(ord)" [title]="'sales.backorderHint' | t">
+                    {{ 'sales.chip.backorder' | t }} {{ orderRemainingTotal(ord) | number:'1.0-2' }}
+                  </span>
+                </td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Order', ord.id, (ord.orderNumber || 'commande') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.OrderRead)">PDF</button>
+                  <button class="btn-sm secondary" type="button" (click)="openEditOrderModal(ord)" *ngIf="canEditOrder(ord)">{{ 'common.edit' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="confirmSalesOrder(ord)" *ngIf="ord.status === 'Draft' && perm.has(P.OrderUpdate)">{{ 'sales.btn.confirm' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="approveSalesOrder(ord)" *ngIf="canApproveOrder(ord)">{{ 'sales.btn.approve' | t }}</button>
+                  <button class="btn-sm ghost" type="button" (click)="holdSalesOrder(ord)" *ngIf="canHoldOrder(ord)">{{ 'sales.btn.hold' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="createDeliveryNoteFromOrder(ord)" *ngIf="canCreateDeliveryNoteFromOrder(ord)" >{{ 'sales.btn.createDeliveryNote' | t }}</button>
+                  <button class="btn-sm ghost" type="button" (click)="cancelSalesOrder(ord)" *ngIf="canCancelOrder(ord)">{{ 'sales.btn.cancel' | t }}</button>
+                  <button class="btn-sm ghost" type="button" (click)="archiveSalesOrder(ord)" *ngIf="canArchiveOrder(ord)">{{ 'sales.btn.archive' | t }}</button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('Order', ord.id)" class="detail-expand-row">
+                <td colspan="7">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailOrder">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'common.qty' | t }}</th>
+                            <th>{{ 'sales.col.deliveredQty' | t }}</th>
+                            <th>{{ 'sales.col.remainingQty' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailLines" [class.row-backorder]="(line.remainingQuantity || 0) > 0.0001">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.deliveredQuantity ?? 0 }}</td>
+                            <td>
+                              <strong [class.text-warn]="(line.remainingQuantity || 0) > 0.0001">
+                                {{ line.remainingQuantity ?? 0 }}
+                              </strong>
+                            </td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-bar">
+                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
+                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                      <div class="audit-panel">
+                        <h5>{{ 'sales.audit.title' | t }}</h5>
+                        <div *ngIf="detailAuditLoading" class="empty">{{ 'common.loading' | t }}</div>
+                        <ul class="audit-list" *ngIf="!detailAuditLoading && detailAudit.length">
+                          <li *ngFor="let a of detailAudit">
+                            <span class="audit-when">{{ a.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                            <span class="audit-action">{{ a.action }}</span>
+                            <span class="audit-summary">{{ a.summary || '-' }}</span>
+                            <span class="audit-actor muted">{{ a.actor || '-' }}</span>
+                          </li>
+                        </ul>
+                        <p class="muted" *ngIf="!detailAuditLoading && detailAudit.length === 0">{{ 'sales.audit.empty' | t }}</p>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="orders.length === 0">
+              <td colspan="7" class="empty">
+                {{ 'sales.empty.orders' | t }}
+                <button class="btn-link" type="button" (click)="openDocModal('Order')">{{ 'sales.btn.createOrder' | t }}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- BL (primary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.deliveryNotes' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.col.deliveryNumber' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'sales.col.order' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let dn of deliveryNotes">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleDeliveryNoteDetail(dn)" [attr.aria-expanded]="isExpanded('DeliveryNote', dn.id)">
+                    <mat-icon>{{ isExpanded('DeliveryNote', dn.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ dn.deliveryNumber }}</strong>
+                </td>
+                <td>{{ dn.customer?.name || ('sales.customerHash' | t:{id: dn.customerId}) }}</td>
+                <td>{{ dn.deliveryDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ dn.salesOrder?.orderNumber || (dn.salesOrderId ? '#' + dn.salesOrderId : '-') }}</td>
+                <td>{{ dn.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ dn.totalTTC | currency:'EUR' }}</strong></td>
+                <td><span class="status-badge" [ngClass]="dn.status.toLowerCase()">{{ dn.status }}</span></td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadDeliveryNotePdf(dn)" [disabled]="pdfDownloading" *ngIf="perm.has(P.DeliveryNoteRead)">PDF</button>
+                  <button class="btn-sm secondary" type="button" (click)="validateDeliveryNote(dn)" *ngIf="(dn.status === 'Draft' || dn.status === 'Sent') && perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.validate' | t }}</button>
+                  <button class="btn-sm" type="button" (click)="convertDeliveryNoteToInvoice(dn)" *ngIf="dn.status === 'Delivered' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
+                  <button class="btn-sm ghost" type="button" (click)="cancelDeliveryNote(dn)" *ngIf="canCancelDeliveryNote(dn)">{{ 'sales.btn.cancel' | t }}</button>
+                  <button class="icon-action delete" type="button" (click)="deleteDeliveryNote(dn)" [title]="'common.delete' | t" *ngIf="dn.status === 'Draft' && perm.has(P.DeliveryNoteDelete)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('DeliveryNote', dn.id)" class="detail-expand-row">
+                <td colspan="8">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailDeliveryNote">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
+                      <table class="data-table nested">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'sales.col.ordered' | t }}</th><th>{{ 'sales.col.delivered' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailLines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.extra || '-' }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-bar">
+                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
+                        <button class="btn-sm ghost" type="button" (click)="downloadDeliveryNotePdf(detailDeliveryNote!)" [disabled]="pdfDownloading" *ngIf="perm.has(P.DeliveryNoteRead)">PDF</button>
+                        <button class="btn-sm secondary" type="button" (click)="validateDeliveryNote(detailDeliveryNote!)" *ngIf="(detailDeliveryNote!.status === 'Draft' || detailDeliveryNote!.status === 'Sent') && perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.validate' | t }}</button>
+                        <button class="btn-sm" type="button" (click)="convertDeliveryNoteToInvoice(detailDeliveryNote!)" *ngIf="detailDeliveryNote!.status === 'Delivered' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
+                        <button class="btn-sm ghost" type="button" (click)="cancelDeliveryNote(detailDeliveryNote!)" *ngIf="canCancelDeliveryNote(detailDeliveryNote!)">{{ 'sales.btn.cancel' | t }}</button>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="deliveryNotes.length === 0">
+              <td colspan="8" class="empty">
+                {{ 'sales.empty.deliveryNotes' | t }}
+                <button class="btn-link" type="button" (click)="openDeliveryNoteModal()" *ngIf="perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.createDeliveryNoteLink' | t }}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Factures (primary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.invoices' | t }}</ng-template>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.col.invoiceNumber' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'sales.col.dueDate' | t }}</th>
+              <th>{{ 'common.amountHt' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'sales.col.paid' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let inv of invoices">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleInvoiceDetail(inv)" [attr.aria-expanded]="isExpanded('Invoice', inv.id)">
+                    <mat-icon>{{ isExpanded('Invoice', inv.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                  <strong>{{ inv.invoiceNumber }}</strong>
+                </td>
+                <td>{{ inv.customer?.name || ('sales.customerHash' | t:{id: inv.customerId}) }}</td>
+                <td>{{ inv.date | date:'dd/MM/yyyy' }}</td>
+                <td>{{ inv.dueDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ inv.totalHT | currency:'EUR' }}</td>
+                <td><strong>{{ inv.totalTTC | currency:'EUR' }}</strong></td>
+                <td>
+                  <div>{{ inv.paidAmount | currency:'EUR' }}</div>
+                  <small class="muted" *ngIf="(inv.creditedAmount || 0) > 0">{{ 'sales.label.credited' | t }} {{ inv.creditedAmount | currency:'EUR' }}</small>
+                </td>
+                <td>
+                  <span class="status-badge" [ngClass]="inv.status.toLowerCase()">{{ inv.status }}</span>
+                  <div *ngIf="invoiceRemaining(inv) > 0.01"><small>{{ 'sales.label.remaining' | t }} {{ invoiceRemaining(inv) | currency:'EUR' }}</small></div>
+                  <div *ngIf="invoiceRemaining(inv) > 0.01 && !canPayInvoice(inv)"><small class="muted">{{ payInvoiceHint(inv) }}</small></div>
+                </td>
+                <td class="actions-cell">
+                  <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Invoice', inv.id, (inv.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.InvoiceRead)">PDF</button>
+                  <button class="btn-sm secondary" type="button" (click)="openEditInvoiceModal(inv)" *ngIf="canEditInvoice(inv)">{{ 'common.edit' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="validateSalesInvoice(inv)" *ngIf="inv.status === 'Draft' && perm.has(P.InvoiceUpdate)">{{ 'sales.btn.validate' | t }}</button>
+                  <button class="btn-sm" (click)="openPaymentModal(inv)" *ngIf="canPayInvoice(inv)" [title]="payInvoiceHint(inv)">{{ 'sales.btn.pay' | t }}</button>
+                  <button class="btn-sm" (click)="createCreditNoteFromInvoice(inv)" *ngIf="perm.has(P.InvoiceCreate)">{{ 'sales.btn.createCreditNote' | t }}</button>
+                  <button class="icon-action delete" type="button" (click)="deleteSalesInvoice(inv)" [title]="'common.delete' | t" *ngIf="canDeleteInvoice(inv)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="isExpanded('Invoice', inv.id)" class="detail-expand-row">
+                <td colspan="9">
+                  <div class="expanded-content">
+                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
+                    <ng-container *ngIf="!detailLoading && detailInvoice">
+                      <div class="detail-meta">
+                        <span><strong>{{ detailTitle }}</strong></span>
+                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
+                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
+                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
+                        <span *ngIf="detailTotals.paid != null">{{ 'sales.label.paidCash' | t }} <strong>{{ detailTotals.paid | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.credited' | t }} <strong>{{ (detailTotals.credited || 0) | currency:'EUR' }}</strong></span>
+                        <span *ngIf="detailTotals.remaining != null">{{ 'sales.label.remaining' | t }} <strong>{{ detailTotals.remaining | currency:'EUR' }}</strong></span>
+                      </div>
+                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
+                      <table class="data-table nested" *ngIf="detailInvoice">
+                        <thead>
+                          <tr>
+                            <th>{{ 'common.ref' | t }}</th>
+                            <th>{{ 'common.description' | t }}</th>
+                            <th>{{ 'sales.col.orderedQty' | t }}</th>
+                            <th>{{ 'sales.col.deliveredQty' | t }}</th>
+                            <th>{{ 'sales.col.invoicedQty' | t }}</th>
+                            <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.vatPercent' | t }}</th>
+                            <th>{{ 'common.totalHt' | t }}</th>
+                            <th>{{ 'common.totalTtc' | t }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let line of detailInvoice.lines">
+                            <td>{{ line.productKey || '-' }}</td>
+                            <td>{{ line.description || '-' }}</td>
+                            <td>{{ line.orderedQuantity ?? line.quantity }}</td>
+                            <td>{{ line.deliveredQuantity ?? line.quantity }}</td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.vatRate }}%</td>
+                            <td>{{ line.totalHT | currency:'EUR' }}</td>
+                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+                          </tr>
+                          <tr *ngIf="!detailInvoice.lines?.length"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                        </tbody>
+                      </table>
+                      <div class="totals-bar">
+                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
+                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
+                        <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                      <div class="audit-panel">
+                        <h5>{{ 'sales.audit.title' | t }}</h5>
+                        <div *ngIf="detailAuditLoading" class="empty">{{ 'common.loading' | t }}</div>
+                        <ul class="audit-list" *ngIf="!detailAuditLoading && detailAudit.length">
+                          <li *ngFor="let a of detailAudit">
+                            <span class="audit-when">{{ a.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                            <span class="audit-action">{{ a.action }}</span>
+                            <span class="audit-summary">{{ a.summary || '-' }}</span>
+                            <span class="audit-actor muted">{{ a.actor || '-' }}</span>
+                          </li>
+                        </ul>
+                        <p class="muted" *ngIf="!detailAuditLoading && detailAudit.length === 0">{{ 'sales.audit.empty' | t }}</p>
+                      </div>
+                    </ng-container>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="invoices.length === 0">
+              <td colspan="9" class="empty">
+                {{ 'sales.empty.invoices' | t }}
+                <button class="btn-link" type="button" (click)="openDocModal('Invoice')">{{ 'sales.btn.createInvoice' | t }}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Avoirs (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'sales.tab.creditNotes' | t }}</ng-template>
       <div class="table-container">
@@ -377,103 +549,7 @@
         </table>
       </div>
     </mat-tab>
-
-    <!-- Bons de Livraison Vente -->
-    <mat-tab>
-      <ng-template mat-tab-label>{{ 'sales.tab.deliveryNotes' | t }}</ng-template>
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>{{ 'sales.col.deliveryNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.col.order' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'common.actions' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <ng-container *ngFor="let dn of deliveryNotes">
-              <tr>
-                <td>
-                  <button class="expand-btn" type="button" (click)="toggleDeliveryNoteDetail(dn)" [attr.aria-expanded]="isExpanded('DeliveryNote', dn.id)">
-                    <mat-icon>{{ isExpanded('DeliveryNote', dn.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </button>
-                  <strong>{{ dn.deliveryNumber }}</strong>
-                </td>
-                <td>{{ dn.customer?.name || ('sales.customerHash' | t:{id: dn.customerId}) }}</td>
-                <td>{{ dn.deliveryDate | date:'dd/MM/yyyy' }}</td>
-                <td>{{ dn.salesOrder?.orderNumber || (dn.salesOrderId ? '#' + dn.salesOrderId : '-') }}</td>
-                <td>{{ dn.totalHT | currency:'EUR' }}</td>
-                <td><strong>{{ dn.totalTTC | currency:'EUR' }}</strong></td>
-                <td><span class="status-badge" [ngClass]="dn.status.toLowerCase()">{{ dn.status }}</span></td>
-                <td class="actions-cell">
-                  <button class="btn-sm ghost" type="button" (click)="downloadDeliveryNotePdf(dn)" [disabled]="pdfDownloading" *ngIf="perm.has(P.DeliveryNoteRead)">PDF</button>
-                  <button class="btn-sm" type="button" (click)="convertDeliveryNoteToInvoice(dn)" *ngIf="dn.status !== 'Invoiced' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
-                  <button class="icon-action delete" type="button" (click)="deleteDeliveryNote(dn)" [title]="'common.delete' | t" *ngIf="dn.status === 'Draft' && perm.has(P.DeliveryNoteDelete)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </td>
-              </tr>
-              <tr *ngIf="isExpanded('DeliveryNote', dn.id)" class="detail-expand-row">
-                <td colspan="8">
-                  <div class="expanded-content">
-                    <div *ngIf="detailLoading" class="empty">{{ 'common.loading' | t }}</div>
-                    <ng-container *ngIf="!detailLoading && detailDeliveryNote">
-                      <div class="detail-meta">
-                        <span><strong>{{ detailTitle }}</strong></span>
-                        <span>{{ 'sales.label.customer' | t }} <strong>{{ detailPartyName }}</strong></span>
-                        <span>{{ 'sales.label.date' | t }} <strong>{{ detailTotals.date | date:'dd/MM/yyyy' }}</strong></span>
-                        <span>{{ 'sales.label.status' | t }} <span class="status-badge" [ngClass]="(detailTotals.status || '').toLowerCase()">{{ detailTotals.status }}</span></span>
-                      </div>
-                      <p class="detail-notes" *ngIf="detailTotals.notes">{{ detailTotals.notes }}</p>
-                      <table class="data-table nested">
-                        <thead>
-                          <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'sales.col.ordered' | t }}</th><th>{{ 'sales.col.delivered' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr *ngFor="let line of detailLines">
-                            <td>{{ line.productKey || '-' }}</td>
-                            <td>{{ line.description || '-' }}</td>
-                            <td>{{ line.extra || '-' }}</td>
-                            <td>{{ line.quantity }}</td>
-                            <td>{{ line.unitPrice | currency:'EUR' }}</td>
-                            <td>{{ line.vatRate }}%</td>
-                            <td>{{ line.totalHT | currency:'EUR' }}</td>
-                            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
-                          </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
-                        </tbody>
-                      </table>
-                      <div class="totals-bar">
-                        <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
-                        <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
-                        <button class="btn-sm ghost" type="button" (click)="downloadDeliveryNotePdf(detailDeliveryNote!)" [disabled]="pdfDownloading" *ngIf="perm.has(P.DeliveryNoteRead)">PDF</button>
-                        <button class="btn-sm" type="button" (click)="convertDeliveryNoteToInvoice(detailDeliveryNote!)" *ngIf="detailDeliveryNote!.status !== 'Invoiced' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
-                      </div>
-                    </ng-container>
-                  </div>
-                </td>
-              </tr>
-            </ng-container>
-            <tr *ngIf="deliveryNotes.length === 0">
-              <td colspan="8" class="empty">
-                {{ 'sales.empty.deliveryNotes' | t }}
-                <button class="btn-link" type="button" (click)="openDeliveryNoteModal()" *ngIf="perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.createDeliveryNoteLink' | t }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-tab>
-
-    <!-- Clients -->
+    <!-- Clients (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'sales.tab.customers' | t }}</ng-template>
       <div class="table-container">
@@ -487,6 +563,7 @@
               <th>{{ 'common.phone' | t }}</th>
               <th>{{ 'common.email' | t }}</th>
               <th>{{ 'sales.col.balance' | t }}</th>
+              <th>{{ 'sales.col.creditLimit' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
@@ -499,6 +576,7 @@
               <td>{{ c.phone || '-' }}</td>
               <td>{{ c.email || '-' }}</td>
               <td>{{ c.balance | currency:'EUR' }}</td>
+              <td>{{ (c.creditLimit || 0) > 0 ? (c.creditLimit | currency:'EUR') : ('sales.creditUnlimited' | t) }}</td>
               <td class="actions-cell crud-actions">
                 <button class="icon-action edit" type="button" (click)="openEditCustomerModal(c)" [title]="'common.edit' | t" *appHasPermission="P.CustomerUpdate">
                   <mat-icon>edit</mat-icon>
@@ -518,29 +596,404 @@
         </table>
       </div>
     </mat-tab>
+    <!-- BRC (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.returns' | t }}</ng-template>
+      <div class="table-container">
+        <div style="padding: 12px 16px 0;" *ngIf="perm.has(P.SalesReturnCreate)">
+          <button class="btn-secondary" type="button" (click)="openReturnModal()">{{ 'sales.returns.btn.new' | t }}</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.returns.col.number' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'sales.returns.col.dn' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'sales.returns.col.creditNote' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of salesReturns">
+              <td><strong>{{ r.returnNumber }}</strong></td>
+              <td>{{ r.customer?.name || ('sales.customerHash' | t:{id: r.customerId}) }}</td>
+              <td>{{ r.salesDeliveryNote?.deliveryNumber || ('#' + r.salesDeliveryNoteId) }}</td>
+              <td>{{ r.returnDate | date:'dd/MM/yyyy' }}</td>
+              <td><strong>{{ r.totalTTC | currency:'EUR' }}</strong></td>
+              <td><span class="status-badge" [ngClass]="r.status.toLowerCase()">{{ r.status }}</span></td>
+              <td>{{ creditNoteLabelForReturn(r) || '—' }}</td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="receiveSalesReturn(r)" *ngIf="canReceiveReturn(r)">{{ 'sales.returns.btn.receive' | t }}</button>
+                <button class="btn-sm secondary" type="button" (click)="controlSalesReturn(r)" *ngIf="canControlReturn(r)">{{ 'sales.returns.btn.control' | t }}</button>
+                <button class="btn-sm" type="button" (click)="integrateSalesReturn(r)" *ngIf="canIntegrateReturn(r)">{{ 'sales.returns.btn.integrate' | t }}</button>
+                <button class="btn-sm" type="button" (click)="createCreditNoteFromReturn(r)" *ngIf="canCreateCreditNoteForReturn(r)">{{ 'sales.returns.btn.createCreditNote' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelSalesReturn(r)" *ngIf="canCancelReturn(r)">{{ 'sales.btn.cancel' | t }}</button>
+                <button class="icon-action delete" type="button" (click)="deleteSalesReturn(r)" [title]="'common.delete' | t" *ngIf="canDeleteReturn(r)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="salesReturns.length === 0">
+              <td colspan="8" class="empty">{{ 'sales.returns.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Proformas (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.proformas' | t }}</ng-template>
+      <div class="table-container">
+        <div style="padding: 12px 16px 0;" *ngIf="perm.has(P.InvoiceCreate)">
+          <button class="btn-secondary" type="button" (click)="openProformaModal()">{{ 'sales.proformas.btn.new' | t }}</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.proformas.col.number' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of proformas">
+              <td><strong>{{ p.proformaNumber }}</strong></td>
+              <td>{{ p.customer?.name || ('sales.customerHash' | t:{id: p.customerId}) }}</td>
+              <td>{{ p.date | date:'dd/MM/yyyy' }}</td>
+              <td><strong>{{ p.totalTTC | currency:'EUR' }}</strong></td>
+              <td><span class="status-badge" [ngClass]="p.status.toLowerCase()">{{ p.status }}</span></td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="sendProforma(p)" *ngIf="canSendProforma(p)">{{ 'sales.proformas.btn.send' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelProforma(p)" *ngIf="canCancelProforma(p)">{{ 'sales.btn.cancel' | t }}</button>
+                <button class="icon-action delete" type="button" (click)="deleteProforma(p)" [title]="'common.delete' | t" *ngIf="canDeleteProforma(p)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="proformas.length === 0">
+              <td colspan="6" class="empty">{{ 'sales.proformas.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Acomptes (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.deposits' | t }}</ng-template>
+      <div class="table-container">
+        <div style="padding: 12px 16px 0;" *ngIf="perm.has(P.InvoiceCreate)">
+          <button class="btn-secondary" type="button" (click)="openDepositModal()">{{ 'sales.deposits.btn.new' | t }}</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.deposits.col.number' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'sales.deposits.col.order' | t }}</th>
+              <th>{{ 'common.date' | t }}</th>
+              <th>{{ 'sales.deposits.col.amount' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let d of depositInvoices">
+              <td><strong>{{ d.depositNumber }}</strong></td>
+              <td>{{ d.customer?.name || ('sales.customerHash' | t:{id: d.customerId}) }}</td>
+              <td>{{ d.salesOrder?.orderNumber || ('#' + d.salesOrderId) }}</td>
+              <td>{{ d.date | date:'dd/MM/yyyy' }}</td>
+              <td><strong>{{ d.amountTTC | currency:'EUR' }}</strong></td>
+              <td><span class="status-badge" [ngClass]="d.status.toLowerCase()">{{ d.status }}</span></td>
+              <td class="actions-cell">
+                <button class="btn-sm secondary" type="button" (click)="validateDepositInvoice(d)" *ngIf="canValidateDeposit(d)">{{ 'sales.btn.validate' | t }}</button>
+                <button class="btn-sm" type="button" (click)="openApplyDepositModal(d)" *ngIf="canApplyDeposit(d)">{{ 'sales.deposits.btn.apply' | t }}</button>
+                <button class="btn-sm ghost" type="button" (click)="cancelDepositInvoice(d)" *ngIf="canCancelDeposit(d)">{{ 'sales.btn.cancel' | t }}</button>
+              </td>
+            </tr>
+            <tr *ngIf="depositInvoices.length === 0">
+              <td colspan="7" class="empty">{{ 'sales.deposits.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Paiements (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.payments' | t }}</ng-template>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'sales.payment.col.date' | t }}</th>
+              <th>{{ 'sales.payment.col.invoice' | t }}</th>
+              <th>{{ 'sales.payment.col.amount' | t }}</th>
+              <th>{{ 'sales.payment.col.method' | t }}</th>
+              <th>{{ 'sales.payment.col.reference' | t }}</th>
+              <th>{{ 'sales.payment.col.status' | t }}</th>
+              <th class="text-right">{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="paymentsLoading">
+              <td colspan="7">{{ 'common.loading' | t }}</td>
+            </tr>
+            <ng-container *ngIf="!paymentsLoading">
+              <tr *ngFor="let p of payments">
+                <td>{{ p.paidAt | date:'yyyy-MM-dd HH:mm' }}</td>
+                <td class="font-mono">{{ paymentInvoiceNumber(p) }}</td>
+                <td class="font-mono">{{ p.amount | number:'1.2-2' }}</td>
+                <td>{{ p.method || '—' }}</td>
+                <td>{{ p.reference || '—' }}</td>
+                <td>
+                  <span class="chip" [class.chip-ok]="p.status === 'Success'" [class.chip-error]="p.status === 'Cancelled'">
+                    {{ p.status }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <button
+                    *ngIf="p.status === 'Success' && perm.has(P.InvoiceUpdate)"
+                    type="button"
+                    class="btn-secondary"
+                    (click)="cancelPayment(p)">
+                    {{ 'sales.payment.btnCancel' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="payments.length === 0">
+                <td colspan="7">{{ 'sales.empty.payments' | t }}</td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+    <!-- Pilotage (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        {{ 'sales.tab.pilotage' | t }}
+        <span class="tab-count" *ngIf="pilotage && (pilotage.pendingCount + pilotage.stockoutLineCount) > 0">
+          {{ pilotage.pendingCount + pilotage.stockoutLineCount }}
+        </span>
+      </ng-template>
+      <div class="pilotage-panel">
+        <div *ngIf="pilotageLoading" class="empty">{{ 'common.loading' | t }}</div>
+        <ng-container *ngIf="!pilotageLoading && pilotage">
+          <div class="pilotage-kpis">
+            <div class="kpi">
+              <span class="kpi-label">{{ 'sales.pilotage.pending' | t }}</span>
+              <strong class="kpi-value">{{ pilotage.pendingCount }}</strong>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">{{ 'sales.pilotage.backorders' | t }}</span>
+              <strong class="kpi-value">{{ pilotage.backorderLineCount }}</strong>
+            </div>
+            <div class="kpi kpi-warn">
+              <span class="kpi-label">{{ 'sales.pilotage.stockouts' | t }}</span>
+              <strong class="kpi-value">{{ pilotage.stockoutLineCount }}</strong>
+            </div>
+            <button class="btn-sm secondary" type="button" (click)="loadPilotage()">{{ 'common.refresh' | t }}</button>
+          </div>
+
+          <h4>{{ 'sales.pilotage.pendingOrders' | t }}</h4>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>{{ 'sales.col.orderNumber' | t }}</th>
+                  <th>{{ 'common.customer' | t }}</th>
+                  <th>{{ 'common.date' | t }}</th>
+                  <th>{{ 'common.amountTtc' | t }}</th>
+                  <th>{{ 'common.actions' | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ord of pilotage.pendingOrders">
+                  <td><strong>{{ ord.orderNumber }}</strong></td>
+                  <td>{{ ord.customer?.name || ('sales.customerHash' | t:{id: ord.customerId}) }}</td>
+                  <td>{{ ord.date | date:'dd/MM/yyyy' }}</td>
+                  <td><strong>{{ ord.totalTTC | currency:'EUR' }}</strong></td>
+                  <td class="actions-cell">
+                    <button class="btn-sm secondary" type="button" (click)="approveSalesOrder(ord)" *ngIf="canApproveOrder(ord)">{{ 'sales.btn.approve' | t }}</button>
+                    <button class="btn-sm ghost" type="button" (click)="openOrderFromPilotage(ord.id!)">{{ 'sales.btn.open' | t }}</button>
+                  </td>
+                </tr>
+                <tr *ngIf="pilotage.pendingOrders.length === 0">
+                  <td colspan="5" class="empty">{{ 'sales.pilotage.emptyPending' | t }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4>{{ 'sales.pilotage.backorderLines' | t }}</h4>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>{{ 'sales.col.orderNumber' | t }}</th>
+                  <th>{{ 'common.customer' | t }}</th>
+                  <th>{{ 'common.ref' | t }}</th>
+                  <th>{{ 'common.description' | t }}</th>
+                  <th>{{ 'common.qty' | t }}</th>
+                  <th>{{ 'sales.col.deliveredQty' | t }}</th>
+                  <th>{{ 'sales.col.remainingQty' | t }}</th>
+                  <th>{{ 'sales.col.stockOnHand' | t }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let line of pilotage.backorderLines" [class.row-stockout]="line.isStockout">
+                  <td><strong>{{ line.orderNumber }}</strong></td>
+                  <td>{{ line.customerName }}</td>
+                  <td>{{ line.productKey || '-' }}</td>
+                  <td>{{ line.description || '-' }}</td>
+                  <td>{{ line.orderedQuantity }}</td>
+                  <td>{{ line.deliveredQuantity }}</td>
+                  <td><strong class="text-warn">{{ line.remainingQuantity }}</strong></td>
+                  <td [class.text-warn]="line.isStockout">{{ line.stockOnHand }}</td>
+                  <td>
+                    <span class="chip chip-error" *ngIf="line.isStockout">{{ 'sales.chip.stockout' | t }}</span>
+                    <button class="btn-sm ghost" type="button" (click)="openOrderFromPilotage(line.orderId)">{{ 'sales.btn.open' | t }}</button>
+                  </td>
+                </tr>
+                <tr *ngIf="pilotage.backorderLines.length === 0">
+                  <td colspan="9" class="empty">{{ 'sales.pilotage.emptyBackorders' | t }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </ng-container>
+        <div *ngIf="!pilotageLoading && !pilotage" class="empty">{{ 'sales.pilotage.loadError' | t }}</div>
+      </div>
+    </mat-tab>
+    <!-- Corbeille -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'sales.tab.trash' | t }}</ng-template>
+      <div class="table-container">
+        <div class="trash-toolbar">
+          <p class="muted trash-hint">{{ 'sales.trash.hint' | t }}</p>
+          <button
+            class="btn-sm danger"
+            type="button"
+            (click)="emptyTrash()"
+            [disabled]="!canEmptyTrash() || trashBusy"
+            *ngIf="canEmptyTrash()">
+            {{ 'sales.trash.btn.empty' | t }}
+          </button>
+        </div>
+        <div *ngIf="trashLoading" class="empty">{{ 'common.loading' | t }}</div>
+        <table class="data-table" *ngIf="!trashLoading">
+          <thead>
+            <tr>
+              <th>{{ 'sales.trash.col.type' | t }}</th>
+              <th>{{ 'common.ref' | t }}</th>
+              <th>{{ 'common.customer' | t }}</th>
+              <th>{{ 'common.status' | t }}</th>
+              <th>{{ 'common.amountTtc' | t }}</th>
+              <th>{{ 'sales.trash.col.deletedAt' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of trashItems">
+              <td>{{ trashTypeLabel(item) }}</td>
+              <td><strong>{{ item.number }}</strong></td>
+              <td>{{ item.customerName || ('sales.customerHash' | t:{id: item.customerId}) }}</td>
+              <td><span class="status-badge" [ngClass]="(item.status || '').toLowerCase()">{{ item.status }}</span></td>
+              <td>{{ item.totalTTC | currency:'EUR' }}</td>
+              <td>{{ item.deletedAt ? (item.deletedAt | date:'dd/MM/yyyy HH:mm') : '-' }}</td>
+              <td class="actions-cell">
+                <button
+                  class="btn-sm secondary"
+                  type="button"
+                  (click)="restoreTrashItem(item)"
+                  [disabled]="!canRestoreTrashItem(item) || trashRestoringKey === (item.documentType + ':' + item.id) || trashBusy"
+                  *ngIf="canRestoreTrashItem(item)">
+                  {{ 'sales.trash.btn.restore' | t }}
+                </button>
+                <button
+                  class="btn-sm danger"
+                  type="button"
+                  (click)="purgeTrashItem(item)"
+                  [disabled]="!canPurgeTrashItem(item) || trashBusy"
+                  *ngIf="canPurgeTrashItem(item)">
+                  {{ 'sales.trash.btn.purge' | t }}
+                </button>
+                <small class="muted" *ngIf="!canRestoreTrashItem(item)">{{ item.restoreBlockedReason || ('sales.trash.noRestore' | t) }}</small>
+              </td>
+            </tr>
+            <tr *ngIf="trashItems.length === 0">
+              <td colspan="7" class="empty">{{ 'sales.trash.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
   </mat-tab-group>
 
   <!-- Modal document unifié -->
   <div class="modal-overlay" *ngIf="showDocModal">
     <div class="modal-content wide">
-      <h3>{{ docModalTitle }}</h3>
+      <app-form-help
+        [helpKey]="docHelpKey"
+        [status]="docStatusForHelp"
+        [abbrs]="['BL','FAC','HT','TVA','TTC']"
+        (walkthrough)="onWalkthrough($event)">
+        <h3>{{ docModalTitle }}</h3>
+      </app-form-help>
+
+      <app-help-alerts [alerts]="docHelpAlerts"></app-help-alerts>
 
       <div class="form-row">
         <div class="form-group grow">
-          <label>{{ 'common.customer' | t }}</label>
-          <select [(ngModel)]="docCustomerId">
+          <label>{{ 'common.customer' | t }} <app-field-help helpKey="field.sales.customer"></app-field-help></label>
+          <select [(ngModel)]="docCustomerId" (ngModelChange)="refreshDocHelpAlerts()" [disabled]="(docKind === 'Order' && (hasLockedDocLines || editingOrderCommitted)) || (docKind === 'Invoice' && hasLockedDocLines)">
             <option [ngValue]="null">{{ 'sales.selectCustomer' | t }}</option>
             <option *ngFor="let c of customers" [ngValue]="c.id">{{ c.name }} ({{ c.customerCode }})</option>
           </select>
           <button class="btn-link" type="button" (click)="showDocModal = false; openCustomerModal(true)">{{ 'sales.btn.newCustomerLink' | t }}</button>
         </div>
         <div class="form-group" *ngIf="docKind === 'Quote'">
-          <label>{{ 'sales.col.expiration' | t }}</label>
+          <label>{{ 'sales.col.expiration' | t }} <app-field-help helpKey="field.sales.expiration"></app-field-help></label>
           <input type="date" [(ngModel)]="docExpirationDate" />
         </div>
         <div class="form-group" *ngIf="docKind === 'Invoice'">
-          <label>{{ 'sales.col.dueDate' | t }}</label>
+          <label>{{ 'sales.col.dueDate' | t }} <app-field-help helpKey="field.sales.invoiceDate"></app-field-help></label>
           <input type="date" [(ngModel)]="docDueDate" />
+        </div>
+      </div>
+
+      <div class="form-row" *ngIf="docKind === 'Invoice'">
+        <div class="form-group grow">
+          <label>{{ 'sales.col.linkedOrder' | t }}</label>
+          <select
+            [ngModel]="docSalesOrderId"
+            (ngModelChange)="onDocOrderChange($event)"
+            [disabled]="docSourceLoading || !!editingInvoiceId">
+            <option [ngValue]="null">{{ 'common.none' | t }}</option>
+            <option *ngFor="let o of linkableOrders" [ngValue]="o.id">{{ o.orderNumber }}</option>
+          </select>
+          <small class="muted">{{ 'sales.invoiceOrderHint' | t }}</small>
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'sales.col.linkedDeliveryNote' | t }} *</label>
+          <select
+            multiple
+            [ngModel]="docSalesDeliveryNoteIds"
+            (ngModelChange)="onDocDeliveryNotesChange($event)"
+            [disabled]="docSourceLoading || !!editingInvoiceId"
+            required
+            size="4"
+            class="multi-select">
+            <option *ngFor="let dn of linkableDeliveryNotesForInvoice" [ngValue]="dn.id">{{ dn.deliveryNumber }}</option>
+          </select>
+          <small *ngIf="docSourceLoading">{{ 'common.loading' | t }}</small>
+          <small class="muted" *ngIf="!docSourceLoading && !editingInvoiceId">{{ 'sales.invoiceNeedDeliveryNoteMulti' | t }}</small>
         </div>
       </div>
 
@@ -555,9 +1008,9 @@
           <tr>
             <th>{{ 'sales.col.codeRef' | t }}</th>
             <th>{{ 'common.description' | t }}</th>
-            <th>{{ 'common.qty' | t }}</th>
-            <th>{{ 'common.unitPriceHt' | t }}</th>
-            <th>{{ 'common.vatPercent' | t }}</th>
+            <th>{{ 'common.qty' | t }} <app-field-help helpKey="field.sales.lineQty"></app-field-help></th>
+            <th>{{ 'common.unitPriceHt' | t }} <app-field-help helpKey="field.sales.linePrice"></app-field-help></th>
+            <th>{{ 'common.vatPercent' | t }} <app-field-help helpKey="field.sales.lineVat"></app-field-help></th>
             <th>{{ 'common.totalHt' | t }}</th>
             <th>{{ 'common.totalTtc' | t }}</th>
             <th></th>
@@ -566,15 +1019,16 @@
         <tbody>
           <tr *ngFor="let line of docLines; let i = index">
             <td>
-              <app-product-line-ref [line]="line" (productSelected)="calcLine(line)"></app-product-line-ref>
+              <app-product-line-ref [line]="line" (productSelected)="calcLine(line)" *ngIf="!line.locked"></app-product-line-ref>
+              <span *ngIf="line.locked" class="font-mono">{{ line.productKey || '-' }}</span>
             </td>
-            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
-            <td><input type="number" [(ngModel)]="line.quantity" (input)="calcLine(line)" class="num" /></td>
-            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calcLine(line)" class="num wide" /></td>
-            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calcLine(line)" class="num" /></td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" [readonly]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" (input)="calcLine(line)" class="num" [min]="docKind === 'Order' && line.locked ? (line.deliveredQuantity || line.invoicedQuantity || 0) : 0.01" [max]="docKind === 'Invoice' && line.locked && line.deliveredQuantity ? line.deliveredQuantity : null" /></td>
+            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calcLine(line)" class="num wide" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
+            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calcLine(line)" class="num" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
             <td><strong>{{ line.totalHT | currency:'EUR' }}</strong></td>
             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
-            <td><button type="button" class="btn-icon" (click)="removeDocLine(i)" [disabled]="docLines.length === 1">✕</button></td>
+            <td><button type="button" class="btn-icon" (click)="removeDocLine(i)" [disabled]="docLines.length === 1 || !!line.locked">✕</button></td>
           </tr>
         </tbody>
       </table>
@@ -587,8 +1041,8 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" type="button" (click)="showDocModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
-        <button class="btn-primary" type="button" (click)="saveDocument()" [disabled]="saving">
+        <button class="btn-secondary" type="button" (click)="showDocModal = false; editingOrderId = null; editingInvoiceId = null; editingOrderCommitted = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveDocument()" [disabled]="saving || docHasBlockingAlert">
           {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
         </button>
       </div>
@@ -598,7 +1052,9 @@
   <!-- Modal Nouveau Client -->
   <div class="modal-overlay" *ngIf="showCustomerModal">
     <div class="modal-content">
-      <h3>{{ (editingCustomerId ? 'sales.modal.editCustomer' : 'sales.modal.newCustomer') | t }}</h3>
+      <app-form-help helpKey="sales.customer">
+        <h3>{{ (editingCustomerId ? 'sales.modal.editCustomer' : 'sales.modal.newCustomer') | t }}</h3>
+      </app-form-help>
       <div class="form-row">
         <div class="form-group">
           <label>{{ 'sales.customer.codeAuto' | t }}</label>
@@ -641,6 +1097,16 @@
           <input type="text" [(ngModel)]="newCustomer.country" />
         </div>
       </div>
+      <div class="form-group">
+        <label>{{ 'sales.col.creditLimit' | t }}</label>
+        <input type="number" step="0.01" min="0" [(ngModel)]="newCustomer.creditLimit" />
+        <small>{{ 'sales.creditLimitHint' | t }}</small>
+      </div>
+      <div class="form-group">
+        <label>{{ 'sales.col.paymentTerms' | t }}</label>
+        <input type="text" [(ngModel)]="newCustomer.paymentTerms" [placeholder]="'sales.paymentTermsPlaceholder' | t" />
+        <small>{{ 'sales.paymentTermsHint' | t }}</small>
+      </div>
       <div class="modal-actions">
         <button class="btn-secondary" type="button" (click)="showCustomerModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
         <button class="btn-primary" type="button" (click)="saveCustomer()" [disabled]="saving">
@@ -653,7 +1119,9 @@
   <!-- Modal Paiement -->
   <div class="modal-overlay" *ngIf="showPaymentModal">
     <div class="modal-content small">
-      <h3>{{ 'sales.modal.payment' | t }}</h3>
+      <app-form-help helpKey="sales.payment" [abbrs]="['FAC','TTC']">
+        <h3>{{ 'sales.modal.payment' | t }}</h3>
+      </app-form-help>
       <p>{{ 'sales.payment.invoiceNumber' | t }} <strong>{{ selectedInvoiceForPayment?.invoiceNumber }}</strong></p>
 
       <div class="form-group">
@@ -666,8 +1134,19 @@
         <select [(ngModel)]="paymentMethod">
           <option value="Cash">{{ 'sales.payment.cash' | t }}</option>
           <option value="Card">{{ 'sales.payment.card' | t }}</option>
+          <option value="Check">{{ 'sales.payment.check' | t }}</option>
           <option value="BankTransfer">{{ 'sales.payment.transfer' | t }}</option>
         </select>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'sales.payment.reference' | t }}</label>
+        <input type="text" [(ngModel)]="paymentReference" [placeholder]="'sales.payment.referenceHint' | t" />
+      </div>
+
+      <div class="form-group" *ngIf="paymentMethod === 'BankTransfer' || paymentMethod === 'Check'">
+        <label>{{ 'sales.payment.bank' | t }}</label>
+        <input type="text" [(ngModel)]="paymentBank" />
       </div>
 
       <div class="modal-actions">
@@ -677,15 +1156,99 @@
     </div>
   </div>
 
+  <!-- Modal Avoir partiel depuis facture -->
+  <div class="modal-overlay" *ngIf="showCreditNoteModal">
+    <div class="modal-content wide">
+      <app-form-help helpKey="sales.creditNote" [abbrs]="['FAC','HT','TVA']">
+        <h3>{{ 'sales.modal.creditNoteFromInvoice' | t }}</h3>
+      </app-form-help>
+      <p>{{ 'sales.payment.invoiceNumber' | t }} <strong>{{ creditNoteInvoice?.invoiceNumber }}</strong></p>
+      <p class="muted">{{ 'sales.creditNote.selectHint' | t }}</p>
+
+      <div *ngIf="creditNoteLoading" class="empty">{{ 'common.loading' | t }}</div>
+
+      <ng-container *ngIf="!creditNoteLoading">
+        <div class="form-row" style="margin-bottom: 8px;">
+          <button class="btn-sm ghost" type="button" (click)="toggleCreditNoteSelectAll(true)">{{ 'sales.creditNote.selectAll' | t }}</button>
+          <button class="btn-sm ghost" type="button" (click)="toggleCreditNoteSelectAll(false)">{{ 'sales.creditNote.selectNone' | t }}</button>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{{ 'common.ref' | t }}</th>
+              <th>{{ 'common.description' | t }}</th>
+              <th>{{ 'sales.col.invoicedQty' | t }}</th>
+              <th>{{ 'sales.col.creditQty' | t }}</th>
+              <th>{{ 'common.unitPriceHt' | t }}</th>
+              <th>{{ 'common.vatPercent' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let line of creditNoteLines">
+              <td>
+                <input type="checkbox"
+                       [(ngModel)]="line.selected"
+                       (ngModelChange)="onCreditNoteLineToggle(line)" />
+              </td>
+              <td>{{ line.productKey || '-' }}</td>
+              <td>{{ line.description || '-' }}</td>
+              <td>{{ line.maxQuantity }}</td>
+              <td>
+                <input type="number"
+                       [(ngModel)]="line.quantity"
+                       [max]="line.maxQuantity"
+                       min="0"
+                       step="0.01"
+                       [disabled]="!line.selected"
+                       (change)="clampCreditNoteQty(line)" />
+              </td>
+              <td>{{ line.unitPrice | currency:'EUR' }}</td>
+              <td>{{ line.vatRate }}%</td>
+            </tr>
+            <tr *ngIf="creditNoteLines.length === 0">
+              <td colspan="7" class="empty">{{ 'common.noLines' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="form-group" style="margin-top: 12px;">
+          <label>{{ 'common.notes' | t }}</label>
+          <textarea [(ngModel)]="creditNoteNotes" rows="2"></textarea>
+        </div>
+
+        <div class="totals-bar">
+          <span>{{ 'sales.creditNote.selectedLines' | t:{count: creditNoteSelectedCount} }}</span>
+          <span>{{ 'sales.label.ht' | t }} <strong>{{ creditNotePreviewTotals.ht | currency:'EUR' }}</strong></span>
+          <span>{{ 'sales.label.vat' | t }} <strong>{{ creditNotePreviewTotals.vat | currency:'EUR' }}</strong></span>
+          <span>{{ 'sales.label.ttc' | t }} <strong>{{ creditNotePreviewTotals.ttc | currency:'EUR' }}</strong></span>
+        </div>
+      </ng-container>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showCreditNoteModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button"
+                (click)="submitCreditNoteFromInvoice()"
+                [disabled]="saving || creditNoteLoading || creditNoteSelectedCount === 0">
+          {{ saving ? ('common.saving' | t) : ('sales.btn.createCreditNote' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Nouveau Bon de Livraison -->
   <div class="modal-overlay" *ngIf="showDeliveryNoteModal">
     <div class="modal-content wide">
-      <h3>{{ 'sales.modal.newDeliveryNote' | t }}</h3>
+      <app-form-help helpKey="sales.deliveryNote" [abbrs]="['BL','BLC']">
+        <h3>{{ 'sales.modal.newDeliveryNote' | t }}</h3>
+      </app-form-help>
       <div class="form-row">
         <div class="form-group">
           <label>{{ 'sales.customer.required' | t }}</label>
           <select [(ngModel)]="dnCustomerId">
-            <option *ngFor="let c of customers" [value]="c.id">{{ c.name }}</option>
+            <option [ngValue]="null">{{ 'sales.selectCustomer' | t }}</option>
+            <option *ngFor="let c of customers" [ngValue]="c.id">{{ c.name }}</option>
           </select>
         </div>
         <div class="form-group">
@@ -693,11 +1256,12 @@
           <input type="date" [(ngModel)]="dnDate" />
         </div>
         <div class="form-group">
-          <label>{{ 'sales.col.linkedOrder' | t }}</label>
-          <select [ngModel]="dnSalesOrderId" (ngModelChange)="onDnOrderChange($event)">
-            <option [value]="null">{{ 'common.none' | t }}</option>
-            <option *ngFor="let o of orders" [value]="o.id">{{ o.orderNumber }}</option>
+          <label>{{ 'sales.col.linkedOrder' | t }} *</label>
+          <select [ngModel]="dnSalesOrderId" (ngModelChange)="onDnOrderChange($event)" required>
+            <option [ngValue]="null">{{ 'sales.selectOrder' | t }}</option>
+            <option *ngFor="let o of linkableOrdersForDn" [ngValue]="o.id">{{ o.orderNumber }}</option>
           </select>
+          <small class="muted">{{ 'sales.deliveryNoteNeedOrder' | t }}</small>
         </div>
       </div>
       <div class="form-group">
@@ -741,4 +1305,127 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal Nouveau retour client depuis BL -->
+  <div class="modal-overlay" *ngIf="showReturnModal">
+    <div class="modal-content">
+      <app-form-help helpKey="sales.return" [abbrs]="['BRC','BL']">
+        <h3>{{ 'sales.returns.modal.title' | t }}</h3>
+      </app-form-help>
+      <div class="form-group">
+        <label>{{ 'sales.returns.searchDeliveryNote' | t }}</label>
+        <input type="text" [(ngModel)]="returnDnSearch" [placeholder]="'sales.returns.searchDeliveryNoteHint' | t" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'sales.returns.selectDeliveryNote' | t }}</label>
+        <div *ngIf="returnDnLoading" class="empty">{{ 'common.loading' | t }}</div>
+        <select [(ngModel)]="returnDeliveryNoteId" *ngIf="!returnDnLoading" size="8" class="dn-select-list">
+          <option [ngValue]="null">{{ 'common.select' | t }}</option>
+          <option *ngFor="let dn of deliverableNotesForReturn" [ngValue]="dn.id">
+            {{ dn.deliveryNumber }} — {{ dn.customer?.name || ('sales.customerHash' | t:{id: dn.customerId}) }} ({{ dn.status }})
+          </option>
+        </select>
+        <p class="muted" *ngIf="!returnDnLoading && deliverableNotesForReturn.length === 0">{{ 'sales.returns.noEligibleDn' | t }}</p>
+      </div>
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <textarea [(ngModel)]="returnNotes" rows="2"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showReturnModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="submitReturnFromDelivery()" [disabled]="saving || !returnDeliveryNoteId">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nouvelle proforma depuis devis -->
+  <div class="modal-overlay" *ngIf="showProformaModal">
+    <div class="modal-content">
+      <app-form-help helpKey="sales.proforma" [abbrs]="['FAC','HT','TVA']">
+        <h3>{{ 'sales.proformas.modal.title' | t }}</h3>
+      </app-form-help>
+      <div class="form-group">
+        <label>{{ 'sales.proformas.selectQuote' | t }}</label>
+        <select [(ngModel)]="proformaQuoteId">
+          <option [ngValue]="null">{{ 'common.select' | t }}</option>
+          <option *ngFor="let q of quotes" [ngValue]="q.id">
+            {{ q.quoteNumber }} — {{ q.customer?.name || ('sales.customerHash' | t:{id: q.customerId}) }}
+          </option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showProformaModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="submitProforma()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nouvel acompte -->
+  <div class="modal-overlay" *ngIf="showDepositModal">
+    <div class="modal-content">
+      <app-form-help helpKey="sales.deposit" [abbrs]="['HT','TVA','FAC']">
+        <h3>{{ 'sales.deposits.modal.title' | t }}</h3>
+      </app-form-help>
+      <div class="form-group">
+        <label>{{ 'sales.deposits.selectOrder' | t }}</label>
+        <select [(ngModel)]="depositOrderId">
+          <option [ngValue]="null">{{ 'common.select' | t }}</option>
+          <option *ngFor="let o of ordersForDeposit" [ngValue]="o.id">
+            {{ o.orderNumber }} — {{ o.customer?.name || ('sales.customerHash' | t:{id: o.customerId}) }}
+            ({{ o.status }}) — {{ o.totalTTC | currency:'EUR' }}
+          </option>
+        </select>
+        <small class="muted" *ngIf="ordersForDeposit.length === 0">{{ 'sales.deposits.noEligibleOrder' | t }}</small>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'sales.deposits.amountHt' | t }}</label>
+          <input type="number" step="0.01" min="0" [(ngModel)]="depositAmountHT" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'common.vatPercent' | t }}</label>
+          <input type="number" step="0.5" min="0" [(ngModel)]="depositVatRate" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showDepositModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="submitDeposit()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Appliquer acompte sur facture -->
+  <div class="modal-overlay" *ngIf="showApplyDepositModal">
+    <div class="modal-content">
+      <app-form-help helpKey="sales.applyDeposit" [abbrs]="['FAC']">
+        <h3>{{ 'sales.deposits.btn.apply' | t }}</h3>
+      </app-form-help>
+      <p>{{ 'sales.deposits.col.number' | t }} <strong>{{ depositToApply?.depositNumber }}</strong></p>
+      <div class="form-group">
+        <label>{{ 'sales.deposits.selectInvoice' | t }}</label>
+        <select [(ngModel)]="applyDepositInvoiceId">
+          <option [ngValue]="null">{{ 'common.select' | t }}</option>
+          <option *ngFor="let inv of invoicesForDepositApply" [ngValue]="inv.id">{{ inv.invoiceNumber }} ({{ inv.totalTTC | currency:'EUR' }})</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showApplyDepositModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="submitApplyDeposit()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
+
+<app-help-walkthrough
+  [open]="showWalkthrough"
+  [helpKey]="walkthroughHelpKey"
+  (closed)="showWalkthrough = false">
+</app-help-walkthrough>
