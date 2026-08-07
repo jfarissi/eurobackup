@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
@@ -7,7 +8,7 @@ namespace Backup.Web.Api.Server.Models
     /// Catégorie hiérarchique dérivée de MainType / Type / SubType ERP.
     /// Level: MainType = 1, Type = 2, SubType = 3.
     /// </summary>
-    public class ErpCategory
+    public class ErpCategory : IHasAuditTrail
     {
         public int Id { get; set; }
 
@@ -31,7 +32,9 @@ namespace Backup.Web.Api.Server.Models
         public int SortOrder { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public ICollection<ErpProduct> Products { get; set; } = new List<ErpProduct>();
     }

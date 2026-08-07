@@ -1,4 +1,5 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
@@ -6,7 +7,7 @@ namespace Backup.Web.Api.Server.Models
 	/// Enregistre chaque mise à jour de stock avec le BL qui l'a causée.
 	/// Permet la traçabilité complète des mises à jour de stock.
 	/// </summary>
-	public class StockUpdate
+	public class StockUpdate : IHasAuditTrail
 	{
 		public int Id { get; set; }
 		public string ProductKey { get; set; } = string.Empty;
@@ -15,6 +16,10 @@ namespace Backup.Web.Api.Server.Models
 		public int DeliveryId { get; set; } // ID du BL qui a causé cette mise à jour
 		public int? InvoiceId { get; set; } // ID de la facture associée (optionnel)
 		public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+		public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+		public string? CreatedBy { get; set; }
+		public string? UpdatedBy { get; set; }
 	}
 }
 

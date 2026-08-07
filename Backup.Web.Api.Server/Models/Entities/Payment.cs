@@ -1,4 +1,5 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
@@ -6,7 +7,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// <summary>
     /// Règlement client (aligné Pulse ErpPayments) — historique d'un paiement sur facture vente.
     /// </summary>
-    public class Payment : IHasCompanyId
+    public class Payment : IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
         public string? CompanyId { get; set; }
@@ -31,5 +32,8 @@ namespace Backup.Web.Api.Server.Models.Entities
 
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? UpdatedBy { get; set; }
     }
 }

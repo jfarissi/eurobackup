@@ -92,7 +92,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             await this.SaveChangesAsync();
         }
 
-        public async ValueTask UpsertStockBatchAsync(IEnumerable<(string productKey, decimal quantityDelta, string? supplier, string? description, string? unit)> changes, int deliveryId, int? invoiceId = null)
+        public async ValueTask UpsertStockBatchAsync(IEnumerable<(string productKey, decimal quantityDelta, string? supplier, string? description, string? unit, decimal? unitCost)> changes, int deliveryId, int? invoiceId = null)
         {
             // Normaliser toutes les ProductKey (supprimer préfixes si présents)
             // Note: On inclut même les deltas=0 pour mettre à jour LastDeliveryId et LastUpdated
@@ -103,7 +103,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                     quantityDelta: c.quantityDelta,
                     supplier: c.supplier,
                     description: c.description,
-                    unit: c.unit
+                    unit: c.unit,
+                    unitCost: c.unitCost
                 ))
                 .ToList();
 
@@ -117,25 +118,31 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             var keys = grouped.Select(g => g.Key).ToList();
             System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Looking for stock items with keys: {string.Join(", ", keys)}");
             
-            // Charger tous les items et filtrer en mémoire (Entity Framework ne peut pas traduire Contains avec StringComparer)
-            // IMPORTANT: Ne pas utiliser ToList() ici car cela charge les entités sans tracking
-            // Utiliser AsEnumerable() pour garder le tracking
-            var keysLower = keys.Select(k => k.ToLowerInvariant()).ToHashSet();
-            var existing = this.Stock
-                .AsEnumerable()
-                .Where(s => s.ProductKey != null && keysLower.Contains(s.ProductKey.ToLowerInvariant()))
-                .ToList();
-            
-            System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Found {existing.Count} existing stock items");
-            foreach (var item in existing)
+            // Match souple (CODE ↔ "Marque CODE") pour ne pas créer de doublons de lignes stock.
+            var allStock = this.Stock.AsEnumerable().ToList();
+            var existingByIncomingKey = new Dictionary<string, Backup.Web.Api.Server.Models.StockItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in keys)
             {
-                System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Existing stock: ProductKey={item.ProductKey}, QuantityOnHand={item.QuantityOnHand}");
+                var match = allStock.FirstOrDefault(s =>
+                    s.ProductKey != null
+                    && Backup.Web.Api.Server.Services.Stock.StockLedger.ProductKeysMatch(s.ProductKey, key));
+                if (match != null && !existingByIncomingKey.ContainsKey(key))
+                    existingByIncomingKey[key] = match;
             }
-            var existingLookup = existing.ToDictionary(s => s.ProductKey, StringComparer.OrdinalIgnoreCase);
+
+            System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Found {existingByIncomingKey.Count} existing stock items (flexible key match)");
+            foreach (var kv in existingByIncomingKey)
+            {
+                System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Existing stock: IncomingKey={kv.Key}, ProductKey={kv.Value.ProductKey}, QuantityOnHand={kv.Value.QuantityOnHand}");
+            }
 
             // Récupérer le fournisseur du BL
             var delivery = await this.SelectDocumentByIdAsync(deliveryId);
             var deliverySupplier = delivery?.Supplier;
+            var companyId = this.httpContextAccessor?.HttpContext?.Request.Headers["X-Company-ID"].FirstOrDefault()
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("CompanyId")?.Value
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("companyId")?.Value
+                ?? delivery?.CompanyId;
 
             var stockUpdates = new List<Backup.Web.Api.Server.Models.StockUpdate>();
 
@@ -150,15 +157,35 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 var description = firstItem.description;
                 var unit = firstItem.unit;
 
+                // Coût moyen pondéré des lignes du groupe (pour CMUP)
+                decimal? inboundUnitCost = null;
+                var positiveCostLines = group.Where(x => x.quantityDelta > 0 && x.unitCost.HasValue && x.unitCost.Value >= 0).ToList();
+                if (positiveCostLines.Count > 0)
+                {
+                    var qtyCost = positiveCostLines.Sum(x => x.quantityDelta);
+                    if (qtyCost > 0.0001m)
+                        inboundUnitCost = Backup.Web.Api.Server.Services.Stock.CmupCalculator.Round(
+                            positiveCostLines.Sum(x => x.quantityDelta * x.unitCost!.Value) / qtyCost);
+                }
+                if (!inboundUnitCost.HasValue && quantityDelta > 0)
+                {
+                    inboundUnitCost = Backup.Web.Api.Server.Services.Stock.StockLedger.ResolveCatalogUnitCost(this, productKey);
+                }
+
                 decimal quantityAfter;
-                if (existingLookup.TryGetValue(productKey, out var item))
+                if (existingByIncomingKey.TryGetValue(productKey, out var item))
                 {
                     var quantityBefore = item.QuantityOnHand;
                     // Mettre à jour la quantité seulement si le delta n'est pas 0
                     if (quantityDelta != 0)
                     {
+                        if (quantityDelta > 0 && inboundUnitCost.HasValue)
+                        {
+                            item.AverageCost = Backup.Web.Api.Server.Services.Stock.CmupCalculator.AfterInbound(
+                                quantityBefore, item.AverageCost, quantityDelta, inboundUnitCost.Value);
+                        }
                         item.QuantityOnHand += quantityDelta;
-                        System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Updated existing stock: ProductKey={productKey}, QuantityBefore={quantityBefore}, QuantityDelta={quantityDelta}, QuantityAfter={item.QuantityOnHand}");
+                        System.Diagnostics.Debug.WriteLine($"[UpsertStockBatch] Updated existing stock: ProductKey={productKey}, QuantityBefore={quantityBefore}, QuantityDelta={quantityDelta}, QuantityAfter={item.QuantityOnHand}, AverageCost={item.AverageCost}");
                     }
                     else
                     {
@@ -177,6 +204,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                         item.Description = description;
                     if (string.IsNullOrWhiteSpace(item.Unit) && !string.IsNullOrWhiteSpace(unit))
                         item.Unit = unit;
+                    if (string.IsNullOrWhiteSpace(item.CompanyId) && !string.IsNullOrWhiteSpace(companyId))
+                        item.CompanyId = companyId;
                     quantityAfter = item.QuantityOnHand;
                 }
                 else
@@ -186,11 +215,13 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                     {
                         ProductKey = productKey,
                         QuantityOnHand = quantityDelta,
+                        AverageCost = quantityDelta > 0 && inboundUnitCost.HasValue ? inboundUnitCost.Value : 0m,
                         LastUpdated = DateTime.UtcNow,
                         LastDeliveryId = deliveryId,
                         Supplier = supplier,
                         Description = description,
-                        Unit = unit
+                        Unit = unit,
+                        CompanyId = companyId
                     };
                     this.Stock.Add(newItem);
                     quantityAfter = quantityDelta;
@@ -221,7 +252,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             foreach (var group in grouped)
             {
                 var productKey = group.Key;
-                var item = existingLookup.TryGetValue(productKey, out var i) ? i : null;
+                var item = existingByIncomingKey.TryGetValue(productKey, out var i) ? i : null;
                 if (item != null)
                 {
                     // Recharger depuis la base pour vérifier

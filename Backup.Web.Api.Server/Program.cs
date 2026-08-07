@@ -75,9 +75,17 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProduc
     client.Timeout = TimeSpan.FromSeconds(Math.Max(5, timeoutSeconds));
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpExcelImportService, Backup.Web.Api.Server.Services.ErpSync.ErpExcelImportService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.ICarApiImportService, Backup.Web.Api.Server.Services.ErpSync.CarApiImportService>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.ErpSync.ICarApiCatalogService, Backup.Web.Api.Server.Services.ErpSync.CarApiCatalogService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Archiving.DocumentArchiveBackgroundService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.IEmailDocumentService, Backup.Web.Api.Server.Services.Email.EmailDocumentService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.ISmtpEmailSender, Backup.Web.Api.Server.Services.Email.SmtpEmailSender>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.IEmailDispatchService, Backup.Web.Api.Server.Services.Email.EmailDispatchService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.IEmailAutomationService, Backup.Web.Api.Server.Services.Email.EmailAutomationService>();
+builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Email.EmailQueueBackgroundService>();
+builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Email.EmailAutomationBackgroundService>();
 
 builder.Services.Configure<Backup.Web.Api.Server.Services.StoreChat.StoreChatOptions>(
     builder.Configuration.GetSection(Backup.Web.Api.Server.Services.StoreChat.StoreChatOptions.SectionName));
@@ -160,6 +168,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.ICompanyContextService, Backup.Web.Api.Server.Services.Tenancy.CompanyContextService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.TenancySeedService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.SupplierSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Modules.IModuleService, Backup.Web.Api.Server.Services.Modules.ModuleService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Modules.ModuleSeedService>();
 builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AppSettings>(
     builder.Configuration.GetSection("AppSettings"));
 builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AuthSeedOptions>(
@@ -295,13 +305,16 @@ try
 
     var supplierSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.SupplierSeedService>();
     await supplierSeed.EnsurePulseSuppliersAsync();
+
+    var moduleSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Modules.ModuleSeedService>();
+    await moduleSeed.EnsureDefaultsAsync();
 }
 catch (Exception ex)
 {
     var startupLogger = app.Services
         .GetRequiredService<ILoggerFactory>()
         .CreateLogger("TenancySeed");
-    startupLogger.LogError(ex, "Tenancy/supplier seed failed on startup");
+    startupLogger.LogError(ex, "Tenancy/supplier/module seed failed on startup");
 }
 
 if (builder.Configuration.GetValue("UseHttpsRedirection", true))

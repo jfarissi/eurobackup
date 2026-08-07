@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 using Backup.Web.Api.Server.Authorization;
 using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
-using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Stock;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -48,45 +48,23 @@ namespace Backup.Web.Api.Server.Controllers
             if (string.IsNullOrWhiteSpace(movement.ProductKey)) return BadRequest("ProductKey required");
             if (movement.Quantity == 0) return BadRequest("Quantity must be non-zero");
 
-            movement.EnsureCompanyId(this.companyContext.GetCurrentCompanyId());
-            movement.CreatedAt = DateTime.UtcNow;
-            movement.CreatedBy = User.Identity?.Name ?? "System";
-
-            var created = await this.storage.InsertStockMovementAsync(movement);
-
             var companyId = this.companyContext.GetCurrentCompanyId();
-            var existingStock = this.storage.SelectAllStock()
-                .ForCompany(companyId)
-                .FirstOrDefault(s => s.ProductKey == movement.ProductKey);
-            decimal delta = movement.MovementType switch
-            {
-                "In" => Math.Abs(movement.Quantity),
-                "Out" => -Math.Abs(movement.Quantity),
-                "Adjustment" => movement.Quantity,
-                "Transfer" => -Math.Abs(movement.Quantity),
-                _ => movement.Quantity
-            };
+            movement.EnsureCompanyId(companyId);
+            var createdBy = User.Identity?.Name ?? "System";
 
-            if (existingStock != null)
-            {
-                existingStock.QuantityOnHand += delta;
-                existingStock.LastUpdated = DateTime.UtcNow;
-                await this.storage.UpdateStockAsync(existingStock);
-            }
-            else
-            {
-                var newStock = new StockItem
-                {
-                    ProductKey = movement.ProductKey,
-                    QuantityOnHand = delta > 0 ? delta : 0,
-                    Unit = "PCS",
-                    LastUpdated = DateTime.UtcNow,
-                    CompanyId = companyId
-                };
-                await this.storage.InsertStockAsync(newStock);
-            }
+            // Inventaire : surplus (In / Adjustment+) valorisé au coût saisi ou au CMUP ; manquant (Out) au CMUP.
+            var created = await StockLedger.ApplyAsync(
+                this.storage,
+                companyId,
+                movement.ProductKey,
+                string.IsNullOrWhiteSpace(movement.MovementType) ? "Adjustment" : movement.MovementType,
+                movement.Quantity,
+                movement.ReferenceDocument ?? "INVENTORY",
+                movement.Reason ?? "Ajustement stock manuel",
+                createdBy,
+                movement.UnitCost);
 
-            return Created(created);
+            return created != null ? Created(created) : Ok(movement);
         }
     }
 }

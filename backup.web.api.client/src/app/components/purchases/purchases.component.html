@@ -46,15 +46,15 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.rfqs.col.number' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="rfqSort" key="number">{{ 'purchases.rfqs.col.number' | t }}</th>
+              <th appSortable [state]="rfqSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="rfqSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="rfqSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of supplierRfqs">
+            <tr *ngFor="let r of sortedSupplierRfqs">
               <td><strong>{{ r.rfqNumber }}</strong></td>
               <td>{{ r.supplier?.name || ('purchases.supplierHash' | t:{id: r.supplierId}) }}</td>
               <td>{{ r.date | date:'dd/MM/yyyy' }}</td>
@@ -82,18 +82,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.col.orderNumber' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'purchases.col.expectedDelivery' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="number">{{ 'purchases.col.orderNumber' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="expectedDelivery" defaultDir="desc">{{ 'purchases.col.expectedDelivery' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="purchaseOrderSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let order of purchaseOrders">
+            <ng-container *ngFor="let order of sortedPurchaseOrders">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="togglePurchaseOrderDetail(order)" [attr.aria-expanded]="isExpanded('PurchaseOrder', order.id)">
@@ -109,6 +109,13 @@
                 <td><span class="status-badge" [ngClass]="order.status.toLowerCase()">{{ order.status }}</span></td>
                 <td class="actions-cell">
                   <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('PurchaseOrder', order.id, (order.orderNumber || 'commande') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.PurchaseOrderRead)">PDF</button>
+                  <button class="btn-sm ghost" type="button" (click)="openPurchaseOrderEmail(order)" *ngIf="perm.has(P.EmailSend)">{{ 'email.sendShort' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="confirmPurchaseOrder(order)" *ngIf="canConfirmPurchaseOrder(order)" [disabled]="confirmingPurchaseOrderId === order.id">
+                    {{ confirmingPurchaseOrderId === order.id ? ('common.loading' | t) : ('purchases.btn.confirmOrder' | t) }}
+                  </button>
+                  <button class="btn-sm" type="button" (click)="sendPurchaseOrder(order)" *ngIf="canSendPurchaseOrder(order)" [disabled]="sendingPurchaseOrderId === order.id">
+                    {{ sendingPurchaseOrderId === order.id ? ('common.loading' | t) : ('purchases.btn.sendOrder' | t) }}
+                  </button>
                   <button class="btn-sm" (click)="openReceiveDeliveryModal(order)" *ngIf="perm.has(P.PurchaseOrderUpdate)">
                     {{ 'purchases.btn.receiveDelivery' | t }}
                   </button>
@@ -184,18 +191,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.col.receiptNumber' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'purchases.col.sourceDocument' | t }}</th>
-              <th>{{ 'purchases.col.cfa' | t }}</th>
-              <th>{{ 'purchases.col.lines' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="receiptSort" key="number">{{ 'purchases.col.receiptNumber' | t }}</th>
+              <th appSortable [state]="receiptSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="receiptSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="receiptSort" key="document">{{ 'purchases.col.sourceDocument' | t }}</th>
+              <th appSortable [state]="receiptSort" key="order">{{ 'purchases.col.cfa' | t }}</th>
+              <th appSortable [state]="receiptSort" key="lines" defaultDir="desc">{{ 'purchases.col.lines' | t }}</th>
+              <th appSortable [state]="receiptSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let receipt of receipts">
+            <ng-container *ngFor="let receipt of sortedReceipts">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleReceiptDetail(receipt)" [attr.aria-expanded]="isExpanded('Receipt', receipt.id)">
@@ -207,7 +214,7 @@
                 <td>{{ receipt.receivedAt | date:'dd/MM/yyyy' }}</td>
                 <td>{{ receipt.documentId ? ('purchases.docHash' | t:{id: receipt.documentId}) : '-' }}</td>
                 <td>{{ receipt.purchaseOrder?.orderNumber || (receipt.purchaseOrderId ? ('#' + receipt.purchaseOrderId) : '-') }}</td>
-                <td>{{ receipt.lines?.length || 0 }}</td>
+                <td>{{ receipt.lines.length }}</td>
                 <td>
                   <span class="status-badge received">{{ receipt.status === 'Posted' ? ('purchases.status.comptabilise' | t) : receipt.status }}</span>
                 </td>
@@ -277,20 +284,20 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'purchases.col.document' | t }}</th>
-              <th>{{ 'purchases.col.order' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'purchases.col.dueDate' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="number">{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="document">{{ 'purchases.col.document' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="order">{{ 'purchases.col.order' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="dueDate" defaultDir="desc">{{ 'purchases.col.dueDate' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="supplierInvoiceSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let invoice of supplierInvoices">
+            <ng-container *ngFor="let invoice of sortedSupplierInvoices">
               <tr [class.highlight-row]="isHighlightedInvoice(invoice)">
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleSupplierInvoiceDetail(invoice)" [attr.aria-expanded]="isExpanded('SupplierInvoice', invoice.id)">
@@ -385,17 +392,17 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.supplierCreditNotes.col.number' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'purchases.col.invoiceNumber' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="number">{{ 'purchases.supplierCreditNotes.col.number' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="invoice">{{ 'purchases.col.invoiceNumber' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="supplierCreditNoteSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let c of supplierCreditNotes">
+            <tr *ngFor="let c of sortedSupplierCreditNotes">
               <td><strong>{{ c.creditNoteNumber }}</strong></td>
               <td>{{ c.supplier?.name || ('purchases.supplierHash' | t:{id: c.supplierId}) }}</td>
               <td>{{ c.supplierInvoice?.invoiceNumber || ('#' + c.supplierInvoiceId) }}</td>
@@ -422,17 +429,17 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'common.code' | t }}</th>
-              <th>{{ 'common.name' | t }}</th>
-              <th>{{ 'purchases.col.vatNumber' | t }}</th>
-              <th>{{ 'common.city' | t }}</th>
-              <th>{{ 'common.phone' | t }}</th>
-              <th>{{ 'common.email' | t }}</th>
+              <th appSortable [state]="supplierSort" key="code">{{ 'common.code' | t }}</th>
+              <th appSortable [state]="supplierSort" key="name">{{ 'common.name' | t }}</th>
+              <th appSortable [state]="supplierSort" key="vatNumber">{{ 'purchases.col.vatNumber' | t }}</th>
+              <th appSortable [state]="supplierSort" key="city">{{ 'common.city' | t }}</th>
+              <th appSortable [state]="supplierSort" key="phone">{{ 'common.phone' | t }}</th>
+              <th appSortable [state]="supplierSort" key="email">{{ 'common.email' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let supplier of suppliers">
+            <tr *ngFor="let supplier of sortedSuppliers">
               <td><strong>{{ supplier.supplierCode }}</strong></td>
               <td>{{ supplier.name }}</td>
               <td>{{ supplier.vatNumber || '-' }}</td>
@@ -465,16 +472,16 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.supplierReturns.col.number' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="supplierReturnSort" key="number">{{ 'purchases.supplierReturns.col.number' | t }}</th>
+              <th appSortable [state]="supplierReturnSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="supplierReturnSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="supplierReturnSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="supplierReturnSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of supplierReturns">
+            <tr *ngFor="let r of sortedSupplierReturns">
               <td><strong>{{ r.returnNumber }}</strong></td>
               <td>{{ r.supplier?.name || ('purchases.supplierHash' | t:{id: r.supplierId}) }}</td>
               <td>{{ r.date | date:'dd/MM/yyyy' }}</td>
@@ -503,16 +510,16 @@
         <table class="data-table parsed-groups-table">
           <thead>
             <tr>
-              <th>{{ 'purchases.col.lot' | t }}</th>
-              <th>{{ 'common.supplier' | t }}</th>
-              <th>{{ 'purchases.col.invoice' | t }}</th>
-              <th>{{ 'purchases.col.attachedBl' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="parsedGroupSort" key="lot">{{ 'purchases.col.lot' | t }}</th>
+              <th appSortable [state]="parsedGroupSort" key="supplier">{{ 'common.supplier' | t }}</th>
+              <th appSortable [state]="parsedGroupSort" key="invoice">{{ 'purchases.col.invoice' | t }}</th>
+              <th appSortable [state]="parsedGroupSort" key="bl">{{ 'purchases.col.attachedBl' | t }}</th>
+              <th appSortable [state]="parsedGroupSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let group of parsedDocumentGroups()" [class.group-suggested]="group.kind === 'suggested'" [class.group-linked]="group.kind === 'linked'">
+            <tr *ngFor="let group of sortedParsedDocumentGroups" [class.group-suggested]="group.kind === 'suggested'" [class.group-linked]="group.kind === 'linked'">
               <td>
                 <span class="group-kind-chip" [attr.data-kind]="group.kind">{{ groupKindLabel(group) }}</span>
               </td>
@@ -825,6 +832,110 @@
         <button class="btn-secondary" type="button" (click)="showManualPurchaseOrderModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
         <button class="btn-primary" type="button" (click)="saveManualPurchaseOrder()" [disabled]="saving">
           {{ saving ? ('common.saving' | t) : ('purchases.btn.saveOrder' | t) }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" *ngIf="showManualReceiptModal">
+    <div class="modal-content large">
+      <app-form-help helpKey="purchases.newReceipt" [abbrs]="['BL','CDF','CMUP','HT','TVA']">
+        <h3>{{ 'purchases.modal.newReceipt' | t }}</h3>
+      </app-form-help>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ 'common.supplier' | t }}</label>
+          <select [(ngModel)]="newReceipt.supplierId" (ngModelChange)="onReceiptSupplierChanged()">
+            <option [ngValue]="0">{{ 'purchases.selectSupplier' | t }}</option>
+            <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+              {{ supplier.name }} ({{ supplier.supplierCode }})
+            </option>
+          </select>
+          <button class="btn-link" type="button" (click)="showManualReceiptModal = false; openSupplierModal('receipt')">{{ 'purchases.btn.newSupplierLink' | t }}</button>
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.col.receiptNumber' | t }}</label>
+          <input type="text" [(ngModel)]="newReceipt.receiptNumber" [placeholder]="'purchases.numberPlaceholder' | t" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'common.date' | t }}</label>
+          <input type="date" [(ngModel)]="newReceipt.receivedAt" />
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.col.orderNumber' | t }}</label>
+          <select [(ngModel)]="newReceipt.purchaseOrderId" [disabled]="!newReceipt.supplierId" (ngModelChange)="onReceiptPurchaseOrderChanged($event)">
+            <option [ngValue]="null">{{ 'purchases.optionalPurchaseOrder' | t }}</option>
+            <option *ngFor="let order of purchaseOrdersForReceiptSupplier()" [ngValue]="order.id">
+              {{ order.orderNumber }}
+            </option>
+          </select>
+          <div class="hint">{{ 'purchases.hint.receiptFromOrder' | t }}</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>{{ 'common.notes' | t }}</label>
+        <input type="text" [(ngModel)]="newReceipt.notes" [placeholder]="'purchases.notesPlaceholder' | t" />
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" [(ngModel)]="newReceipt.updateStock" />
+          {{ 'purchases.updateStock' | t }}
+        </label>
+        <div class="hint">{{ 'purchases.hint.manualReceiptStock' | t }}</div>
+      </div>
+
+      <h4>{{ 'purchases.receiptLines' | t }}</h4>
+      <table class="form-table">
+        <thead>
+          <tr>
+            <th>{{ 'common.ref' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'common.qty' | t }}</th>
+            <th>{{ 'common.unitPriceHt' | t }}</th>
+            <th>{{ 'common.vatPercent' | t }}</th>
+            <th>{{ 'common.totalTtc' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of newReceipt.lines; let i = index">
+            <td>
+              <app-product-line-ref [line]="line" priceMode="purchase" [supplierId]="newReceipt.supplierId || null" (productSelected)="calculateReceiptLine(line)"></app-product-line-ref>
+            </td>
+            <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" /></td>
+            <td><input type="number" [(ngModel)]="line.quantity" (input)="calculateReceiptLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calculateReceiptLine(line)" /></td>
+            <td><input type="number" [(ngModel)]="line.vatRate" (input)="calculateReceiptLine(line)" /></td>
+            <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
+            <td><button class="icon-btn" (click)="removeReceiptLine(i)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="line-actions">
+        <button class="btn-secondary" (click)="addReceiptLine()">{{ 'common.addLine' | t }}</button>
+      </div>
+
+      <div class="totals-box">
+        <div>{{ 'common.totalHt' | t }}: <strong>{{ newReceiptTotalHT | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalVat' | t }}: <strong>{{ newReceiptTotalVat | currency:'EUR' }}</strong></div>
+        <div>{{ 'common.totalTtc' | t }}: <strong>{{ newReceiptTotalTTC | currency:'EUR' }}</strong></div>
+      </div>
+
+      <div class="error-box" *ngIf="createError">
+        {{ createError }}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="showManualReceiptModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="button" (click)="saveManualReceipt()" [disabled]="saving">
+          {{ saving ? ('common.saving' | t) : ('purchases.btn.saveReceipt' | t) }}
         </button>
       </div>
     </div>
@@ -1196,3 +1307,10 @@
     </div>
   </div>
 </div>
+
+<app-send-email-modal
+  [open]="showEmailModal"
+  documentType="PurchaseOrder"
+  [documentId]="emailDocumentId"
+  (closed)="showEmailModal = false">
+</app-send-email-modal>

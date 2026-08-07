@@ -1,9 +1,10 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
-    public class Supplier : IHasCompanyId
+    public class Supplier : IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
         public string SupplierCode { get; set; } = string.Empty;
@@ -26,5 +27,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? CompanyId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

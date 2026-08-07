@@ -17,6 +17,8 @@ export interface ErpProduct {
   reference?: string | null;
   ean?: string | null;
   brand?: string | null;
+  brandId?: number | null;
+  categoryId?: number | null;
   manufacturer?: string | null;
   model?: string | null;
   comment?: string | null;
@@ -40,6 +42,10 @@ export interface ErpProduct {
   mainSubTypeName?: string | null;
   typeName?: string | null;
   subTypeName?: string | null;
+  /** IDs ERP (JSON camelCase: mainTypeID). */
+  mainTypeID?: string | null;
+  typeID?: string | null;
+  subTypeID?: string | null;
   promoActive?: boolean;
   promoPrice?: number | null;
   archived?: boolean | null;
@@ -48,6 +54,8 @@ export interface ErpProduct {
   fromExcel?: boolean;
   createdAt?: string;
   updatedAt?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   lastSyncAt?: string | null;
 }
 
@@ -70,6 +78,10 @@ export interface ErpProductsQuery {
   subTypeId?: string;
   /** Filtre marques du fournisseur (Brand LIKE token dérivé du nom). */
   supplierId?: number;
+  /** Filtre compatibilité véhicule (attribut vehicle_compat). */
+  vehicleBrand?: string;
+  vehicleModel?: string;
+  vehicleYear?: number;
 }
 
 export interface ErpProductChange {
@@ -138,10 +150,28 @@ export interface ExcelImportResult {
   errors: string[];
 }
 
+export interface CarApiImportResult {
+  partsTotal: number;
+  partsCreated: number;
+  partsUpdated: number;
+  partsSkipped: number;
+  variantsCreated: number;
+  vehicleBrandsTotal: number;
+  vehicleBrandsCreated: number;
+  vehicleBrandsSkipped: number;
+  categoriesCreated: number;
+  frenchNamesUpdated: number;
+  vehicleAttributeEnsured: boolean;
+  errors: string[];
+}
+
 export interface ErpBrand {
   id: number;
   name: string;
   slug: string;
+  logoUrl?: string | null;
+  websiteUrl?: string | null;
+  description?: string | null;
   isActive: boolean;
 }
 
@@ -152,6 +182,9 @@ export interface ErpCategory {
   nameNl: string;
   nameFr: string;
   nameEn: string;
+  slugNl?: string;
+  slugFr?: string;
+  slugEn?: string;
   parentId?: number | null;
   sortOrder: number;
   isActive: boolean;
@@ -169,6 +202,7 @@ export interface CreateErpProductRequest {
   reference?: string;
   ean?: string;
   purchasePrice?: number;
+  unitPrice?: number;
   vatPercent?: number;
   brandId?: number;
   brandName?: string;

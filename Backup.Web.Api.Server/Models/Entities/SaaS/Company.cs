@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models.Entities.SaaS
 {
     /// <summary>Société métier — périmètre d'isolation des données (CompanyId).</summary>
-    public class Company
+    public class Company : IHasAuditTrail
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string TenantId { get; set; } = string.Empty;
@@ -24,7 +25,13 @@ namespace Backup.Web.Api.Server.Models.Entities.SaaS
         public int RetentionMonths { get; set; } = 24;
         /// <summary>RG-RS2 : si true, la confirmation d'une commande échoue si le stock ne peut pas couvrir intégralement la réservation (pas de réservation partielle silencieuse).</summary>
         public bool RequireHardAllocation { get; set; }
+        /// <summary>Si true : sync catalogue ERP (Euro Brico). Défaut false pour les clients sans lien ERP.</summary>
+        public bool EnableErpCatalogSync { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public List<UserCompany> UserCompanies { get; set; } = new();
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

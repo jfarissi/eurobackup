@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
-    public class CreditNoteEntity : IHasCompanyId, IHasSoftDelete, IHasArchive
+    public class CreditNoteEntity : IHasCompanyId, IHasSoftDelete, IHasArchive, IHasAuditTrail
     {
         public int Id { get; set; }
         public string CreditNoteNumber { get; set; } = string.Empty;
@@ -31,11 +32,14 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsArchived { get; set; }
         public DateTime? ArchivedAt { get; set; }
         public string? ArchivedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public List<CreditNoteLineEntity> Lines { get; set; } = new();
     }
 
-    public class CreditNoteLineEntity
+    public class CreditNoteLineEntity : IHasAuditTrail
     {
         public int Id { get; set; }
         public int CreditNoteEntityId { get; set; }
@@ -48,5 +52,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }
         public int LineNumber { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

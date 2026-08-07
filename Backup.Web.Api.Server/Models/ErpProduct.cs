@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
-    public class ErpProduct
+    public class ErpProduct : IHasAuditTrail
     {
         public int Id { get; set; }
         public string ErpProductId { get; set; } = string.Empty;
@@ -77,6 +78,8 @@ namespace Backup.Web.Api.Server.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastSyncAt { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public ICollection<ErpProductChangeLog> ChangeLogs { get; set; } = new List<ErpProductChangeLog>();
     }

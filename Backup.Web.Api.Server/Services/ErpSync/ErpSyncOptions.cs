@@ -38,5 +38,8 @@ namespace Backup.Web.Api.Server.Services.ErpSync
 
         /// <summary>Dossier des fichiers Excel fournisseurs.</summary>
         public string ExcelProductPath { get; set; } = @"F:\EuroBricoMigration\product";
+
+        /// <summary>Dossier car-parts.json / car-brands.json (lifeofcapo/car-api). Vide = Data/CarApi sous ContentRoot.</summary>
+        public string? CarApiDataPath { get; set; }
     }
 }

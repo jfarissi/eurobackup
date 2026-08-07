@@ -1,8 +1,9 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
-    public class ErpProductChangeLog
+    public class ErpProductChangeLog : IHasAuditTrail
     {
         public int Id { get; set; }
         public int ErpProductId { get; set; }
@@ -15,5 +16,10 @@ namespace Backup.Web.Api.Server.Models
         public bool IsRead { get; set; }
 
         public ErpProduct ErpProduct { get; set; } = null!;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

@@ -51,9 +51,17 @@ namespace Backup.Web.Api.Server.Services.Documents
             var result = new EnsureProductsResult();
             if (lines == null || lines.Count == 0) return result;
 
-            var catalog = await this.storage.SelectAllErpProducts()
-                .AsNoTracking()
-                .ToListAsync(ct);
+            // Lookup ciblé (évite de charger tout ErpProducts en mémoire).
+            var lookupKeys = BuildLookupKeys(lines);
+            var catalog = lookupKeys.Count == 0
+                ? new List<ErpProduct>()
+                : await this.storage.SelectAllErpProducts()
+                    .AsNoTracking()
+                    .Where(p =>
+                        (p.Reference != null && lookupKeys.Contains(p.Reference)) ||
+                        (p.Ean != null && lookupKeys.Contains(p.Ean)) ||
+                        (p.ErpProductId != null && lookupKeys.Contains(p.ErpProductId)))
+                    .ToListAsync(ct);
 
             var brandHint = await ResolveBrandHintAsync(supplierName, ct);
 
@@ -91,6 +99,19 @@ namespace Backup.Web.Api.Server.Services.Documents
             return result;
         }
 
+        private static HashSet<string> BuildLookupKeys(IReadOnlyList<DocumentLine> lines)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in lines)
+            {
+                foreach (var k in IdentifierKeys(line.ProductCode))
+                    keys.Add(k);
+                foreach (var k in IdentifierKeys(line.Ean))
+                    keys.Add(k);
+            }
+            return keys;
+        }
+
         private enum EnsureOutcome { Skipped, Matched, Created }
 
         private async Task<EnsureOutcome> EnsureOneAsync(
@@ -112,6 +133,14 @@ namespace Backup.Web.Api.Server.Services.Documents
             if (existing != null)
                 return EnsureOutcome.Matched;
 
+            // Si absent du cache partiel, requête ciblée avant création.
+            existing = await FindExistingInDbAsync(sku, ean, ct);
+            if (existing != null)
+            {
+                catalog.Add(existing);
+                return EnsureOutcome.Matched;
+            }
+
             var reference = !string.IsNullOrWhiteSpace(sku)
                 ? sku!
                 : !string.IsNullOrWhiteSpace(ean)
@@ -121,7 +150,6 @@ namespace Backup.Web.Api.Server.Services.Documents
             if (string.IsNullOrWhiteSpace(reference))
                 return EnsureOutcome.Skipped;
 
-            // Double-check collision after normalize / concurrent creates in same batch
             existing = FindInCatalog(catalog, reference, ean);
             if (existing != null)
                 return EnsureOutcome.Matched;
@@ -160,6 +188,23 @@ namespace Backup.Web.Api.Server.Services.Documents
             var inserted = await this.storage.InsertErpProductAsync(product);
             catalog.Add(inserted);
             return EnsureOutcome.Created;
+        }
+
+        private async Task<ErpProduct?> FindExistingInDbAsync(string? sku, string? ean, CancellationToken ct)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var k in IdentifierKeys(sku)) keys.Add(k);
+            foreach (var k in IdentifierKeys(ean)) keys.Add(k);
+            if (keys.Count == 0) return null;
+
+            var keyList = keys.ToList();
+            return await this.storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p =>
+                    (p.Reference != null && keyList.Contains(p.Reference)) ||
+                    (p.Ean != null && keyList.Contains(p.Ean)) ||
+                    (p.ErpProductId != null && keyList.Contains(p.ErpProductId)))
+                .FirstOrDefaultAsync(ct);
         }
 
         private static ErpProduct? FindInCatalog(List<ErpProduct> catalog, string? reference, string? ean)
@@ -213,6 +258,7 @@ namespace Backup.Web.Api.Server.Services.Documents
                 .AsNoTracking()
                 .Where(b => b.Name != null && b.Name.ToLower().Contains(tokenLower))
                 .OrderBy(b => b.Name!.Length)
+                .Select(b => new { b.Id, b.Name })
                 .Take(3)
                 .ToListAsync(ct);
 

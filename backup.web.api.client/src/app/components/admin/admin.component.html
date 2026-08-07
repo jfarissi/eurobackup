@@ -8,7 +8,85 @@
   <div *ngIf="actionMessage" class="alert success" (click)="clearMessages()">{{ actionMessage }}</div>
   <div *ngIf="actionError" class="alert error" (click)="clearMessages()">{{ actionError }}</div>
 
-  <mat-tab-group [(selectedIndex)]="selectedTab">
+  <mat-tab-group [(selectedIndex)]="selectedTab" mat-stretch-tabs="false" animationDuration="0ms">
+
+    <!-- ── Traçabilité ──────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon style="margin-right:4px;vertical-align:middle;font-size:18px;width:18px;height:18px">history</mat-icon>
+        {{ 'admin.tab.activity' | t }}
+      </ng-template>
+      <div class="tab-toolbar activity-filters">
+        <app-form-help helpKey="admin.activity"><span>{{ 'admin.activity.title' | t }}</span></app-form-help>
+        <input type="search" [(ngModel)]="activityFilter.search" [placeholder]="'admin.activity.search' | t" (keyup.enter)="loadActivity()" />
+        <select [(ngModel)]="activityFilter.documentType">
+          <option *ngFor="let t of activityDocumentTypes" [value]="t">{{ t || ('admin.activity.allTypes' | t) }}</option>
+        </select>
+        <select [(ngModel)]="activityFilter.source">
+          <option *ngFor="let s of activitySources" [value]="s.value">{{ s.labelKey | t }}</option>
+        </select>
+        <input type="text" [(ngModel)]="activityFilter.actor" [placeholder]="'admin.activity.actor' | t" (keyup.enter)="loadActivity()" />
+        <input type="date" [(ngModel)]="activityFilter.from" [title]="'admin.activity.from' | t" />
+        <input type="date" [(ngModel)]="activityFilter.to" [title]="'admin.activity.to' | t" />
+        <button class="btn-primary" type="button" (click)="loadActivity()" [disabled]="activityLoading">
+          <mat-icon>search</mat-icon> {{ 'admin.activity.refresh' | t }}
+        </button>
+        <button class="btn-sm" type="button" (click)="resetActivityFilters()">{{ 'admin.activity.reset' | t }}</button>
+      </div>
+
+      <div class="table-container">
+        <p class="muted" *ngIf="!activityLoading">{{ 'admin.activity.count' | t }}: {{ activityItems.length }}</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th appSortable [state]="activitySort" key="createdAt" defaultDir="desc">{{ 'admin.activity.col.date' | t }}</th>
+              <th appSortable [state]="activitySort" key="source">{{ 'admin.activity.col.source' | t }}</th>
+              <th appSortable [state]="activitySort" key="actor">{{ 'admin.activity.col.actor' | t }}</th>
+              <th appSortable [state]="activitySort" key="documentType">{{ 'admin.activity.col.type' | t }}</th>
+              <th appSortable [state]="activitySort" key="entityKey">{{ 'admin.activity.col.docId' | t }}</th>
+              <th appSortable [state]="activitySort" key="action">{{ 'admin.activity.col.action' | t }}</th>
+              <th appSortable [state]="activitySort" key="summary">{{ 'admin.activity.col.summary' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let a of sortedActivityItems">
+              <tr>
+                <td>
+                  <button class="expand-btn" type="button" (click)="toggleActivityDetails(a)" *ngIf="a.details">
+                    <mat-icon>{{ activityExpandedId === activityRowKey(a) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </button>
+                </td>
+                <td>{{ a.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td>
+                  <span class="badge" [class.activity-source-entity]="a.source === 'entity'" [class.activity-source-document]="a.source !== 'entity'">
+                    {{ (a.source === 'entity' ? 'admin.activity.source.entity' : 'admin.activity.source.document') | t }}
+                  </span>
+                </td>
+                <td>{{ a.actor || '—' }}</td>
+                <td><code>{{ a.documentType }}</code></td>
+                <td>{{ a.entityKey || a.documentId || '—' }}</td>
+                <td><span class="badge activity-action">{{ a.action }}</span></td>
+                <td>{{ a.summary || '—' }}</td>
+              </tr>
+              <tr class="detail-expand-row" *ngIf="activityExpandedId === activityRowKey(a) && a.details">
+                <td colspan="8">
+                  <div class="expanded-content">
+                    <pre class="activity-details">{{ a.details }}</pre>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="activityLoading">
+              <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+            </tr>
+            <tr *ngIf="!activityLoading && sortedActivityItems.length === 0">
+              <td colspan="8" class="empty">{{ 'admin.activity.empty' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
 
     <!-- ── Tenants ──────────────────────────────────────────────── -->
     <mat-tab>
@@ -20,9 +98,17 @@
       </div>
       <div class="table-container">
         <table class="data-table">
-          <thead><tr><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.active' | t }}</th><th>{{ 'admin.col.companies' | t }}</th><th>{{ 'admin.col.createdAt' | t }}</th><th>{{ 'common.actions' | t }}</th></tr></thead>
+          <thead>
+            <tr>
+              <th appSortable [state]="tenantSort" key="name">{{ 'admin.col.name' | t }}</th>
+              <th appSortable [state]="tenantSort" key="active">{{ 'admin.col.active' | t }}</th>
+              <th appSortable [state]="tenantSort" key="companies">{{ 'admin.col.companies' | t }}</th>
+              <th appSortable [state]="tenantSort" key="createdAt" defaultDir="desc">{{ 'admin.col.createdAt' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr *ngFor="let t of tenants">
+            <tr *ngFor="let t of sortedTenants">
               <td><strong>{{ t.name }}</strong></td>
               <td><span class="badge" [class.active]="t.isActive" [class.inactive]="!t.isActive">{{ t.isActive ? ('admin.active' | t) : ('admin.inactive' | t) }}</span></td>
               <td>{{ t.companyCount }}</td>
@@ -31,7 +117,7 @@
                 <button class="icon-action edit" type="button" (click)="openTenantModal(t)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
               </td>
             </tr>
-            <tr *ngIf="tenants.length === 0"><td colspan="5" class="empty">{{ 'admin.empty.tenants' | t }}</td></tr>
+            <tr *ngIf="sortedTenants.length === 0"><td colspan="5" class="empty">{{ 'admin.empty.tenants' | t }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -51,9 +137,18 @@
           <h3 class="tenant-label"><mat-icon>domain</mat-icon> {{ tenant.name }}</h3>
           <div class="table-container">
             <table class="data-table">
-              <thead><tr><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.language' | t }}</th><th>{{ 'admin.col.currency' | t }}</th><th>{{ 'admin.col.active' | t }}</th><th>{{ 'admin.col.createdAtF' | t }}</th><th>{{ 'common.actions' | t }}</th></tr></thead>
+              <thead>
+                <tr>
+                  <th appSortable [state]="companySort" key="name">{{ 'admin.col.name' | t }}</th>
+                  <th appSortable [state]="companySort" key="language">{{ 'admin.col.language' | t }}</th>
+                  <th appSortable [state]="companySort" key="currency">{{ 'admin.col.currency' | t }}</th>
+                  <th appSortable [state]="companySort" key="active">{{ 'admin.col.active' | t }}</th>
+                  <th appSortable [state]="companySort" key="createdAt" defaultDir="desc">{{ 'admin.col.createdAtF' | t }}</th>
+                  <th>{{ 'common.actions' | t }}</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr *ngFor="let c of companiesForTenant(tenant.id)">
+                <tr *ngFor="let c of sortedCompaniesForTenant(tenant.id)">
                   <td><strong>{{ c.name }}</strong><br/><small class="muted">{{ c.id }}</small></td>
                   <td>{{ c.defaultLanguageCode }}</td>
                   <td>{{ c.defaultCurrencyCode }}</td>
@@ -63,7 +158,7 @@
                     <button class="icon-action edit" type="button" (click)="openCompanyModal(c)" [title]="'admin.title.edit' | t"><mat-icon>edit</mat-icon></button>
                   </td>
                 </tr>
-                <tr *ngIf="companiesForTenant(tenant.id).length === 0"><td colspan="6" class="empty">{{ 'admin.empty.companies' | t }}</td></tr>
+                <tr *ngIf="sortedCompaniesForTenant(tenant.id).length === 0"><td colspan="6" class="empty">{{ 'admin.empty.companies' | t }}</td></tr>
               </tbody>
             </table>
           </div>
@@ -93,10 +188,15 @@
       <div class="table-container">
         <table class="data-table">
           <thead>
-            <tr><th></th><th>{{ 'admin.col.name' | t }}</th><th>{{ 'admin.col.permissions' | t }}</th><th>{{ 'common.actions' | t }}</th></tr>
+            <tr>
+              <th></th>
+              <th appSortable [state]="roleSort" key="name">{{ 'admin.col.name' | t }}</th>
+              <th appSortable [state]="roleSort" key="permissions">{{ 'admin.col.permissions' | t }}</th>
+              <th>{{ 'common.actions' | t }}</th>
+            </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let r of roles">
+            <ng-container *ngFor="let r of sortedRoles">
               <tr [class.row-expanded]="isRoleExpanded(r.id)">
                 <td>
                   <button class="expand-btn" type="button" (click)="openRoleEditor(r)" [title]="'admin.title.editPermissions' | t">
@@ -125,7 +225,7 @@
                 </td>
               </tr>
             </ng-container>
-            <tr *ngIf="roles.length === 0 && expandedRoleId !== '__new__'"><td colspan="4" class="empty">{{ 'admin.empty.roles' | t }}</td></tr>
+            <tr *ngIf="sortedRoles.length === 0 && expandedRoleId !== '__new__'"><td colspan="4" class="empty">{{ 'admin.empty.roles' | t }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -144,16 +244,16 @@
           <thead>
             <tr>
               <th></th>
-              <th>{{ 'admin.col.user' | t }}</th>
-              <th>{{ 'admin.col.name' | t }}</th>
-              <th>{{ 'admin.col.email' | t }}</th>
-              <th>{{ 'admin.col.role' | t }}</th>
-              <th>{{ 'admin.col.activeCompany' | t }}</th>
+              <th appSortable [state]="userSort" key="username">{{ 'admin.col.user' | t }}</th>
+              <th appSortable [state]="userSort" key="name">{{ 'admin.col.name' | t }}</th>
+              <th appSortable [state]="userSort" key="email">{{ 'admin.col.email' | t }}</th>
+              <th appSortable [state]="userSort" key="role">{{ 'admin.col.role' | t }}</th>
+              <th appSortable [state]="userSort" key="company">{{ 'admin.col.activeCompany' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let u of users">
+            <ng-container *ngFor="let u of sortedUsers">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleUserCompanies(u)">
@@ -199,9 +299,120 @@
                 </td>
               </tr>
             </ng-container>
-            <tr *ngIf="users.length === 0"><td colspan="7" class="empty">{{ 'admin.empty.users' | t }}</td></tr>
+            <tr *ngIf="sortedUsers.length === 0"><td colspan="7" class="empty">{{ 'admin.empty.users' | t }}</td></tr>
           </tbody>
         </table>
+      </div>
+    </mat-tab>
+
+    <mat-tab *ngIf="perm.has(EmailP.EmailSettingsManage)">
+      <ng-template mat-tab-label>{{ 'admin.tab.email' | t }}</ng-template>
+      <div class="tab-toolbar">
+        <app-form-help helpKey="admin.email"><span>{{ 'admin.email.title' | t }}</span></app-form-help>
+        <button class="btn-primary" type="button" (click)="saveEmailSettings()" [disabled]="emailSettingsSaving || emailSettingsLoading">
+          {{ emailSettingsSaving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+        <button class="btn-sm" type="button" (click)="testEmailConnection()" [disabled]="emailSettingsLoading">{{ 'email.testConnection' | t }}</button>
+      </div>
+      <div class="form-grid" *ngIf="!emailSettingsLoading">
+        <label><input type="checkbox" [(ngModel)]="emailSettings.enabled" /> {{ 'email.enabled' | t }}</label>
+        <div class="form-group">
+          <label>{{ 'email.smtpHost' | t }}</label>
+          <input type="text" [(ngModel)]="emailSettings.smtpHost" placeholder="smtp.example.com" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.smtpPort' | t }}</label>
+          <input type="number" [(ngModel)]="emailSettings.smtpPort" />
+        </div>
+        <label><input type="checkbox" [(ngModel)]="emailSettings.useSsl" /> SSL/TLS</label>
+        <label><input type="checkbox" [(ngModel)]="emailSettings.ignoreSslErrors" /> {{ 'email.ignoreSsl' | t }}</label>
+        <div class="form-group">
+          <label>{{ 'email.username' | t }}</label>
+          <input type="text" [(ngModel)]="emailSettings.username" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.password' | t }}</label>
+          <input type="password" [(ngModel)]="emailSettings.password" [placeholder]="'email.passwordKeep' | t" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.fromEmail' | t }}</label>
+          <input type="email" [(ngModel)]="emailSettings.fromEmail" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.fromName' | t }}</label>
+          <input type="text" [(ngModel)]="emailSettings.fromDisplayName" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.replyTo' | t }}</label>
+          <input type="email" [(ngModel)]="emailSettings.defaultReplyTo" />
+        </div>
+        <div class="form-group full-width">
+          <label>{{ 'email.footer' | t }}</label>
+          <textarea rows="3" [(ngModel)]="emailSettings.footerHtml"></textarea>
+        </div>
+        <h4 class="full-width">{{ 'email.automationTitle' | t }}</h4>
+        <label class="full-width"><input type="checkbox" [(ngModel)]="emailSettings.autoPaymentRemindersEnabled" /> {{ 'email.autoReminders' | t }}</label>
+        <div class="form-group">
+          <label>{{ 'email.reminderDaysN1' | t }}</label>
+          <input type="number" [(ngModel)]="emailSettings.paymentReminderDaysN1" min="1" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.reminderDaysN2' | t }}</label>
+          <input type="number" [(ngModel)]="emailSettings.paymentReminderDaysN2" min="1" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.reminderDaysN3' | t }}</label>
+          <input type="number" [(ngModel)]="emailSettings.paymentReminderDaysN3" min="1" />
+        </div>
+        <label class="full-width"><input type="checkbox" [(ngModel)]="emailSettings.autoStockAlertsEnabled" /> {{ 'email.autoStockAlerts' | t }}</label>
+        <div class="form-group full-width">
+          <label>{{ 'email.stockAlertRecipients' | t }}</label>
+          <input type="text" [(ngModel)]="emailSettings.stockAlertRecipients" [placeholder]="'email.ccHint' | t" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.stockAlertCooldown' | t }}</label>
+          <input type="number" [(ngModel)]="emailSettings.stockAlertCooldownHours" min="1" />
+        </div>
+        <label class="full-width"><input type="checkbox" [(ngModel)]="emailSettings.autoEmailOnPurchaseOrderSend" /> {{ 'email.autoPoSend' | t }}</label>
+      </div>
+      <p *ngIf="emailSettingsLoading">{{ 'common.loading' | t }}</p>
+
+      <div class="email-history">
+        <div class="tab-toolbar" style="margin-top: 24px;">
+          <h3>{{ 'email.historyTitle' | t }}</h3>
+          <button class="btn-sm" type="button" (click)="loadEmailHistory()" [disabled]="emailHistoryLoading">
+            {{ emailHistoryLoading ? ('common.loading' | t) : ('common.refresh' | t) }}
+          </button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'common.date' | t }}</th>
+                <th>{{ 'email.to' | t }}</th>
+                <th>{{ 'email.subject' | t }}</th>
+                <th>{{ 'common.status' | t }}</th>
+                <th>{{ 'email.template' | t }}</th>
+                <th>{{ 'email.document' | t }}</th>
+                <th>{{ 'email.error' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let h of emailHistory">
+                <td>{{ (h.sentAt || h.createdAt) | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ h.toEmail }}</td>
+                <td>{{ h.subject }}</td>
+                <td><span class="status-badge" [ngClass]="(h.status || '').toLowerCase()">{{ h.status }}</span></td>
+                <td>{{ h.templateCode }}</td>
+                <td>{{ h.documentType }} {{ h.documentNumber }}</td>
+                <td><small class="muted">{{ h.lastError || '—' }}</small></td>
+              </tr>
+              <tr *ngIf="!emailHistoryLoading && emailHistory.length === 0">
+                <td colspan="7" class="empty">{{ 'email.historyEmpty' | t }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </mat-tab>
 
@@ -229,15 +440,15 @@
         <table class="data-table" *ngIf="a.byKey?.length">
           <thead>
             <tr>
-              <th>{{ 'admin.help.key' | t }}</th>
-              <th>{{ 'admin.help.opens' | t }}</th>
-              <th>👍</th>
-              <th>👎</th>
-              <th>{{ 'admin.help.usefulness' | t }}</th>
+              <th appSortable [state]="helpAnalyticsSort" key="helpKey">{{ 'admin.help.key' | t }}</th>
+              <th appSortable [state]="helpAnalyticsSort" key="opens" defaultDir="desc">{{ 'admin.help.opens' | t }}</th>
+              <th appSortable [state]="helpAnalyticsSort" key="up" defaultDir="desc">👍</th>
+              <th appSortable [state]="helpAnalyticsSort" key="down" defaultDir="desc">👎</th>
+              <th appSortable [state]="helpAnalyticsSort" key="usefulness" defaultDir="desc">{{ 'admin.help.usefulness' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let row of a.byKey">
+            <tr *ngFor="let row of sortedHelpAnalytics">
               <td>{{ row.helpKey }}</td>
               <td>{{ row.opens }}</td>
               <td>{{ row.up }}</td>
@@ -253,15 +464,15 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'admin.help.key' | t }}</th>
-              <th>{{ 'admin.help.lang' | t }}</th>
-              <th>{{ 'admin.col.name' | t }}</th>
-              <th>{{ 'admin.help.status' | t }}</th>
+              <th appSortable [state]="helpSort" key="helpKey">{{ 'admin.help.key' | t }}</th>
+              <th appSortable [state]="helpSort" key="lang">{{ 'admin.help.lang' | t }}</th>
+              <th appSortable [state]="helpSort" key="title">{{ 'admin.col.name' | t }}</th>
+              <th appSortable [state]="helpSort" key="status">{{ 'admin.help.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let h of helpArticles">
+            <tr *ngFor="let h of sortedHelpArticles">
               <td><code>{{ h.helpKey }}</code></td>
               <td>{{ h.lang }}</td>
               <td>{{ h.title }}</td>
@@ -272,7 +483,7 @@
                 <button class="btn-sm" type="button" (click)="archiveHelp(h)" *ngIf="h.status !== 'Archived'">{{ 'admin.help.archive' | t }}</button>
               </td>
             </tr>
-            <tr *ngIf="helpArticles.length === 0">
+            <tr *ngIf="sortedHelpArticles.length === 0">
               <td colspan="5" class="empty">{{ 'admin.help.empty' | t }}</td>
             </tr>
           </tbody>

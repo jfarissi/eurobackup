@@ -6,6 +6,7 @@ using Backup.Web.Api.Server.Models.Entities.SaaS;
 using Backup.Web.Api.Server.Models.Users;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Backup.Web.Api.Server.Services.Tenancy
@@ -17,26 +18,36 @@ namespace Backup.Web.Api.Server.Services.Tenancy
 
         private readonly IStorageBroker storage;
         private readonly UserManager<User> userManager;
+        private readonly IConfiguration configuration;
         private readonly ILogger<TenancySeedService> logger;
 
         public TenancySeedService(
             IStorageBroker storage,
             UserManager<User> userManager,
+            IConfiguration configuration,
             ILogger<TenancySeedService> logger)
         {
             this.storage = storage;
             this.userManager = userManager;
+            this.configuration = configuration;
             this.logger = logger;
         }
 
         public async Task EnsureDefaultsAsync()
         {
+            var tenantName = configuration["TenancySeed:DefaultTenantName"];
+            if (string.IsNullOrWhiteSpace(tenantName))
+                tenantName = "Tenant principal";
+            var companyName = configuration["TenancySeed:DefaultCompanyName"];
+            if (string.IsNullOrWhiteSpace(companyName))
+                companyName = "Société principale";
+
             if (!await this.storage.SelectAllTenants().AnyAsync())
             {
                 await this.storage.InsertTenantAsync(new Tenant
                 {
                     Id = DefaultTenantId,
-                    Name = "Tenant principal",
+                    Name = tenantName.Trim(),
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 });
@@ -49,8 +60,9 @@ namespace Backup.Web.Api.Server.Services.Tenancy
                 {
                     Id = DefaultCompanyId,
                     TenantId = DefaultTenantId,
-                    Name = "Société principale",
+                    Name = companyName.Trim(),
                     IsActive = true,
+                    EnableErpCatalogSync = false,
                     CreatedAt = DateTime.UtcNow
                 });
                 this.logger.LogInformation("Created default company {CompanyId}", DefaultCompanyId);

@@ -7,7 +7,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { DocumentRelation } from '../../models/relation';
-import { ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonResult } from '../../models/comparison';
+import { ComparisonLine, ComparisonResult, ErpPriceDiffLine, InvoicePriceComparisonLine, InvoicePriceComparisonResult } from '../../models/comparison';
 import {
   exportAllComparisonsToExcel,
   exportComparaisonToExcel,
@@ -25,16 +25,21 @@ import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { CompanyService } from '../../services/company.service';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-compare',
   templateUrl: './compare.component.html',
   styleUrls: ['./compare.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, CreateProductFromLineComponent, FormHelpComponent]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, CreateProductFromLineComponent, FormHelpComponent, SortableThComponent]
 })
 export class CompareComponent implements OnInit {
   readonly P = Permissions;
+  comparisonSort = new TableSortState('product', 'asc');
+  invoicePriceSort = new TableSortState('product', 'asc');
+  erpPriceSort = new TableSortState('product', 'asc');
   documents: Document[] = [];
   factures: Document[] = [];
   bonsLivraison: Document[] = [];
@@ -59,7 +64,7 @@ export class CompareComponent implements OnInit {
   erpPriceComparisonResult: ErpPriceDiffLine[] | null = null;
   erpPriceComparisonInvoice: Document | null = null;
   erpPriceComparisonLoading = false;
-  
+
   expandedInvoiceId: number | null = null;
 
   showCreateProductModal = false;
@@ -309,6 +314,45 @@ export class CompareComponent implements OnInit {
       return line?.deliveryQty ?? null;
     }
     return Number(line.actualQuantity);
+  }
+
+  get sortedComparisonLines(): ComparisonLine[] {
+    void this.comparisonSort.version;
+    return this.comparisonSort.sort(this.comparaisonResult?.lines, {
+      productKey: l => l.productKey ?? '',
+      product: l => l.product ?? '',
+      unit: l => l.unit ?? '',
+      invoiceQty: l => l.invoiceQty,
+      deliveryQty: l => l.deliveryQty,
+      diff: l => l.diff,
+      currentPrice: l => l.currentInvoiceUnitPrice,
+      totalValue: l => l.invoiceTotalValue ?? null,
+      previousPrice: l => l.previousInvoiceUnitPrice,
+      priceDiff: l => l.priceDiff,
+      status: l => l.status ?? ''
+    });
+  }
+
+  get sortedInvoicePriceLines(): InvoicePriceComparisonLine[] {
+    void this.invoicePriceSort.version;
+    return this.invoicePriceSort.sort(this.invoicePriceComparisonResult?.lines, {
+      product: l => l.product ?? '',
+      invoice1Price: l => l.invoice1UnitPrice,
+      invoice2Price: l => l.invoice2UnitPrice,
+      priceDiff: l => l.priceDiff
+    });
+  }
+
+  get sortedErpPriceLines(): ErpPriceDiffLine[] {
+    void this.erpPriceSort.version;
+    return this.erpPriceSort.sort(this.erpPriceComparisonResult, {
+      productCode: l => l.productCode ?? '',
+      product: l => l.product ?? '',
+      invoiceUnitPrice: l => l.invoiceUnitPrice,
+      erpUnitPrice: l => l.erpUnitPrice ?? null,
+      delta: l => l.delta ?? null,
+      status: l => l.status ?? ''
+    });
   }
 
   onActualQuantityModelChange(line: any, value: number | string | null) {

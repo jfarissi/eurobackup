@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
-    public class SalesOrder : IHasCompanyId, IHasSoftDelete, IHasArchive
+    public class SalesOrder : IHasCompanyId, IHasSoftDelete, IHasArchive, IHasAuditTrail
     {
         public int Id { get; set; }
         public string OrderNumber { get; set; } = string.Empty;
@@ -35,11 +36,14 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsArchived { get; set; }
         public DateTime? ArchivedAt { get; set; }
         public string? ArchivedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public List<SalesOrderLine> Lines { get; set; } = new();
     }
 
-    public class SalesOrderLine
+    public class SalesOrderLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int SalesOrderId { get; set; }
@@ -61,5 +65,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int LineNumber { get; set; }
         /// <summary>Fournisseur associé à la ligne (info / marge, optionnel).</summary>
         public int? SupplierId { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

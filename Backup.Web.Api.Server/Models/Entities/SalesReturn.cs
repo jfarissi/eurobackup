@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
@@ -9,7 +10,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// Bon de retour client (BRC) : RG-BR1–5. Toujours lié à un BL livré/facturé.
     /// Cycle : Draft → Received (stock In) → Controlled (qualité) → Integrated (avoir éventuel) / Cancelled.
     /// </summary>
-    public class SalesReturn : IHasCompanyId, IHasSoftDelete, IHasArchive
+    public class SalesReturn : IHasCompanyId, IHasSoftDelete, IHasArchive, IHasAuditTrail
     {
         public int Id { get; set; }
         public string ReturnNumber { get; set; } = string.Empty;
@@ -38,6 +39,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsArchived { get; set; }
         public DateTime? ArchivedAt { get; set; }
         public string? ArchivedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         /// <summary>True dès que le stock a été impacté (Receive/Integrate), pour piloter la réversibilité de Cancel.</summary>
         public bool StockApplied { get; set; }
@@ -48,7 +52,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public List<SalesReturnLine> Lines { get; set; } = new();
     }
 
-    public class SalesReturnLine
+    public class SalesReturnLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int SalesReturnId { get; set; }
@@ -63,5 +67,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int LineNumber { get; set; }
         /// <summary>Conforme, Degraded, NonRecoverable — surcharge le statut qualité de l'en-tête pour cette ligne.</summary>
         public string? QualityStatus { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

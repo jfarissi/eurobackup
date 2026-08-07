@@ -9,16 +9,19 @@ import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-accounting',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent, SortableThComponent],
   templateUrl: './accounting.component.html',
   styleUrls: ['./accounting.component.css']
 })
 export class AccountingComponent implements OnInit {
   readonly P = Permissions;
+  entrySort = new TableSortState('entryDate', 'desc');
   readonly journalTypes = ['SalesInvoice', 'CreditNote', 'SupplierInvoice', 'Payment', 'Manual'];
   readonly referenceTypes = ['SalesInvoice', 'CreditNote', 'SupplierInvoice', 'SalesPayment', 'Manual'];
   readonly accountPresets: { code: string; label: string }[] = [
@@ -202,6 +205,20 @@ export class AccountingComponent implements OnInit {
 
   entryCredit(entry: AccountingEntry): number {
     return (entry.lines || []).reduce((s, l) => s + (+l.credit || 0), 0);
+  }
+
+  get sortedEntries(): AccountingEntry[] {
+    void this.entrySort.version;
+    return this.entrySort.sort(this.entries, {
+      entryNumber: e => e.entryNumber ?? '',
+      entryDate: e => e.entryDate ?? '',
+      journalType: e => e.journalType ?? '',
+      reference: e => `${e.referenceType ?? ''} ${e.referenceId ?? ''}`.trim(),
+      description: e => e.description ?? '',
+      debit: e => this.entryDebit(e),
+      credit: e => this.entryCredit(e),
+      status: e => e.status ?? ''
+    });
   }
 
   private emptyLine(n: number): AccountingEntryLine {

@@ -9,6 +9,8 @@ using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Models.Entities.Email;
+using Backup.Web.Api.Server.Services.Email;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
@@ -25,12 +27,23 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly INumberingSequenceService numberingService;
         private readonly ICompanyContextService companyContext;
+        private readonly IEmailDispatchService emailDispatch;
 
-        public PurchaseOrdersController(IStorageBroker storage, INumberingSequenceService numberingService, ICompanyContextService companyContext)
+        public PurchaseOrdersController(
+            IStorageBroker storage,
+            INumberingSequenceService numberingService,
+            ICompanyContextService companyContext,
+            IEmailDispatchService emailDispatch)
         {
             this.storage = storage;
             this.numberingService = numberingService;
             this.companyContext = companyContext;
+            this.emailDispatch = emailDispatch;
+        }
+
+        public class SendPurchaseOrderRequest
+        {
+            public bool SendEmail { get; set; } = true;
         }
 
         public class ReceiveDeliveryRequest
@@ -152,8 +165,9 @@ namespace Backup.Web.Api.Server.Controllers
         /// <summary>RG-CF2 : Confirmed → Sent (envoi au fournisseur).</summary>
         [HttpPost("{id:int}/send")]
         [RequirePermission(Permissions.PurchaseOrderUpdate)]
-        public async Task<IActionResult> Send(int id)
+        public async Task<IActionResult> Send(int id, [FromBody] SendPurchaseOrderRequest? request = null)
         {
+            request ??= new SendPurchaseOrderRequest();
             var existing = await this.storage.SelectPurchaseOrderByIdAsync(id);
             if (existing == null || !existing.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
 
@@ -163,7 +177,44 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Status = "Sent";
             var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
             await this.AuditPurchaseOrder(updated.Id, "Sent", $"Envoi {updated.OrderNumber}");
-            return Ok(updated);
+
+            EmailMessage? emailMessage = null;
+            var companyId = updated.CompanyId ?? this.companyContext.GetCurrentCompanyId();
+            var settings = await this.storage.SelectCompanyEmailSettingsByCompanyIdAsync(companyId);
+            var shouldEmail = request.SendEmail && (settings?.AutoEmailOnPurchaseOrderSend ?? true);
+            if (shouldEmail)
+            {
+                try
+                {
+                    emailMessage = await this.emailDispatch.QueueAsync(companyId, new SendEmailRequest
+                    {
+                        DocumentType = "PurchaseOrder",
+                        DocumentId = updated.Id,
+                        TemplateCode = EmailTemplateCodes.PurchaseOrder,
+                        SendNow = true
+                    }, User.Identity?.Name ?? "System");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Ok(new
+                    {
+                        purchaseOrder = updated,
+                        emailWarning = ex.Message
+                    });
+                }
+            }
+
+            return Ok(new
+            {
+                purchaseOrder = updated,
+                email = emailMessage == null ? null : new
+                {
+                    emailMessage.Id,
+                    emailMessage.Status,
+                    emailMessage.ToEmail,
+                    emailMessage.LastError
+                }
+            });
         }
 
         [HttpGet("{id:int}/audit")]
@@ -228,7 +279,7 @@ namespace Backup.Web.Api.Server.Controllers
                     ),
                     StringComparer.OrdinalIgnoreCase);
 
-            var appliedStockByKey = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            var appliedStockByKey = new Dictionary<string, (decimal Qty, decimal CostSum)>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var line in existing.Lines)
             {
@@ -246,9 +297,16 @@ namespace Backup.Web.Api.Server.Controllers
                 }
 
                 line.ReceivedQuantity += appliedQty;
-                appliedStockByKey[orderKey] = appliedStockByKey.TryGetValue(orderKey, out var already)
-                    ? already + appliedQty
-                    : appliedQty;
+                if (appliedStockByKey.TryGetValue(orderKey, out var already))
+                {
+                    appliedStockByKey[orderKey] = (
+                        already.Qty + appliedQty,
+                        already.CostSum + appliedQty * line.UnitPrice);
+                }
+                else
+                {
+                    appliedStockByKey[orderKey] = (appliedQty, appliedQty * line.UnitPrice);
+                }
             }
 
             var totalOrdered = existing.Lines.Sum(l => l.Quantity);
@@ -289,12 +347,16 @@ namespace Backup.Web.Api.Server.Controllers
                     var stockChanges = appliedStockByKey.Select(entry =>
                     {
                         receivedByKey.TryGetValue(entry.Key, out var meta);
+                        decimal? unitCost = entry.Value.Qty > 0.0001m
+                            ? Math.Round(entry.Value.CostSum / entry.Value.Qty, 4, MidpointRounding.AwayFromZero)
+                            : null;
                         return (
                             productKey: entry.Key,
-                            quantityDelta: entry.Value,
+                            quantityDelta: entry.Value.Qty,
                             supplier: supplierName,
                             description: meta.Description,
-                            unit: meta.Unit
+                            unit: meta.Unit,
+                            unitCost: unitCost
                         );
                     }).ToList();
 
@@ -302,13 +364,17 @@ namespace Backup.Web.Api.Server.Controllers
 
                     var createdBy = User.Identity?.Name ?? "System";
                     var reference = $"PO:{existing.OrderNumber}|BL:{request.DeliveryDocumentId}";
-                    foreach (var entry in appliedStockByKey)
+                    foreach (var change in stockChanges)
                     {
                         await this.storage.InsertStockMovementAsync(new StockMovement
                         {
-                            ProductKey = entry.Key,
+                            ProductKey = change.productKey,
                             MovementType = "In",
-                            Quantity = entry.Value,
+                            Quantity = change.quantityDelta,
+                            UnitCost = change.unitCost,
+                            StockValue = change.unitCost.HasValue
+                                ? Math.Round(change.quantityDelta * change.unitCost.Value, 4, MidpointRounding.AwayFromZero)
+                                : null,
                             Reason = "Purchase order delivery receipt",
                             ReferenceDocument = reference,
                             CompanyId = existing.CompanyId,
@@ -319,7 +385,7 @@ namespace Backup.Web.Api.Server.Controllers
 
                     result.StockUpdated = true;
                     result.StockMovementCount = appliedStockByKey.Count;
-                    result.StockQuantityIn = appliedStockByKey.Values.Sum();
+                    result.StockQuantityIn = appliedStockByKey.Values.Sum(v => v.Qty);
                 }
             }
 

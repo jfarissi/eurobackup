@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
@@ -8,7 +9,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// RG-LT1–4 lite : lettrage client (rapprochement factures/règlements/avoirs) simplifié —
     /// pas de moteur de proposition automatique, saisie manuelle des lignes à lettrer ensemble.
     /// </summary>
-    public class LetteringGroup : IHasCompanyId
+    public class LetteringGroup : IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
         public string LetteringCode { get; set; } = string.Empty;
@@ -23,9 +24,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? UnletteredBy { get; set; }
 
         public List<LetteringLine> Lines { get; set; } = new();
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? UpdatedBy { get; set; }
     }
 
-    public class LetteringLine
+    public class LetteringLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int LetteringGroupId { get; set; }
@@ -34,5 +38,10 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int? PaymentId { get; set; }
         public int? CreditNoteId { get; set; }
         public decimal Amount { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

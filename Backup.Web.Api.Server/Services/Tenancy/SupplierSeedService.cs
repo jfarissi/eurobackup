@@ -33,7 +33,9 @@ namespace Backup.Web.Api.Server.Services.Tenancy
             foreach (var seed in PulseSuppliers)
             {
                 var existing = await this.storage.SelectAllSuppliers()
-                    .FirstOrDefaultAsync(s => s.SupplierCode == seed.SupplierCode);
+                    .FirstOrDefaultAsync(s =>
+                        s.SupplierCode == seed.SupplierCode
+                        && s.CompanyId == companyId);
 
                 if (existing != null)
                 {
@@ -44,7 +46,6 @@ namespace Backup.Web.Api.Server.Services.Tenancy
                     existing.PaymentTerms = seed.PaymentTerms;
                     existing.LeadTimeDays = seed.LeadTimeDays;
                     existing.IsActive = seed.IsActive;
-                    existing.CompanyId = companyId;
                     existing.UpdatedAt = DateTime.UtcNow;
                     await this.storage.UpdateSupplierAsync(existing);
                     continue;
@@ -59,6 +60,8 @@ namespace Backup.Web.Api.Server.Services.Tenancy
         /// <summary>
         /// Les fournisseurs étaient rattachés à PulseCompanyId alors que les utilisateurs
         /// sont sur DefaultCompanyId → liste vide côté API (filtre ForCompany).
+        /// Si le même SupplierCode existe déjà sur la société cible, on ne migre pas
+        /// (évite la violation IX_Suppliers_SupplierCode_CompanyId).
         /// </summary>
         private async Task MigrateLegacySupplierCompanyIdsAsync(string targetCompanyId)
         {
@@ -68,17 +71,39 @@ namespace Backup.Web.Api.Server.Services.Tenancy
 
             if (legacy.Count == 0) return;
 
+            var migrated = 0;
+            var skipped = 0;
+
             foreach (var supplier in legacy)
             {
+                var conflict = await this.storage.SelectAllSuppliers()
+                    .AnyAsync(s =>
+                        s.Id != supplier.Id
+                        && s.SupplierCode == supplier.SupplierCode
+                        && s.CompanyId == targetCompanyId);
+
+                if (conflict)
+                {
+                    skipped++;
+                    this.logger.LogWarning(
+                        "Skip migrate supplier {Code} (id={Id}): already exists on company {CompanyId}",
+                        supplier.SupplierCode,
+                        supplier.Id,
+                        targetCompanyId);
+                    continue;
+                }
+
                 supplier.CompanyId = targetCompanyId;
                 supplier.UpdatedAt = DateTime.UtcNow;
                 await this.storage.UpdateSupplierAsync(supplier);
+                migrated++;
             }
 
             this.logger.LogInformation(
-                "Migrated {Count} supplier(s) to company {CompanyId}",
-                legacy.Count,
-                targetCompanyId);
+                "Migrated {Migrated} supplier(s) to company {CompanyId} (skipped {Skipped} duplicates)",
+                migrated,
+                targetCompanyId,
+                skipped);
         }
 
         private static readonly Supplier[] PulseSuppliers =

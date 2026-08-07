@@ -5,4 +5,5 @@ export interface Company {
   isActive?: boolean;
   defaultLanguageCode?: string;
   defaultCurrencyCode?: string;
+  enableErpCatalogSync?: boolean;
 }

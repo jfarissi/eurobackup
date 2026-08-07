@@ -1,4 +1,5 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
@@ -6,7 +7,7 @@ namespace Backup.Web.Api.Server.Models
     /// Représente un ajustement manuel de quantité pour une ligne de bon de livraison.
     /// Permet au vérificateur de saisir la quantité réelle lors de la vérification.
     /// </summary>
-    public class DeliveryLineAdjustment
+    public class DeliveryLineAdjustment : IHasAuditTrail
     {
         public int Id { get; set; }
         
@@ -64,6 +65,9 @@ namespace Backup.Web.Api.Server.Models
         /// Nom de l'utilisateur qui a validé l'ajustement
         /// </summary>
         public string? ValidatedBy { get; set; }
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? UpdatedBy { get; set; }
     }
 }
 

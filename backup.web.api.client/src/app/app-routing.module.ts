@@ -59,6 +59,8 @@ const routes: Routes = [
   { path: 'numbering', component: NumberingSettingsComponent, canActivate: [authGuard, permissionGuard(Permissions.NumberingManage)] },
   { path: 'stock', component: StockComponent, canActivate: [authGuard, permissionGuard(Permissions.StockRead)] },
   { path: 'erp-products', component: ErpProductsComponent, canActivate: [authGuard, permissionGuard(Permissions.ProductRead)] },
+  { path: 'erp-brands', loadComponent: () => import('./components/erp-brands/erp-brands.component').then(m => m.ErpBrandsComponent), canActivate: [authGuard, permissionGuard(Permissions.BrandRead, Permissions.ProductRead)] },
+  { path: 'erp-categories', loadComponent: () => import('./components/erp-categories/erp-categories.component').then(m => m.ErpCategoriesComponent), canActivate: [authGuard, permissionGuard(Permissions.CategoryRead, Permissions.ProductRead)] },
   { path: 'erp-changes', component: ErpChangesComponent, canActivate: [authGuard, permissionGuard(Permissions.ErpChangeRead)] },
   {
     path: 'admin',

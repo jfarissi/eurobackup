@@ -7,23 +7,51 @@ import { MaterialModule } from '../../material.module';
 import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
 import { environment } from '../../../environments/environment';
-import { Subscription, switchMap, takeWhile, timer } from 'rxjs';
+import { forkJoin, Observable, of, Subscription, switchMap, takeWhile, timer } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { CatalogSubnavComponent } from '../shared/catalog-subnav/catalog-subnav.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
+import { CompanyService } from '../../services/company.service';
+import { ErpBrandService } from '../../services/erp-brand.service';
+import { ErpCategoryService } from '../../services/erp-category.service';
+import {
+  CarApiService,
+  CarApiVehicleBrand,
+  CarApiVehicleGeneration,
+  CarApiVehicleModel,
+  VehicleCompatibilityEntry
+} from '../../services/car-api.service';
+import {
+  ErpCatalogExtrasService,
+  ErpProductAttributeDefinition,
+  ErpProductAttributeValue,
+  ErpProductImage,
+  ErpProductVariant
+} from '../../services/erp-catalog-extras.service';
 
 @Component({
   selector: 'app-erp-products',
   templateUrl: './erp-products.component.html',
   styleUrls: ['./erp-products.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent, SortableThComponent, CatalogSubnavComponent]
 })
 export class ErpProductsComponent implements OnInit, OnDestroy {
   products: ErpProduct[] = [];
   selected: ErpProduct | null = null;
+  detailTab: 'info' | 'variants' | 'images' | 'attributes' = 'info';
+  createTab: 'info' | 'variants' | 'images' | 'attributes' = 'info';
+
+  get productModalOpen(): boolean {
+    return this.productEditing;
+  }
+  listSort = new TableSortState('name', 'asc');
   total = 0;
   page = 1;
   pageSize = 50;
@@ -41,31 +69,136 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   mainTypeId = '';
   typeId = '';
   subTypeId = '';
+  vehicleBrandFilter = '';
+  vehicleModelFilter = '';
+  vehicleYearFilter: number | null = null;
+  filterVehicleBrands: CarApiVehicleBrand[] = [];
+  filterVehicleModels: CarApiVehicleModel[] = [];
 
   brands: ErpBrand[] = [];
   mainTypes: ErpCategory[] = [];
   types: ErpCategory[] = [];
   subTypes: ErpCategory[] = [];
 
+  variants: ErpProductVariant[] = [];
+  images: ErpProductImage[] = [];
+  attrDefs: ErpProductAttributeDefinition[] = [];
+  attrValues: ErpProductAttributeValue[] = [];
+  editingVariantId: string | null = null;
+  draftVariantEditIndex: number | null = null;
+  variantForm: Partial<ErpProductVariant> = { sku: '', stockQuantity: 0, attributesJson: '{}', isActive: true };
+  imageForm: Partial<ErpProductImage> = { url: '', altText: '', isMain: false, sortOrder: 0 };
+  attrValueDrafts: Record<string, string> = {};
+  extrasLoading = false;
+  extrasSaving = false;
+
+  productEditing = false;
+  productCreating = false;
+  productSaving = false;
+  productForm = {
+    name: '',
+    reference: '',
+    ean: '',
+    purchasePrice: null as number | null,
+    unitPrice: null as number | null,
+    vatPercent: 21,
+    brandId: null as number | null,
+    brandName: '',
+    mainTypeCatId: null as number | null,
+    typeCatId: null as number | null,
+    subTypeCatId: null as number | null,
+    comment: '',
+    weight: null as number | null,
+    height: null as number | null,
+    width: null as number | null,
+    depth: null as number | null
+  };
+  formMainTypes: ErpCategory[] = [];
+  formTypes: ErpCategory[] = [];
+  formSubTypes: ErpCategory[] = [];
+  formBrands: ErpBrand[] = [];
+  draftVariants: Array<{
+    sku: string;
+    barcode: string;
+    costPrice: number | null;
+    priceOverride: number | null;
+    stockQuantity: number;
+    attributesJson: string;
+  }> = [];
+  draftImages: Array<{ url: string; altText: string; isMain: boolean; sortOrder: number }> = [];
+  draftVariantSku = '';
+  draftVariantBarcode = '';
+  draftVariantCost: number | null = null;
+  draftVariantPrice: number | null = null;
+  draftVariantStock = 0;
+  draftImageUrl = '';
+  draftImageAlt = '';
+
+  importingCarApi = false;
+  readonly vehicleCompatCode = 'vehicle_compat';
+  vehicleCompatDef: ErpProductAttributeDefinition | null = null;
+  vehicleBrands: CarApiVehicleBrand[] = [];
+  vehicleModels: CarApiVehicleModel[] = [];
+  vehicleGenerations: CarApiVehicleGeneration[] = [];
+  vehiclePick = { brand: '', model: '', generation: '', yearFrom: null as number | null, yearTo: null as number | null };
+  vehicleCompatList: VehicleCompatibilityEntry[] = [];
+
   readonly sourceOptions = [
     { value: '', labelKey: 'erpProducts.filter.allSources' },
     { value: 'Excel', labelKey: 'erpProducts.filter.sourceExcel' },
     { value: 'Merged', labelKey: 'erpProducts.filter.sourceMerged' },
-    { value: 'Erp', labelKey: 'erpProducts.filter.sourceErp' }
+    { value: 'Erp', labelKey: 'erpProducts.filter.sourceErp' },
+    { value: 'CarApi', labelKey: 'erpProducts.filter.sourceCarApi' },
+    { value: 'RapidApi', labelKey: 'erpProducts.filter.sourceRapidApi' }
   ];
 
   constructor(
     private erpService: ErpProductService,
+    private brandService: ErpBrandService,
+    private categoryService: ErpCategoryService,
+    private extras: ErpCatalogExtrasService,
+    private carApi: CarApiService,
     private snack: MatSnackBar,
     private i18n: AppI18nService,
-    public perm: PermissionService
+    public perm: PermissionService,
+    public company: CompanyService
   ) {}
 
   readonly P = Permissions;
 
+  get hasErpCatalogSync(): boolean {
+    return this.company.hasErpCatalogSync;
+  }
+
+  /** Import catalogue auto (CarApi / RapidAPI) : module auto_parts, ou legacy sans modules. */
+  get showAutoPartsImport(): boolean {
+    if (this.hasErpCatalogSync) return false;
+    if (this.company.modules.length === 0) return true;
+    return this.company.hasAutoParts;
+  }
+
+  get genericAttrDefs(): ErpProductAttributeDefinition[] {
+    return this.attrDefs.filter(d => d.code !== this.vehicleCompatCode);
+  }
+
+  get sortedProducts(): ErpProduct[] {
+    void this.listSort.version;
+    return this.listSort.sort(this.products, {
+      name: p => p.name ?? '',
+      reference: p => p.reference ?? p.ean ?? '',
+      brand: p => p.brand ?? '',
+      unitPrice: p => p.unitPrice ?? null,
+      stockQuantity: p => p.stockQuantity ?? null,
+      dataSource: p => p.dataSource ?? '',
+      lastSyncAt: p => p.lastSyncAt ?? ''
+    });
+  }
+
   ngOnInit(): void {
     this.loadFilterOptions();
     this.loadProducts();
+    this.initVehicleCompatibility();
+    this.loadVehicleFilterBrands();
   }
 
   ngOnDestroy(): void {
@@ -180,14 +313,37 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   loadBrands(): void {
-    this.erpService.getBrands(this.currentCategoryFilter()).subscribe({
-      next: (brands) => {
-        this.brands = brands ?? [];
-        if (this.brandFilter && !this.brands.some(b => b.name === this.brandFilter)) {
-          this.brandFilter = '';
+    const apply = (brands: ErpBrand[]) => {
+      // Filtre produit = marque fabricant (Bosch…), pas marque véhicule (BMW…).
+      const supplierOnly = (brands ?? []).filter(b => !this.isVehicleBrand(b));
+      this.brands = this.mergeBrandOptions(supplierOnly);
+      if (this.brandFilter && !this.brands.some(b => b.name === this.brandFilter)) {
+        this.brandFilter = '';
+      }
+    };
+    this.brandService.list().subscribe({
+      next: brands => {
+        if (brands?.length) {
+          apply(brands);
+          return;
         }
+        this.erpService.getBrands(this.currentCategoryFilter()).subscribe({
+          next: apply,
+          error: () => apply([])
+        });
+      },
+      error: () => {
+        this.erpService.getBrands(this.currentCategoryFilter()).subscribe({
+          next: apply,
+          error: () => apply([])
+        });
       }
     });
+  }
+
+  private isVehicleBrand(b: ErpBrand): boolean {
+    const d = (b.description ?? '').toLowerCase();
+    return d.includes('véhicule') || d.includes('vehicule') || d.includes('vehicle') || d.includes('car-api');
   }
 
   loadMainTypes(): void {
@@ -282,6 +438,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       subTypeId: this.subTypeId || undefined,
       typeId: (!this.subTypeId && this.typeId) || undefined,
       mainTypeId: (!this.subTypeId && !this.typeId && this.mainTypeId) || undefined,
+      vehicleBrand: this.vehicleBrandFilter || undefined,
+      vehicleModel: this.vehicleModelFilter || undefined,
+      vehicleYear: this.vehicleYearFilter ?? undefined,
     }).subscribe({
       next: (res) => {
         this.products = res.items ?? [];
@@ -291,6 +450,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         if (this.selected) {
           const refreshed = this.products.find(p => p.id === this.selected!.id);
           if (refreshed) this.selected = refreshed;
+        }
+        if (this.productCreating || this.productEditing) {
+          this.formBrands = this.mergeBrandOptions(this.formBrands.filter(b => b.id > 0));
         }
       },
       error: (err) => {
@@ -315,9 +477,40 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.subTypeId = '';
     this.types = [];
     this.subTypes = [];
+    this.vehicleBrandFilter = '';
+    this.vehicleModelFilter = '';
+    this.vehicleYearFilter = null;
+    this.filterVehicleModels = [];
     this.page = 1;
     this.loadFilterOptions();
     this.loadProducts();
+  }
+
+  loadVehicleFilterBrands(): void {
+    this.carApi.getBrands().subscribe({
+      next: brands => this.filterVehicleBrands = brands ?? [],
+      error: () => this.filterVehicleBrands = []
+    });
+  }
+
+  onVehicleBrandFilterChange(): void {
+    this.vehicleModelFilter = '';
+    this.filterVehicleModels = [];
+    if (this.vehicleBrandFilter) {
+      this.carApi.getModels(this.vehicleBrandFilter).subscribe({
+        next: models => this.filterVehicleModels = models ?? [],
+        error: () => this.filterVehicleModels = []
+      });
+    }
+    this.applyFilters();
+  }
+
+  onVehicleModelFilterChange(): void {
+    this.applyFilters();
+  }
+
+  onVehicleYearFilterChange(): void {
+    this.applyFilters();
   }
 
   triggerCatalogSync(): void {
@@ -379,10 +572,753 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   selectProduct(product: ErpProduct): void {
     this.selected = product;
+    this.detailTab = 'info';
+    this.productEditing = false;
+    this.productCreating = false;
+    this.loadProductExtras(product.id);
   }
 
   closeDetail(): void {
     this.selected = null;
+    this.productEditing = false;
+    this.productCreating = false;
+    this.variants = [];
+    this.images = [];
+    this.attrValues = [];
+  }
+
+  startCreateProduct(): void {
+    this.selected = null;
+    this.productCreating = true;
+    this.productEditing = true;
+    this.detailTab = 'info';
+    this.createTab = 'info';
+    this.draftVariants = [];
+    this.draftImages = [];
+    this.draftVariantEditIndex = null;
+    this.draftVariantSku = '';
+    this.draftVariantBarcode = '';
+    this.draftVariantCost = null;
+    this.draftVariantPrice = null;
+    this.draftVariantStock = 0;
+    this.draftImageUrl = '';
+    this.draftImageAlt = '';
+    this.productForm = {
+      name: '',
+      reference: '',
+      ean: '',
+      purchasePrice: null,
+      unitPrice: null,
+      vatPercent: 21,
+      brandId: null,
+      brandName: '',
+      mainTypeCatId: null,
+      typeCatId: null,
+      subTypeCatId: null,
+      comment: '',
+      weight: null,
+      height: null,
+      width: null,
+      depth: null
+    };
+    this.formTypes = [];
+    this.formSubTypes = [];
+    this.loadProductFormLookups();
+  }
+
+  startEditProduct(): void {
+    if (!this.selected) return;
+    this.productEditing = true;
+    this.productCreating = false;
+    this.detailTab = 'info';
+    this.createTab = 'info';
+    this.productForm = {
+      name: this.selected.name ?? '',
+      reference: this.selected.reference ?? '',
+      ean: this.selected.ean ?? '',
+      purchasePrice: this.selected.cPrice ?? null,
+      unitPrice: this.selected.unitPrice ?? null,
+      vatPercent: this.selected.typeVatPerc ?? 21,
+      brandId: this.selected.brandId ?? null,
+      brandName: this.selected.brand ?? '',
+      mainTypeCatId: null,
+      typeCatId: null,
+      subTypeCatId: null,
+      comment: this.selected.comment ?? '',
+      weight: this.selected.weight ?? null,
+      height: this.selected.height ?? null,
+      width: this.selected.width ?? null,
+      depth: this.selected.depth ?? null
+    };
+    this.formTypes = [];
+    this.formSubTypes = [];
+    this.loadProductFormLookups(() => {
+      if (!this.productForm.brandId && this.selected?.brand) {
+        const match = this.formBrands.find(
+          b => b.name.localeCompare(this.selected!.brand!, undefined, { sensitivity: 'accent' }) === 0
+        );
+        if (match) this.productForm.brandId = match.id;
+      }
+      this.applyProductCategoryToForm();
+    });
+  }
+
+  loadProductFormLookups(done?: () => void): void {
+    const apply = (items: ErpBrand[]) => {
+      this.formBrands = this.mergeBrandOptions((items ?? []).filter(b => !this.isVehicleBrand(b)));
+      done?.();
+    };
+    this.brandService.list().subscribe({
+      next: items => {
+        if (items?.length) {
+          apply(items);
+          return;
+        }
+        // Fallback si ErpBrands vide côté API
+        this.erpService.getBrands().subscribe({
+          next: apply,
+          error: () => apply([])
+        });
+      },
+      error: () => {
+        this.erpService.getBrands().subscribe({
+          next: apply,
+          error: () => apply([])
+        });
+      }
+    });
+    this.categoryService.list({ level: 'MainType', activeOnly: true }).subscribe({
+      next: items => this.formMainTypes = items ?? [],
+      error: () => this.formMainTypes = []
+    });
+  }
+
+  /** Fusionne API + filtre + marques présentes sur les produits de la page. */
+  private mergeBrandOptions(fromApi: ErpBrand[]): ErpBrand[] {
+    const map = new Map<string, ErpBrand>();
+    let synthId = -1;
+    const add = (b: ErpBrand | null | undefined) => {
+      const name = (b?.name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      const existing = map.get(key);
+      const incomingId = b!.id;
+      if (!existing) {
+        map.set(key, {
+          id: incomingId > 0 ? incomingId : synthId--,
+          name,
+          slug: b!.slug || '',
+          isActive: b!.isActive !== false,
+          logoUrl: b!.logoUrl,
+          websiteUrl: b!.websiteUrl,
+          description: b!.description
+        });
+        return;
+      }
+      if (existing.id <= 0 && incomingId > 0) {
+        existing.id = incomingId;
+        existing.slug = b!.slug || existing.slug;
+      }
+    };
+    for (const b of fromApi) add(b);
+    for (const b of this.brands) add(b);
+    for (const p of this.products) {
+      const name = (p.brand || '').trim();
+      if (name) add({ id: 0, name, slug: '', isActive: true });
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  onBrandSelectChange(): void {
+    const match = this.formBrands.find(b => b.id === this.productForm.brandId);
+    if (match) this.productForm.brandName = match.name;
+  }
+
+  /** Préremplit la cascade catégorie depuis CategoryId ou les IDs/noms ERP du produit. */
+  private applyProductCategoryToForm(): void {
+    const p = this.selected;
+    if (!p) return;
+
+    const applyIds = (mainId: number | null, typeId: number | null, subId: number | null) => {
+      this.productForm.mainTypeCatId = mainId;
+      this.formTypes = [];
+      this.formSubTypes = [];
+      this.productForm.typeCatId = null;
+      this.productForm.subTypeCatId = null;
+      if (!mainId) return;
+      this.categoryService.list({ level: 'Type', parentId: mainId, activeOnly: true }).subscribe(types => {
+        this.formTypes = types ?? [];
+        this.productForm.typeCatId = typeId;
+        if (!typeId) return;
+        this.categoryService.list({ level: 'SubType', parentId: typeId, activeOnly: true }).subscribe(subs => {
+          this.formSubTypes = subs ?? [];
+          this.productForm.subTypeCatId = subId;
+        });
+      });
+    };
+
+    if (p.categoryId) {
+      this.categoryService.getById(p.categoryId).subscribe({
+        next: leaf => this.resolveCategoryChain(leaf, applyIds),
+        error: () => this.matchCategoryByErpFields(p, applyIds)
+      });
+      return;
+    }
+    this.matchCategoryByErpFields(p, applyIds);
+  }
+
+  private resolveCategoryChain(
+    leaf: ErpCategory,
+    apply: (mainId: number | null, typeId: number | null, subId: number | null) => void
+  ): void {
+    const level = (leaf.level || '').toLowerCase();
+    if (level === 'maintype') {
+      apply(leaf.id, null, null);
+      return;
+    }
+    if (!leaf.parentId) {
+      if (level === 'type') apply(null, leaf.id, null);
+      else if (level === 'subtype') apply(null, null, leaf.id);
+      else apply(null, null, null);
+      return;
+    }
+    this.categoryService.getById(leaf.parentId).subscribe({
+      next: parent => {
+        const parentLevel = (parent.level || '').toLowerCase();
+        if (level === 'subtype' && parentLevel === 'type') {
+          if (parent.parentId) {
+            this.categoryService.getById(parent.parentId).subscribe({
+              next: main => apply(main.id, parent.id, leaf.id),
+              error: () => apply(null, parent.id, leaf.id)
+            });
+          } else {
+            apply(null, parent.id, leaf.id);
+          }
+        } else if (level === 'type' && parentLevel === 'maintype') {
+          apply(parent.id, leaf.id, null);
+        } else {
+          apply(null, null, leaf.id);
+        }
+      },
+      error: () => apply(null, null, leaf.id)
+    });
+  }
+
+  private matchCategoryByErpFields(
+    p: ErpProduct,
+    apply: (mainId: number | null, typeId: number | null, subId: number | null) => void
+  ): void {
+    const mainExt = (p.mainTypeID || '').trim();
+    const typeExt = (p.typeID || '').trim();
+    const subExt = (p.subTypeID || '').trim();
+
+    this.categoryService.list({ level: 'MainType', activeOnly: true }).subscribe(mains => {
+      this.formMainTypes = mains ?? [];
+      const main = this.findCategoryMatch(this.formMainTypes, mainExt, p.mainTypeName);
+      if (!main) {
+        apply(null, null, null);
+        return;
+      }
+      this.categoryService.list({ level: 'Type', parentId: main.id, activeOnly: true }).subscribe(types => {
+        this.formTypes = types ?? [];
+        const type = this.findCategoryMatch(this.formTypes, typeExt, p.typeName);
+        if (!type) {
+          apply(main.id, null, null);
+          return;
+        }
+        this.categoryService.list({ level: 'SubType', parentId: type.id, activeOnly: true }).subscribe(subs => {
+          this.formSubTypes = subs ?? [];
+          const sub = this.findCategoryMatch(this.formSubTypes, subExt, p.subTypeName);
+          apply(main.id, type.id, sub?.id ?? null);
+        });
+      });
+    });
+  }
+
+  private findCategoryMatch(list: ErpCategory[], erpId: string, name?: string | null): ErpCategory | undefined {
+    if (erpId) {
+      const byId = list.find(c => (c.erpExternalId || '').localeCompare(erpId, undefined, { sensitivity: 'accent' }) === 0);
+      if (byId) return byId;
+    }
+    const n = (name || '').trim().toLowerCase();
+    if (!n) return undefined;
+    return list.find(c =>
+      [c.nameFr, c.nameNl, c.nameEn].some(x => (x || '').trim().toLowerCase() === n)
+    );
+  }
+
+  onFormMainTypeChange(): void {
+    this.productForm.typeCatId = null;
+    this.productForm.subTypeCatId = null;
+    this.formTypes = [];
+    this.formSubTypes = [];
+    if (!this.productForm.mainTypeCatId) return;
+    this.categoryService.list({ level: 'Type', parentId: this.productForm.mainTypeCatId, activeOnly: true })
+      .subscribe(items => this.formTypes = items ?? []);
+  }
+
+  onFormTypeChange(): void {
+    this.productForm.subTypeCatId = null;
+    this.formSubTypes = [];
+    if (!this.productForm.typeCatId) return;
+    this.categoryService.list({ level: 'SubType', parentId: this.productForm.typeCatId, activeOnly: true })
+      .subscribe(items => this.formSubTypes = items ?? []);
+  }
+
+  resolveFormCategoryId(): number | undefined {
+    return this.productForm.subTypeCatId
+      ?? this.productForm.typeCatId
+      ?? this.productForm.mainTypeCatId
+      ?? undefined;
+  }
+
+  quickAddBrand(): void {
+    if (!this.perm.hasAny(Permissions.BrandCreate, Permissions.ProductCreate)) return;
+    const name = prompt(this.i18n.t('catalog.products.brandPrompt'));
+    if (!name?.trim()) return;
+    this.brandService.create({ name: name.trim(), isActive: true }).subscribe({
+      next: created => {
+        this.formBrands = [...this.formBrands, created].sort((a, b) => a.name.localeCompare(b.name));
+        this.productForm.brandId = created.id;
+        this.productForm.brandName = created.name;
+        this.loadBrands();
+        this.snack.open(this.i18n.t('catalog.brands.new'), undefined, { duration: 1500 });
+      },
+      error: err => this.snack.open(err?.error?.error || this.i18n.t('catalog.brands.saveError'), undefined, { duration: 3500 })
+    });
+  }
+
+  quickAddCategory(level: 'MainType' | 'Type' | 'SubType'): void {
+    if (!this.perm.hasAny(Permissions.CategoryCreate, Permissions.ProductCreate)) return;
+    if (level === 'Type' && !this.productForm.mainTypeCatId) {
+      this.snack.open(this.i18n.t('catalog.products.pickMainFirst'), undefined, { duration: 2500 });
+      return;
+    }
+    if (level === 'SubType' && !this.productForm.typeCatId) {
+      this.snack.open(this.i18n.t('catalog.products.pickTypeFirst'), undefined, { duration: 2500 });
+      return;
+    }
+    const name = prompt(this.i18n.t('catalog.products.categoryPrompt'));
+    if (!name?.trim()) return;
+    const parentId = level === 'MainType'
+      ? null
+      : (level === 'Type' ? this.productForm.mainTypeCatId : this.productForm.typeCatId);
+    this.categoryService.create({
+      level,
+      parentId,
+      nameFr: name.trim(),
+      nameNl: name.trim(),
+      nameEn: name.trim(),
+      sortOrder: 0,
+      isActive: true
+    }).subscribe({
+      next: created => {
+        if (level === 'MainType') {
+          this.formMainTypes = [...this.formMainTypes, created];
+          this.productForm.mainTypeCatId = created.id;
+          this.onFormMainTypeChange();
+        } else if (level === 'Type') {
+          this.formTypes = [...this.formTypes, created];
+          this.productForm.typeCatId = created.id;
+          this.onFormTypeChange();
+        } else {
+          this.formSubTypes = [...this.formSubTypes, created];
+          this.productForm.subTypeCatId = created.id;
+        }
+        this.snack.open(this.i18n.t('catalog.categories.new'), undefined, { duration: 1500 });
+      },
+      error: err => this.snack.open(err?.error?.error || this.i18n.t('catalog.categories.saveError'), undefined, { duration: 3500 })
+    });
+  }
+
+  cancelProductEdit(): void {
+    if (this.productCreating) {
+      this.productCreating = false;
+      this.productEditing = false;
+      this.draftVariants = [];
+      this.draftImages = [];
+    } else {
+      this.productEditing = false;
+    }
+  }
+
+  addDraftVariant(): void {
+    const sku = this.draftVariantSku.trim();
+    if (!sku) {
+      this.snack.open(this.i18n.t('catalog.variants.sku'), undefined, { duration: 2000 });
+      return;
+    }
+    if (this.draftVariantPrice == null || this.draftVariantPrice < 0) {
+      this.snack.open(this.i18n.t('catalog.products.variantPriceRequired'), undefined, { duration: 2500 });
+      return;
+    }
+    const dup = this.draftVariants.some((v, i) =>
+      v.sku.toLowerCase() === sku.toLowerCase() && i !== this.draftVariantEditIndex
+    );
+    if (dup) {
+      this.snack.open(this.i18n.t('catalog.products.variantSkuDup'), undefined, { duration: 2500 });
+      return;
+    }
+    const row = {
+      sku,
+      barcode: this.draftVariantBarcode.trim(),
+      costPrice: this.draftVariantCost,
+      priceOverride: this.draftVariantPrice,
+      stockQuantity: this.draftVariantStock || 0,
+      attributesJson: '{}'
+    };
+    if (this.draftVariantEditIndex != null) {
+      this.draftVariants[this.draftVariantEditIndex] = row;
+      this.draftVariantEditIndex = null;
+    } else {
+      this.draftVariants.push(row);
+    }
+    this.draftVariantSku = '';
+    this.draftVariantBarcode = '';
+    this.draftVariantCost = null;
+    this.draftVariantPrice = null;
+    this.draftVariantStock = 0;
+  }
+
+  editDraftVariant(index: number): void {
+    const v = this.draftVariants[index];
+    if (!v) return;
+    this.draftVariantEditIndex = index;
+    this.draftVariantSku = v.sku;
+    this.draftVariantBarcode = v.barcode;
+    this.draftVariantCost = v.costPrice;
+    this.draftVariantPrice = v.priceOverride;
+    this.draftVariantStock = v.stockQuantity;
+  }
+
+  removeDraftVariant(index: number): void {
+    this.draftVariants.splice(index, 1);
+    if (this.draftVariantEditIndex === index) {
+      this.draftVariantEditIndex = null;
+      this.draftVariantSku = '';
+      this.draftVariantBarcode = '';
+      this.draftVariantCost = null;
+      this.draftVariantPrice = null;
+      this.draftVariantStock = 0;
+    } else if (this.draftVariantEditIndex != null && this.draftVariantEditIndex > index) {
+      this.draftVariantEditIndex--;
+    }
+  }
+
+  addDraftImage(): void {
+    const url = this.draftImageUrl.trim();
+    if (!url) {
+      this.snack.open(this.i18n.t('catalog.images.url'), undefined, { duration: 2000 });
+      return;
+    }
+    this.draftImages.push({
+      url,
+      altText: this.draftImageAlt.trim(),
+      isMain: this.draftImages.length === 0,
+      sortOrder: this.draftImages.length
+    });
+    this.draftImageUrl = '';
+    this.draftImageAlt = '';
+  }
+
+  removeDraftImage(index: number): void {
+    this.draftImages.splice(index, 1);
+    if (this.draftImages.length && !this.draftImages.some(i => i.isMain)) {
+      this.draftImages[0].isMain = true;
+    }
+  }
+
+  setDraftImageMain(index: number): void {
+    this.draftImages.forEach((img, i) => img.isMain = i === index);
+  }
+
+  private persistDraftExtras(productId: number, done: () => void): void {
+    const jobs: Observable<unknown>[] = [
+      ...this.draftVariants.map(v =>
+        this.extras.createVariant({
+          productId,
+          sku: v.sku,
+          barcode: v.barcode || null,
+          costPrice: v.costPrice,
+          priceOverride: v.priceOverride,
+          stockQuantity: v.stockQuantity,
+          attributesJson: v.attributesJson || '{}',
+          isActive: true
+        })
+      ),
+      ...this.draftImages.map(img =>
+        this.extras.createImage({
+          productId,
+          url: img.url,
+          altText: img.altText,
+          isMain: img.isMain,
+          sortOrder: img.sortOrder
+        })
+      )
+    ];
+    if (!jobs.length) {
+      done();
+      return;
+    }
+    forkJoin(jobs.map(j => j.pipe(catchError(() => of({ __failed: true }))))).subscribe({
+      next: results => {
+        if (results.some(r => r && typeof r === 'object' && '__failed' in (r as object))) {
+          this.snack.open(this.i18n.t('catalog.products.extrasPartialError'), undefined, { duration: 4000 });
+        }
+        done();
+      },
+      error: () => {
+        this.snack.open(this.i18n.t('catalog.products.extrasPartialError'), undefined, { duration: 4000 });
+        done();
+      }
+    });
+  }
+
+  saveProduct(): void {
+    if (!this.productForm.name?.trim() && !this.productForm.reference?.trim() && !this.productForm.ean?.trim()) {
+      this.snack.open(this.i18n.t('catalog.products.nameRequired'), undefined, { duration: 3000 });
+      return;
+    }
+    if (this.productCreating && this.draftVariants.length === 0) {
+      this.createTab = 'variants';
+      this.snack.open(this.i18n.t('catalog.products.needVariantForPriceMode'), undefined, { duration: 3000 });
+      return;
+    }
+    if (this.productCreating && this.draftVariants.some(v => v.priceOverride == null)) {
+      this.createTab = 'variants';
+      this.snack.open(this.i18n.t('catalog.products.variantPriceRequired'), undefined, { duration: 3000 });
+      return;
+    }
+    const brandName = this.productForm.brandId && this.productForm.brandId > 0
+      ? (this.formBrands.find(b => b.id === this.productForm.brandId)?.name ?? this.productForm.brandName)
+      : (this.productForm.brandName || undefined);
+    const brandId = this.productForm.brandId && this.productForm.brandId > 0
+      ? this.productForm.brandId
+      : undefined;
+    const categoryId = this.resolveFormCategoryId();
+    this.productSaving = true;
+    if (this.productCreating) {
+      const first = this.draftVariants[0];
+      this.erpService.createProduct({
+        name: this.productForm.name || undefined,
+        reference: this.productForm.reference || undefined,
+        ean: this.productForm.ean || undefined,
+        purchasePrice: first?.costPrice ?? undefined,
+        unitPrice: first?.priceOverride ?? undefined,
+        vatPercent: this.productForm.vatPercent,
+        brandId,
+        brandName,
+        categoryId
+      }).subscribe({
+        next: res => {
+          const product = res.product;
+          if (!product) {
+            this.productSaving = false;
+            this.snack.open(res.message || this.i18n.t('catalog.products.saveError'), undefined, { duration: 3000 });
+            return;
+          }
+          this.persistDraftExtras(product.id, () => {
+            this.productSaving = false;
+            this.productCreating = false;
+            this.productEditing = false;
+            this.draftVariants = [];
+            this.draftImages = [];
+            this.loadProducts();
+            this.selectProduct(product);
+            this.snack.open(res.message || this.i18n.t('catalog.products.saved'), undefined, { duration: 2500 });
+          });
+        },
+        error: err => {
+          this.productSaving = false;
+          this.snack.open(err?.error?.message || this.i18n.t('catalog.products.saveError'), undefined, { duration: 4000 });
+        }
+      });
+      return;
+    }
+    if (!this.selected) return;
+    this.erpService.updateProduct(this.selected.id, {
+      name: this.productForm.name,
+      reference: this.productForm.reference,
+      ean: this.productForm.ean,
+      purchasePrice: this.productForm.purchasePrice ?? undefined,
+      unitPrice: this.productForm.unitPrice ?? undefined,
+      vatPercent: this.productForm.vatPercent,
+      brandId: this.productForm.brandId ?? undefined,
+      brandName,
+      categoryId,
+      comment: this.productForm.comment,
+      weight: this.productForm.weight,
+      height: this.productForm.height,
+      width: this.productForm.width,
+      depth: this.productForm.depth
+    }).subscribe({
+      next: updated => {
+        this.productSaving = false;
+        this.productEditing = false;
+        const idx = this.products.findIndex(p => p.id === updated.id);
+        if (idx >= 0) this.products[idx] = updated;
+        this.selected = updated;
+        this.snack.open(this.i18n.t('catalog.products.saved'), undefined, { duration: 2000 });
+      },
+      error: err => {
+        this.productSaving = false;
+        this.snack.open(err?.error?.message || this.i18n.t('catalog.products.saveError'), undefined, { duration: 4000 });
+      }
+    });
+  }
+
+  archiveProduct(product: ErpProduct, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(this.i18n.t('catalog.products.confirmArchive'))) return;
+    this.erpService.archiveProduct(product.id).subscribe({
+      next: () => {
+        if (this.selected?.id === product.id) this.closeDetail();
+        this.loadProducts();
+        this.snack.open(this.i18n.t('catalog.products.archived'), undefined, { duration: 2000 });
+      },
+      error: err => this.snack.open(err?.error?.message || 'Error', undefined, { duration: 3000 })
+    });
+  }
+
+  setDetailTab(tab: 'info' | 'variants' | 'images' | 'attributes'): void {
+    this.detailTab = tab;
+  }
+
+  loadProductExtras(productId: number): void {
+    this.extrasLoading = true;
+    this.editingVariantId = null;
+    this.variantForm = { sku: '', stockQuantity: 0, attributesJson: '{}', isActive: true };
+    this.imageForm = { url: '', altText: '', isMain: false, sortOrder: 0 };
+    this.extras.getVariants(productId).subscribe({
+      next: v => this.variants = v ?? [],
+      error: () => this.variants = []
+    });
+    this.extras.getImages(productId).subscribe({
+      next: i => this.images = i ?? [],
+      error: () => this.images = []
+    });
+    this.extras.getAttributeDefinitions().subscribe({
+      next: defs => {
+        this.attrDefs = (defs ?? []).filter(d => d.isActive);
+        this.extras.getAttributeValues(productId).subscribe({
+          next: vals => {
+            this.attrValues = vals ?? [];
+            this.attrValueDrafts = {};
+            for (const d of this.attrDefs) {
+              this.attrValueDrafts[d.id] = this.attrValues.find(v => v.attributeId === d.id)?.value ?? '';
+            }
+            this.syncVehicleCompatFromAttributes();
+            this.extrasLoading = false;
+          },
+          error: () => { this.attrValues = []; this.extrasLoading = false; }
+        });
+      },
+      error: () => { this.attrDefs = []; this.extrasLoading = false; }
+    });
+  }
+
+  startEditVariant(v: ErpProductVariant): void {
+    this.editingVariantId = v.id;
+    this.variantForm = {
+      sku: v.sku,
+      barcode: v.barcode ?? '',
+      priceOverride: v.priceOverride ?? null,
+      costPrice: v.costPrice ?? null,
+      stockQuantity: v.stockQuantity ?? 0,
+      attributesJson: v.attributesJson || '{}',
+      isActive: v.isActive !== false
+    };
+  }
+
+  cancelVariantEdit(): void {
+    this.editingVariantId = null;
+    this.variantForm = { sku: '', stockQuantity: 0, attributesJson: '{}', isActive: true };
+  }
+
+  saveVariant(): void {
+    if (!this.selected || !this.variantForm.sku?.trim()) return;
+    this.extrasSaving = true;
+    const body = {
+      productId: this.selected.id,
+      sku: this.variantForm.sku.trim(),
+      barcode: this.variantForm.barcode || null,
+      priceOverride: this.variantForm.priceOverride ?? null,
+      costPrice: this.variantForm.costPrice ?? null,
+      stockQuantity: this.variantForm.stockQuantity ?? 0,
+      attributesJson: this.variantForm.attributesJson || '{}',
+      isActive: this.variantForm.isActive !== false
+    };
+    const req$ = this.editingVariantId
+      ? this.extras.updateVariant(this.editingVariantId, body)
+      : this.extras.createVariant(body);
+    req$.subscribe({
+      next: () => {
+        this.extrasSaving = false;
+        this.editingVariantId = null;
+        this.loadProductExtras(this.selected!.id);
+        this.snack.open(this.i18n.t('catalog.variants.saved'), undefined, { duration: 2000 });
+      },
+      error: err => {
+        this.extrasSaving = false;
+        this.snack.open(err?.error?.error || this.i18n.t('catalog.variants.saveError'), undefined, { duration: 4000 });
+      }
+    });
+  }
+
+  deleteVariant(id: string): void {
+    if (!this.selected || !confirm(this.i18n.t('catalog.variants.confirmDelete'))) return;
+    this.extras.deleteVariant(id).subscribe(() => {
+      if (this.editingVariantId === id) this.cancelVariantEdit();
+      this.loadProductExtras(this.selected!.id);
+    });
+  }
+
+  saveImage(): void {
+    if (!this.selected || !this.imageForm.url?.trim()) return;
+    this.extrasSaving = true;
+    this.extras.createImage({
+      productId: this.selected.id,
+      url: this.imageForm.url.trim(),
+      altText: this.imageForm.altText || '',
+      isMain: !!this.imageForm.isMain,
+      sortOrder: this.imageForm.sortOrder ?? 0
+    }).subscribe({
+      next: () => {
+        this.extrasSaving = false;
+        this.loadProductExtras(this.selected!.id);
+      },
+      error: err => {
+        this.extrasSaving = false;
+        this.snack.open(err?.error?.error || this.i18n.t('catalog.images.saveError'), undefined, { duration: 4000 });
+      }
+    });
+  }
+
+  deleteImage(id: string): void {
+    if (!this.selected) return;
+    this.extras.deleteImage(id).subscribe(() => this.loadProductExtras(this.selected!.id));
+  }
+
+  saveAttrValue(attributeId: string): void {
+    if (!this.selected) return;
+    this.extras.upsertAttributeValue({
+      productId: this.selected.id,
+      attributeId,
+      value: this.attrValueDrafts[attributeId] ?? ''
+    }).subscribe({
+      next: () => this.snack.open(this.i18n.t('common.save'), undefined, { duration: 1500 }),
+      error: err => this.snack.open(err?.error?.error || 'Error', undefined, { duration: 3000 })
+    });
+  }
+
+  createAttrDefinition(): void {
+    const code = prompt(this.i18n.t('catalog.attributes.codePrompt'));
+    if (!code?.trim()) return;
+    const name = prompt(this.i18n.t('catalog.attributes.namePrompt'), code) || code;
+    this.extras.createAttributeDefinition({ code: code.trim(), name: name.trim(), isActive: true }).subscribe({
+      next: () => this.selected && this.loadProductExtras(this.selected.id),
+      error: err => this.snack.open(err?.error?.error || 'Error', undefined, { duration: 3000 })
+    });
   }
 
   syncProduct(product: ErpProduct, event?: Event): void {
@@ -511,6 +1447,15 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     });
   }
 
+  formatDimensions(p: ErpProduct): string {
+    const l = p.depth;
+    const w = p.width;
+    const h = p.height;
+    if (l == null && w == null && h == null) return '—';
+    const fmt = (v: number | null | undefined) => (v == null ? '—' : String(v));
+    return `${fmt(l)} × ${fmt(w)} × ${fmt(h)} mm`;
+  }
+
   formatPrice(value?: number | null): string {
     if (value == null) return '—';
     return value.toLocaleString(this.i18n.numberLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -536,6 +1481,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       case 'Excel': return 'src-excel';
       case 'Merged': return 'src-merged';
       case 'Erp': return 'src-erp';
+      case 'CarApi': return 'src-carapi';
+      case 'RapidApi': return 'src-rapidapi';
       default: return 'src-unknown';
     }
   }
@@ -544,18 +1491,14 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     return !!product.lastSyncAt;
   }
 
-  /** Même règle que le chatbot — proxy same-origin (évite HSTS/HTTPS sur le port 15022). */
+  /** Miniatures : URL absolue RapidAPI/S3 telle quelle ; sinon proxy ERP local (PicName fichier). */
   productImageUrl(product: ErpProduct | null | undefined): string | null {
     const picName = product?.picName?.trim();
     if (!picName) return null;
 
     let file = picName.replace(/\\/g, '/');
     if (/^https?:\/\//i.test(file)) {
-      try {
-        file = new URL(file).pathname;
-      } catch {
-        return null;
-      }
+      return file;
     }
     file = file.replace(/^\/+/, '');
     const slash = file.lastIndexOf('/');
@@ -578,6 +1521,148 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         : 'product-thumb placeholder';
       ph.textContent = '—';
       parent.appendChild(ph);
+    }
+  }
+
+  importCarCatalog(applyFrenchOnly = false): void {
+    if (this.importingCarApi) return;
+    this.importingCarApi = true;
+    this.snack.open(
+      applyFrenchOnly ? this.i18n.t('erpProducts.applyFrenchNamesRunning') : this.i18n.t('erpProducts.importCarApiRunning'),
+      undefined,
+      { duration: 2500 }
+    );
+    this.erpService.importCarApi({
+      importParts: !applyFrenchOnly,
+      importVehicleBrands: !applyFrenchOnly,
+      applyFrenchNames: true,
+      ensureVehicleAttribute: true
+    }).subscribe({
+      next: res => {
+        this.importingCarApi = false;
+        const i = res.import;
+        const msg = applyFrenchOnly
+          ? this.i18n.t('erpProducts.applyFrenchNamesDone', { count: i.frenchNamesUpdated || i.partsUpdated })
+          : this.i18n.t('erpProducts.importCarApiDone', {
+              created: i.partsCreated,
+              updated: i.partsUpdated,
+              skipped: i.partsSkipped
+            });
+        this.snack.open(msg, undefined, { duration: 5000 });
+        this.loadProducts();
+        this.loadFilterOptions();
+      },
+      error: err => {
+        this.importingCarApi = false;
+        this.snack.open(err?.error?.message || err?.error?.detail || 'Error', undefined, { duration: 4000 });
+      }
+    });
+  }
+
+  initVehicleCompatibility(): void {
+    if (this.vehicleBrands.length) return;
+    this.carApi.getBrands().subscribe({
+      next: brands => this.vehicleBrands = brands ?? [],
+      error: () => this.vehicleBrands = []
+    });
+    this.carApi.ensureVehicleAttribute().subscribe({
+      next: def => {
+        this.vehicleCompatDef = def;
+        if (!this.attrDefs.some(d => d.id === def.id)) {
+          this.attrDefs = [...this.attrDefs, def];
+        }
+      }
+    });
+  }
+
+  onVehicleBrandChange(): void {
+    this.vehiclePick.model = '';
+    this.vehiclePick.generation = '';
+    this.vehiclePick.yearFrom = null;
+    this.vehiclePick.yearTo = null;
+    this.vehicleModels = [];
+    this.vehicleGenerations = [];
+    if (!this.vehiclePick.brand) return;
+    this.carApi.getModels(this.vehiclePick.brand).subscribe({
+      next: models => this.vehicleModels = models ?? [],
+      error: () => this.vehicleModels = []
+    });
+  }
+
+  onVehicleModelChange(): void {
+    this.vehiclePick.generation = '';
+    this.vehiclePick.yearFrom = null;
+    this.vehiclePick.yearTo = null;
+    this.vehicleGenerations = [];
+    if (!this.vehiclePick.brand || !this.vehiclePick.model) return;
+    this.carApi.getGenerations(this.vehiclePick.brand, this.vehiclePick.model).subscribe({
+      next: gens => this.vehicleGenerations = gens ?? [],
+      error: () => this.vehicleGenerations = []
+    });
+  }
+
+  onVehicleGenerationChange(): void {
+    const gen = this.vehicleGenerations.find(g => g.name === this.vehiclePick.generation);
+    this.vehiclePick.yearFrom = gen?.yearFrom ?? null;
+    this.vehiclePick.yearTo = gen?.yearTo ?? null;
+  }
+
+  addVehicleCompatibility(): void {
+    if (!this.vehiclePick.brand || !this.vehiclePick.model) return;
+    const entry: VehicleCompatibilityEntry = {
+      brand: this.vehiclePick.brand,
+      model: this.vehiclePick.model,
+      generation: this.vehiclePick.generation || '—',
+      yearFrom: this.vehiclePick.yearFrom,
+      yearTo: this.vehiclePick.yearTo
+    };
+    const key = `${entry.brand}|${entry.model}|${entry.generation}`;
+    if (this.vehicleCompatList.some(v => `${v.brand}|${v.model}|${v.generation}` === key)) return;
+    this.vehicleCompatList = [...this.vehicleCompatList, entry];
+  }
+
+  removeVehicleCompatibility(index: number): void {
+    this.vehicleCompatList = this.vehicleCompatList.filter((_, i) => i !== index);
+  }
+
+  saveVehicleCompatibility(): void {
+    if (!this.selected || !this.vehicleCompatDef) return;
+    const value = JSON.stringify(this.vehicleCompatList);
+    this.extras.upsertAttributeValue({
+      productId: this.selected.id,
+      attributeId: this.vehicleCompatDef.id,
+      value
+    }).subscribe({
+      next: () => {
+        this.attrValueDrafts[this.vehicleCompatDef!.id] = value;
+        this.snack.open(this.i18n.t('catalog.vehicleCompat.saved'), undefined, { duration: 2000 });
+      },
+      error: err => this.snack.open(err?.error?.error || 'Error', undefined, { duration: 3000 })
+    });
+  }
+
+  vehicleCompatYearsLabel(entry: VehicleCompatibilityEntry): string {
+    const from = entry.yearFrom ?? '?';
+    const to = entry.yearTo ?? '…';
+    return `${from} – ${to}`;
+  }
+
+    private syncVehicleCompatFromAttributes(): void {
+    this.vehicleCompatDef = this.attrDefs.find(d => d.code === this.vehicleCompatCode) ?? null;
+    const raw = this.vehicleCompatDef
+      ? this.attrValueDrafts[this.vehicleCompatDef.id]
+      : '';
+    this.vehicleCompatList = this.parseVehicleCompat(raw);
+    this.initVehicleCompatibility();
+  }
+
+  private parseVehicleCompat(raw?: string | null): VehicleCompatibilityEntry[] {
+    if (!raw?.trim()) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
   }
 }

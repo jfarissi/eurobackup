@@ -9,6 +9,7 @@ public class CompanySummary
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public bool EnableErpCatalogSync { get; set; }
 }
 
 public class AuthenticateResponse

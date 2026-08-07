@@ -38,6 +38,8 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { path: '/compare', labelKey: 'nav.compare', tabLabelKey: 'nav.compare', icon: 'link', titleKey: 'nav.title.compare' },
   { path: '/stock', labelKey: 'nav.stock', tabLabelKey: 'nav.stock', icon: 'inventory_2', titleKey: 'nav.title.stock' },
   { path: '/erp-products', labelKey: 'nav.erpProducts', tabLabelKey: 'nav.erpProducts', icon: 'category', titleKey: 'nav.title.erpProducts' },
+  { path: '/erp-brands', labelKey: 'nav.erpBrands', tabLabelKey: 'nav.erpBrands', icon: 'storefront', titleKey: 'nav.title.erpBrands' },
+  { path: '/erp-categories', labelKey: 'nav.erpCategories', tabLabelKey: 'nav.erpCategories', icon: 'account_tree', titleKey: 'nav.title.erpCategories' },
   { path: '/erp-changes', labelKey: 'nav.erpChanges', tabLabelKey: 'nav.erpChanges', icon: 'sync_alt', titleKey: 'nav.title.erpChanges' },
   { path: '/assistant', labelKey: 'nav.assistant', tabLabelKey: 'nav.assistantTab', icon: 'smart_toy', titleKey: 'nav.title.assistant' },
 ];
@@ -187,6 +189,9 @@ export class NavbarComponent {
   private visibleItems(items: NavItem[]): NavItem[] {
     void this.user;
     return items.filter(item => {
+      if (item.path === '/erp-changes' && !this.companyService.hasErpCatalogSync) {
+        return false;
+      }
       const perms = RoutePermissions[item.path];
       if (!perms?.length) return true;
       return this.permissionService.hasAny(...perms);

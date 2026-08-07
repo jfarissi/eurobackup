@@ -25,19 +25,19 @@
   <table class="table" style="margin-top:12px; width:100%;" border="1" *ngIf="documents?.length">
     <thead>
       <tr>
-        <th>Id</th>
-        <th>Type</th>
-        <th>Numéro</th>
-        <th>Client</th>
-        <th>Fournisseur</th>
-        <th>Date</th>
-        <th>Fichier</th>
-        <th>Lié à</th>
+        <th appSortable [state]="documentSort" key="id" defaultDir="desc">Id</th>
+        <th appSortable [state]="documentSort" key="typeDocument">Type</th>
+        <th appSortable [state]="documentSort" key="numero">Numéro</th>
+        <th appSortable [state]="documentSort" key="client">Client</th>
+        <th appSortable [state]="documentSort" key="supplier">Fournisseur</th>
+        <th appSortable [state]="documentSort" key="dateDocument" defaultDir="desc">Date</th>
+        <th appSortable [state]="documentSort" key="originalFileName">Fichier</th>
+        <th appSortable [state]="documentSort" key="linked">Lié à</th>
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody cdkDropList id="tableList" [cdkDropListData]="documents" [cdkDropListConnectedTo]="['pairList']">
-      <tr *ngFor="let d of documents" cdkDrag [cdkDragData]="d">
+    <tbody cdkDropList id="tableList" [cdkDropListData]="sortedDocuments" [cdkDropListConnectedTo]="['pairList']">
+      <tr *ngFor="let d of sortedDocuments" cdkDrag [cdkDragData]="d">
         <td>{{ d.id }}</td>
         <td>{{ d.typeDocument }}</td>
         <td>{{ d.numero }}</td>
@@ -100,15 +100,15 @@
   <table border="1" style="width:100%;">
     <thead>
       <tr>
-        <th>Produit</th>
-        <th>Qté Facture</th>
-        <th>Qté BL</th>
-        <th>Diff</th>
-        <th>Statut</th>
+        <th appSortable [state]="comparisonSort" key="product">Produit</th>
+        <th appSortable [state]="comparisonSort" key="invoiceQty" defaultDir="desc">Qté Facture</th>
+        <th appSortable [state]="comparisonSort" key="deliveryQty" defaultDir="desc">Qté BL</th>
+        <th appSortable [state]="comparisonSort" key="diff" defaultDir="desc">Diff</th>
+        <th appSortable [state]="comparisonSort" key="status">Statut</th>
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let l of comparaisonResult.lines">
+      <tr *ngFor="let l of sortedComparisonLines">
         <td>{{ l.product }}</td>
         <td>{{ l.invoiceQty }}</td>
         <td>{{ l.deliveryQty }}</td>

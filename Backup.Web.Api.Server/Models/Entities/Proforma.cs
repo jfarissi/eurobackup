@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
@@ -9,7 +10,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// Facture proforma (PF) : RG-PF1–4. Apparence de facture, sans effet GL ni stock.
     /// Cycle : Draft → Sent / Cancelled. Ne peut jamais être convertie directement en facture.
     /// </summary>
-    public class Proforma : IHasCompanyId, IHasSoftDelete
+    public class Proforma : IHasCompanyId, IHasSoftDelete, IHasAuditTrail
     {
         public int Id { get; set; }
         public string ProformaNumber { get; set; } = string.Empty;
@@ -33,11 +34,14 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsDeleted { get; set; }
         public DateTime? DeletedAt { get; set; }
         public string? DeletedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public List<ProformaLine> Lines { get; set; } = new();
     }
 
-    public class ProformaLine
+    public class ProformaLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int ProformaId { get; set; }
@@ -50,5 +54,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }
         public int LineNumber { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

@@ -1,4 +1,12 @@
-export interface Customer {
+/** Traçabilité création / modification (API IHasAuditTrail). */
+export interface AuditTrailFields {
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface Customer extends AuditTrailFields {
   id?: number;
   customerCode: string;
   name: string;
@@ -17,11 +25,9 @@ export interface Customer {
   /** Active | Blocked | Closed */
   status?: string;
   companyId?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
-export interface Supplier {
+export interface Supplier extends AuditTrailFields {
   id?: number;
   supplierCode: string;
   name: string;
@@ -38,11 +44,9 @@ export interface Supplier {
   /** Active | Blocked | Closed */
   status?: string;
   companyId?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
-export interface QuoteLine {
+export interface QuoteLine extends AuditTrailFields {
   id?: number;
   quoteId?: number;
   productKey: string;
@@ -56,7 +60,7 @@ export interface QuoteLine {
   supplierId?: number | null;
 }
 
-export interface Quote {
+export interface Quote extends AuditTrailFields {
   id?: number;
   quoteNumber: string;
   customerId: number;
@@ -69,11 +73,10 @@ export interface Quote {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: QuoteLine[];
 }
 
-export interface SalesOrderLine {
+export interface SalesOrderLine extends AuditTrailFields {
   id?: number;
   salesOrderId?: number;
   productKey: string;
@@ -89,7 +92,7 @@ export interface SalesOrderLine {
   supplierId?: number | null;
 }
 
-export interface SalesOrder {
+export interface SalesOrder extends AuditTrailFields {
   id?: number;
   orderNumber: string;
   customerId: number;
@@ -104,7 +107,6 @@ export interface SalesOrder {
   billingAddress?: string;
   shippingAddress?: string;
   companyId?: string;
-  createdAt?: string;
   lines: SalesOrderLine[];
 }
 
@@ -159,7 +161,7 @@ export interface SalesTrashItem {
   restoreBlockedReason?: string;
 }
 
-export interface SalesInvoiceLine {
+export interface SalesInvoiceLine extends AuditTrailFields {
   id?: number;
   salesInvoiceId?: number;
   productKey: string;
@@ -175,7 +177,7 @@ export interface SalesInvoiceLine {
   supplierId?: number | null;
 }
 
-export interface SalesInvoice {
+export interface SalesInvoice extends AuditTrailFields {
   id?: number;
   invoiceNumber: string;
   customerId: number;
@@ -200,11 +202,10 @@ export interface SalesInvoice {
   isOverdue?: boolean;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: SalesInvoiceLine[];
 }
 
-export interface CreditNoteLine {
+export interface CreditNoteLine extends AuditTrailFields {
   id?: number;
   creditNoteEntityId?: number;
   productKey: string;
@@ -217,7 +218,7 @@ export interface CreditNoteLine {
   lineNumber: number;
 }
 
-export interface CreditNote {
+export interface CreditNote extends AuditTrailFields {
   id?: number;
   creditNoteNumber: string;
   customerId: number;
@@ -231,11 +232,10 @@ export interface CreditNote {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: CreditNoteLine[];
 }
 
-export interface PurchaseOrderLine {
+export interface PurchaseOrderLine extends AuditTrailFields {
   id?: number;
   purchaseOrderId?: number;
   productKey: string;
@@ -249,7 +249,7 @@ export interface PurchaseOrderLine {
   lineNumber: number;
 }
 
-export interface PurchaseOrder {
+export interface PurchaseOrder extends AuditTrailFields {
   id?: number;
   orderNumber: string;
   supplierId: number;
@@ -262,7 +262,6 @@ export interface PurchaseOrder {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   supplierInvoices?: SupplierInvoice[];
   lines: PurchaseOrderLine[];
 }
@@ -276,7 +275,7 @@ export interface ReceiveDeliveryResult {
   warnings: string[];
 }
 
-export interface ReceiptLine {
+export interface ReceiptLine extends AuditTrailFields {
   id?: number;
   receiptId?: number;
   productKey: string;
@@ -289,7 +288,7 @@ export interface ReceiptLine {
   lineNumber: number;
 }
 
-export interface Receipt {
+export interface Receipt extends AuditTrailFields {
   id?: number;
   receiptNumber: string;
   purchaseOrderId?: number;
@@ -301,8 +300,6 @@ export interface Receipt {
   status: string;
   notes?: string;
   companyId?: string;
-  createdBy?: string;
-  createdAt?: string;
   lines: ReceiptLine[];
 }
 
@@ -320,7 +317,7 @@ export interface ComptabiliserInvoiceResult {
   warnings: string[];
 }
 
-export interface SupplierInvoiceLine {
+export interface SupplierInvoiceLine extends AuditTrailFields {
   id?: number;
   supplierInvoiceEntityId?: number;
   productKey: string;
@@ -333,7 +330,7 @@ export interface SupplierInvoiceLine {
   lineNumber: number;
 }
 
-export interface SupplierInvoice {
+export interface SupplierInvoice extends AuditTrailFields {
   id?: number;
   invoiceNumber: string;
   supplierId: number;
@@ -349,7 +346,6 @@ export interface SupplierInvoice {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: SupplierInvoiceLine[];
 }
 
@@ -370,7 +366,7 @@ export interface SupplierInvoicePurchaseOrderMatchResult {
   warnings: string[];
 }
 
-export interface SalesDeliveryNoteLine {
+export interface SalesDeliveryNoteLine extends AuditTrailFields {
   id?: number;
   salesDeliveryNoteId?: number;
   productKey: string;
@@ -385,7 +381,7 @@ export interface SalesDeliveryNoteLine {
   supplierId?: number | null;
 }
 
-export interface SalesDeliveryNote {
+export interface SalesDeliveryNote extends AuditTrailFields {
   id?: number;
   deliveryNumber: string;
   customerId: number;
@@ -402,7 +398,6 @@ export interface SalesDeliveryNote {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: SalesDeliveryNoteLine[];
 }
 
@@ -411,6 +406,8 @@ export interface StockMovement {
   productKey: string;
   movementType: 'In' | 'Out' | 'Adjustment' | 'Transfer';
   quantity: number;
+  unitCost?: number | null;
+  stockValue?: number | null;
   reason?: string;
   referenceDocument?: string;
   companyId?: string;
@@ -515,7 +512,7 @@ export interface DocumentNumberSequence {
 }
 
 /** Ligne de bon de retour client (BRC). */
-export interface SalesReturnLine {
+export interface SalesReturnLine extends AuditTrailFields {
   id?: number;
   salesReturnId?: number;
   productKey: string;
@@ -531,7 +528,7 @@ export interface SalesReturnLine {
 }
 
 /** Bon de retour client (BRC) — RG-BR1–5. Toujours lié à un BL livré/facturé. */
-export interface SalesReturn {
+export interface SalesReturn extends AuditTrailFields {
   id?: number;
   returnNumber: string;
   customerId: number;
@@ -549,13 +546,12 @@ export interface SalesReturn {
   currencyCode?: string;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   stockApplied?: boolean;
   creditNoteId?: number;
   lines: SalesReturnLine[];
 }
 
-export interface ProformaLine {
+export interface ProformaLine extends AuditTrailFields {
   id?: number;
   proformaId?: number;
   productKey: string;
@@ -569,7 +565,7 @@ export interface ProformaLine {
 }
 
 /** Facture proforma (PF) — jamais d'effet GL/stock, jamais convertible directement en facture. */
-export interface Proforma {
+export interface Proforma extends AuditTrailFields {
   id?: number;
   proformaNumber: string;
   customerId: number;
@@ -585,12 +581,11 @@ export interface Proforma {
   currencyCode?: string;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: ProformaLine[];
 }
 
 /** Facture d'acompte (AAC) — toujours liée à une commande. */
-export interface DepositInvoice {
+export interface DepositInvoice extends AuditTrailFields {
   id?: number;
   depositNumber: string;
   customerId: number;
@@ -606,12 +601,11 @@ export interface DepositInvoice {
   currencyCode?: string;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   appliedSalesInvoiceId?: number;
   appliedAt?: string;
 }
 
-export interface SupplierRfqLine {
+export interface SupplierRfqLine extends AuditTrailFields {
   id?: number;
   supplierRfqId?: number;
   productKey: string;
@@ -622,7 +616,7 @@ export interface SupplierRfqLine {
 }
 
 /** Demande de prix fournisseur (DPF). */
-export interface SupplierRfq {
+export interface SupplierRfq extends AuditTrailFields {
   id?: number;
   rfqNumber: string;
   supplierId?: number;
@@ -632,12 +626,11 @@ export interface SupplierRfq {
   status: string;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   purchaseOrderId?: number;
   lines: SupplierRfqLine[];
 }
 
-export interface SupplierReturnLine {
+export interface SupplierReturnLine extends AuditTrailFields {
   id?: number;
   supplierReturnId?: number;
   productKey: string;
@@ -653,7 +646,7 @@ export interface SupplierReturnLine {
 }
 
 /** Bon de retour fournisseur (BRF). */
-export interface SupplierReturn {
+export interface SupplierReturn extends AuditTrailFields {
   id?: number;
   returnNumber: string;
   supplierId: number;
@@ -670,13 +663,12 @@ export interface SupplierReturn {
   currencyCode?: string;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   stockApplied?: boolean;
   creditNoteId?: number;
   lines: SupplierReturnLine[];
 }
 
-export interface SupplierCreditNoteLine {
+export interface SupplierCreditNoteLine extends AuditTrailFields {
   id?: number;
   supplierCreditNoteEntityId?: number;
   productKey: string;
@@ -690,7 +682,7 @@ export interface SupplierCreditNoteLine {
 }
 
 /** Avoir fournisseur (AF) — toujours lié à une facture fournisseur. */
-export interface SupplierCreditNote {
+export interface SupplierCreditNote extends AuditTrailFields {
   id?: number;
   creditNoteNumber: string;
   supplierId: number;
@@ -705,6 +697,5 @@ export interface SupplierCreditNote {
   totalTTC: number;
   notes?: string;
   companyId?: string;
-  createdAt?: string;
   lines: SupplierCreditNoteLine[];
 }

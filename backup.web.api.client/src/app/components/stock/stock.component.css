@@ -317,6 +317,7 @@
 
 .stock-table .actions-cell {
   text-align: center;
+  white-space: nowrap;
 }
 
 .warn-icon {
@@ -330,6 +331,16 @@
 
 .stock-row:hover {
   background: #f1f5f9 !important;
+}
+
+.stock-row-clickable {
+  cursor: pointer;
+}
+
+.stock-row-clickable:hover .code-cell {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .stock-row.row-warn td {

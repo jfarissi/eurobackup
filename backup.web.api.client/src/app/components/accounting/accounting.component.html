@@ -56,18 +56,18 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>{{ 'accounting.col.number' | t }}</th>
-            <th>{{ 'accounting.col.date' | t }}</th>
-            <th>{{ 'accounting.col.journalType' | t }}</th>
-            <th>{{ 'accounting.col.reference' | t }}</th>
-            <th>{{ 'accounting.col.description' | t }}</th>
-            <th>{{ 'accounting.col.debit' | t }}</th>
-            <th>{{ 'accounting.col.credit' | t }}</th>
-            <th>{{ 'common.status' | t }}</th>
+            <th appSortable [state]="entrySort" key="entryNumber">{{ 'accounting.col.number' | t }}</th>
+            <th appSortable [state]="entrySort" key="entryDate" defaultDir="desc">{{ 'accounting.col.date' | t }}</th>
+            <th appSortable [state]="entrySort" key="journalType">{{ 'accounting.col.journalType' | t }}</th>
+            <th appSortable [state]="entrySort" key="reference">{{ 'accounting.col.reference' | t }}</th>
+            <th appSortable [state]="entrySort" key="description">{{ 'accounting.col.description' | t }}</th>
+            <th appSortable [state]="entrySort" key="debit" defaultDir="desc">{{ 'accounting.col.debit' | t }}</th>
+            <th appSortable [state]="entrySort" key="credit" defaultDir="desc">{{ 'accounting.col.credit' | t }}</th>
+            <th appSortable [state]="entrySort" key="status">{{ 'common.status' | t }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let entry of entries"
+          <tr *ngFor="let entry of sortedEntries"
               [class.selected-row]="selected?.id === entry.id"
               (click)="selectEntry(entry)">
             <td><strong>{{ entry.entryNumber }}</strong></td>
@@ -79,7 +79,7 @@
             <td>{{ entryCredit(entry) | currency:'EUR' }}</td>
             <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ entry.status }}</span></td>
           </tr>
-          <tr *ngIf="!loading && entries.length === 0">
+          <tr *ngIf="!loading && sortedEntries.length === 0">
             <td colspan="8" class="empty">{{ 'accounting.empty' | t }}</td>
           </tr>
           <tr *ngIf="loading">

@@ -3,9 +3,10 @@ using System.Collections.Generic;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
-    public class SupplierInvoiceEntity : IHasCompanyId
+    public class SupplierInvoiceEntity : IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
         public string InvoiceNumber { get; set; } = string.Empty;
@@ -25,11 +26,14 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public string? Notes { get; set; }
         public string? CompanyId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         public List<SupplierInvoiceLineEntity> Lines { get; set; } = new();
     }
 
-    public class SupplierInvoiceLineEntity
+    public class SupplierInvoiceLineEntity : IHasAuditTrail
     {
         public int Id { get; set; }
         public int SupplierInvoiceEntityId { get; set; }
@@ -42,5 +46,9 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }
         public int LineNumber { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

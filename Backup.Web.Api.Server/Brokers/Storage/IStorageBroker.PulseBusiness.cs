@@ -122,6 +122,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         // Document audit (P3)
         ValueTask<DocumentAuditLog> InsertDocumentAuditLogAsync(DocumentAuditLog log);
         IQueryable<DocumentAuditLog> SelectAllDocumentAuditLogs();
+        IQueryable<EntityAuditLog> SelectAllEntityAuditLogs();
 
         // Sales Returns (BRC vente — RG-BR1–5)
         ValueTask<SalesReturn> InsertSalesReturnAsync(SalesReturn salesReturn);

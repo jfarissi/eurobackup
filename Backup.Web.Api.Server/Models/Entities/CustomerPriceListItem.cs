@@ -1,4 +1,5 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
@@ -7,7 +8,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// RG-PT1–5 lite : tarif spécifique client par référence produit, consulté en fallback
     /// quand une ligne de devis/commande est saisie sans prix (UnitPrice &lt;= 0).
     /// </summary>
-    public class CustomerPriceListItem : IHasCompanyId
+    public class CustomerPriceListItem : IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
         public string? CompanyId { get; set; }
@@ -19,5 +20,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public DateTime? ValidFrom { get; set; }
         public DateTime? ValidTo { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

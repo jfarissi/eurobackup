@@ -6,13 +6,14 @@
           <h2>{{ 'erpProducts.title' | t }}</h2>
         </app-form-help>
         <p>{{ 'erpProducts.subtitle' | t }}</p>
+        <app-catalog-subnav></app-catalog-subnav>
       </div>
       <div class="products-actions">
-        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncingAll || syncingId != null" *ngIf="perm.has(P.ProductUpdate)">
+        <button class="btn-primary" type="button" (click)="triggerSyncAll()" [disabled]="syncingAll || syncingId != null" *ngIf="hasErpCatalogSync && perm.has(P.ProductUpdate)">
           <mat-icon>{{ syncingAll ? 'hourglass_top' : 'sync' }}</mat-icon>
           {{ syncingAll ? ('erpProducts.syncing' | t) : ('erpProducts.enrichFromErp' | t) }}
         </button>
-        <a class="btn-secondary" routerLink="/erp-changes">
+        <a class="btn-secondary" routerLink="/erp-changes" *ngIf="hasErpCatalogSync">
           <mat-icon>history</mat-icon>
           {{ 'erpProducts.changes' | t }}
         </a>
@@ -20,10 +21,28 @@
           <mat-icon>refresh</mat-icon>
           {{ 'erpProducts.refresh' | t }}
         </button>
+        <button class="btn-secondary" type="button"
+                (click)="importCarCatalog(false)"
+                [disabled]="importingCarApi || loading"
+                *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
+          <mat-icon>{{ importingCarApi ? 'hourglass_top' : 'directions_car' }}</mat-icon>
+          {{ importingCarApi ? ('erpProducts.importCarApiRunning' | t) : ('erpProducts.importCarApi' | t) }}
+        </button>
+        <button class="btn-secondary" type="button"
+                (click)="importCarCatalog(true)"
+                [disabled]="importingCarApi || loading"
+                *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
+          <mat-icon>translate</mat-icon>
+          {{ 'erpProducts.applyFrenchNames' | t }}
+        </button>
+        <button class="btn-primary" type="button" (click)="startCreateProduct()" *ngIf="perm.has(P.ProductCreate)">
+          <mat-icon>add</mat-icon>
+          {{ 'catalog.products.new' | t }}
+        </button>
       </div>
     </div>
 
-    <div class="sync-progress-panel" *ngIf="syncingAll || (syncProgress && syncProgress.status === 'Running')">
+    <div class="sync-progress-panel" *ngIf="hasErpCatalogSync && (syncingAll || (syncProgress && syncProgress.status === 'Running'))">
       <div class="sync-progress-header">
         <span class="sync-progress-title">{{ syncProgressTitle }}</span>
         <span class="sync-progress-pct font-mono" *ngIf="!syncProgressIndeterminate">{{ syncProgressPercent }}%</span>
@@ -69,6 +88,20 @@
         <option value="">{{ 'erpProducts.filter.allBrands' | t }}</option>
         <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
       </select>
+      <select class="filter-select" [(ngModel)]="vehicleBrandFilter" (change)="onVehicleBrandFilterChange()" [disabled]="syncingAll">
+        <option value="">{{ 'erpProducts.filter.vehicleBrand' | t }}</option>
+        <option *ngFor="let b of filterVehicleBrands" [value]="b.brand">{{ b.brand }}</option>
+      </select>
+      <select class="filter-select" [(ngModel)]="vehicleModelFilter" (change)="onVehicleModelFilterChange()"
+              [disabled]="syncingAll || !vehicleBrandFilter">
+        <option value="">{{ 'erpProducts.filter.vehicleModel' | t }}</option>
+        <option *ngFor="let m of filterVehicleModels" [value]="m.name">{{ m.name }}</option>
+      </select>
+      <input class="filter-select filter-year" type="number" min="1968" max="2030"
+             [(ngModel)]="vehicleYearFilter"
+             (change)="onVehicleYearFilterChange()"
+             [disabled]="syncingAll || !vehicleBrandFilter"
+             [placeholder]="'erpProducts.filter.vehicleYear' | t" />
       <select class="filter-select" [(ngModel)]="mainTypeId" (change)="onMainTypeChange()" [disabled]="syncingAll">
         <option value="">{{ 'erpProducts.filter.mainCategory' | t }}</option>
         <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
@@ -89,7 +122,7 @@
               type="button"
               (click)="triggerCatalogSync()"
               [disabled]="!hasSyncFilter || syncingAll || syncingId != null"
-              *ngIf="perm.has(P.ProductUpdate)">
+              *ngIf="hasErpCatalogSync && perm.has(P.ProductUpdate)">
         <mat-icon>cloud_download</mat-icon>
         {{ 'erpProducts.syncFiltered' | t }}
       </button>
@@ -109,7 +142,13 @@
         <div class="no-data" *ngIf="!loading && products.length === 0">
           <mat-icon>inventory_2</mat-icon>
           <p>{{ 'erpProducts.empty' | t }}</p>
-          <a class="btn-primary" routerLink="/erp-changes">{{ 'erpProducts.importExcel' | t }}</a>
+          <p class="muted" *ngIf="brandFilter">{{ 'erpProducts.emptyBrandHint' | t }}</p>
+          <p class="muted" *ngIf="vehicleBrandFilter">{{ 'erpProducts.emptyVehicleHint' | t }}</p>
+          <p class="muted" *ngIf="!brandFilter && !vehicleBrandFilter">{{ 'erpProducts.emptyCarApiHint' | t }}</p>
+          <a class="btn-primary" routerLink="/erp-changes" *ngIf="hasErpCatalogSync">{{ 'erpProducts.importExcel' | t }}</a>
+          <button class="btn-primary" type="button" (click)="importCarCatalog(false)" *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
+            {{ 'erpProducts.importCarApi' | t }}
+          </button>
         </div>
 
         <div class="card table-card" *ngIf="!loading && products.length > 0">
@@ -118,18 +157,18 @@
               <thead>
                 <tr>
                   <th></th>
-                  <th>{{ 'erpProducts.col.product' | t }}</th>
-                  <th>{{ 'erpProducts.col.refEan' | t }}</th>
-                  <th>{{ 'erpProducts.col.brand' | t }}</th>
-                  <th class="text-right">{{ 'erpProducts.col.price' | t }}</th>
-                  <th class="text-right">{{ 'erpProducts.col.stock' | t }}</th>
-                  <th>{{ 'erpProducts.col.source' | t }}</th>
-                  <th>{{ 'erpProducts.col.sync' | t }}</th>
+                  <th appSortable [state]="listSort" key="name">{{ 'erpProducts.col.product' | t }}</th>
+                  <th appSortable [state]="listSort" key="reference">{{ 'erpProducts.col.refEan' | t }}</th>
+                  <th appSortable [state]="listSort" key="brand">{{ 'erpProducts.col.brand' | t }}</th>
+                  <th class="text-right" appSortable [state]="listSort" key="unitPrice" defaultDir="desc">{{ 'erpProducts.col.price' | t }}</th>
+                  <th class="text-right" appSortable [state]="listSort" key="stockQuantity" defaultDir="desc">{{ 'erpProducts.col.stock' | t }}</th>
+                  <th appSortable [state]="listSort" key="dataSource">{{ 'erpProducts.col.source' | t }}</th>
+                  <th *ngIf="hasErpCatalogSync" appSortable [state]="listSort" key="lastSyncAt" defaultDir="desc">{{ 'erpProducts.col.sync' | t }}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let p of products"
+                <tr *ngFor="let p of sortedProducts"
                     [class.row-selected]="selected?.id === p.id"
                     (click)="selectProduct(p)">
                   <td class="thumb-cell">
@@ -156,16 +195,28 @@
                       {{ p.dataSource || '—' }}
                     </span>
                   </td>
-                  <td class="date-cell">
+                  <td class="date-cell" *ngIf="hasErpCatalogSync">
                     <span [class.muted]="!isSynced(p)">{{ formatDate(p.lastSyncAt) }}</span>
                   </td>
                   <td class="actions-cell" (click)="$event.stopPropagation()">
+                    <button class="btn-sync" type="button"
+                            (click)="selectProduct(p); startEditProduct()"
+                            [matTooltip]="'common.edit' | t"
+                            *ngIf="perm.has(P.ProductUpdate)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button class="btn-sync" type="button"
+                            (click)="archiveProduct(p, $event)"
+                            [matTooltip]="'common.delete' | t"
+                            *ngIf="perm.has(P.ProductDelete)">
+                      <mat-icon>archive</mat-icon>
+                    </button>
                     <button class="btn-sync"
                             type="button"
                             [disabled]="syncingId === p.id"
                             (click)="syncProduct(p, $event)"
                             [matTooltip]="'erpProducts.tooltip.syncErp' | t"
-                            *ngIf="perm.has(P.ProductUpdate)">
+                            *ngIf="hasErpCatalogSync && perm.has(P.ProductUpdate)">
                       <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
                     </button>
                   </td>
@@ -185,11 +236,20 @@
       <aside class="detail-pane card" *ngIf="selected as p">
         <div class="detail-header">
           <h3>{{ p.name || p.reference || p.erpProductId }}</h3>
-          <button type="button" class="icon-btn" (click)="closeDetail()" [attr.aria-label]="'erpProducts.close' | t">
-            <mat-icon>close</mat-icon>
-          </button>
+          <div class="detail-header-actions">
+            <button type="button" class="icon-btn" (click)="startEditProduct()" *ngIf="!productEditing && perm.has(P.ProductUpdate)" [attr.aria-label]="'common.edit' | t">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button type="button" class="icon-btn" (click)="archiveProduct(p)" *ngIf="!productEditing && perm.has(P.ProductDelete)" [attr.aria-label]="'common.delete' | t">
+              <mat-icon>archive</mat-icon>
+            </button>
+            <button type="button" class="icon-btn" (click)="closeDetail()" [attr.aria-label]="'erpProducts.close' | t">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
         </div>
 
+        <div class="detail-scroll">
         <div class="detail-image">
           <img *ngIf="productImageUrl(p) as imgUrl" class="product-thumb detail" [src]="imgUrl"
                [alt]="p.name || p.reference || ''" loading="lazy"
@@ -199,7 +259,7 @@
           </div>
         </div>
 
-        <div class="detail-actions">
+        <div class="detail-actions" *ngIf="hasErpCatalogSync">
           <button class="btn-primary" type="button"
                   [disabled]="syncingId === p.id"
                   (click)="syncProduct(p)"
@@ -209,7 +269,14 @@
           </button>
         </div>
 
-        <dl class="detail-grid">
+        <div class="detail-tabs">
+          <button type="button" [class.active]="detailTab === 'info'" (click)="setDetailTab('info')">{{ 'catalog.tabs.info' | t }}</button>
+          <button type="button" [class.active]="detailTab === 'variants'" (click)="setDetailTab('variants')">{{ 'catalog.tabs.variants' | t }}</button>
+          <button type="button" [class.active]="detailTab === 'images'" (click)="setDetailTab('images')">{{ 'catalog.tabs.images' | t }}</button>
+          <button type="button" [class.active]="detailTab === 'attributes'" (click)="setDetailTab('attributes')">{{ 'catalog.tabs.attributes' | t }}</button>
+        </div>
+
+        <dl class="detail-grid" *ngIf="detailTab === 'info'">
           <div><dt>{{ 'erpProducts.detail.erpId' | t }}</dt><dd class="font-mono">{{ p.erpProductId }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.reference' | t }}</dt><dd class="font-mono">{{ p.reference || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.ean' | t }}</dt><dd class="font-mono">{{ p.ean || '—' }}</dd></div>
@@ -220,15 +287,354 @@
           <div><dt>{{ 'erpProducts.detail.stock' | t }}</dt><dd class="font-mono">{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.vat' | t }}</dt><dd class="font-mono">{{ p.typeVatPerc != null ? p.typeVatPerc : '—' }}</dd></div>
           <div class="full"><dt>{{ 'erpProducts.detail.category' | t }}</dt><dd>{{ p.mainTypeName || '—' }} / {{ p.typeName || '—' }} / {{ p.subTypeName || '—' }}</dd></div>
+          <div><dt>{{ 'erpProducts.detail.weight' | t }}</dt><dd class="font-mono">{{ p.weight != null ? p.weight + ' kg' : '—' }}</dd></div>
+          <div><dt>{{ 'erpProducts.detail.dims' | t }}</dt><dd class="font-mono">{{ formatDimensions(p) }}</dd></div>
           <div class="full"><dt>{{ 'erpProducts.detail.name2' | t }}</dt><dd>{{ p.name2 || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.source' | t }}</dt><dd>{{ p.dataSource || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.excelFile' | t }}</dt><dd>{{ p.sourceFile || '—' }}</dd></div>
-          <div><dt>{{ 'erpProducts.detail.lastSync' | t }}</dt><dd>{{ formatDate(p.lastSyncAt) }}</dd></div>
+          <div *ngIf="hasErpCatalogSync"><dt>{{ 'erpProducts.detail.lastSync' | t }}</dt><dd>{{ formatDate(p.lastSyncAt) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.updated' | t }}</dt><dd>{{ formatDate(p.updatedAt) }}</dd></div>
           <div class="full" *ngIf="p.comment"><dt>{{ 'erpProducts.detail.comment' | t }}</dt><dd>{{ p.comment }}</dd></div>
         </dl>
-      </aside>
 
+        <div class="detail-extras" *ngIf="detailTab === 'variants'">
+          <div class="extras-list" *ngIf="variants.length">
+            <div class="extras-row" *ngFor="let v of variants">
+              <div>
+                <strong class="font-mono">{{ v.sku }}</strong>
+                <span class="muted" *ngIf="v.barcode"> · {{ v.barcode }}</span>
+                <div class="muted">
+                  {{ 'catalog.variants.stock' | t }}: {{ v.stockQuantity }}
+                  <ng-container *ngIf="v.priceOverride != null"> · {{ 'catalog.variants.price' | t }}: {{ v.priceOverride }}</ng-container>
+                  · {{ v.isActive ? ('common.yes' | t) : ('common.no' | t) }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="muted" *ngIf="!variants.length">{{ 'catalog.variants.empty' | t }}</p>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'images'">
+          <div class="extras-list" *ngIf="images.length">
+            <div class="extras-row" *ngFor="let img of images">
+              <div>
+                <a [href]="img.url" target="_blank" rel="noopener">{{ img.url }}</a>
+                <div class="muted">{{ img.altText || '—' }} · {{ img.isMain ? ('catalog.images.main' | t) : '' }}</div>
+              </div>
+            </div>
+          </div>
+          <p class="muted" *ngIf="!images.length">{{ 'catalog.images.empty' | t }}</p>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'attributes'">
+          <div class="extras-list" *ngIf="genericAttrDefs.length">
+            <div class="extras-row" *ngFor="let d of genericAttrDefs">
+              <div>
+                <strong>{{ d.name }}</strong>
+                <span class="font-mono muted"> ({{ d.code }})</span>
+                <div>{{ attrValueDrafts[d.id] || '—' }}</div>
+              </div>
+            </div>
+          </div>
+          <p class="muted" *ngIf="!genericAttrDefs.length && hasErpCatalogSync">{{ 'catalog.attributes.empty' | t }}</p>
+        </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Popup création / édition produit -->
+    <div class="product-modal-overlay" *ngIf="productModalOpen" (click)="cancelProductEdit()">
+      <div class="product-modal" (click)="$event.stopPropagation()" role="dialog"
+           [attr.aria-label]="(productCreating ? 'catalog.products.new' : 'catalog.products.edit') | t">
+        <div class="product-modal-header">
+          <h3>{{ (productCreating ? 'catalog.products.new' : 'catalog.products.edit') | t }}</h3>
+          <button type="button" class="icon-btn" (click)="cancelProductEdit()" [attr.aria-label]="'erpProducts.close' | t">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="detail-tabs product-modal-tabs">
+          <button type="button" [class.active]="createTab === 'info'" (click)="createTab = 'info'">{{ 'catalog.tabs.info' | t }}</button>
+          <button type="button" [class.active]="createTab === 'variants'" (click)="createTab = 'variants'">
+            {{ 'catalog.tabs.variants' | t }}
+            <span class="tab-badge" *ngIf="productCreating ? draftVariants.length : variants.length">
+              {{ productCreating ? draftVariants.length : variants.length }}
+            </span>
+          </button>
+          <button type="button" [class.active]="createTab === 'images'" (click)="createTab = 'images'">
+            {{ 'catalog.tabs.images' | t }}
+            <span class="tab-badge" *ngIf="productCreating ? draftImages.length : images.length">
+              {{ productCreating ? draftImages.length : images.length }}
+            </span>
+          </button>
+          <button type="button" *ngIf="!productCreating" [class.active]="createTab === 'attributes'" (click)="createTab = 'attributes'; initVehicleCompatibility()">
+            {{ 'catalog.tabs.attributes' | t }}
+          </button>
+        </div>
+
+        <div class="product-modal-body">
+          <div class="product-edit-form" *ngIf="createTab === 'info'">
+            <label>{{ 'catalog.products.name' | t }}<input [(ngModel)]="productForm.name" name="mname" /></label>
+            <label>{{ 'erpProducts.detail.reference' | t }}<input [(ngModel)]="productForm.reference" name="mref" /></label>
+            <label>{{ 'erpProducts.detail.ean' | t }}<input [(ngModel)]="productForm.ean" name="mean" /></label>
+            <div class="field-with-action full">
+              <label class="grow">{{ 'erpProducts.detail.brand' | t }}
+                <select [(ngModel)]="productForm.brandId" name="mbrand" (ngModelChange)="onBrandSelectChange()">
+                  <option [ngValue]="null">{{ 'createProduct.pickBrand' | t }}</option>
+                  <option *ngFor="let b of formBrands" [ngValue]="b.id">{{ b.name }}</option>
+                </select>
+              </label>
+              <button type="button" class="btn-secondary btn-sm add-btn" (click)="quickAddBrand()"
+                      *ngIf="perm.hasAny(P.BrandCreate, P.ProductCreate)"
+                      [matTooltip]="'catalog.brands.new' | t">
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+            <label class="full" *ngIf="!formBrands.length">{{ 'erpProducts.detail.brand' | t }}
+              <input [(ngModel)]="productForm.brandName" name="mbrandName" [placeholder]="'catalog.products.brandPrompt' | t" />
+            </label>
+            <div class="category-block full">
+              <div class="category-block-head">
+                <span>{{ 'createProduct.category' | t }}</span>
+                <a class="link-sm" routerLink="/erp-categories">{{ 'catalog.nav.categories' | t }}</a>
+              </div>
+              <div class="category-row">
+                <label>{{ 'createProduct.mainType' | t }}
+                  <select [(ngModel)]="productForm.mainTypeCatId" name="mmain" (ngModelChange)="onFormMainTypeChange()">
+                    <option [ngValue]="null">—</option>
+                    <option *ngFor="let c of formMainTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-secondary btn-sm add-btn" (click)="quickAddCategory('MainType')"
+                        *ngIf="perm.hasAny(P.CategoryCreate, P.ProductCreate)"
+                        [matTooltip]="'catalog.categories.new' | t">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+              <div class="category-row">
+                <label>{{ 'createProduct.type' | t }}
+                  <select [(ngModel)]="productForm.typeCatId" name="mtype" (ngModelChange)="onFormTypeChange()" [disabled]="!productForm.mainTypeCatId">
+                    <option [ngValue]="null">—</option>
+                    <option *ngFor="let c of formTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-secondary btn-sm add-btn" (click)="quickAddCategory('Type')"
+                        *ngIf="perm.hasAny(P.CategoryCreate, P.ProductCreate)" [disabled]="!productForm.mainTypeCatId"
+                        [matTooltip]="'catalog.categories.new' | t">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+              <div class="category-row">
+                <label>{{ 'createProduct.subType' | t }}
+                  <select [(ngModel)]="productForm.subTypeCatId" name="msub" [disabled]="!productForm.typeCatId">
+                    <option [ngValue]="null">—</option>
+                    <option *ngFor="let c of formSubTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-secondary btn-sm add-btn" (click)="quickAddCategory('SubType')"
+                        *ngIf="perm.hasAny(P.CategoryCreate, P.ProductCreate)" [disabled]="!productForm.typeCatId"
+                        [matTooltip]="'catalog.categories.new' | t">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+            </div>
+            <label>{{ 'erpProducts.detail.vat' | t }}<input type="number" [(ngModel)]="productForm.vatPercent" name="mvat" /></label>
+            <label>{{ 'erpProducts.detail.weight' | t }}
+              <input type="number" step="0.001" min="0" [(ngModel)]="productForm.weight" name="mweight" [placeholder]="'erpProducts.detail.weightUnit' | t" />
+            </label>
+            <label>{{ 'erpProducts.detail.length' | t }}
+              <input type="number" step="0.1" min="0" [(ngModel)]="productForm.depth" name="mlength" [placeholder]="'erpProducts.detail.mm' | t" />
+            </label>
+            <label>{{ 'erpProducts.detail.width' | t }}
+              <input type="number" step="0.1" min="0" [(ngModel)]="productForm.width" name="mwidth" [placeholder]="'erpProducts.detail.mm' | t" />
+            </label>
+            <label>{{ 'erpProducts.detail.height' | t }}
+              <input type="number" step="0.1" min="0" [(ngModel)]="productForm.height" name="mheight" [placeholder]="'erpProducts.detail.mm' | t" />
+            </label>
+            <label class="full" *ngIf="!productCreating">{{ 'erpProducts.detail.comment' | t }}
+              <textarea [(ngModel)]="productForm.comment" name="mcomment" rows="2"></textarea>
+            </label>
+            <p class="hint full">{{ 'catalog.products.priceOnVariantHint' | t }}</p>
+          </div>
+
+          <!-- Création : variantes brouillon -->
+          <div class="draft-block" *ngIf="createTab === 'variants' && productCreating">
+            <p class="hint">{{ 'catalog.products.variantsHint' | t }}</p>
+            <div class="draft-list" *ngIf="draftVariants.length">
+              <div class="draft-row" *ngFor="let v of draftVariants; let i = index" [class.editing]="draftVariantEditIndex === i">
+                <div>
+                  <strong class="font-mono">{{ v.sku }}</strong>
+                  <span class="muted" *ngIf="v.barcode"> · {{ v.barcode }}</span>
+                  <div class="muted">
+                    {{ 'catalog.variants.stock' | t }}: {{ v.stockQuantity }}
+                    <ng-container *ngIf="v.priceOverride != null"> · {{ 'catalog.variants.price' | t }}: {{ v.priceOverride }}</ng-container>
+                    <ng-container *ngIf="v.costPrice != null"> · {{ 'erpProducts.detail.purchasePrice' | t }}: {{ v.costPrice }}</ng-container>
+                  </div>
+                </div>
+                <div class="extras-row-actions">
+                  <button type="button" class="icon-btn" (click)="editDraftVariant(i)" [attr.aria-label]="'common.edit' | t"><mat-icon>edit</mat-icon></button>
+                  <button type="button" class="icon-btn" (click)="removeDraftVariant(i)" [attr.aria-label]="'common.delete' | t"><mat-icon>delete</mat-icon></button>
+                </div>
+              </div>
+            </div>
+            <div class="draft-add">
+              <input [(ngModel)]="draftVariantSku" name="dvSku" [placeholder]="'catalog.variants.sku' | t" />
+              <input [(ngModel)]="draftVariantBarcode" name="dvBar" [placeholder]="'catalog.variants.barcode' | t" />
+              <input type="number" [(ngModel)]="draftVariantCost" name="dvCost" [placeholder]="'erpProducts.detail.purchasePrice' | t" />
+              <input type="number" [(ngModel)]="draftVariantPrice" name="dvPrice" [placeholder]="'catalog.variants.price' | t" />
+              <input type="number" [(ngModel)]="draftVariantStock" name="dvStock" [placeholder]="'catalog.variants.stock' | t" />
+              <div class="draft-add-actions">
+                <button type="button" class="btn-primary" (click)="addDraftVariant()">
+                  <mat-icon>{{ draftVariantEditIndex != null ? 'check' : 'add' }}</mat-icon>
+                  {{ draftVariantEditIndex != null ? ('common.save' | t) : ('catalog.products.addVariant' | t) }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Édition : variantes persistées -->
+          <div class="draft-block" *ngIf="createTab === 'variants' && !productCreating">
+            <div class="draft-list" *ngIf="variants.length">
+              <div class="extras-row" *ngFor="let v of variants" [class.editing]="editingVariantId === v.id">
+                <div>
+                  <strong class="font-mono">{{ v.sku }}</strong>
+                  <span class="muted" *ngIf="v.barcode"> · {{ v.barcode }}</span>
+                  <div class="muted">
+                    {{ 'catalog.variants.stock' | t }}: {{ v.stockQuantity }}
+                    <ng-container *ngIf="v.priceOverride != null"> · {{ 'catalog.variants.price' | t }}: {{ v.priceOverride }}</ng-container>
+                  </div>
+                </div>
+                <div class="extras-row-actions">
+                  <button type="button" class="icon-btn" (click)="startEditVariant(v)" *ngIf="perm.has(P.ProductUpdate)"><mat-icon>edit</mat-icon></button>
+                  <button type="button" class="icon-btn" (click)="deleteVariant(v.id)" *ngIf="perm.has(P.ProductDelete)"><mat-icon>delete</mat-icon></button>
+                </div>
+              </div>
+            </div>
+            <p class="muted" *ngIf="!variants.length">{{ 'catalog.variants.empty' | t }}</p>
+            <div class="draft-add" *ngIf="perm.hasAny(P.ProductCreate, P.ProductUpdate)">
+              <input [(ngModel)]="variantForm.sku" [placeholder]="'catalog.variants.sku' | t" />
+              <input [(ngModel)]="variantForm.barcode" [placeholder]="'catalog.variants.barcode' | t" />
+              <input type="number" [(ngModel)]="variantForm.costPrice" [placeholder]="'erpProducts.detail.purchasePrice' | t" />
+              <input type="number" [(ngModel)]="variantForm.priceOverride" [placeholder]="'catalog.variants.price' | t" />
+              <input type="number" [(ngModel)]="variantForm.stockQuantity" [placeholder]="'catalog.variants.stock' | t" />
+              <div class="draft-add-actions">
+                <button type="button" class="btn-secondary" *ngIf="editingVariantId" (click)="cancelVariantEdit()">{{ 'common.cancel' | t }}</button>
+                <button type="button" class="btn-primary" (click)="saveVariant()" [disabled]="extrasSaving">
+                  {{ editingVariantId ? ('common.save' | t) : ('catalog.products.addVariant' | t) }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Création : images brouillon -->
+          <div class="draft-block" *ngIf="createTab === 'images' && productCreating">
+            <p class="hint">{{ 'catalog.products.imagesHint' | t }}</p>
+            <div class="draft-list" *ngIf="draftImages.length">
+              <div class="draft-row" *ngFor="let img of draftImages; let i = index">
+                <div>
+                  <a [href]="img.url" target="_blank" rel="noopener">{{ img.url }}</a>
+                  <div class="muted">{{ img.altText || '—' }} · <button type="button" class="link-btn" (click)="setDraftImageMain(i)">{{ img.isMain ? ('catalog.images.main' | t) : ('catalog.images.setMain' | t) }}</button></div>
+                </div>
+                <button type="button" class="icon-btn" (click)="removeDraftImage(i)"><mat-icon>delete</mat-icon></button>
+              </div>
+            </div>
+            <div class="draft-add">
+              <input [(ngModel)]="draftImageUrl" name="diUrl" [placeholder]="'catalog.images.url' | t" />
+              <input [(ngModel)]="draftImageAlt" name="diAlt" [placeholder]="'catalog.images.alt' | t" />
+              <div class="draft-add-actions">
+                <button type="button" class="btn-primary" (click)="addDraftImage()">
+                  <mat-icon>add</mat-icon> {{ 'catalog.products.addImage' | t }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Édition : images persistées -->
+          <div class="draft-block" *ngIf="createTab === 'images' && !productCreating">
+            <div class="draft-list" *ngIf="images.length">
+              <div class="extras-row" *ngFor="let img of images">
+                <div>
+                  <a [href]="img.url" target="_blank" rel="noopener">{{ img.url }}</a>
+                  <div class="muted">{{ img.altText || '—' }} · {{ img.isMain ? ('catalog.images.main' | t) : '' }}</div>
+                </div>
+                <button type="button" class="icon-btn" (click)="deleteImage(img.id)" *ngIf="perm.has(P.ProductDelete)"><mat-icon>delete</mat-icon></button>
+              </div>
+            </div>
+            <p class="muted" *ngIf="!images.length">{{ 'catalog.images.empty' | t }}</p>
+            <div class="draft-add" *ngIf="perm.has(P.ProductCreate)">
+              <input [(ngModel)]="imageForm.url" [placeholder]="'catalog.images.url' | t" />
+              <input [(ngModel)]="imageForm.altText" [placeholder]="'catalog.images.alt' | t" />
+              <div class="draft-add-actions">
+                <label class="checkbox-inline"><input type="checkbox" [(ngModel)]="imageForm.isMain" /> {{ 'catalog.images.main' | t }}</label>
+                <button type="button" class="btn-primary" (click)="saveImage()" [disabled]="extrasSaving">{{ 'common.save' | t }}</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Édition : attributs -->
+          <div class="draft-block" *ngIf="createTab === 'attributes' && !productCreating">
+            <div class="vehicle-compat-block">
+              <h4>{{ 'catalog.vehicleCompat.title' | t }}</h4>
+              <div class="vehicle-compat-pickers">
+                <label>{{ 'catalog.vehicleCompat.brand' | t }}
+                  <select [(ngModel)]="vehiclePick.brand" name="vbrand" (ngModelChange)="onVehicleBrandChange()">
+                    <option value="">—</option>
+                    <option *ngFor="let b of vehicleBrands" [value]="b.brand">{{ b.brand }}</option>
+                  </select>
+                </label>
+                <label>{{ 'catalog.vehicleCompat.model' | t }}
+                  <select [(ngModel)]="vehiclePick.model" name="vmodel" (ngModelChange)="onVehicleModelChange()" [disabled]="!vehiclePick.brand">
+                    <option value="">—</option>
+                    <option *ngFor="let m of vehicleModels" [value]="m.name">{{ m.name }}</option>
+                  </select>
+                </label>
+                <label>{{ 'catalog.vehicleCompat.generation' | t }}
+                  <select [(ngModel)]="vehiclePick.generation" name="vgeneration" (ngModelChange)="onVehicleGenerationChange()" [disabled]="!vehiclePick.model">
+                    <option value="">—</option>
+                    <option *ngFor="let g of vehicleGenerations" [value]="g.name">{{ g.name }}</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-secondary btn-sm" (click)="addVehicleCompatibility()" [disabled]="!vehiclePick.brand || !vehiclePick.model">
+                  {{ 'catalog.vehicleCompat.add' | t }}
+                </button>
+              </div>
+              <div class="vehicle-compat-list" *ngIf="vehicleCompatList.length">
+                <div class="extras-row" *ngFor="let v of vehicleCompatList; let i = index">
+                  <div>
+                    <strong>{{ v.brand }} {{ v.model }}</strong>
+                    <div class="muted">{{ v.generation }} · {{ vehicleCompatYearsLabel(v) }}</div>
+                  </div>
+                  <button type="button" class="icon-btn" (click)="removeVehicleCompatibility(i)"><mat-icon>delete</mat-icon></button>
+                </div>
+              </div>
+              <p class="muted" *ngIf="!vehicleCompatList.length">{{ 'catalog.vehicleCompat.empty' | t }}</p>
+              <button type="button" class="btn-primary btn-sm" (click)="saveVehicleCompatibility()" *ngIf="perm.has(P.ProductUpdate) && vehicleCompatDef">
+                {{ 'catalog.vehicleCompat.save' | t }}
+              </button>
+            </div>
+
+            <button class="btn-secondary btn-sm" type="button" (click)="createAttrDefinition()" *ngIf="perm.has(P.ProductCreate)">
+              {{ 'catalog.attributes.newDef' | t }}
+            </button>
+            <div class="extras-list" *ngIf="genericAttrDefs.length" style="margin-top: 8px;">
+              <div class="extras-row attr-row" *ngFor="let d of genericAttrDefs">
+                <label>{{ d.name }} <span class="font-mono muted">({{ d.code }})</span>
+                  <input [(ngModel)]="attrValueDrafts[d.id]" [name]="'mattr_'+d.id" />
+                </label>
+                <button class="btn-primary btn-sm" type="button" (click)="saveAttrValue(d.id)" *ngIf="perm.has(P.ProductUpdate)">{{ 'common.save' | t }}</button>
+              </div>
+            </div>
+            <p class="muted" *ngIf="!genericAttrDefs.length && hasErpCatalogSync">{{ 'catalog.attributes.empty' | t }}</p>
+          </div>
+        </div>
+
+        <div class="product-modal-footer sticky-actions">
+          <button class="btn-secondary" type="button" (click)="cancelProductEdit()">{{ 'common.cancel' | t }}</button>
+          <button class="btn-primary" type="button" (click)="saveProduct()" [disabled]="productSaving">
+            {{ productSaving ? ('common.saving' | t) : (productCreating ? ('createProduct.save' | t) : ('common.save' | t)) }}
+          </button>
+        </div>
+      </div>
     </div>
   </section>
 </div>

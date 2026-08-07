@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
-    public class SalesInvoice : IHasCompanyId, IHasSoftDelete, IHasArchive
+    public class SalesInvoice : IHasCompanyId, IHasSoftDelete, IHasArchive, IHasAuditTrail
     {
         public int Id { get; set; }
         public string InvoiceNumber { get; set; } = string.Empty;
@@ -32,6 +33,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsArchived { get; set; }
         public DateTime? ArchivedAt { get; set; }
         public string? ArchivedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         /// <summary>Somme des avoirs Applied (non persisté).</summary>
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
@@ -60,7 +64,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public List<SalesInvoiceLine> Lines { get; set; } = new();
     }
 
-    public class SalesInvoiceLine
+    public class SalesInvoiceLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int SalesInvoiceId { get; set; }
@@ -84,5 +88,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? LotNumber { get; set; }
         /// <summary>Fournisseur associé à la ligne (info / marge, optionnel).</summary>
         public int? SupplierId { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

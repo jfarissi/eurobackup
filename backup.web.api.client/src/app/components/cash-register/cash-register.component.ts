@@ -9,11 +9,13 @@ import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-cash-register',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent, SortableThComponent],
   templateUrl: './cash-register.component.html',
   styleUrls: ['./cash-register.component.css']
 })
@@ -22,6 +24,8 @@ export class CashRegisterComponent implements OnInit {
   activeSession: CashSession | null = null;
   sessionHistory: CashSession[] = [];
   selectedHistorySession: CashSession | null = null;
+  operationSort = new TableSortState('createdAt', 'desc');
+  sessionSort = new TableSortState('openedAt', 'desc');
   openingBalanceInput = 50.0;
   closingBalanceInput = 0;
   showOpenModal = false;
@@ -166,6 +170,30 @@ export class CashRegisterComponent implements OnInit {
     return this.activeSession?.operations || [];
   }
 
+  get sortedOperations(): CashOperation[] {
+    void this.operationSort.version;
+    return this.operationSort.sort(this.operations, {
+      createdAt: o => o.createdAt ?? '',
+      operationType: o => o.operationType ?? '',
+      description: o => o.description ?? '',
+      referenceDocument: o => o.referenceDocument ?? '',
+      amount: o => o.amount ?? 0,
+      createdBy: o => o.createdBy ?? ''
+    });
+  }
+
+  get sortedSessionHistory(): CashSession[] {
+    void this.sessionSort.version;
+    return this.sessionSort.sort(this.sessionHistory, {
+      sessionNumber: s => s.sessionNumber ?? '',
+      openedAt: s => s.openedAt ?? '',
+      status: s => s.status ?? '',
+      openingBalance: s => s.openingBalance ?? 0,
+      closingBalance: s => s.closingBalance ?? null,
+      variance: s => this.sessionVariance(s)
+    });
+  }
+
   get historyOperations(): CashOperation[] {
     return this.selectedHistorySession?.operations || [];
   }
@@ -214,8 +242,6 @@ export class CashRegisterComponent implements OnInit {
   }
 
   private normalizeSession(session: CashSession): CashSession {
-    const operations = [...(session.operations || [])]
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    return { ...session, operations };
+    return { ...session, operations: [...(session.operations || [])] };
   }
 }

@@ -31,6 +31,7 @@
     <PackageReference Include="PdfPig.Filters.Dct.JpegLibrary" Version="0.1.11" />
     <!-- Removing JPX filter due to TypeLoadException; fallback to TryGetPng/RawBytes and page render OCR -->
     <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.11" />
+    <PackageReference Include="MailKit" Version="4.11.0" />
     <PackageReference Include="QuestPDF" Version="2024.2.0" />
     <PackageReference Include="Stripe.net" Version="47.4.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
@@ -52,7 +53,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Data\" />
+    <None Include="Data\CarApi\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

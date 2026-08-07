@@ -8,7 +8,7 @@ export interface AuthUser {
   permissions?: string[];
   companyId?: string | null;
   companyName?: string | null;
-  companies?: { id: string; name: string }[];
+  companies?: { id: string; name: string; enableErpCatalogSync?: boolean }[];
 }
 
 export interface LoginRequest {
@@ -27,5 +27,5 @@ export interface LoginResponse {
   permissions?: string[];
   companyId?: string | null;
   companyName?: string | null;
-  companies?: { id: string; name: string }[];
+  companies?: { id: string; name: string; enableErpCatalogSync?: boolean }[];
 }

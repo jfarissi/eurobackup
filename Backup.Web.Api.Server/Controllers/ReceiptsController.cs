@@ -7,10 +7,12 @@ using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Services.Documents;
 using Backup.Web.Api.Server.Services.Documents.Parsing;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
+using Backup.Web.Api.Server.Services.Stock;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -102,6 +104,151 @@ namespace Backup.Web.Api.Server.Controllers
             public int StockMovementCount { get; set; }
             public decimal StockQuantityIn { get; set; }
             public List<string> Warnings { get; set; } = new();
+        }
+
+        public class CreateManualReceiptRequest
+        {
+            public int SupplierId { get; set; }
+            public int? PurchaseOrderId { get; set; }
+            public string? ReceiptNumber { get; set; }
+            public DateTime? ReceivedAt { get; set; }
+            public string? Notes { get; set; }
+            public bool UpdateStock { get; set; } = true;
+            public decimal DefaultVatRate { get; set; } = 21m;
+            public List<CreateManualReceiptLineRequest> Lines { get; set; } = new();
+        }
+
+        public class CreateManualReceiptLineRequest
+        {
+            public string ProductKey { get; set; } = string.Empty;
+            public string? Description { get; set; }
+            public decimal QuantityReceived { get; set; }
+            public decimal UnitPriceExclTax { get; set; }
+            public decimal? TaxRatePercent { get; set; }
+        }
+
+        /// <summary>
+        /// Création manuelle d'une réception (sans document OCR) + stock/CMUP optionnel.
+        /// </summary>
+        [HttpPost]
+        [RequirePermission(Permissions.ReceiptCreate)]
+        public async Task<IActionResult> CreateManual([FromBody] CreateManualReceiptRequest request)
+        {
+            if (request == null) return BadRequest("Body required");
+            if (request.SupplierId <= 0) return BadRequest("Fournisseur requis.");
+
+            var supplier = await this.storage.SelectSupplierByIdAsync(request.SupplierId);
+            if (supplier == null || !supplier.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                return BadRequest("Fournisseur introuvable.");
+
+            if (request.PurchaseOrderId.HasValue)
+            {
+                var po = await this.storage.SelectPurchaseOrderByIdAsync(request.PurchaseOrderId.Value);
+                if (po == null || !po.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                    return BadRequest("Commande fournisseur introuvable.");
+                if (po.SupplierId != request.SupplierId)
+                    return BadRequest("La commande ne correspond pas au fournisseur sélectionné.");
+            }
+
+            var rawLines = (request.Lines ?? new List<CreateManualReceiptLineRequest>())
+                .Where(l => !string.IsNullOrWhiteSpace(l.ProductKey) && l.QuantityReceived > 0.0001m)
+                .ToList();
+            if (rawLines.Count == 0)
+                return BadRequest("Au moins une ligne avec code produit et quantité > 0 est requise.");
+
+            var documentLines = rawLines.Select((l, i) => new DocumentLine
+            {
+                LineNumber = i + 1,
+                ProductCode = l.ProductKey.Trim(),
+                Product = string.IsNullOrWhiteSpace(l.Description) ? l.ProductKey.Trim() : l.Description.Trim(),
+                Quantity = l.QuantityReceived,
+                UnitPrice = l.UnitPriceExclTax
+            }).ToList();
+
+            var ensureResult = await this.productEnsure.EnsureProductsForLinesAsync(documentLines, supplier.Name);
+
+            var vatDefault = request.DefaultVatRate > 0 ? request.DefaultVatRate : 21m;
+            var receiptNumber = !string.IsNullOrWhiteSpace(request.ReceiptNumber)
+                ? request.ReceiptNumber.Trim()
+                : await this.numberingService.GetNextNumberAsync("Receipt", this.companyContext.GetCurrentCompanyId());
+
+            var hold = !request.UpdateStock;
+            var receipt = new Receipt
+            {
+                ReceiptNumber = receiptNumber,
+                SupplierId = request.SupplierId,
+                PurchaseOrderId = request.PurchaseOrderId,
+                DocumentId = null,
+                ReceivedAt = request.ReceivedAt ?? DateTime.UtcNow,
+                Status = hold ? "QualityHold" : "Posted",
+                Notes = string.IsNullOrWhiteSpace(request.Notes)
+                    ? "Réception saisie manuellement"
+                    : request.Notes.Trim(),
+                CreatedBy = User.Identity?.Name ?? "System",
+                CreatedAt = DateTime.UtcNow,
+                CompanyId = this.companyContext.GetCurrentCompanyId(),
+                Lines = rawLines.Select((line, index) =>
+                {
+                    var productKey = ProductKeyHelper.Normalize(line.ProductKey);
+                    var qty = line.QuantityReceived;
+                    var unitPrice = line.UnitPriceExclTax;
+                    var vat = line.TaxRatePercent.HasValue && line.TaxRatePercent.Value > 0
+                        ? line.TaxRatePercent.Value
+                        : vatDefault;
+                    var ht = qty * unitPrice;
+                    return new ReceiptLine
+                    {
+                        ProductKey = productKey,
+                        Description = string.IsNullOrWhiteSpace(line.Description)
+                            ? productKey
+                            : line.Description.Trim(),
+                        QuantityReceived = qty,
+                        UnitPriceExclTax = unitPrice,
+                        TaxRatePercent = vat,
+                        LineAmountExclTax = ht,
+                        LineTaxAmount = ht * (vat / 100m),
+                        LineNumber = index + 1
+                    };
+                }).ToList()
+            };
+
+            var created = await this.storage.InsertReceiptAsync(receipt);
+            created = await this.storage.SelectReceiptByIdAsync(created.Id) ?? created;
+
+            await SalesDocumentAudit.LogAsync(
+                this.storage,
+                this.companyContext.GetCurrentCompanyId(),
+                "Receipt",
+                created.Id,
+                hold ? "QualityHold" : "Posted",
+                SalesDocumentAudit.ActorFrom(User),
+                $"Réception manuelle {created.ReceiptNumber} ({created.Status})");
+
+            var result = new ComptabiliserResult
+            {
+                Receipt = created,
+                Warnings = new List<string>()
+            };
+            result.Warnings.AddRange(ensureResult.Warnings);
+
+            if (hold)
+            {
+                result.Warnings.Add("Réception en contrôle qualité (QualityHold) — stock non mis à jour. POST /receipts/{id}/post pour valider.");
+            }
+
+            if (!hold && request.UpdateStock)
+            {
+                await this.ApplyReceiptStockAsync(created, supplier.Name, result);
+            }
+
+            if (!hold && request.PurchaseOrderId.HasValue)
+            {
+                await this.ApplyReceiptToPurchaseOrderAsync(created, request.PurchaseOrderId.Value);
+                created = await this.storage.SelectReceiptByIdAsync(created.Id) ?? created;
+                result.Receipt = created;
+            }
+
+            return Created(result);
         }
 
         /// <summary>
@@ -397,31 +544,23 @@ namespace Backup.Web.Api.Server.Controllers
 
         private async Task ApplyReceiptStockAsync(Receipt receipt, string? supplierName, ComptabiliserResult result)
         {
-            if (!receipt.DocumentId.HasValue)
-            {
-                result.Warnings.Add("Pas de DocumentId : stock non alimenté automatiquement.");
-                return;
-            }
-
-            var documentId = receipt.DocumentId.Value;
-            var alreadyStocked = this.storage.SelectStockUpdatesByDeliveryId(documentId).Any();
-            if (alreadyStocked)
-            {
-                result.StockAlreadyApplied = true;
-                result.Warnings.Add($"Stock déjà alimenté pour le BL #{documentId} (pas de double entrée).");
-                return;
-            }
-
             var stockChanges = receipt.Lines
                 .Where(l => l.QuantityReceived > 0)
                 .GroupBy(l => ProductKeyHelper.Normalize(l.ProductKey), StringComparer.OrdinalIgnoreCase)
-                .Select(g => (
-                    productKey: g.Key,
-                    quantityDelta: g.Sum(x => x.QuantityReceived),
-                    supplier: supplierName,
-                    description: g.Select(x => x.Description).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d)),
-                    unit: (string?)null
-                ))
+                .Select(g =>
+                {
+                    var qty = g.Sum(x => x.QuantityReceived);
+                    var costSum = g.Sum(x => x.QuantityReceived * x.UnitPriceExclTax);
+                    decimal? unitCost = qty > 0.0001m ? Math.Round(costSum / qty, 4, MidpointRounding.AwayFromZero) : null;
+                    return (
+                        productKey: g.Key,
+                        quantityDelta: qty,
+                        supplier: supplierName,
+                        description: g.Select(x => x.Description).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d)),
+                        unit: (string?)null,
+                        unitCost: unitCost
+                    );
+                })
                 .ToList();
 
             if (stockChanges.Count == 0)
@@ -430,21 +569,71 @@ namespace Backup.Web.Api.Server.Controllers
                 return;
             }
 
-            await this.storage.UpsertStockBatchAsync(stockChanges, documentId, invoiceId: null);
+            var companyId = this.companyContext.GetCurrentCompanyId();
             var createdBy = User.Identity?.Name ?? "System";
-            foreach (var change in stockChanges)
+
+            // Réception liée à un BL parsé : UpsertStockBatch + anti-doublon DocumentId.
+            if (receipt.DocumentId.HasValue)
             {
-                await this.storage.InsertStockMovementAsync(new StockMovement
+                var documentId = receipt.DocumentId.Value;
+                var alreadyStocked = this.storage.SelectStockUpdatesByDeliveryId(documentId).Any();
+                if (alreadyStocked)
                 {
-                    ProductKey = change.productKey,
-                    MovementType = "In",
-                    Quantity = change.quantityDelta,
-                    Reason = "Comptabilisation réception fournisseur",
-                    ReferenceDocument = $"REC:{receipt.ReceiptNumber}|BL:{documentId}",
-                    CompanyId = this.companyContext.GetCurrentCompanyId(),
-                    CreatedBy = createdBy,
-                    CreatedAt = DateTime.UtcNow
-                });
+                    result.StockAlreadyApplied = true;
+                    result.Warnings.Add($"Stock déjà alimenté pour le BL #{documentId} (pas de double entrée).");
+                    return;
+                }
+
+                await this.storage.UpsertStockBatchAsync(stockChanges, documentId, invoiceId: null);
+                foreach (var change in stockChanges)
+                {
+                    var unitCost = change.unitCost;
+                    await this.storage.InsertStockMovementAsync(new StockMovement
+                    {
+                        ProductKey = change.productKey,
+                        MovementType = "In",
+                        Quantity = change.quantityDelta,
+                        UnitCost = unitCost,
+                        StockValue = unitCost.HasValue
+                            ? Math.Round(change.quantityDelta * unitCost.Value, 4, MidpointRounding.AwayFromZero)
+                            : null,
+                        Reason = "Comptabilisation réception fournisseur",
+                        ReferenceDocument = $"REC:{receipt.ReceiptNumber}|BL:{documentId}",
+                        CompanyId = companyId,
+                        CreatedBy = createdBy,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+            else
+            {
+                // Réception manuelle : StockLedger (CMUP) ; anti-doublon via référence REC:{number}.
+                var refPrefix = $"REC:{receipt.ReceiptNumber}";
+                var alreadyManual = this.storage.SelectAllStockMovements()
+                    .ForCompany(companyId)
+                    .Any(m => m.ReferenceDocument != null
+                              && m.ReferenceDocument.StartsWith(refPrefix)
+                              && m.MovementType == "In");
+                if (alreadyManual)
+                {
+                    result.StockAlreadyApplied = true;
+                    result.Warnings.Add($"Stock déjà alimenté pour la réception {receipt.ReceiptNumber} (pas de double entrée).");
+                    return;
+                }
+
+                foreach (var change in stockChanges)
+                {
+                    await StockLedger.ApplyAsync(
+                        this.storage,
+                        companyId,
+                        change.productKey,
+                        "In",
+                        change.quantityDelta,
+                        refPrefix,
+                        "Réception manuelle fournisseur",
+                        createdBy,
+                        change.unitCost);
+                }
             }
 
             result.StockUpdated = true;

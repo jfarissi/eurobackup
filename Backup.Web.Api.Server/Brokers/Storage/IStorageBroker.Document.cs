@@ -26,7 +26,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask DeleteLinesByDocumentIdAsync(int documentId);
 
         // Stock
-        ValueTask UpsertStockBatchAsync(IEnumerable<(string productKey, decimal quantityDelta, string? supplier, string? description, string? unit)> changes, int deliveryId, int? invoiceId = null);
+        ValueTask UpsertStockBatchAsync(IEnumerable<(string productKey, decimal quantityDelta, string? supplier, string? description, string? unit, decimal? unitCost)> changes, int deliveryId, int? invoiceId = null);
         IQueryable<Models.StockItem> SelectAllStock();
         IQueryable<Models.StockUpdate> SelectStockUpdatesByDeliveryId(int deliveryId);
         IQueryable<Models.StockUpdate> SelectStockUpdatesByProductKey(string productKey);

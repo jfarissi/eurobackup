@@ -1,27 +1,230 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Backup.Web.Api.Server.Models.Users;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Backup.Web.Api.Server.Models.Rols;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Catalog;
 using Backup.Web.Api.Server.Models.Entities;
+using Backup.Web.Api.Server.Models.Entities.Email;
 using Backup.Web.Api.Server.Models.Entities.SaaS;
+using Backup.Web.Api.Server.Services.Audit;
+using Backup.Web.Api.Server.Services.Sales;
 
 namespace Backup.Web.Api.Server.Brokers.Storage
 {
     public partial class StorageBroker : IdentityDbContext<User, Role, Guid>, IStorageBroker
     {
         private readonly IConfiguration configuration;
+        private readonly IHttpContextAccessor? httpContextAccessor;
 
-        public StorageBroker(IConfiguration configuration)
+        /// <summary>Lit un DateTime? DB (NULL legacy) comme DateTime non-null.</summary>
+        private static readonly ValueConverter<DateTime, DateTime?> NullableDateTimeAsUtcConverter =
+            new(
+                model => model == default ? null : model,
+                provider => provider.HasValue
+                    ? DateTime.SpecifyKind(provider.Value, DateTimeKind.Utc)
+                    : DateTime.UnixEpoch);
+
+        public StorageBroker(IConfiguration configuration, IHttpContextAccessor? httpContextAccessor = null)
         {
             this.configuration = configuration;
-            //this.Database.EnsureCreated();
-            //this.Database.Migrate();
+            this.httpContextAccessor = httpContextAccessor;
+        }
+
+        public override int SaveChanges()
+        {
+            var pendingCreated = this.ApplyAuditTrail();
+            var result = base.SaveChanges();
+            this.FlushPendingEntityAuditLogs(pendingCreated);
+            return result;
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            var pendingCreated = this.ApplyAuditTrail();
+            var result = await base.SaveChangesAsync(cancellationToken);
+            await this.FlushPendingEntityAuditLogsAsync(pendingCreated, cancellationToken);
+            return result;
+        }
+
+        /// <summary>
+        /// Stamp CreatedBy/UpdatedBy + file EntityAuditLog (Updated/Deleted immédiatement,
+        /// Created après génération de la clé).
+        /// </summary>
+        private List<EntityEntry> ApplyAuditTrail()
+        {
+            var actor = SalesDocumentAudit.ActorFrom(this.httpContextAccessor?.HttpContext?.User);
+            var now = DateTime.UtcNow;
+            var companyFallback = this.httpContextAccessor?.HttpContext?.Request.Headers["X-Company-ID"].FirstOrDefault()
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("CompanyId")?.Value
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("companyId")?.Value;
+            var pendingCreated = new List<EntityEntry>();
+
+            foreach (var entry in this.ChangeTracker.Entries<IHasAuditTrail>().ToList())
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    AuditTrail.StampCreate(entry.Entity, actor, now);
+                    if (entry.Entity is Models.Document document && document.DateAdded == default)
+                        document.DateAdded = now;
+                    if (ShouldWriteEntityAudit(entry))
+                        pendingCreated.Add(entry);
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    AuditTrail.StampUpdate(entry.Entity, actor, now);
+                    entry.Property(e => e.CreatedAt).IsModified = false;
+                    entry.Property(e => e.CreatedBy).IsModified = false;
+                    if (entry.Entity is Models.StockItem stock)
+                        stock.LastUpdated = now;
+
+                    if (ShouldWriteEntityAudit(entry) && HasMeaningfulPropertyChanges(entry))
+                    {
+                        this.EntityAuditLogs.Add(BuildEntityAuditLog(entry, "Updated", actor, now, companyFallback));
+                    }
+                }
+                else if (entry.State == EntityState.Deleted)
+                {
+                    if (ShouldWriteEntityAudit(entry))
+                        this.EntityAuditLogs.Add(BuildEntityAuditLog(entry, "Deleted", actor, now, companyFallback));
+                }
+            }
+
+            return pendingCreated;
+        }
+
+        private void FlushPendingEntityAuditLogs(List<EntityEntry> pendingCreated)
+        {
+            if (pendingCreated == null || pendingCreated.Count == 0)
+                return;
+
+            AddPendingCreatedLogs(pendingCreated);
+            base.SaveChanges();
+        }
+
+        private async Task FlushPendingEntityAuditLogsAsync(List<EntityEntry> pendingCreated, CancellationToken cancellationToken)
+        {
+            if (pendingCreated == null || pendingCreated.Count == 0)
+                return;
+
+            AddPendingCreatedLogs(pendingCreated);
+            await base.SaveChangesAsync(cancellationToken);
+        }
+
+        private void AddPendingCreatedLogs(List<EntityEntry> pendingCreated)
+        {
+            var actor = SalesDocumentAudit.ActorFrom(this.httpContextAccessor?.HttpContext?.User);
+            var now = DateTime.UtcNow;
+            var companyFallback = this.httpContextAccessor?.HttpContext?.Request.Headers["X-Company-ID"].FirstOrDefault()
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("CompanyId")?.Value
+                ?? this.httpContextAccessor?.HttpContext?.User?.FindFirst("companyId")?.Value;
+
+            foreach (var entry in pendingCreated)
+            {
+                if (entry.Entity == null) continue;
+                this.EntityAuditLogs.Add(BuildEntityAuditLog(entry, "Created", actor, now, companyFallback));
+            }
+        }
+
+        private static bool ShouldWriteEntityAudit(EntityEntry entry)
+        {
+            var type = entry.Metadata.ClrType;
+            if (type == typeof(EntityAuditLog) || type == typeof(DocumentAuditLog))
+                return false;
+            if (type == typeof(Models.ErpProductChangeLog))
+                return false;
+
+            var name = type.Name;
+            // Lignes de documents : trop verbeux (déjà couvertes via l'en-tête).
+            if (name.EndsWith("Line", StringComparison.Ordinal)
+                || name.EndsWith("LineEntity", StringComparison.Ordinal)
+                || name.EndsWith("Lines", StringComparison.Ordinal))
+                return false;
+
+            if (name is "DeliveryLineAdjustment" or "PaymentAllocation" or "UserCompany")
+                return false;
+
+            return true;
+        }
+
+        private static readonly HashSet<string> AuditOnlyProperties = new(StringComparer.OrdinalIgnoreCase)
+        {
+            nameof(IHasAuditTrail.CreatedAt),
+            nameof(IHasAuditTrail.UpdatedAt),
+            nameof(IHasAuditTrail.CreatedBy),
+            nameof(IHasAuditTrail.UpdatedBy),
+            "LastUpdated",
+            "RowVersion"
+        };
+
+        private static bool HasMeaningfulPropertyChanges(EntityEntry entry)
+        {
+            foreach (var prop in entry.Properties)
+            {
+                if (!prop.IsModified) continue;
+                if (AuditOnlyProperties.Contains(prop.Metadata.Name)) continue;
+                return true;
+            }
+            return false;
+        }
+
+        private static EntityAuditLog BuildEntityAuditLog(
+            EntityEntry entry,
+            string action,
+            string? actor,
+            DateTime now,
+            string? companyFallback)
+        {
+            var typeName = entry.Metadata.ClrType.Name;
+            var key = FormatEntityKey(entry);
+            string? companyId = null;
+            if (entry.Entity is Services.Tenancy.IHasCompanyId hasCompany)
+                companyId = hasCompany.CompanyId;
+            if (string.IsNullOrWhiteSpace(companyId))
+                companyId = companyFallback;
+
+            string? details = null;
+            if (action == "Updated")
+            {
+                var changed = entry.Properties
+                    .Where(p => p.IsModified && !AuditOnlyProperties.Contains(p.Metadata.Name))
+                    .Select(p => p.Metadata.Name)
+                    .Take(40)
+                    .ToList();
+                if (changed.Count > 0)
+                    details = string.Join(", ", changed);
+            }
+
+            var who = AuditTrail.NormalizeActor(actor);
+            return new EntityAuditLog
+            {
+                EntityType = typeName,
+                EntityKey = key,
+                Action = action,
+                Summary = $"{action} {typeName} #{key} by {who}",
+                Details = details,
+                Actor = who,
+                CompanyId = companyId,
+                CreatedAt = now
+            };
+        }
+
+        private static string FormatEntityKey(EntityEntry entry)
+        {
+            var key = entry.Metadata.FindPrimaryKey();
+            if (key == null || key.Properties.Count == 0)
+                return "?";
+            return string.Join(",", key.Properties.Select(p =>
+                entry.Property(p.Name).CurrentValue?.ToString() ?? ""));
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -83,6 +286,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(s => s.QuantityOnHand).HasPrecision(18, 4);
                 entity.Property(s => s.ReservedQuantity).HasPrecision(18, 4);
                 entity.Property(s => s.MinStock).HasPrecision(18, 4);
+                entity.Property(s => s.AverageCost).HasPrecision(18, 4);
             });
             modelBuilder.Entity<StockUpdate>(entity =>
             {
@@ -165,6 +369,111 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasIndex(p => p.CategoryId);
             });
 
+            modelBuilder.Entity<ErpProductVariant>(entity =>
+            {
+                entity.ToTable("ErpProductVariants");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.Sku).IsRequired().HasMaxLength(100);
+                entity.Property(v => v.Barcode).HasMaxLength(64);
+                entity.Property(v => v.AttributesJson).HasMaxLength(8000);
+                entity.Property(v => v.CreatedBy).HasMaxLength(128);
+                entity.Property(v => v.UpdatedBy).HasMaxLength(128);
+                entity.Property(v => v.CostPrice).HasPrecision(18, 4);
+                entity.Property(v => v.PriceOverride).HasPrecision(18, 4);
+                entity.Property(v => v.StockQuantity).HasPrecision(18, 4);
+                entity.Property(v => v.Weight).HasPrecision(18, 4);
+                entity.Property(v => v.Length).HasPrecision(18, 4);
+                entity.Property(v => v.Width).HasPrecision(18, 4);
+                entity.Property(v => v.Height).HasPrecision(18, 4);
+                entity.HasIndex(v => v.Sku).IsUnique();
+                entity.HasIndex(v => v.Barcode).IsUnique();
+                entity.HasIndex(v => v.ProductId);
+                entity.HasOne(v => v.Product)
+                    .WithMany()
+                    .HasForeignKey(v => v.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpProductImage>(entity =>
+            {
+                entity.ToTable("ErpProductImages");
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.Url).IsRequired().HasMaxLength(1024);
+                entity.Property(i => i.AltText).HasMaxLength(255);
+                entity.Property(i => i.CreatedBy).HasMaxLength(128);
+                entity.Property(i => i.UpdatedBy).HasMaxLength(128);
+                entity.HasIndex(i => i.ProductId);
+                entity.HasIndex(i => new { i.ProductId, i.IsMain });
+                entity.HasOne(i => i.Product)
+                    .WithMany()
+                    .HasForeignKey(i => i.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpProductAttributeDefinition>(entity =>
+            {
+                entity.ToTable("ErpProductAttributeDefinitions");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CompanyId).IsRequired().HasMaxLength(36);
+                entity.Property(a => a.Code).IsRequired().HasMaxLength(64);
+                entity.Property(a => a.Name).IsRequired().HasMaxLength(128);
+                entity.Property(a => a.CreatedBy).HasMaxLength(128);
+                entity.Property(a => a.UpdatedBy).HasMaxLength(128);
+                entity.HasIndex(a => new { a.CompanyId, a.Code }).IsUnique();
+            });
+
+            modelBuilder.Entity<ErpProductAttributeValue>(entity =>
+            {
+                entity.ToTable("ErpProductAttributeValues");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.Value).IsRequired();
+                entity.Property(v => v.CreatedBy).HasMaxLength(128);
+                entity.Property(v => v.UpdatedBy).HasMaxLength(128);
+                entity.HasIndex(v => v.ProductId);
+                entity.HasIndex(v => new { v.ProductId, v.AttributeId }).IsUnique();
+                entity.HasOne(v => v.Product)
+                    .WithMany()
+                    .HasForeignKey(v => v.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(v => v.Attribute)
+                    .WithMany()
+                    .HasForeignKey(v => v.AttributeId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpProductVehicle>(entity =>
+            {
+                entity.ToTable("ErpProductVehicles");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.Make).IsRequired().HasMaxLength(128);
+                entity.Property(v => v.Model).IsRequired().HasMaxLength(128);
+                entity.Property(v => v.EngineCode).HasMaxLength(64);
+                entity.Property(v => v.KType).HasMaxLength(64);
+                entity.Property(v => v.BodyType).HasMaxLength(64);
+                entity.Property(v => v.FuelType).HasMaxLength(64);
+                entity.HasIndex(v => v.ProductId);
+                entity.HasIndex(v => new { v.Make, v.Model });
+                entity.HasIndex(v => v.KType);
+                entity.HasOne(v => v.Product)
+                    .WithMany()
+                    .HasForeignKey(v => v.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpOemCrossReference>(entity =>
+            {
+                entity.ToTable("ErpOemCrossReferences");
+                entity.HasKey(o => o.Id);
+                entity.Property(o => o.OemNumber).IsRequired().HasMaxLength(128);
+                entity.Property(o => o.Brand).HasMaxLength(128);
+                entity.HasIndex(o => new { o.ProductId, o.OemNumber }).IsUnique();
+                entity.HasIndex(o => o.OemNumber);
+                entity.HasOne(o => o.Product)
+                    .WithMany()
+                    .HasForeignKey(o => o.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<ErpBrand>(entity =>
             {
                 entity.ToTable("ErpBrands");
@@ -176,6 +485,10 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(b => b.LogoUrl).HasMaxLength(500);
                 entity.Property(b => b.WebsiteUrl).HasMaxLength(500);
                 entity.Property(b => b.Description).HasMaxLength(1000);
+                // Lignes legacy avec CreatedAt/UpdatedAt NULL en base.
+                // Note: IsRequired(false) interdit sur DateTime non-nullable ; le converter suffit.
+                entity.Property(b => b.CreatedAt).HasConversion(NullableDateTimeAsUtcConverter);
+                entity.Property(b => b.UpdatedAt).HasConversion(NullableDateTimeAsUtcConverter);
             });
 
             modelBuilder.Entity<ErpCategory>(entity =>
@@ -193,6 +506,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(c => c.SlugNl).IsRequired().HasMaxLength(255);
                 entity.Property(c => c.SlugFr).IsRequired().HasMaxLength(255);
                 entity.Property(c => c.SlugEn).IsRequired().HasMaxLength(255);
+                entity.Property(c => c.CreatedAt).HasConversion(NullableDateTimeAsUtcConverter);
+                entity.Property(c => c.UpdatedAt).HasConversion(NullableDateTimeAsUtcConverter);
                 entity.HasOne(c => c.Parent)
                     .WithMany(c => c.Children)
                     .HasForeignKey(c => c.ParentId)
@@ -549,6 +864,10 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasIndex(m => m.ProductKey);
                 entity.Property(m => m.ProductKey).IsRequired().HasMaxLength(256);
                 entity.Property(m => m.Quantity).HasPrecision(18, 4);
+                entity.Property(m => m.UnitCost).HasPrecision(18, 4);
+                entity.Property(m => m.StockValue).HasPrecision(18, 4);
+                entity.Property(m => m.CreatedAt).HasConversion(NullableDateTimeAsUtcConverter);
+                entity.Property(m => m.UpdatedAt).HasConversion(NullableDateTimeAsUtcConverter);
             });
 
             modelBuilder.Entity<DocumentNumberSequence>(entity =>
@@ -647,6 +966,20 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasOne(c => c.Tenant).WithMany(t => t.Companies).HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<CompanyModule>(entity =>
+            {
+                entity.ToTable("CompanyModules");
+                entity.HasKey(m => m.Id);
+                entity.Property(m => m.Id).HasMaxLength(36);
+                entity.Property(m => m.CompanyId).HasMaxLength(36);
+                entity.Property(m => m.ModuleCode).HasMaxLength(64);
+                entity.Property(m => m.ModuleName).HasMaxLength(128);
+                entity.HasIndex(m => new { m.CompanyId, m.ModuleCode }).IsUnique();
+                entity.HasIndex(m => m.CompanyId);
+                entity.HasIndex(m => m.ModuleCode);
+                entity.HasOne(m => m.Company).WithMany().HasForeignKey(m => m.CompanyId).OnDelete(DeleteBehavior.Cascade);
+            });
+
             modelBuilder.Entity<UserCompany>(entity =>
             {
                 entity.ToTable("UserCompanies");
@@ -718,6 +1051,20 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(a => a.CompanyId).HasMaxLength(36);
                 entity.HasIndex(a => new { a.DocumentType, a.DocumentId, a.CreatedAt });
                 entity.HasIndex(a => a.CompanyId);
+            });
+
+            modelBuilder.Entity<EntityAuditLog>(entity =>
+            {
+                entity.ToTable("EntityAuditLogs");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.EntityType).IsRequired().HasMaxLength(80);
+                entity.Property(a => a.EntityKey).IsRequired().HasMaxLength(64);
+                entity.Property(a => a.Action).IsRequired().HasMaxLength(40);
+                entity.Property(a => a.Summary).HasMaxLength(500);
+                entity.Property(a => a.Actor).HasMaxLength(128);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.HasIndex(a => new { a.CompanyId, a.CreatedAt });
+                entity.HasIndex(a => new { a.EntityType, a.EntityKey, a.CreatedAt });
             });
 
             modelBuilder.Entity<Document>(entity =>
@@ -919,6 +1266,56 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasOne(p => p.Customer).WithMany().HasForeignKey(p => p.CustomerId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(p => new { p.CustomerId, p.ProductKey });
             });
+
+            modelBuilder.Entity<CompanyEmailSettings>(entity =>
+            {
+                entity.ToTable("CompanyEmailSettings");
+                entity.HasKey(s => s.CompanyId);
+                entity.Property(s => s.CompanyId).HasMaxLength(36);
+                entity.Property(s => s.SmtpHost).HasMaxLength(255);
+                entity.Property(s => s.Username).HasMaxLength(255);
+                entity.Property(s => s.Password).HasMaxLength(512);
+                entity.Property(s => s.FromEmail).HasMaxLength(255);
+                entity.Property(s => s.FromDisplayName).HasMaxLength(255);
+                entity.Property(s => s.DefaultReplyTo).HasMaxLength(255);
+                entity.Property(s => s.UpdatedBy).HasMaxLength(128);
+                entity.Property(s => s.StockAlertRecipients).HasMaxLength(1000);
+                entity.HasOne<Company>().WithMany().HasForeignKey(s => s.CompanyId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<EmailMessage>(entity =>
+            {
+                entity.ToTable("EmailMessages");
+                entity.HasKey(m => m.Id);
+                entity.Property(m => m.CompanyId).HasMaxLength(36);
+                entity.Property(m => m.TrackingId).HasMaxLength(64);
+                entity.Property(m => m.TemplateCode).HasMaxLength(64);
+                entity.Property(m => m.DocumentType).HasMaxLength(64);
+                entity.Property(m => m.DocumentNumber).HasMaxLength(128);
+                entity.Property(m => m.ToEmail).HasMaxLength(255);
+                entity.Property(m => m.CcEmails).HasMaxLength(1024);
+                entity.Property(m => m.ReplyTo).HasMaxLength(255);
+                entity.Property(m => m.Subject).HasMaxLength(500);
+                entity.Property(m => m.AttachmentFileName).HasMaxLength(255);
+                entity.Property(m => m.Status).HasMaxLength(32);
+                entity.Property(m => m.LastError).HasMaxLength(500);
+                entity.Property(m => m.CreatedBy).HasMaxLength(128);
+                entity.HasIndex(m => new { m.CompanyId, m.CreatedAt });
+                entity.HasIndex(m => new { m.Status, m.ScheduledAt });
+                entity.HasIndex(m => new { m.DocumentType, m.DocumentId });
+            });
+
+            // Traçabilité CreatedBy / UpdatedBy (varchar 128) pour toutes les entités IHasAuditTrail.
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                if (!typeof(IHasAuditTrail).IsAssignableFrom(entityType.ClrType))
+                    continue;
+                modelBuilder.Entity(entityType.ClrType, b =>
+                {
+                    b.Property(nameof(IHasAuditTrail.CreatedBy)).HasMaxLength(128);
+                    b.Property(nameof(IHasAuditTrail.UpdatedBy)).HasMaxLength(128);
+                });
+            }
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

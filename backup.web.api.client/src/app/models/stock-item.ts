@@ -4,6 +4,8 @@ export interface StockItem {
   quantityOnHand: number;
   reservedQuantity?: number;
   minStock?: number;
+  /** CMUP / CMP — coût moyen unitaire pondéré */
+  averageCost?: number;
   lastUpdated: string; // ISO date string
   lastDeliveryId?: number | null; // ID du dernier BL qui a mis à jour ce produit
   supplier?: string | null; // Fournisseur

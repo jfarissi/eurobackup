@@ -170,7 +170,12 @@ public class AuthController : ControllerBase
         return await _storage.SelectUserCompaniesByUserId(userId)
             .Where(uc => uc.Company != null && uc.Company.IsActive)
             .OrderBy(uc => uc.Company!.Name)
-            .Select(uc => new CompanySummary { Id = uc.CompanyId, Name = uc.Company!.Name })
+            .Select(uc => new CompanySummary
+            {
+                Id = uc.CompanyId,
+                Name = uc.Company!.Name,
+                EnableErpCatalogSync = uc.Company.EnableErpCatalogSync
+            })
             .ToListAsync();
     }
 }

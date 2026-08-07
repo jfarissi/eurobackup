@@ -117,12 +117,20 @@ public static class AuthSeedService
                 || !string.Equals(existing.UserName, email, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(existing.Email, email, StringComparison.OrdinalIgnoreCase);
 
-            if (needsPasswordRepair || needsNormalize)
+            var needsProfile =
+                (!string.IsNullOrWhiteSpace(options.Name) && !string.Equals(existing.Name, options.Name, StringComparison.Ordinal))
+                || (!string.IsNullOrWhiteSpace(options.FamilyName) && !string.Equals(existing.FamilyName, options.FamilyName, StringComparison.Ordinal));
+
+            if (needsPasswordRepair || needsNormalize || needsProfile)
             {
                 existing.Email = email;
                 existing.EmailConfirmed = true;
                 existing.Status = UserStatus.Activated;
                 existing.UpdatedDate = DateTimeOffset.UtcNow;
+                if (!string.IsNullOrWhiteSpace(options.Name))
+                    existing.Name = options.Name;
+                if (!string.IsNullOrWhiteSpace(options.FamilyName))
+                    existing.FamilyName = options.FamilyName;
 
                 try
                 {
@@ -135,8 +143,9 @@ public static class AuthSeedService
                         create: false);
 
                     logger.LogInformation(
-                        "Auth seed: user normalized{PasswordPart} ({Email})",
+                        "Auth seed: user normalized{PasswordPart}{ProfilePart} ({Email})",
                         needsPasswordRepair ? " + password repaired" : "",
+                        needsProfile ? " + profile" : "",
                         email);
                 }
                 catch (Exception ex)

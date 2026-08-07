@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Authorization;
@@ -12,7 +15,9 @@ using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.ErpSync;
 using Backup.Web.Api.Server.Services.Purchases;
+using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,24 +34,40 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker _storage;
         private readonly IErpProductSyncService _syncService;
         private readonly IErpExcelImportService _excelImport;
+        private readonly ICarApiImportService _carApiImport;
         private readonly IErpCatalogSyncService _catalogSync;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ErpSyncOptions _erpSyncOptions;
+        private readonly ICompanyContextService _companyContext;
 
         public ErpProductController(
             IStorageBroker storage,
             IErpProductSyncService syncService,
             IErpExcelImportService excelImport,
+            ICarApiImportService carApiImport,
             IErpCatalogSyncService catalogSync,
             IHttpClientFactory httpClientFactory,
-            IOptions<ErpSyncOptions> erpSyncOptions)
+            IOptions<ErpSyncOptions> erpSyncOptions,
+            ICompanyContextService companyContext)
         {
             _storage = storage;
             _syncService = syncService;
             _excelImport = excelImport;
+            _carApiImport = carApiImport;
             _catalogSync = catalogSync;
             _httpClientFactory = httpClientFactory;
             _erpSyncOptions = erpSyncOptions.Value;
+            _companyContext = companyContext;
+        }
+
+        private async Task<IActionResult?> ForbidUnlessErpCatalogSyncAsync()
+        {
+            if (await _companyContext.CurrentCompanyHasErpCatalogSyncAsync())
+                return null;
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                error = "Sync catalogue ERP non activée pour cette société."
+            });
         }
 
         /// <summary>
@@ -92,6 +113,9 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? typeId = null,
             [FromQuery] string? subTypeId = null,
             [FromQuery] int? supplierId = null,
+            [FromQuery] string? vehicleBrand = null,
+            [FromQuery] string? vehicleModel = null,
+            [FromQuery] int? vehicleYear = null,
             CancellationToken ct = default)
         {
             page = Math.Max(1, page);
@@ -116,6 +140,16 @@ namespace Backup.Web.Api.Server.Controllers
                 query = query.Where(p => p.TypeID == typeId);
             else if (!string.IsNullOrWhiteSpace(mainTypeId))
                 query = query.Where(p => p.MainTypeID == mainTypeId);
+
+            if (!string.IsNullOrWhiteSpace(vehicleBrand)
+                || !string.IsNullOrWhiteSpace(vehicleModel)
+                || vehicleYear.HasValue)
+            {
+                var matchingIds = await FindProductIdsByVehicleCompatAsync(
+                    vehicleBrand, vehicleModel, vehicleYear, ct);
+                query = query.Where(p => matchingIds.Contains(p.Id));
+            }
+
             if (!string.IsNullOrWhiteSpace(q))
             {
                 var term = q.Trim().ToLowerInvariant();
@@ -157,6 +191,7 @@ namespace Backup.Web.Api.Server.Controllers
             public string? Reference { get; set; }
             public string? Ean { get; set; }
             public decimal? PurchasePrice { get; set; }
+            public decimal? UnitPrice { get; set; }
             public decimal? VatPercent { get; set; }
             public int? BrandId { get; set; }
             public string? BrandName { get; set; }
@@ -202,8 +237,8 @@ namespace Backup.Web.Api.Server.Controllers
                 BrandId = brandId,
                 Brand = brandName,
                 CPrice = request.PurchasePrice,
-                UnitPrice = request.PurchasePrice,
-                PriceHT = request.PurchasePrice,
+                UnitPrice = request.UnitPrice ?? request.PurchasePrice,
+                PriceHT = request.PurchasePrice ?? request.UnitPrice,
                 TypeVatPerc = request.VatPercent ?? 21m,
                 DataSource = "Manual",
                 FromExcel = false,
@@ -223,6 +258,84 @@ namespace Backup.Web.Api.Server.Controllers
 
             var inserted = await _storage.InsertErpProductAsync(product);
             return Ok(new { product = inserted, created = true });
+        }
+
+        public class UpdateErpProductRequest
+        {
+            public string? Name { get; set; }
+            public string? Name2 { get; set; }
+            public string? Reference { get; set; }
+            public string? Ean { get; set; }
+            public decimal? PurchasePrice { get; set; }
+            public decimal? UnitPrice { get; set; }
+            public decimal? VatPercent { get; set; }
+            public int? BrandId { get; set; }
+            public string? BrandName { get; set; }
+            public int? CategoryId { get; set; }
+            public string? Comment { get; set; }
+            public bool? Archived { get; set; }
+            public decimal? Weight { get; set; }
+            public decimal? Height { get; set; }
+            public decimal? Width { get; set; }
+            public decimal? Depth { get; set; }
+        }
+
+        [HttpPut("{id:int}")]
+        [RequirePermission(Permissions.ProductUpdate)]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateErpProductRequest? request, CancellationToken ct = default)
+        {
+            if (request == null) return BadRequest(new { message = "Body required" });
+
+            var existing = await _storage.SelectErpProductByIdAsync(id);
+            if (existing == null) return NotFound();
+
+            if (request.Name != null) existing.Name = request.Name.Trim();
+            if (request.Name2 != null) existing.Name2 = string.IsNullOrWhiteSpace(request.Name2) ? null : request.Name2.Trim();
+            if (request.Reference != null) existing.Reference = request.Reference.Trim();
+            if (request.Ean != null) existing.Ean = string.IsNullOrWhiteSpace(request.Ean) ? null : request.Ean.Trim();
+            if (request.PurchasePrice.HasValue)
+            {
+                existing.CPrice = request.PurchasePrice;
+                existing.PriceHT = request.PurchasePrice;
+            }
+            if (request.UnitPrice.HasValue) existing.UnitPrice = request.UnitPrice;
+            if (request.VatPercent.HasValue) existing.TypeVatPerc = request.VatPercent;
+            if (request.Comment != null) existing.Comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim();
+            if (request.Archived.HasValue) existing.Archived = request.Archived;
+            if (request.Weight.HasValue) existing.Weight = request.Weight;
+            if (request.Height.HasValue) existing.Height = request.Height;
+            if (request.Width.HasValue) existing.Width = request.Width;
+            if (request.Depth.HasValue) existing.Depth = request.Depth;
+
+            if (request.BrandId.HasValue || !string.IsNullOrWhiteSpace(request.BrandName))
+            {
+                var (brandId, brandName) = await ResolveBrandForCreateAsync(
+                    request.BrandId, request.BrandName, null, ct);
+                existing.BrandId = brandId;
+                existing.Brand = brandName;
+            }
+
+            if (request.CategoryId is > 0)
+                await ApplyCategoryToProductAsync(existing, request.CategoryId.Value, ct);
+
+            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedBy = User.Identity?.Name;
+            var updated = await _storage.UpdateErpProductAsync(existing);
+            return Ok(updated);
+        }
+
+        [HttpDelete("{id:int}")]
+        [RequirePermission(Permissions.ProductDelete)]
+        public async Task<IActionResult> Archive(int id, CancellationToken ct = default)
+        {
+            var existing = await _storage.SelectErpProductByIdAsync(id);
+            if (existing == null) return NotFound();
+
+            existing.Archived = true;
+            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedBy = User.Identity?.Name;
+            await _storage.UpdateErpProductAsync(existing);
+            return NoContent();
         }
 
         [HttpGet("suggest-brand")]
@@ -326,7 +439,17 @@ namespace Backup.Web.Api.Server.Controllers
                     .FirstOrDefaultAsync(b => b.Name.ToLower() == name.ToLower(), ct);
                 if (existing != null)
                     return (existing.Id, existing.Name);
-                return (null, name);
+
+                var created = await _storage.InsertErpBrandAsync(new ErpBrand
+                {
+                    Name = name,
+                    Slug = SlugifyBrand(name),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    CreatedBy = User.Identity?.Name
+                });
+                return (created.Id, created.Name);
             }
 
             var token = SupplierBrandMatcher.DeriveBrandToken(supplierName);
@@ -346,6 +469,23 @@ namespace Backup.Web.Api.Server.Controllers
                 return (matches[0].Id, matches[0].Name);
 
             return (null, token);
+        }
+
+        private static string SlugifyBrand(string input)
+        {
+            var normalized = input.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder();
+            foreach (var c in normalized)
+            {
+                var cat = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (cat == UnicodeCategory.NonSpacingMark) continue;
+                if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
+                else if (char.IsWhiteSpace(c) || c == '-' || c == '_') sb.Append('-');
+            }
+            var slug = sb.ToString().Trim('-');
+            while (slug.Contains("--", StringComparison.Ordinal))
+                slug = slug.Replace("--", "-", StringComparison.Ordinal);
+            return string.IsNullOrEmpty(slug) ? "brand" : slug;
         }
 
         private async Task ApplyCategoryToProductAsync(ErpProduct product, int categoryId, CancellationToken ct)
@@ -403,6 +543,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> SyncOne([FromRoute] string erpId, CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             if (string.IsNullOrWhiteSpace(erpId))
                 return BadRequest("erpId required");
 
@@ -425,6 +566,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> SyncByLocalId([FromRoute] int id, CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             try
             {
                 var product = await _syncService.SyncLocalProductByIdAsync(id, ct);
@@ -445,6 +587,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] bool wait = false,
             CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             if (wait)
             {
                 var log = await _syncService.SyncAllProductsAsync(ct);
@@ -471,6 +614,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] bool cancelPrevious = true,
             CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             var filter = new ErpCatalogSyncFilter
             {
                 MainTypeId = mainTypeId,
@@ -513,6 +657,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ProductUpdate)]
         public async Task<IActionResult> CancelRunningSync(CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             var cancelled = await _syncService.CancelRunningSyncAsync(ct);
             if (cancelled == null)
                 return NotFound(new { message = "Aucune sync en cours" });
@@ -523,10 +668,52 @@ namespace Backup.Web.Api.Server.Controllers
         [RequireAnyPermission(Permissions.ProductRead, Permissions.ErpChangeRead)]
         public async Task<IActionResult> GetSyncLogByJobId([FromRoute] string jobId, CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             var log = await _syncService.GetSyncLogByJobIdAsync(jobId, ct);
             if (log == null)
                 return NotFound(new { message = $"Job {jobId} introuvable" });
             return Ok(log);
+        }
+
+        /// <summary>
+        /// Importe le catalogue pièces auto depuis lifeofcapo/car-api (car-parts.json).
+        /// Les fichiers sont lus depuis ErpSync:CarApiDataPath ou Data/CarApi par défaut.
+        /// </summary>
+        [HttpPost("import-car-api")]
+        [RequirePermission(Permissions.ProductUpdate)]
+        [RequestTimeout(600_000)]
+        public async Task<IActionResult> ImportCarApi(
+            [FromQuery] string? path = null,
+            [FromQuery] bool importParts = true,
+            [FromQuery] bool importVehicleBrands = false,
+            [FromQuery] bool applyFrenchNames = true,
+            [FromQuery] bool ensureVehicleAttribute = true,
+            [FromQuery] bool rebuildCatalog = false,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var companyId = _companyContext.GetCurrentCompanyId();
+                var importResult = await _carApiImport.ImportAsync(
+                    path,
+                    importParts,
+                    importVehicleBrands,
+                    applyFrenchNames,
+                    ensureVehicleAttribute,
+                    companyId,
+                    User.Identity?.Name,
+                    ct);
+                object? catalog = null;
+                if (rebuildCatalog)
+                    catalog = await _catalogSync.RebuildFromProductsAsync(ct);
+
+                return Ok(new { import = importResult, catalog });
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Import car-api échoué", detail = msg });
+            }
         }
 
         /// <summary>
@@ -541,6 +728,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? path = null,
             CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             try
             {
                 var importResult = await _excelImport.ImportFromDirectoryAsync(path, ct);
@@ -570,6 +758,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] bool includeTypes = true,
             CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             try
             {
                 var result = await _syncService.SyncMainTypesFromErpAsync(includeTypes, ct);
@@ -592,6 +781,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequestTimeout(3_600_000)]
         public async Task<IActionResult> RebuildCatalog(CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             try
             {
                 var fromErp = await _syncService.SyncMainTypesFromErpAsync(includeTypes: true, ct);
@@ -626,6 +816,18 @@ namespace Backup.Web.Api.Server.Controllers
                 var all = await _storage.SelectAllErpBrands()
                     .AsNoTracking()
                     .OrderBy(b => b.Name)
+                    .Select(b => new
+                    {
+                        b.Id,
+                        b.Name,
+                        b.Slug,
+                        b.LogoUrl,
+                        b.WebsiteUrl,
+                        b.Description,
+                        b.IsActive,
+                        b.CreatedBy,
+                        b.UpdatedBy
+                    })
                     .ToListAsync(ct);
                 return Ok(all);
             }
@@ -644,6 +846,18 @@ namespace Backup.Web.Api.Server.Controllers
                 .AsNoTracking()
                 .Where(b => brandNames.Contains(b.Name))
                 .OrderBy(b => b.Name)
+                .Select(b => new
+                {
+                    b.Id,
+                    b.Name,
+                    b.Slug,
+                    b.LogoUrl,
+                    b.WebsiteUrl,
+                    b.Description,
+                    b.IsActive,
+                    b.CreatedBy,
+                    b.UpdatedBy
+                })
                 .ToListAsync(ct);
 
             return Ok(items);
@@ -736,6 +950,119 @@ namespace Backup.Web.Api.Server.Controllers
         }
 
         /// <summary>
+        /// Produits compatibles véhicule via ErpProductVehicles (+ fallback attribut vehicle_compat).
+        /// </summary>
+        private async Task<HashSet<int>> FindProductIdsByVehicleCompatAsync(
+            string? vehicleBrand,
+            string? vehicleModel,
+            int? vehicleYear,
+            CancellationToken ct)
+        {
+            var ids = new HashSet<int>();
+            var brand = vehicleBrand?.Trim();
+            var model = vehicleModel?.Trim();
+
+            var vehicleQuery = _storage.SelectAllErpProductVehicles().AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(brand))
+            {
+                var brandLower = brand.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v => v.Make.ToLower() == brandLower);
+            }
+
+            if (!string.IsNullOrWhiteSpace(model))
+            {
+                var modelLower = model.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v => v.Model.ToLower() == modelLower);
+            }
+
+            if (vehicleYear.HasValue)
+            {
+                var year = vehicleYear.Value;
+                vehicleQuery = vehicleQuery.Where(v =>
+                    (v.YearFrom == null || v.YearFrom <= year)
+                    && (v.YearTo == null || v.YearTo >= year));
+            }
+
+            foreach (var id in await vehicleQuery.Select(v => v.ProductId).Distinct().ToListAsync(ct))
+                ids.Add(id);
+
+            // Fallback JSON attribute (compat manuelle car-api)
+            var defIds = await _storage.SelectAllErpProductAttributeDefinitions()
+                .AsNoTracking()
+                .Where(d => d.Code == CarApiCatalogService.VehicleCompatAttributeCode && d.IsActive)
+                .Select(d => d.Id)
+                .ToListAsync(ct);
+
+            if (defIds.Count > 0)
+            {
+                var values = await _storage.SelectAllErpProductAttributeValues()
+                    .AsNoTracking()
+                    .Where(v => defIds.Contains(v.AttributeId) && v.Value != null && v.Value != "")
+                    .Select(v => new { v.ProductId, v.Value })
+                    .ToListAsync(ct);
+
+                foreach (var row in values)
+                {
+                    if (!VehicleCompatMatches(row.Value, brand, model, vehicleYear))
+                        continue;
+                    ids.Add(row.ProductId);
+                }
+            }
+
+            return ids;
+        }
+
+        private static bool VehicleCompatMatches(
+            string json,
+            string? brand,
+            string? model,
+            int? year)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                    return false;
+
+                foreach (var entry in doc.RootElement.EnumerateArray())
+                {
+                    var entryBrand = entry.TryGetProperty("brand", out var b) ? b.GetString() : null;
+                    var entryModel = entry.TryGetProperty("model", out var m) ? m.GetString() : null;
+                    int? yearFrom = entry.TryGetProperty("yearFrom", out var yf) && yf.ValueKind == JsonValueKind.Number
+                        ? yf.GetInt32()
+                        : null;
+                    int? yearTo = entry.TryGetProperty("yearTo", out var yt) && yt.ValueKind == JsonValueKind.Number
+                        ? yt.GetInt32()
+                        : null;
+
+                    if (!string.IsNullOrWhiteSpace(brand)
+                        && !string.Equals(entryBrand, brand, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(model)
+                        && !string.Equals(entryModel, model, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (year.HasValue)
+                    {
+                        if (yearFrom.HasValue && year.Value < yearFrom.Value)
+                            continue;
+                        if (yearTo.HasValue && year.Value > yearTo.Value)
+                            continue;
+                    }
+
+                    return true;
+                }
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Filtre catalogue par marques du fournisseur (Brand.Name LIKE '%token%'),
         /// token dérivé du nom fournisseur (ex. FF GROUP TOOL INDUSTRIES SA → FF GROUP).
         /// </summary>
@@ -813,6 +1140,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] int pageSize = 50,
             CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 200);
 
@@ -900,6 +1228,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ErpChangeUpdate)]
         public async Task<IActionResult> MarkChangesRead([FromBody] MarkChangesReadRequest request, CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             if (request?.Ids == null || request.Ids.Count == 0)
                 return BadRequest("ids required");
 
@@ -911,6 +1240,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ErpChangeDelete)]
         public async Task<IActionResult> DeleteChanges([FromBody] MarkChangesReadRequest request, CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             if (request?.Ids == null || request.Ids.Count == 0)
                 return BadRequest("ids required");
 
@@ -922,6 +1252,7 @@ namespace Backup.Web.Api.Server.Controllers
         [RequirePermission(Permissions.ErpChangeUpdate)]
         public async Task<IActionResult> CleanupFormattingFalsePositives(CancellationToken ct = default)
         {
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;
             var deleted = await _syncService.CleanupFormattingFalsePositivesAsync(ct);
             return Ok(new { deleted });
         }
@@ -933,7 +1264,7 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] int pageSize = 20,
             CancellationToken ct = default)
         {
-            page = Math.Max(1, page);
+            if (await ForbidUnlessErpCatalogSyncAsync() is { } forbidden) return forbidden;            page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
 
             var query = _storage.SelectAllErpSyncLogs().AsNoTracking();

@@ -7,6 +7,8 @@ using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.Accounting;
+using Backup.Web.Api.Server.Models.Entities.Email;
+using Backup.Web.Api.Server.Services.Email;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
@@ -24,12 +26,23 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly INumberingSequenceService numberingService;
         private readonly ICompanyContextService companyContext;
+        private readonly IEmailDispatchService emailDispatch;
 
-        public SalesInvoicesController(IStorageBroker storage, INumberingSequenceService numberingService, ICompanyContextService companyContext)
+        public SalesInvoicesController(
+            IStorageBroker storage,
+            INumberingSequenceService numberingService,
+            ICompanyContextService companyContext,
+            IEmailDispatchService emailDispatch)
         {
             this.storage = storage;
             this.numberingService = numberingService;
             this.companyContext = companyContext;
+            this.emailDispatch = emailDispatch;
+        }
+
+        public sealed class RemindInvoiceRequest
+        {
+            public bool SendEmail { get; set; } = true;
         }
 
         [HttpGet]
@@ -54,7 +67,7 @@ namespace Backup.Web.Api.Server.Controllers
             foreach (var invoice in list)
             {
                 SalesInvoiceSettlement.Enrich(invoice, this.storage, linkedIds.Contains(invoice.Id));
-                invoice.IsOverdue = ComputeIsOverdue(invoice);
+                invoice.IsOverdue = SalesInvoiceReminderHelper.IsOverdue(invoice);
             }
             return Ok(list);
         }
@@ -70,21 +83,11 @@ namespace Backup.Web.Api.Server.Controllers
                 .ToList();
             foreach (var invoice in list)
                 SalesInvoiceSettlement.Enrich(invoice, this.storage);
-            var overdue = list.Where(ComputeIsOverdue).ToList();
+            var overdue = list.Where(SalesInvoiceReminderHelper.IsOverdue).ToList();
             foreach (var invoice in overdue) invoice.IsOverdue = true;
             return Ok(overdue);
         }
 
-        /// <summary>RG-RG9 lite : Validated/PartiallyPaid + DueDate dépassée + reste dû &gt; 0.</summary>
-        private static bool ComputeIsOverdue(SalesInvoice invoice)
-        {
-            var isEligibleStatus = string.Equals(invoice.Status, "Validated", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(invoice.Status, "PartiallyPaid", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(invoice.Status, "Reminded", StringComparison.OrdinalIgnoreCase);
-            if (!isEligibleStatus) return false;
-            if (invoice.DueDate.Date >= DateTime.UtcNow.Date) return false;
-            return invoice.RemainingAmount > 0.01m;
-        }
 
         [HttpGet("{id:int}")]
         [RequirePermission(Permissions.InvoiceRead)]
@@ -93,26 +96,54 @@ namespace Backup.Web.Api.Server.Controllers
             var invoice = await this.storage.SelectSalesInvoiceByIdAsync(id);
             if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
             SalesInvoiceSettlement.Enrich(invoice, this.storage);
-            invoice.IsOverdue = ComputeIsOverdue(invoice);
+            invoice.IsOverdue = SalesInvoiceReminderHelper.IsOverdue(invoice);
             return Ok(invoice);
         }
 
-        /// <summary>RG-RG9 lite : relance manuelle — ajoute une note, audite "Reminded" et bascule le statut Validated → Reminded.</summary>
+        /// <summary>RG-RG9 lite : relance manuelle — note + statut + email optionnel.</summary>
         [HttpPost("{id:int}/remind")]
         [RequirePermission(Permissions.InvoiceUpdate)]
-        public async Task<IActionResult> Remind(int id)
+        public async Task<IActionResult> Remind(int id, [FromBody] RemindInvoiceRequest? request = null)
         {
+            request ??= new RemindInvoiceRequest();
             var invoice = await this.storage.SelectSalesInvoiceByIdAsync(id);
             if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
             SalesInvoiceSettlement.Enrich(invoice, this.storage);
 
-            if (!ComputeIsOverdue(invoice))
+            if (!SalesInvoiceReminderHelper.IsOverdue(invoice))
                 return BadRequest("Cette facture n'est pas en retard de paiement (statut, échéance ou reste dû non éligibles).");
 
-            var note = $"Relance envoyée le {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC (échéance {invoice.DueDate:dd/MM/yyyy}).";
+            var companyId = invoice.CompanyId ?? this.companyContext.GetCurrentCompanyId();
+            var settings = await this.storage.SelectCompanyEmailSettingsByCompanyIdAsync(companyId);
+            var daysOverdue = SalesInvoiceReminderHelper.GetDaysOverdue(invoice);
+            var templateCode = settings != null
+                ? SalesInvoiceReminderHelper.ResolveTemplateCode(daysOverdue, settings)
+                : EmailTemplateCodes.PaymentReminderN1;
+
+            EmailMessage? emailMessage = null;
+            if (request.SendEmail)
+            {
+                try
+                {
+                    emailMessage = await this.emailDispatch.QueueAsync(companyId, new SendEmailRequest
+                    {
+                        DocumentType = "SalesInvoice",
+                        DocumentId = invoice.Id,
+                        TemplateCode = templateCode,
+                        SendNow = true
+                    }, User.Identity?.Name ?? "System");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return BadRequest(new { error = ex.Message });
+                }
+            }
+
+            var note = request.SendEmail && emailMessage != null
+                ? $"Relance ({templateCode}) envoyée le {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC à {emailMessage.ToEmail}."
+                : $"Relance enregistrée le {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC (échéance {invoice.DueDate:dd/MM/yyyy}).";
             invoice.Notes = string.IsNullOrWhiteSpace(invoice.Notes) ? note : $"{invoice.Notes}{Environment.NewLine}{note}";
 
-            // Ne pas écraser un statut PartiallyPaid déjà informatif ; seul Validated bascule en Reminded.
             if (string.Equals(invoice.Status, "Validated", StringComparison.OrdinalIgnoreCase))
                 invoice.Status = "Reminded";
 
@@ -124,11 +155,24 @@ namespace Backup.Web.Api.Server.Controllers
                 updated.Id,
                 "Reminded",
                 SalesDocumentAudit.ActorFrom(User),
-                $"Relance facture {updated.InvoiceNumber}");
+                request.SendEmail
+                    ? $"Relance facture {updated.InvoiceNumber} ({templateCode})"
+                    : $"Relance facture {updated.InvoiceNumber}");
 
             SalesInvoiceSettlement.Enrich(updated, this.storage);
-            updated.IsOverdue = ComputeIsOverdue(updated);
-            return Ok(updated);
+            updated.IsOverdue = SalesInvoiceReminderHelper.IsOverdue(updated);
+            return Ok(new
+            {
+                invoice = updated,
+                email = emailMessage == null ? null : new
+                {
+                    emailMessage.Id,
+                    emailMessage.Status,
+                    emailMessage.ToEmail,
+                    emailMessage.TemplateCode,
+                    emailMessage.LastError
+                }
+            });
         }
 
         [HttpPost]

@@ -124,17 +124,17 @@
                          (change)="toggleSelectAll()"
                          [attr.aria-label]="'erpChanges.selectAll' | t" />
                 </th>
-                <th>{{ 'erpChanges.col.date' | t }}</th>
-                <th>{{ 'erpChanges.col.type' | t }}</th>
-                <th>{{ 'erpChanges.col.product' | t }}</th>
-                <th>{{ 'erpChanges.col.field' | t }}</th>
-                <th>{{ 'erpChanges.col.before' | t }}</th>
-                <th>{{ 'erpChanges.col.after' | t }}</th>
-                <th>{{ 'erpChanges.col.status' | t }}</th>
+                <th appSortable [state]="changeSort" key="detectedAt" defaultDir="desc">{{ 'erpChanges.col.date' | t }}</th>
+                <th appSortable [state]="changeSort" key="changeType">{{ 'erpChanges.col.type' | t }}</th>
+                <th appSortable [state]="changeSort" key="product">{{ 'erpChanges.col.product' | t }}</th>
+                <th appSortable [state]="changeSort" key="fieldName">{{ 'erpChanges.col.field' | t }}</th>
+                <th appSortable [state]="changeSort" key="oldValue">{{ 'erpChanges.col.before' | t }}</th>
+                <th appSortable [state]="changeSort" key="newValue">{{ 'erpChanges.col.after' | t }}</th>
+                <th appSortable [state]="changeSort" key="isRead">{{ 'erpChanges.col.status' | t }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let change of changes"
+              <tr *ngFor="let change of sortedChanges"
                   [class.row-unread]="!change.isRead"
                   (click)="toggleSelect(change.id)">
                 <td class="col-check" (click)="$event.stopPropagation()">
@@ -186,16 +186,16 @@
         <table class="data-table sync-table">
           <thead>
             <tr>
-              <th>{{ 'erpChanges.col.started' | t }}</th>
-              <th>{{ 'erpChanges.col.status' | t }}</th>
-              <th>{{ 'erpChanges.col.new' | t }}</th>
-              <th>{{ 'erpChanges.col.updated' | t }}</th>
-              <th>{{ 'erpChanges.col.failed' | t }}</th>
-              <th>{{ 'erpChanges.col.changes' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="startedAt" defaultDir="desc">{{ 'erpChanges.col.started' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="status">{{ 'erpChanges.col.status' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="newProducts" defaultDir="desc">{{ 'erpChanges.col.new' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="updatedProducts" defaultDir="desc">{{ 'erpChanges.col.updated' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="failedProducts" defaultDir="desc">{{ 'erpChanges.col.failed' | t }}</th>
+              <th appSortable [state]="syncLogSort" key="totalChanges" defaultDir="desc">{{ 'erpChanges.col.changes' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let log of syncLogs">
+            <tr *ngFor="let log of sortedSyncLogs">
               <td>{{ formatDate(log.startedAt) }}</td>
               <td>
                 <span class="status-pill" [attr.data-status]="log.status">{{ log.status }}</span>

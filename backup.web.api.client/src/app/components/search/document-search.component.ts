@@ -8,13 +8,15 @@ import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-document-search',
   templateUrl: './document-search.component.html',
   styleUrls: ['./document-search.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, SortableThComponent]
 })
 export class DocumentSearchComponent implements OnInit, OnDestroy {
   query = '';
@@ -25,6 +27,7 @@ export class DocumentSearchComponent implements OnInit, OnDestroy {
   factures: Document[] = [];
   bonsLivraison: Document[] = [];
   autresDocuments: Document[] = [];
+  resultSort = new TableSortState('dateDocument', 'desc');
   private routeSub: Subscription | null = null;
 
   constructor(
@@ -196,6 +199,18 @@ export class DocumentSearchComponent implements OnInit, OnDestroy {
       a.download = 'document.pdf';
       a.click();
       window.URL.revokeObjectURL(url);
+    });
+  }
+
+  get sortedResults(): Document[] {
+    void this.resultSort.version;
+    return this.resultSort.sort(this.results, {
+      id: d => d.id,
+      typeDocument: d => d.typeDocument ?? '',
+      numero: d => d.numero ?? '',
+      supplier: d => d.supplier ?? '',
+      client: d => d.client ?? '',
+      dateDocument: d => d.dateDocument ?? ''
     });
   }
 }

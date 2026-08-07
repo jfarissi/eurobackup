@@ -37,6 +37,10 @@ import { HelpAlertsComponent } from '../shared/help-alerts/help-alerts.component
 import { HelpWalkthroughComponent } from '../shared/help-walkthrough/help-walkthrough.component';
 import { evaluateHelpAlerts, HelpAlert } from '../../services/help-alerts';
 import { StockService } from '../../services/stock.service';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
+import { SendEmailModalComponent } from '../shared/send-email-modal/send-email-modal.component';
+import { EmailService } from '../../services/email.service';
 
 type DocKind = 'Quote' | 'Order' | 'Invoice';
 
@@ -61,7 +65,7 @@ interface DocLineDraft {
 @Component({
   selector: 'app-sales',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, ProductLineRefComponent, HasPermissionDirective, TPipe, FormHelpComponent, FieldHelpComponent, HelpAlertsComponent, HelpWalkthroughComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, ProductLineRefComponent, HasPermissionDirective, TPipe, FormHelpComponent, FieldHelpComponent, HelpAlertsComponent, HelpWalkthroughComponent, SortableThComponent, SendEmailModalComponent],
   templateUrl: './sales.component.html',
   styleUrls: ['./sales.component.css']
 })
@@ -87,6 +91,14 @@ export class SalesComponent implements OnInit {
   payments: Payment[] = [];
   paymentsLoading = false;
   pdfDownloading = false;
+  showEmailModal = false;
+  emailDocumentType = '';
+  emailDocumentId = 0;
+  emailTemplateCode = '';
+  overdueInvoices: SalesInvoice[] = [];
+  overdueLoading = false;
+  remindingInvoiceId: number | null = null;
+  runningReminders = false;
   pilotage: SalesPilotage | null = null;
   pilotageLoading = false;
 
@@ -183,6 +195,20 @@ export class SalesComponent implements OnInit {
 
   readonly P = Permissions;
 
+  quoteSort = new TableSortState('date', 'desc');
+  orderSort = new TableSortState('date', 'desc');
+  deliveryNoteSort = new TableSortState('date', 'desc');
+  invoiceSort = new TableSortState('date', 'desc');
+  creditNoteSort = new TableSortState('date', 'desc');
+  customerSort = new TableSortState('code', 'asc');
+  returnSort = new TableSortState('date', 'desc');
+  proformaSort = new TableSortState('date', 'desc');
+  depositSort = new TableSortState('date', 'desc');
+  paymentSort = new TableSortState('date', 'desc');
+  pendingOrderSort = new TableSortState('date', 'desc');
+  backorderSort = new TableSortState('orderNumber', 'asc');
+  trashSort = new TableSortState('deletedAt', 'desc');
+
   docHelpAlerts: HelpAlert[] = [];
   stockByProduct: Record<string, number> = {};
   showWalkthrough = false;
@@ -192,8 +218,171 @@ export class SalesComponent implements OnInit {
     private businessService: BusinessService,
     public perm: PermissionService,
     private i18n: AppI18nService,
-    private stockService: StockService
+    private stockService: StockService,
+    private emailService: EmailService
   ) {}
+
+  get sortedQuotes() {
+    void this.quoteSort.version;
+    return this.quoteSort.sort(this.quotes, {
+      number: q => q.quoteNumber,
+      customer: q => q.customer?.name ?? '',
+      date: q => q.date,
+      expiration: q => q.expirationDate,
+      ttc: q => q.totalTTC,
+      status: q => q.status
+    });
+  }
+
+  get sortedOrders() {
+    void this.orderSort.version;
+    return this.orderSort.sort(this.orders, {
+      number: o => o.orderNumber,
+      customer: o => o.customer?.name ?? '',
+      date: o => o.date,
+      ht: o => o.totalHT,
+      ttc: o => o.totalTTC,
+      status: o => o.status
+    });
+  }
+
+  get sortedDeliveryNotes() {
+    void this.deliveryNoteSort.version;
+    return this.deliveryNoteSort.sort(this.deliveryNotes, {
+      number: dn => dn.deliveryNumber,
+      customer: dn => dn.customer?.name ?? '',
+      date: dn => dn.deliveryDate,
+      order: dn => dn.salesOrder?.orderNumber ?? (dn.salesOrderId ? String(dn.salesOrderId) : ''),
+      ht: dn => dn.totalHT,
+      ttc: dn => dn.totalTTC,
+      status: dn => dn.status
+    });
+  }
+
+  get sortedInvoices() {
+    void this.invoiceSort.version;
+    return this.invoiceSort.sort(this.invoices, {
+      number: inv => inv.invoiceNumber,
+      customer: inv => inv.customer?.name ?? '',
+      date: inv => inv.date,
+      dueDate: inv => inv.dueDate,
+      ht: inv => inv.totalHT,
+      ttc: inv => inv.totalTTC,
+      paid: inv => inv.paidAmount,
+      status: inv => inv.status
+    });
+  }
+
+  get sortedCreditNotes() {
+    void this.creditNoteSort.version;
+    return this.creditNoteSort.sort(this.creditNotes, {
+      number: cn => cn.creditNoteNumber,
+      customer: cn => this.customerName(cn),
+      invoice: cn => cn.salesInvoiceId ?? 0,
+      date: cn => cn.date,
+      ht: cn => cn.totalHT,
+      ttc: cn => cn.totalTTC,
+      status: cn => cn.status
+    });
+  }
+
+  get sortedCustomers() {
+    void this.customerSort.version;
+    return this.customerSort.sort(this.customers, {
+      code: c => c.customerCode,
+      name: c => c.name,
+      vatNumber: c => c.vatNumber ?? '',
+      city: c => c.city ?? '',
+      phone: c => c.phone ?? '',
+      email: c => c.email ?? '',
+      balance: c => c.balance,
+      creditLimit: c => c.creditLimit ?? 0
+    });
+  }
+
+  get sortedSalesReturns() {
+    void this.returnSort.version;
+    return this.returnSort.sort(this.salesReturns, {
+      number: r => r.returnNumber,
+      customer: r => r.customer?.name ?? '',
+      dn: r => r.salesDeliveryNote?.deliveryNumber ?? String(r.salesDeliveryNoteId ?? ''),
+      date: r => r.returnDate,
+      ttc: r => r.totalTTC,
+      status: r => r.status,
+      creditNote: r => this.creditNoteLabelForReturn(r)
+    });
+  }
+
+  get sortedProformas() {
+    void this.proformaSort.version;
+    return this.proformaSort.sort(this.proformas, {
+      number: p => p.proformaNumber,
+      customer: p => p.customer?.name ?? '',
+      date: p => p.date,
+      ttc: p => p.totalTTC,
+      status: p => p.status
+    });
+  }
+
+  get sortedDepositInvoices() {
+    void this.depositSort.version;
+    return this.depositSort.sort(this.depositInvoices, {
+      number: d => d.depositNumber,
+      customer: d => d.customer?.name ?? '',
+      order: d => d.salesOrder?.orderNumber ?? String(d.salesOrderId ?? ''),
+      date: d => d.date,
+      amount: d => d.amountTTC,
+      status: d => d.status
+    });
+  }
+
+  get sortedPayments() {
+    void this.paymentSort.version;
+    return this.paymentSort.sort(this.payments, {
+      date: p => p.paidAt,
+      invoice: p => this.paymentInvoiceNumber(p),
+      amount: p => p.amount,
+      method: p => p.method ?? '',
+      reference: p => p.reference ?? '',
+      status: p => p.status
+    });
+  }
+
+  get sortedPendingOrders() {
+    void this.pendingOrderSort.version;
+    return this.pendingOrderSort.sort(this.pilotage?.pendingOrders, {
+      number: o => o.orderNumber,
+      customer: o => o.customer?.name ?? '',
+      date: o => o.date,
+      ttc: o => o.totalTTC
+    });
+  }
+
+  get sortedBackorderLines() {
+    void this.backorderSort.version;
+    return this.backorderSort.sort(this.pilotage?.backorderLines, {
+      orderNumber: l => l.orderNumber,
+      customer: l => l.customerName,
+      ref: l => l.productKey ?? '',
+      description: l => l.description ?? '',
+      qty: l => l.orderedQuantity,
+      deliveredQty: l => l.deliveredQuantity,
+      remainingQty: l => l.remainingQuantity,
+      stockOnHand: l => l.stockOnHand
+    });
+  }
+
+  get sortedTrashItems() {
+    void this.trashSort.version;
+    return this.trashSort.sort(this.trashItems, {
+      type: item => this.trashTypeLabel(item),
+      number: item => item.number,
+      customer: item => item.customerName ?? '',
+      status: item => item.status,
+      ttc: item => item.totalTTC,
+      deletedAt: item => item.deletedAt
+    });
+  }
 
   ngOnInit(): void {
     this.loadAllData();
@@ -360,6 +549,60 @@ export class SalesComponent implements OnInit {
     this.businessService.getSalesInvoices().subscribe(i => {
       this.invoices = i;
       this.loading = false;
+    });
+    this.loadOverdueInvoices();
+  }
+
+  loadOverdueInvoices(): void {
+    if (!this.perm.has(Permissions.InvoiceRead)) return;
+    this.overdueLoading = true;
+    this.businessService.getOverdueSalesInvoices().subscribe({
+      next: (list) => {
+        this.overdueInvoices = list || [];
+        this.overdueLoading = false;
+      },
+      error: () => {
+        this.overdueInvoices = [];
+        this.overdueLoading = false;
+      }
+    });
+  }
+
+  canRemindInvoice(inv: SalesInvoice): boolean {
+    return !!inv.id && !!inv.isOverdue && this.perm.has(Permissions.InvoiceUpdate);
+  }
+
+  remindInvoice(inv: SalesInvoice): void {
+    if (!inv.id || !confirm(this.i18n.t('sales.remind.confirm', { number: inv.invoiceNumber || '' }))) return;
+    this.remindingInvoiceId = inv.id;
+    this.businessService.remindSalesInvoice(inv.id, true).subscribe({
+      next: () => {
+        this.remindingInvoiceId = null;
+        this.actionMessage = this.i18n.t('sales.remind.sent', { number: inv.invoiceNumber || '' });
+        this.loadAllData();
+        this.loadOverdueInvoices();
+      },
+      error: (err) => {
+        this.remindingInvoiceId = null;
+        this.actionError = err?.error?.error || this.i18n.t('sales.remind.error');
+      }
+    });
+  }
+
+  runAllReminders(): void {
+    if (!this.perm.has(Permissions.EmailSend)) return;
+    this.runningReminders = true;
+    this.emailService.runPaymentReminders().subscribe({
+      next: (r) => {
+        this.runningReminders = false;
+        this.actionMessage = this.i18n.t('sales.remind.batchDone', { queued: r.queued, skipped: r.skipped });
+        this.loadAllData();
+        this.loadOverdueInvoices();
+      },
+      error: (err) => {
+        this.runningReminders = false;
+        this.actionError = err?.error?.error || this.i18n.t('sales.remind.error');
+      }
     });
   }
 
@@ -585,6 +828,14 @@ export class SalesComponent implements OnInit {
     } else if (this.detailKind === 'CreditNote' && this.detailCreditNote?.id) {
       this.downloadPdf('CreditNote', this.detailCreditNote.id, `${this.detailCreditNote.creditNoteNumber || 'avoir'}.pdf`);
     }
+  }
+
+  openSendEmail(documentType: string, documentId?: number | null, templateCode = ''): void {
+    if (!documentId) return;
+    this.emailDocumentType = documentType;
+    this.emailDocumentId = documentId;
+    this.emailTemplateCode = templateCode;
+    this.showEmailModal = true;
   }
 
   private downloadPdf(kind: 'Quote' | 'Order' | 'Invoice' | 'CreditNote', id: number, fileName: string): void {
@@ -1348,6 +1599,17 @@ export class SalesComponent implements OnInit {
     if (!this.perm.has(Permissions.QuoteUpdate) || !quote.id) return false;
     const s = (quote.status || '').toLowerCase();
     return s === 'draft' || s === 'sent' || s === 'pending';
+  }
+
+  canRemindQuote(quote: Quote): boolean {
+    if (!this.perm.has(Permissions.EmailSend) || !quote.id) return false;
+    const s = (quote.status || '').toLowerCase();
+    return s === 'draft' || s === 'sent' || s === 'pending' || s === 'accepted';
+  }
+
+  remindQuote(quote: Quote): void {
+    if (!quote.id || !this.canRemindQuote(quote)) return;
+    this.openSendEmail('Quote', quote.id, 'DEVIS_RELANCE');
   }
 
   canConvertQuote(quote: Quote): boolean {

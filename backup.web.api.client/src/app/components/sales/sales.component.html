@@ -24,17 +24,17 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.col.quoteNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.col.expiration' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="quoteSort" key="number">{{ 'sales.col.quoteNumber' | t }}</th>
+              <th appSortable [state]="quoteSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="quoteSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="quoteSort" key="expiration" defaultDir="desc">{{ 'sales.col.expiration' | t }}</th>
+              <th appSortable [state]="quoteSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="quoteSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let q of quotes">
+            <ng-container *ngFor="let q of sortedQuotes">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleQuoteDetail(q)" [attr.aria-expanded]="isExpanded('Quote', q.id)">
@@ -49,6 +49,8 @@
                 <td><span class="status-badge" [ngClass]="q.status.toLowerCase()">{{ q.status }}</span></td>
                 <td class="actions-cell">
                   <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Quote', q.id, (q.quoteNumber || 'devis') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.QuoteRead)">PDF</button>
+                  <button class="btn-sm ghost" type="button" (click)="openSendEmail('Quote', q.id)" *ngIf="perm.has(P.EmailSend)">{{ 'email.sendShort' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="remindQuote(q)" *ngIf="canRemindQuote(q)">{{ 'sales.quoteRemind.btn' | t }}</button>
                   <button class="btn-sm secondary" type="button" (click)="acceptQuote(q)" *ngIf="canAcceptQuote(q)">{{ 'sales.btn.acceptQuote' | t }}</button>
                   <button class="btn-sm" (click)="convertQuoteToOrder(q)" *ngIf="canConvertQuote(q)">{{ 'sales.btn.order' | t }}</button>
                   <button class="btn-sm ghost" type="button" (click)="duplicateQuote(q)" *ngIf="perm.has(P.QuoteCreate)">{{ 'sales.btn.duplicateQuote' | t }}</button>
@@ -117,17 +119,17 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.col.orderNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="orderSort" key="number">{{ 'sales.col.orderNumber' | t }}</th>
+              <th appSortable [state]="orderSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="orderSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="orderSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="orderSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="orderSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let ord of orders">
+            <ng-container *ngFor="let ord of sortedOrders">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleOrderDetail(ord)" [attr.aria-expanded]="isExpanded('Order', ord.id)">
@@ -244,18 +246,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.col.deliveryNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.col.order' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="number">{{ 'sales.col.deliveryNumber' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="order">{{ 'sales.col.order' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="deliveryNoteSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let dn of deliveryNotes">
+            <ng-container *ngFor="let dn of sortedDeliveryNotes">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleDeliveryNoteDetail(dn)" [attr.aria-expanded]="isExpanded('DeliveryNote', dn.id)">
@@ -271,6 +273,7 @@
                 <td><span class="status-badge" [ngClass]="dn.status.toLowerCase()">{{ dn.status }}</span></td>
                 <td class="actions-cell">
                   <button class="btn-sm ghost" type="button" (click)="downloadDeliveryNotePdf(dn)" [disabled]="pdfDownloading" *ngIf="perm.has(P.DeliveryNoteRead)">PDF</button>
+                  <button class="btn-sm ghost" type="button" (click)="openSendEmail('SalesDeliveryNote', dn.id)" *ngIf="perm.has(P.EmailSend)">{{ 'email.sendShort' | t }}</button>
                   <button class="btn-sm secondary" type="button" (click)="validateDeliveryNote(dn)" *ngIf="(dn.status === 'Draft' || dn.status === 'Sent') && perm.has(P.DeliveryNoteCreate)">{{ 'sales.btn.validate' | t }}</button>
                   <button class="btn-sm" type="button" (click)="convertDeliveryNoteToInvoice(dn)" *ngIf="dn.status === 'Delivered' && perm.has(P.InvoiceCreate)">{{ 'sales.btn.invoice' | t }}</button>
                   <button class="btn-sm ghost" type="button" (click)="cancelDeliveryNote(dn)" *ngIf="canCancelDeliveryNote(dn)">{{ 'sales.btn.cancel' | t }}</button>
@@ -339,23 +342,30 @@
     <!-- Factures (primary) -->
     <mat-tab>
       <ng-template mat-tab-label>{{ 'sales.tab.invoices' | t }}</ng-template>
+      <div class="overdue-banner" *ngIf="overdueInvoices.length > 0 || overdueLoading">
+        <span *ngIf="overdueLoading">{{ 'common.loading' | t }}</span>
+        <span *ngIf="!overdueLoading">{{ 'sales.remind.overdueCount' | t:{ count: overdueInvoices.length } }}</span>
+        <button class="btn-sm" type="button" (click)="runAllReminders()" *ngIf="perm.has(P.EmailSend) && overdueInvoices.length > 0" [disabled]="runningReminders">
+          {{ runningReminders ? ('common.loading' | t) : ('sales.remind.runAll' | t) }}
+        </button>
+      </div>
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.col.invoiceNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.col.dueDate' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'sales.col.paid' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="number">{{ 'sales.col.invoiceNumber' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="dueDate" defaultDir="desc">{{ 'sales.col.dueDate' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="paid" defaultDir="desc">{{ 'sales.col.paid' | t }}</th>
+              <th appSortable [state]="invoiceSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let inv of invoices">
+            <ng-container *ngFor="let inv of sortedInvoices">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleInvoiceDetail(inv)" [attr.aria-expanded]="isExpanded('Invoice', inv.id)">
@@ -379,6 +389,10 @@
                 </td>
                 <td class="actions-cell">
                   <button class="btn-sm ghost" type="button" (click)="downloadPdfFromList('Invoice', inv.id, (inv.invoiceNumber || 'facture') + '.pdf')" [disabled]="pdfDownloading" *ngIf="perm.has(P.InvoiceRead)">PDF</button>
+                  <button class="btn-sm ghost" type="button" (click)="openSendEmail('SalesInvoice', inv.id)" *ngIf="perm.has(P.EmailSend)">{{ 'email.sendShort' | t }}</button>
+                  <button class="btn-sm secondary" type="button" (click)="remindInvoice(inv)" *ngIf="canRemindInvoice(inv)" [disabled]="remindingInvoiceId === inv.id">
+                    {{ remindingInvoiceId === inv.id ? ('common.loading' | t) : ('sales.remind.btn' | t) }}
+                  </button>
                   <button class="btn-sm secondary" type="button" (click)="openEditInvoiceModal(inv)" *ngIf="canEditInvoice(inv)">{{ 'common.edit' | t }}</button>
                   <button class="btn-sm secondary" type="button" (click)="validateSalesInvoice(inv)" *ngIf="inv.status === 'Draft' && perm.has(P.InvoiceUpdate)">{{ 'sales.btn.validate' | t }}</button>
                   <button class="btn-sm" (click)="openPaymentModal(inv)" *ngIf="canPayInvoice(inv)" [title]="payInvoiceHint(inv)">{{ 'sales.btn.pay' | t }}</button>
@@ -475,18 +489,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.col.creditNoteNumber' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'sales.col.linkedInvoice' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountHt' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="number">{{ 'sales.col.creditNoteNumber' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="invoice">{{ 'sales.col.linkedInvoice' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="ht" defaultDir="desc">{{ 'common.amountHt' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="creditNoteSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <ng-container *ngFor="let cn of creditNotes">
+            <ng-container *ngFor="let cn of sortedCreditNotes">
               <tr>
                 <td>
                   <button class="expand-btn" type="button" (click)="toggleCreditNoteDetail(cn)" [attr.aria-expanded]="isExpanded('CreditNote', cn.id)">
@@ -562,19 +576,19 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'common.code' | t }}</th>
-              <th>{{ 'common.name' | t }}</th>
-              <th>{{ 'sales.col.vatNumber' | t }}</th>
-              <th>{{ 'common.city' | t }}</th>
-              <th>{{ 'common.phone' | t }}</th>
-              <th>{{ 'common.email' | t }}</th>
-              <th>{{ 'sales.col.balance' | t }}</th>
-              <th>{{ 'sales.col.creditLimit' | t }}</th>
+              <th appSortable [state]="customerSort" key="code">{{ 'common.code' | t }}</th>
+              <th appSortable [state]="customerSort" key="name">{{ 'common.name' | t }}</th>
+              <th appSortable [state]="customerSort" key="vatNumber">{{ 'sales.col.vatNumber' | t }}</th>
+              <th appSortable [state]="customerSort" key="city">{{ 'common.city' | t }}</th>
+              <th appSortable [state]="customerSort" key="phone">{{ 'common.phone' | t }}</th>
+              <th appSortable [state]="customerSort" key="email">{{ 'common.email' | t }}</th>
+              <th appSortable [state]="customerSort" key="balance" defaultDir="desc">{{ 'sales.col.balance' | t }}</th>
+              <th appSortable [state]="customerSort" key="creditLimit" defaultDir="desc">{{ 'sales.col.creditLimit' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let c of customers">
+            <tr *ngFor="let c of sortedCustomers">
               <td><strong>{{ c.customerCode }}</strong></td>
               <td>{{ c.name }}</td>
               <td>{{ c.vatNumber || '-' }}</td>
@@ -612,18 +626,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.returns.col.number' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'sales.returns.col.dn' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'sales.returns.col.creditNote' | t }}</th>
+              <th appSortable [state]="returnSort" key="number">{{ 'sales.returns.col.number' | t }}</th>
+              <th appSortable [state]="returnSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="returnSort" key="dn">{{ 'sales.returns.col.dn' | t }}</th>
+              <th appSortable [state]="returnSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="returnSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="returnSort" key="status">{{ 'common.status' | t }}</th>
+              <th appSortable [state]="returnSort" key="creditNote">{{ 'sales.returns.col.creditNote' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of salesReturns">
+            <tr *ngFor="let r of sortedSalesReturns">
               <td><strong>{{ r.returnNumber }}</strong></td>
               <td>{{ r.customer?.name || ('sales.customerHash' | t:{id: r.customerId}) }}</td>
               <td>{{ r.salesDeliveryNote?.deliveryNumber || ('#' + r.salesDeliveryNoteId) }}</td>
@@ -659,16 +673,16 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.proformas.col.number' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="proformaSort" key="number">{{ 'sales.proformas.col.number' | t }}</th>
+              <th appSortable [state]="proformaSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="proformaSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="proformaSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="proformaSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let p of proformas">
+            <tr *ngFor="let p of sortedProformas">
               <td><strong>{{ p.proformaNumber }}</strong></td>
               <td>{{ p.customer?.name || ('sales.customerHash' | t:{id: p.customerId}) }}</td>
               <td>{{ p.date | date:'dd/MM/yyyy' }}</td>
@@ -699,17 +713,17 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.deposits.col.number' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'sales.deposits.col.order' | t }}</th>
-              <th>{{ 'common.date' | t }}</th>
-              <th>{{ 'sales.deposits.col.amount' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
+              <th appSortable [state]="depositSort" key="number">{{ 'sales.deposits.col.number' | t }}</th>
+              <th appSortable [state]="depositSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="depositSort" key="order">{{ 'sales.deposits.col.order' | t }}</th>
+              <th appSortable [state]="depositSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+              <th appSortable [state]="depositSort" key="amount" defaultDir="desc">{{ 'sales.deposits.col.amount' | t }}</th>
+              <th appSortable [state]="depositSort" key="status">{{ 'common.status' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let d of depositInvoices">
+            <tr *ngFor="let d of sortedDepositInvoices">
               <td><strong>{{ d.depositNumber }}</strong></td>
               <td>{{ d.customer?.name || ('sales.customerHash' | t:{id: d.customerId}) }}</td>
               <td>{{ d.salesOrder?.orderNumber || ('#' + d.salesOrderId) }}</td>
@@ -736,12 +750,12 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>{{ 'sales.payment.col.date' | t }}</th>
-              <th>{{ 'sales.payment.col.invoice' | t }}</th>
-              <th>{{ 'sales.payment.col.amount' | t }}</th>
-              <th>{{ 'sales.payment.col.method' | t }}</th>
-              <th>{{ 'sales.payment.col.reference' | t }}</th>
-              <th>{{ 'sales.payment.col.status' | t }}</th>
+              <th appSortable [state]="paymentSort" key="date" defaultDir="desc">{{ 'sales.payment.col.date' | t }}</th>
+              <th appSortable [state]="paymentSort" key="invoice">{{ 'sales.payment.col.invoice' | t }}</th>
+              <th appSortable [state]="paymentSort" key="amount" defaultDir="desc">{{ 'sales.payment.col.amount' | t }}</th>
+              <th appSortable [state]="paymentSort" key="method">{{ 'sales.payment.col.method' | t }}</th>
+              <th appSortable [state]="paymentSort" key="reference">{{ 'sales.payment.col.reference' | t }}</th>
+              <th appSortable [state]="paymentSort" key="status">{{ 'sales.payment.col.status' | t }}</th>
               <th class="text-right">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
@@ -750,7 +764,7 @@
               <td colspan="7">{{ 'common.loading' | t }}</td>
             </tr>
             <ng-container *ngIf="!paymentsLoading">
-              <tr *ngFor="let p of payments">
+              <tr *ngFor="let p of sortedPayments">
                 <td>{{ p.paidAt | date:'yyyy-MM-dd HH:mm' }}</td>
                 <td class="font-mono">{{ paymentInvoiceNumber(p) }}</td>
                 <td class="font-mono">{{ p.amount | number:'1.2-2' }}</td>
@@ -811,15 +825,15 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>{{ 'sales.col.orderNumber' | t }}</th>
-                  <th>{{ 'common.customer' | t }}</th>
-                  <th>{{ 'common.date' | t }}</th>
-                  <th>{{ 'common.amountTtc' | t }}</th>
+                  <th appSortable [state]="pendingOrderSort" key="number">{{ 'sales.col.orderNumber' | t }}</th>
+                  <th appSortable [state]="pendingOrderSort" key="customer">{{ 'common.customer' | t }}</th>
+                  <th appSortable [state]="pendingOrderSort" key="date" defaultDir="desc">{{ 'common.date' | t }}</th>
+                  <th appSortable [state]="pendingOrderSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
                   <th>{{ 'common.actions' | t }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let ord of pilotage.pendingOrders">
+                <tr *ngFor="let ord of sortedPendingOrders">
                   <td><strong>{{ ord.orderNumber }}</strong></td>
                   <td>{{ ord.customer?.name || ('sales.customerHash' | t:{id: ord.customerId}) }}</td>
                   <td>{{ ord.date | date:'dd/MM/yyyy' }}</td>
@@ -841,19 +855,19 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>{{ 'sales.col.orderNumber' | t }}</th>
-                  <th>{{ 'common.customer' | t }}</th>
-                  <th>{{ 'common.ref' | t }}</th>
-                  <th>{{ 'common.description' | t }}</th>
-                  <th>{{ 'common.qty' | t }}</th>
-                  <th>{{ 'sales.col.deliveredQty' | t }}</th>
-                  <th>{{ 'sales.col.remainingQty' | t }}</th>
-                  <th>{{ 'sales.col.stockOnHand' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="orderNumber">{{ 'sales.col.orderNumber' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="customer">{{ 'common.customer' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="ref">{{ 'common.ref' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="description">{{ 'common.description' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="qty" defaultDir="desc">{{ 'common.qty' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="deliveredQty" defaultDir="desc">{{ 'sales.col.deliveredQty' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="remainingQty" defaultDir="desc">{{ 'sales.col.remainingQty' | t }}</th>
+                  <th appSortable [state]="backorderSort" key="stockOnHand" defaultDir="desc">{{ 'sales.col.stockOnHand' | t }}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let line of pilotage.backorderLines" [class.row-stockout]="line.isStockout">
+                <tr *ngFor="let line of sortedBackorderLines" [class.row-stockout]="line.isStockout">
                   <td><strong>{{ line.orderNumber }}</strong></td>
                   <td>{{ line.customerName }}</td>
                   <td>{{ line.productKey || '-' }}</td>
@@ -896,17 +910,17 @@
         <table class="data-table" *ngIf="!trashLoading">
           <thead>
             <tr>
-              <th>{{ 'sales.trash.col.type' | t }}</th>
-              <th>{{ 'common.ref' | t }}</th>
-              <th>{{ 'common.customer' | t }}</th>
-              <th>{{ 'common.status' | t }}</th>
-              <th>{{ 'common.amountTtc' | t }}</th>
-              <th>{{ 'sales.trash.col.deletedAt' | t }}</th>
+              <th appSortable [state]="trashSort" key="type">{{ 'sales.trash.col.type' | t }}</th>
+              <th appSortable [state]="trashSort" key="number">{{ 'common.ref' | t }}</th>
+              <th appSortable [state]="trashSort" key="customer">{{ 'common.customer' | t }}</th>
+              <th appSortable [state]="trashSort" key="status">{{ 'common.status' | t }}</th>
+              <th appSortable [state]="trashSort" key="ttc" defaultDir="desc">{{ 'common.amountTtc' | t }}</th>
+              <th appSortable [state]="trashSort" key="deletedAt" defaultDir="desc">{{ 'sales.trash.col.deletedAt' | t }}</th>
               <th>{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let item of trashItems">
+            <tr *ngFor="let item of sortedTrashItems">
               <td>{{ trashTypeLabel(item) }}</td>
               <td><strong>{{ item.number }}</strong></td>
               <td>{{ item.customerName || ('sales.customerHash' | t:{id: item.customerId}) }}</td>
@@ -1440,6 +1454,14 @@
     </div>
   </div>
 </div>
+
+<app-send-email-modal
+  [open]="showEmailModal"
+  [documentType]="emailDocumentType"
+  [documentId]="emailDocumentId"
+  [templateCode]="emailTemplateCode"
+  (closed)="showEmailModal = false">
+</app-send-email-modal>
 
 <app-help-walkthrough
   [open]="showWalkthrough"

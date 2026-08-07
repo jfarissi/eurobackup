@@ -28,7 +28,20 @@
                  (keyup.enter)="onMovementFilter()"
                  [placeholder]="'stock.filter.movements' | t" />
           <button class="search-btn" (click)="onMovementFilter()">{{ 'stock.search' | t }}</button>
+          <button class="clear-btn" *ngIf="movementFilter" (click)="clearMovementFilter()" [attr.title]="'common.reset' | t">
+            <mat-icon>clear</mat-icon>
+          </button>
         </div>
+
+        <button class="adjust-btn" (click)="reconcileOuts()" *ngIf="perm.has(P.StockUpdate) && selectedTab === 0">
+          <mat-icon>sync_problem</mat-icon>
+          {{ 'stock.reconcileOuts' | t }}
+        </button>
+
+        <button class="adjust-btn" (click)="runStockAlerts()" *ngIf="perm.has(P.EmailSend) && selectedTab === 0" [disabled]="runningStockAlerts">
+          <mat-icon>notifications_active</mat-icon>
+          {{ runningStockAlerts ? ('common.loading' | t) : ('stock.runAlerts' | t) }}
+        </button>
 
         <button class="adjust-btn" (click)="openAdjustModal()" *ngIf="perm.has(P.StockUpdate)">
           <mat-icon>tune</mat-icon>
@@ -94,21 +107,24 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>{{ 'stock.col.code' | t }}</th>
-                      <th>{{ 'stock.col.label' | t }}</th>
-                      <th class="text-right">{{ 'stock.col.quantity' | t }}</th>
-                      <th class="text-right">{{ 'stock.col.reserved' | t }}</th>
-                      <th class="text-right">{{ 'stock.col.available' | t }}</th>
-                      <th class="text-center">{{ 'stock.col.unit' | t }}</th>
-                      <th>{{ 'stock.col.lastUpdated' | t }}</th>
+                      <th appSortable [state]="stockSort" key="productKey">{{ 'stock.col.code' | t }}</th>
+                      <th appSortable [state]="stockSort" key="description">{{ 'stock.col.label' | t }}</th>
+                      <th class="text-right" appSortable [state]="stockSort" key="quantityOnHand" defaultDir="desc">{{ 'stock.col.quantity' | t }}</th>
+                      <th class="text-right" appSortable [state]="stockSort" key="reservedQuantity" defaultDir="desc">{{ 'stock.col.reserved' | t }}</th>
+                      <th class="text-right" appSortable [state]="stockSort" key="available" defaultDir="desc">{{ 'stock.col.available' | t }}</th>
+                      <th class="text-right" appSortable [state]="stockSort" key="averageCost" defaultDir="desc">{{ 'stock.col.cmup' | t }}</th>
+                      <th class="text-center" appSortable [state]="stockSort" key="unit">{{ 'stock.col.unit' | t }}</th>
+                      <th appSortable [state]="stockSort" key="lastUpdated" defaultDir="desc">{{ 'stock.col.lastUpdated' | t }}</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let item of group.items"
+                    <tr *ngFor="let item of sortedStockItems(group.items)"
                         [class.row-error]="item.quantityOnHand < 0"
                         [class.row-warn]="availableQty(item) <= 0 && item.quantityOnHand > 0"
-                        class="stock-row">
+                        class="stock-row stock-row-clickable"
+                        (click)="showProductMovements(item.productKey)"
+                        [attr.title]="'stock.showMovements' | t">
                       <td class="col-mono code-cell">{{ item.productKey }}</td>
                       <td class="label-cell">
                         <span class="label-text">{{ item.description || '-' }}</span>
@@ -127,10 +143,21 @@
                           [class.negative]="availableQty(item) < 0">
                         {{ availableQty(item) | number:'1.0-2' }}
                       </td>
+                      <td class="text-right col-mono qty-cell">
+                        {{ (item.averageCost || 0) | currency:'EUR':'symbol':'1.2-4' }}
+                      </td>
                       <td class="text-center unit-cell">{{ item.unit || '-' }}</td>
                       <td class="date-cell">{{ formatDate(item.lastUpdated) }}</td>
                       <td class="actions-cell">
-                        <button class="row-action" type="button" (click)="openAdjustModal(item.productKey)" *ngIf="perm.has(P.StockUpdate)">
+                        <button class="row-action" type="button"
+                                (click)="showProductMovements(item.productKey, $event)"
+                                [attr.title]="'stock.showMovements' | t">
+                          <mat-icon>history</mat-icon>
+                        </button>
+                        <button class="row-action" type="button"
+                                (click)="openAdjustModal(item.productKey); $event.stopPropagation()"
+                                *ngIf="perm.has(P.StockUpdate)"
+                                [attr.title]="'stock.adjust' | t">
                           <mat-icon>tune</mat-icon>
                         </button>
                       </td>
@@ -157,23 +184,27 @@
                     <col class="col-type" />
                     <col class="col-code" />
                     <col class="col-qty" />
+                    <col class="col-cost" />
+                    <col class="col-value" />
                     <col class="col-reason" />
                     <col class="col-ref" />
                     <col class="col-by" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>{{ 'stock.movements.col.date' | t }}</th>
-                      <th>{{ 'stock.movements.col.type' | t }}</th>
-                      <th>{{ 'stock.movements.col.code' | t }}</th>
-                      <th class="text-right">{{ 'stock.movements.col.qty' | t }}</th>
-                      <th>{{ 'stock.movements.col.reason' | t }}</th>
-                      <th>{{ 'stock.movements.col.ref' | t }}</th>
-                      <th>{{ 'stock.movements.col.by' | t }}</th>
+                      <th appSortable [state]="movementSort" key="createdAt" defaultDir="desc">{{ 'stock.movements.col.date' | t }}</th>
+                      <th appSortable [state]="movementSort" key="movementType">{{ 'stock.movements.col.type' | t }}</th>
+                      <th appSortable [state]="movementSort" key="productKey">{{ 'stock.movements.col.code' | t }}</th>
+                      <th class="text-right" appSortable [state]="movementSort" key="quantity" defaultDir="desc">{{ 'stock.movements.col.qty' | t }}</th>
+                      <th class="text-right" appSortable [state]="movementSort" key="unitCost" defaultDir="desc">{{ 'stock.movements.col.unitCost' | t }}</th>
+                      <th class="text-right" appSortable [state]="movementSort" key="stockValue" defaultDir="desc">{{ 'stock.movements.col.value' | t }}</th>
+                      <th appSortable [state]="movementSort" key="reason">{{ 'stock.movements.col.reason' | t }}</th>
+                      <th appSortable [state]="movementSort" key="referenceDocument">{{ 'stock.movements.col.ref' | t }}</th>
+                      <th appSortable [state]="movementSort" key="createdBy">{{ 'stock.movements.col.by' | t }}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let movement of movements">
+                    <tr *ngFor="let movement of sortedMovements">
                       <td class="date-cell">{{ formatDate(movement.createdAt || '') }}</td>
                       <td>
                         <span class="movement-badge" [ngClass]="(movement.movementType || '').toLowerCase()">
@@ -182,6 +213,8 @@
                       </td>
                       <td class="col-mono code-cell">{{ movement.productKey }}</td>
                       <td class="text-right col-mono qty-cell">{{ movement.quantity | number:'1.0-2' }}</td>
+                      <td class="text-right col-mono qty-cell">{{ movement.unitCost != null ? (movement.unitCost | currency:'EUR':'symbol':'1.2-4') : '—' }}</td>
+                      <td class="text-right col-mono qty-cell">{{ movement.stockValue != null ? (movement.stockValue | currency:'EUR':'symbol':'1.2-4') : '—' }}</td>
                       <td class="reason-cell">{{ movement.reason || '-' }}</td>
                       <td class="col-mono ref-cell">{{ movement.referenceDocument || '-' }}</td>
                       <td class="by-cell">{{ movement.createdBy || '-' }}</td>
@@ -220,6 +253,11 @@
       <div class="form-group">
         <label>{{ 'stock.adjust.quantity' | t }}</label>
         <input type="number" [(ngModel)]="newMovement.quantity" />
+      </div>
+
+      <div class="form-group" *ngIf="newMovement.movementType === 'In' || (newMovement.movementType === 'Adjustment' && newMovement.quantity > 0)">
+        <label>{{ 'stock.adjust.unitCost' | t }}</label>
+        <input type="number" step="0.0001" [(ngModel)]="newMovement.unitCost" [placeholder]="'stock.adjust.unitCostHint' | t" />
       </div>
 
       <div class="form-group">

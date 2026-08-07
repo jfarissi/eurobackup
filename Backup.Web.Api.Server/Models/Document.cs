@@ -1,8 +1,9 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
-    public class Document : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId
+    public class Document : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId, IHasAuditTrail
     {
         public int Id { get; set; }
 
@@ -25,6 +26,11 @@ namespace Backup.Web.Api.Server.Models
         public DateTime DateAdded { get; set; } = DateTime.UtcNow;
 
         public string? CompanyId { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }
 

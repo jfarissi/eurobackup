@@ -1,0 +1,124 @@
+<div class="page catalog-page">
+  <section class="catalog-subheader">
+    <div class="catalog-subheader-inner">
+      <div>
+        <app-form-help helpKey="catalog.categories">
+          <h2>{{ 'catalog.categories.title' | t }}</h2>
+        </app-form-help>
+        <p>{{ 'catalog.categories.subtitle' | t }}</p>
+        <app-catalog-subnav></app-catalog-subnav>
+      </div>
+      <button class="btn-primary" type="button" (click)="startCreate()" *ngIf="canCreate">
+        <mat-icon>add</mat-icon>
+        {{ 'catalog.categories.new' | t }}
+      </button>
+    </div>
+  </section>
+
+  <section class="catalog-filters">
+    <select [(ngModel)]="levelFilter" (change)="onLevelFilterChange()">
+      <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+    </select>
+    <select *ngIf="levelFilter !== 'MainType'" [(ngModel)]="parentFilterId" (change)="onParentFilterChange()">
+      <option [ngValue]="null">{{ 'catalog.categories.allParents' | t }}</option>
+      <option *ngFor="let p of parents" [ngValue]="p.id">{{ label(p) }}</option>
+    </select>
+  </section>
+
+  <div class="catalog-layout">
+    <div class="list-pane card">
+      <div class="loading-wrap" *ngIf="loading"><mat-spinner diameter="32"></mat-spinner></div>
+      <table class="data-table" *ngIf="!loading">
+        <thead>
+          <tr>
+            <th>{{ 'catalog.categories.col.name' | t }}</th>
+            <th>{{ 'catalog.categories.col.level' | t }}</th>
+            <th>{{ 'catalog.categories.col.sort' | t }}</th>
+            <th>{{ 'catalog.categories.col.active' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of categories" [class.row-selected]="selected?.id === c.id" (click)="select(c)">
+            <td>{{ label(c) }}</td>
+            <td>{{ c.level }}</td>
+            <td class="font-mono">{{ c.sortOrder }}</td>
+            <td>{{ c.isActive ? ('common.yes' | t) : ('common.no' | t) }}</td>
+            <td class="actions-cell" (click)="$event.stopPropagation()">
+              <button type="button" class="icon-btn" (click)="select(c); startEdit()" *ngIf="canUpdate" [matTooltip]="'common.edit' | t">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button type="button" class="icon-btn" (click)="deactivate(c, $event)" *ngIf="canDelete && c.isActive" [matTooltip]="'common.delete' | t">
+                <mat-icon>block</mat-icon>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="categories.length === 0">
+            <td colspan="5" class="muted">{{ 'catalog.categories.empty' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="form-pane card" *ngIf="editing || selected">
+      <div class="form-pane-header">
+        <h3>{{ editing ? (selected ? ('catalog.categories.edit' | t) : ('catalog.categories.new' | t)) : label(selected!) }}</h3>
+        <div class="form-pane-actions" *ngIf="!editing && selected">
+          <button type="button" class="btn-secondary btn-sm" (click)="startEdit()" *ngIf="canUpdate">
+            <mat-icon>edit</mat-icon> {{ 'common.edit' | t }}
+          </button>
+          <button type="button" class="btn-secondary btn-sm" (click)="deactivate(selected!)" *ngIf="canDelete && selected.isActive">
+            <mat-icon>block</mat-icon> {{ 'catalog.categories.deactivate' | t }}
+          </button>
+        </div>
+      </div>
+      <p class="error" *ngIf="error">{{ error | t }}</p>
+      <ng-container *ngIf="editing; else viewCat">
+        <label>{{ 'catalog.categories.col.level' | t }}
+          <select [(ngModel)]="form.level" name="level" (change)="reloadParents()">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </label>
+        <label *ngIf="form.level !== 'MainType'">{{ 'catalog.categories.parent' | t }}
+          <select [(ngModel)]="form.parentId" name="parentId">
+            <option [ngValue]="null">—</option>
+            <option *ngFor="let p of parents" [ngValue]="p.id">{{ label(p) }}</option>
+          </select>
+        </label>
+        <label>{{ 'catalog.categories.nameFr' | t }}
+          <input [(ngModel)]="form.nameFr" name="nameFr" />
+        </label>
+        <label>{{ 'catalog.categories.nameNl' | t }}
+          <input [(ngModel)]="form.nameNl" name="nameNl" />
+        </label>
+        <label>{{ 'catalog.categories.nameEn' | t }}
+          <input [(ngModel)]="form.nameEn" name="nameEn" />
+        </label>
+        <label>{{ 'catalog.categories.col.sort' | t }}
+          <input type="number" [(ngModel)]="form.sortOrder" name="sortOrder" />
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="form.isActive" name="isActive" />
+          {{ 'catalog.categories.col.active' | t }}
+        </label>
+        <div class="form-actions">
+          <button class="btn-secondary" type="button" (click)="cancelEdit()">{{ 'common.cancel' | t }}</button>
+          <button class="btn-primary" type="button" (click)="save()" [disabled]="saving"
+                  *ngIf="(selected && canUpdate) || (!selected && canCreate)">
+            {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+          </button>
+        </div>
+      </ng-container>
+      <ng-template #viewCat>
+        <dl class="view-grid" *ngIf="selected as c">
+          <div><dt>{{ 'catalog.categories.col.level' | t }}</dt><dd>{{ c.level }}</dd></div>
+          <div><dt>{{ 'catalog.categories.col.sort' | t }}</dt><dd class="font-mono">{{ c.sortOrder }}</dd></div>
+          <div><dt>{{ 'catalog.categories.nameFr' | t }}</dt><dd>{{ c.nameFr || '—' }}</dd></div>
+          <div><dt>{{ 'catalog.categories.nameNl' | t }}</dt><dd>{{ c.nameNl || '—' }}</dd></div>
+          <div><dt>{{ 'catalog.categories.nameEn' | t }}</dt><dd>{{ c.nameEn || '—' }}</dd></div>
+          <div><dt>{{ 'catalog.categories.col.active' | t }}</dt><dd>{{ c.isActive ? ('common.yes' | t) : ('common.no' | t) }}</dd></div>
+        </dl>
+      </ng-template>
+    </aside>
+  </div>
+</div>

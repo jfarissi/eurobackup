@@ -66,17 +66,17 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>{{ 'search.col.id' | t }}</th>
-                <th>{{ 'search.col.type' | t }}</th>
-                <th>{{ 'search.col.number' | t }}</th>
-                <th>{{ 'search.col.supplier' | t }}</th>
-                <th>{{ 'search.col.client' | t }}</th>
-                <th>{{ 'search.col.date' | t }}</th>
+                <th appSortable [state]="resultSort" key="id" defaultDir="desc">{{ 'search.col.id' | t }}</th>
+                <th appSortable [state]="resultSort" key="typeDocument">{{ 'search.col.type' | t }}</th>
+                <th appSortable [state]="resultSort" key="numero">{{ 'search.col.number' | t }}</th>
+                <th appSortable [state]="resultSort" key="supplier">{{ 'search.col.supplier' | t }}</th>
+                <th appSortable [state]="resultSort" key="client">{{ 'search.col.client' | t }}</th>
+                <th appSortable [state]="resultSort" key="dateDocument" defaultDir="desc">{{ 'search.col.date' | t }}</th>
                 <th class="text-right">{{ 'search.col.actions' | t }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let doc of results">
+              <tr *ngFor="let doc of sortedResults">
                 <td class="col-mono">{{ doc.id }}</td>
                 <td>
                   <span class="chip-active" *ngIf="isFacture(doc)">{{ 'search.type.invoice' | t }}</span>

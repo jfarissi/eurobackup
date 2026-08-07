@@ -17,7 +17,8 @@ import {
   SuggestBrandResult,
   ErpSyncLog,
   ErpSyncLogsPage,
-  ExcelImportResult
+  ExcelImportResult,
+  CarApiImportResult
 } from '../models/erp-product';
 
 @Injectable({ providedIn: 'root' })
@@ -38,11 +39,31 @@ export class ErpProductService {
     if (query.typeId) params = params.set('typeId', query.typeId);
     if (query.subTypeId) params = params.set('subTypeId', query.subTypeId);
     if (query.supplierId != null && query.supplierId > 0) params = params.set('supplierId', String(query.supplierId));
+    if (query.vehicleBrand) params = params.set('vehicleBrand', query.vehicleBrand);
+    if (query.vehicleModel) params = params.set('vehicleModel', query.vehicleModel);
+    if (query.vehicleYear != null) params = params.set('vehicleYear', String(query.vehicleYear));
     return this.http.get<ErpProductsPage>(this.baseUrl, { params });
   }
 
   createProduct(body: CreateErpProductRequest): Observable<CreateErpProductResult> {
     return this.http.post<CreateErpProductResult>(this.baseUrl, body);
+  }
+
+  updateProduct(id: number, body: Partial<CreateErpProductRequest> & {
+    name2?: string;
+    unitPrice?: number;
+    comment?: string;
+    archived?: boolean;
+    weight?: number | null;
+    height?: number | null;
+    width?: number | null;
+    depth?: number | null;
+  }): Observable<ErpProduct> {
+    return this.http.put<ErpProduct>(`${this.baseUrl}/${id}`, body);
+  }
+
+  archiveProduct(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
   suggestBrand(query: { supplierName?: string; supplierId?: number } = {}): Observable<SuggestBrandResult> {
@@ -162,6 +183,28 @@ export class ErpProductService {
     const params = new HttpParams().set('syncAfter', String(syncAfter));
     return this.http.post<{ import: ExcelImportResult; sync?: ErpSyncLog | null }>(
       `${this.baseUrl}/import-excel`,
+      {},
+      { params }
+    );
+  }
+
+  importCarApi(options: {
+    path?: string;
+    importParts?: boolean;
+    importVehicleBrands?: boolean;
+    applyFrenchNames?: boolean;
+    ensureVehicleAttribute?: boolean;
+    rebuildCatalog?: boolean;
+  } = {}): Observable<{ import: CarApiImportResult; catalog?: unknown }> {
+    let params = new HttpParams();
+    if (options.path) params = params.set('path', options.path);
+    if (options.importParts != null) params = params.set('importParts', String(options.importParts));
+    if (options.importVehicleBrands != null) params = params.set('importVehicleBrands', String(options.importVehicleBrands));
+    if (options.applyFrenchNames != null) params = params.set('applyFrenchNames', String(options.applyFrenchNames));
+    if (options.ensureVehicleAttribute != null) params = params.set('ensureVehicleAttribute', String(options.ensureVehicleAttribute));
+    if (options.rebuildCatalog != null) params = params.set('rebuildCatalog', String(options.rebuildCatalog));
+    return this.http.post<{ import: CarApiImportResult; catalog?: unknown }>(
+      `${this.baseUrl}/import-car-api`,
       {},
       { params }
     );

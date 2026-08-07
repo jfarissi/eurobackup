@@ -378,12 +378,14 @@
   vertical-align: middle;
 }
 
-.form-table input {
+.form-table input,
+.form-table select {
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   width: 100%;
   box-sizing: border-box;
+  background: #fff;
 }
 
 .form-table input.num {

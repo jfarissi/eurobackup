@@ -1,8 +1,9 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
 {
-	public class StockItem : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId
+	public class StockItem : Backup.Web.Api.Server.Services.Tenancy.IHasCompanyId, IHasAuditTrail
 	{
 		public int Id { get; set; }
 		public string ProductKey { get; set; } = string.Empty; // Prefer ProductCode, else Product name
@@ -11,6 +12,8 @@ namespace Backup.Web.Api.Server.Models
 		public decimal ReservedQuantity { get; set; }
 		/// <summary>P4 — seuil de réappro auto (0 = désactivé).</summary>
 		public decimal MinStock { get; set; }
+		/// <summary>CMUP / CMP — coût moyen unitaire pondéré (société). Mis à jour à chaque entrée valorisée.</summary>
+		public decimal AverageCost { get; set; }
 		public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 		/// <summary>
 		/// ID du dernier BL qui a mis à jour ce produit.
@@ -30,6 +33,11 @@ namespace Backup.Web.Api.Server.Models
 		/// </summary>
 		public string? Unit { get; set; }
 		public string? CompanyId { get; set; }
+
+		public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+		public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+		public string? CreatedBy { get; set; }
+		public string? UpdatedBy { get; set; }
 	}
 }
 

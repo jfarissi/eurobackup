@@ -218,6 +218,14 @@ export class BusinessService {
     return this.http.post<SalesInvoice>(`/api/salesinvoices/${id}/validate`, {});
   }
 
+  getOverdueSalesInvoices(): Observable<SalesInvoice[]> {
+    return this.http.get<SalesInvoice[]>('/api/salesinvoices/overdue');
+  }
+
+  remindSalesInvoice(id: number, sendEmail = true): Observable<{ invoice: SalesInvoice; email?: unknown }> {
+    return this.http.post<{ invoice: SalesInvoice; email?: unknown }>(`/api/salesinvoices/${id}/remind`, { sendEmail });
+  }
+
   recordPayment(
     invoiceId: number,
     amount: number,
@@ -317,6 +325,14 @@ export class BusinessService {
     return this.http.post<PurchaseOrder>('/api/purchaseorders', order);
   }
 
+  confirmPurchaseOrder(id: number): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>(`/api/purchaseorders/${id}/confirm`, {});
+  }
+
+  sendPurchaseOrder(id: number, sendEmail = true): Observable<{ purchaseOrder: PurchaseOrder; email?: unknown; emailWarning?: string }> {
+    return this.http.post<{ purchaseOrder: PurchaseOrder; email?: unknown; emailWarning?: string }>(`/api/purchaseorders/${id}/send`, { sendEmail });
+  }
+
   receivePurchaseOrderFromDelivery(orderId: number, deliveryDocumentId: number, updateStock = true): Observable<ReceiveDeliveryResult> {
     return this.http.post<ReceiveDeliveryResult>(`/api/purchaseorders/${orderId}/receive-delivery`, {
       deliveryDocumentId,
@@ -394,6 +410,25 @@ export class BusinessService {
     defaultVatRate?: number;
   }): Observable<ComptabiliserResult> {
     return this.http.post<ComptabiliserResult>('/api/receipts/comptabiliser', payload);
+  }
+
+  createReceipt(payload: {
+    supplierId: number;
+    purchaseOrderId?: number;
+    receiptNumber?: string;
+    receivedAt?: string;
+    notes?: string;
+    updateStock?: boolean;
+    defaultVatRate?: number;
+    lines: Array<{
+      productKey: string;
+      description?: string;
+      quantityReceived: number;
+      unitPriceExclTax: number;
+      taxRatePercent?: number;
+    }>;
+  }): Observable<ComptabiliserResult> {
+    return this.http.post<ComptabiliserResult>('/api/receipts', payload);
   }
 
   comptabiliserSupplierInvoice(payload: {

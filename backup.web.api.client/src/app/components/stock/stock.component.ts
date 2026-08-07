@@ -12,14 +12,17 @@ import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
+import { EmailService } from '../../services/email.service';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-stock',
   templateUrl: './stock.component.html',
   styleUrls: ['./stock.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent, SortableThComponent]
 })
 export class StockComponent implements OnInit {
   selectedTab = 0;
@@ -30,9 +33,12 @@ export class StockComponent implements OnInit {
   searchQuery = '';
   movementFilter = '';
   expandedSuppliers = new Set<string>();
+  stockSort = new TableSortState('productKey', 'asc');
+  movementSort = new TableSortState('createdAt', 'desc');
 
   showAdjustModal = false;
   adjustError = '';
+  runningStockAlerts = false;
   readonly P = Permissions;
   newMovement: StockMovement = this.createEmptyMovement();
 
@@ -41,7 +47,8 @@ export class StockComponent implements OnInit {
     private businessService: BusinessService,
     private snack: MatSnackBar,
     private i18n: AppI18nService,
-    public perm: PermissionService
+    public perm: PermissionService,
+    private emailService: EmailService
   ) {}
 
   ngOnInit(): void {
@@ -88,10 +95,7 @@ export class StockComponent implements OnInit {
     });
 
     this.stockBySupplier = Array.from(grouped.entries())
-      .map(([supplier, items]) => ({
-        supplier,
-        items: items.sort((a, b) => a.productKey.localeCompare(b.productKey))
-      }))
+      .map(([supplier, items]) => ({ supplier, items }))
       .sort((a, b) => a.supplier.localeCompare(b.supplier));
 
     if (this.expandedSuppliers.size === 0 && this.stockBySupplier.length > 0) {
@@ -123,6 +127,37 @@ export class StockComponent implements OnInit {
 
   onMovementFilter(): void {
     this.loadMovements();
+  }
+
+  clearMovementFilter(): void {
+    this.movementFilter = '';
+    this.loadMovements();
+  }
+
+  /** Clic produit stock → onglet Mouvements filtré sur ce code. */
+  showProductMovements(productKey: string, event?: Event): void {
+    event?.stopPropagation();
+    if (!productKey?.trim()) return;
+    this.movementFilter = productKey.trim();
+    this.selectedTab = 1;
+    this.loadMovements();
+  }
+
+  reconcileOuts(): void {
+    this.stockService.reconcileOuts().subscribe({
+      next: (r) => {
+        this.snack.open(
+          this.i18n.t('stock.reconcileOuts.success', { families: r.familiesFixed, rows: r.rowsTouched }),
+          this.i18n.t('common.close'),
+          { duration: 4000 }
+        );
+        this.loadStock();
+        this.loadMovements();
+      },
+      error: () => {
+        this.snack.open(this.i18n.t('stock.reconcileOuts.error'), this.i18n.t('common.close'), { duration: 3000 });
+      }
+    });
   }
 
   openAdjustModal(productKey?: string): void {
@@ -186,11 +221,56 @@ export class StockComponent implements OnInit {
     return Math.max(0, Number(item.quantityOnHand || 0) - Number(item.reservedQuantity || 0));
   }
 
+  sortedStockItems(items: StockItem[]): StockItem[] {
+    void this.stockSort.version;
+    return this.stockSort.sort(items, {
+      productKey: i => i.productKey,
+      description: i => i.description ?? '',
+      quantityOnHand: i => i.quantityOnHand,
+      reservedQuantity: i => i.reservedQuantity ?? 0,
+      available: i => this.availableQty(i),
+      averageCost: i => i.averageCost ?? 0,
+      unit: i => i.unit ?? '',
+      lastUpdated: i => i.lastUpdated ?? ''
+    });
+  }
+
+  get sortedMovements(): StockMovement[] {
+    void this.movementSort.version;
+    return this.movementSort.sort(this.movements, {
+      createdAt: m => m.createdAt ?? '',
+      movementType: m => m.movementType ?? '',
+      productKey: m => m.productKey,
+      quantity: m => m.quantity,
+      unitCost: m => m.unitCost ?? 0,
+      stockValue: m => m.stockValue ?? 0,
+      reason: m => m.reason ?? '',
+      referenceDocument: m => m.referenceDocument ?? '',
+      createdBy: m => m.createdBy ?? ''
+    });
+  }
+
+  runStockAlerts(): void {
+    if (!this.perm.has(Permissions.EmailSend)) return;
+    this.runningStockAlerts = true;
+    this.emailService.runStockAlerts().subscribe({
+      next: (r) => {
+        this.runningStockAlerts = false;
+        this.snack.open(this.i18n.t('stock.alertsDone', { queued: r.queued, skipped: r.skipped }), this.i18n.t('common.close'), { duration: 4000 });
+      },
+      error: (err) => {
+        this.runningStockAlerts = false;
+        this.snack.open(err?.error?.error || this.i18n.t('stock.alertsError'), this.i18n.t('common.close'), { duration: 5000 });
+      }
+    });
+  }
+
   private createEmptyMovement(): StockMovement {
     return {
       productKey: '',
       movementType: 'Adjustment',
       quantity: 0,
+      unitCost: null,
       reason: '',
       referenceDocument: ''
     };

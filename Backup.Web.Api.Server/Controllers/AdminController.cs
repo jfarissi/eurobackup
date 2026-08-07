@@ -26,15 +26,18 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly UserManager<User> userManager;
         private readonly IPermissionChangeNotifier permissionNotifier;
+        private readonly ICompanyContextService companyContext;
 
         public AdminController(
             IStorageBroker storage,
             UserManager<User> userManager,
-            IPermissionChangeNotifier permissionNotifier)
+            IPermissionChangeNotifier permissionNotifier,
+            ICompanyContextService companyContext)
         {
             this.storage = storage;
             this.userManager = userManager;
             this.permissionNotifier = permissionNotifier;
+            this.companyContext = companyContext;
         }
 
         // ── Tenants ──────────────────────────────────────────────────────────
@@ -345,6 +348,200 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(companies);
         }
 
+        /// <summary>
+        /// Journal d'activité — DocumentAuditLog (actions métier) + EntityAuditLog (CRUD Created/Updated/Deleted).
+        /// </summary>
+        [HttpGet("activity")]
+        [RequirePermission(Permissions.UserRead)]
+        public async Task<IActionResult> GetActivity(
+            [FromQuery] string? search = null,
+            [FromQuery] string? documentType = null,
+            [FromQuery] string? actor = null,
+            [FromQuery] string? companyId = null,
+            [FromQuery] string? source = null,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
+            [FromQuery] int take = 200)
+        {
+            take = Math.Clamp(take, 1, 500);
+            var company = !string.IsNullOrWhiteSpace(companyId)
+                ? companyId.Trim()
+                : this.companyContext.GetCurrentCompanyId();
+
+            var wantDocs = string.IsNullOrWhiteSpace(source)
+                || string.Equals(source, "document", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(source, "all", StringComparison.OrdinalIgnoreCase);
+            var wantEntities = string.IsNullOrWhiteSpace(source)
+                || string.Equals(source, "entity", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(source, "all", StringComparison.OrdinalIgnoreCase);
+
+            var fetch = Math.Min(take * 2, 1000);
+            var items = new List<ActivityLogDto>();
+
+            if (wantDocs)
+            {
+                var query = this.storage.SelectAllDocumentAuditLogs().AsQueryable();
+                if (!string.IsNullOrWhiteSpace(company))
+                    query = query.Where(l => l.CompanyId == company);
+
+                if (!string.IsNullOrWhiteSpace(documentType))
+                {
+                    var dt = documentType.Trim();
+                    query = query.Where(l => l.DocumentType == dt);
+                }
+
+                if (!string.IsNullOrWhiteSpace(actor))
+                {
+                    var a = actor.Trim().ToLower();
+                    query = query.Where(l => l.Actor != null && l.Actor.ToLower().Contains(a));
+                }
+
+                if (from.HasValue)
+                    query = query.Where(l => l.CreatedAt >= from.Value.ToUniversalTime());
+                if (to.HasValue)
+                {
+                    var end = to.Value.Date.AddDays(1).ToUniversalTime();
+                    query = query.Where(l => l.CreatedAt < end);
+                }
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.Trim().ToLower();
+                    query = query.Where(l =>
+                        (l.Summary != null && l.Summary.ToLower().Contains(s))
+                        || (l.Details != null && l.Details.ToLower().Contains(s))
+                        || (l.Action != null && l.Action.ToLower().Contains(s))
+                        || (l.DocumentType != null && l.DocumentType.ToLower().Contains(s))
+                        || (l.Actor != null && l.Actor.ToLower().Contains(s))
+                        || l.DocumentId.ToString().Contains(s));
+                }
+
+                var docs = await query
+                    .OrderByDescending(l => l.CreatedAt)
+                    .Take(fetch)
+                    .Select(l => new ActivityLogDto
+                    {
+                        Id = l.Id,
+                        Source = "document",
+                        DocumentType = l.DocumentType,
+                        EntityKey = l.DocumentId.ToString(),
+                        DocumentId = l.DocumentId,
+                        Action = l.Action,
+                        Summary = l.Summary,
+                        Details = l.Details,
+                        Actor = l.Actor,
+                        CompanyId = l.CompanyId,
+                        CreatedAt = l.CreatedAt
+                    })
+                    .ToListAsync();
+                items.AddRange(docs);
+            }
+
+            if (wantEntities)
+            {
+                var query = this.storage.SelectAllEntityAuditLogs().AsQueryable();
+                if (!string.IsNullOrWhiteSpace(company))
+                    query = query.Where(l => l.CompanyId == company);
+
+                if (!string.IsNullOrWhiteSpace(documentType))
+                {
+                    var dt = documentType.Trim();
+                    query = query.Where(l => l.EntityType == dt);
+                }
+
+                if (!string.IsNullOrWhiteSpace(actor))
+                {
+                    var a = actor.Trim().ToLower();
+                    query = query.Where(l => l.Actor != null && l.Actor.ToLower().Contains(a));
+                }
+
+                if (from.HasValue)
+                    query = query.Where(l => l.CreatedAt >= from.Value.ToUniversalTime());
+                if (to.HasValue)
+                {
+                    var end = to.Value.Date.AddDays(1).ToUniversalTime();
+                    query = query.Where(l => l.CreatedAt < end);
+                }
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.Trim().ToLower();
+                    query = query.Where(l =>
+                        (l.Summary != null && l.Summary.ToLower().Contains(s))
+                        || (l.Details != null && l.Details.ToLower().Contains(s))
+                        || (l.Action != null && l.Action.ToLower().Contains(s))
+                        || (l.EntityType != null && l.EntityType.ToLower().Contains(s))
+                        || (l.EntityKey != null && l.EntityKey.ToLower().Contains(s))
+                        || (l.Actor != null && l.Actor.ToLower().Contains(s)));
+                }
+
+                var entities = await query
+                    .OrderByDescending(l => l.CreatedAt)
+                    .Take(fetch)
+                    .Select(l => new ActivityLogDto
+                    {
+                        Id = l.Id,
+                        Source = "entity",
+                        DocumentType = l.EntityType,
+                        EntityKey = l.EntityKey,
+                        DocumentId = 0,
+                        Action = l.Action,
+                        Summary = l.Summary,
+                        Details = l.Details,
+                        Actor = l.Actor,
+                        CompanyId = l.CompanyId,
+                        CreatedAt = l.CreatedAt
+                    })
+                    .ToListAsync();
+                items.AddRange(entities);
+            }
+
+            var page = items
+                .OrderByDescending(i => i.CreatedAt)
+                .Take(take)
+                .ToList();
+
+            await this.ResolveActorDisplayNamesAsync(page);
+
+            return Ok(new ActivityPageDto { Items = page, Count = page.Count });
+        }
+
+        /// <summary>Remplace les Actor stockés en GUID par username / nom affiché.</summary>
+        private async Task ResolveActorDisplayNamesAsync(List<ActivityLogDto> items)
+        {
+            var guidActors = items
+                .Select(i => i.Actor)
+                .Where(a => !string.IsNullOrWhiteSpace(a) && Guid.TryParse(a, out _))
+                .Select(a => Guid.Parse(a!))
+                .Distinct()
+                .ToList();
+
+            if (guidActors.Count == 0) return;
+
+            var users = await this.userManager.Users
+                .Where(u => guidActors.Contains(u.Id))
+                .Select(u => new { u.Id, u.UserName, u.Email, u.Name, u.FamilyName })
+                .ToListAsync();
+
+            var map = users.ToDictionary(
+                u => u.Id.ToString(),
+                u =>
+                {
+                    var full = $"{u.Name} {u.FamilyName}".Trim();
+                    if (!string.IsNullOrWhiteSpace(full)) return full;
+                    if (!string.IsNullOrWhiteSpace(u.UserName)) return u.UserName!;
+                    if (!string.IsNullOrWhiteSpace(u.Email)) return u.Email!;
+                    return u.Id.ToString();
+                },
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in items)
+            {
+                if (item.Actor != null && map.TryGetValue(item.Actor, out var display))
+                    item.Actor = display;
+            }
+        }
+
         // ── DTOs ──────────────────────────────────────────────────────────────
 
         private static CompanyAdminDto ToCompanyDto(Company c) => new()
@@ -423,5 +620,27 @@ namespace Backup.Web.Api.Server.Controllers
             public string? RoleName { get; set; }
         }
         public class ResetPasswordRequest { public string NewPassword { get; set; } = ""; }
+
+        public class ActivityLogDto
+        {
+            public long Id { get; set; }
+            /// <summary>document = action métier ; entity = CRUD CreatedBy/UpdatedBy</summary>
+            public string Source { get; set; } = "document";
+            public string DocumentType { get; set; } = "";
+            public string EntityKey { get; set; } = "";
+            public int DocumentId { get; set; }
+            public string Action { get; set; } = "";
+            public string? Summary { get; set; }
+            public string? Details { get; set; }
+            public string? Actor { get; set; }
+            public string? CompanyId { get; set; }
+            public DateTime CreatedAt { get; set; }
+        }
+
+        public class ActivityPageDto
+        {
+            public List<ActivityLogDto> Items { get; set; } = new();
+            public int Count { get; set; }
+        }
     }
 }

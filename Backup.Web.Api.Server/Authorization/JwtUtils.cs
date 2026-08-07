@@ -50,6 +50,12 @@ public class JwtUtils : IJwtUtils
         if (!string.IsNullOrWhiteSpace(user.UserName))
             claims.Add(new Claim(ClaimTypes.Name, user.UserName!));
 
+        var displayName = $"{user.Name} {user.FamilyName}".Trim();
+        if (!string.IsNullOrWhiteSpace(displayName))
+            claims.Add(new Claim("display_name", displayName));
+        else if (!string.IsNullOrWhiteSpace(user.UserName))
+            claims.Add(new Claim("display_name", user.UserName!));
+
         if (permissions != null)
             claims.AddRange(PermissionResolver.ToPermissionClaims(permissions));
 

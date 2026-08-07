@@ -21,5 +21,10 @@ export class StockService {
   getById(id: number): Observable<StockItem> {
     return this.http.get<StockItem>(`${this.baseUrl}/${id}`);
   }
+
+  /** Applique les sorties orphelines (clé BL ≠ clé stock) sur QuantityOnHand. */
+  reconcileOuts(): Observable<{ familiesFixed: number; rowsTouched: number }> {
+    return this.http.post<{ familiesFixed: number; rowsTouched: number }>(`${this.baseUrl}/reconcile-outs`, {});
+  }
 }
 

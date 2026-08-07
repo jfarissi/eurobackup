@@ -1,7 +1,10 @@
+using System.Linq;
+using System.Threading.Tasks;
 using Backup.Web.Api.Server.Authorization;
 using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Stock;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -71,6 +74,19 @@ namespace Backup.Web.Api.Server.Controllers
 			if (string.IsNullOrWhiteSpace(productKey)) return BadRequest("productKey required");
 			var updates = this.storage.SelectStockUpdatesByProductKey(productKey).ToList();
 			return Ok(updates);
+		}
+
+		/// <summary>
+		/// Applique les sorties journalisées sous une clé produit différente de la ligne stock
+		/// (ex. BL "CODE" vs stock "Marque CODE") pour rattraper QuantityOnHand.
+		/// </summary>
+		[HttpPost("reconcile-outs")]
+		[RequirePermission(Permissions.StockUpdate)]
+		public async Task<IActionResult> ReconcileOuts()
+		{
+			var companyId = this.companyContext.GetCurrentCompanyId();
+			var (familiesFixed, rowsTouched) = await StockLedger.ReconcileMismatchedOutsAsync(this.storage, companyId);
+			return Ok(new { familiesFixed, rowsTouched });
 		}
 	}
 }

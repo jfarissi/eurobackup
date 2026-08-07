@@ -360,19 +360,19 @@
       </div>
     </div>
     <div class="table-wrapper comparison-scroll">
-      <table mat-table [dataSource]="comparaisonResult.lines" class="comparison-table">
+      <table mat-table [dataSource]="sortedComparisonLines" class="comparison-table">
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.product' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="product">{{ 'compare.col.product' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
         <ng-container matColumnDef="invoiceQty">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.invoiceQty' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="invoiceQty" defaultDir="desc">{{ 'compare.col.invoiceQty' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.invoiceQty }}</td>
         </ng-container>
 
         <ng-container matColumnDef="deliveryQty">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.deliveryQty' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="deliveryQty" defaultDir="desc">{{ 'compare.col.deliveryQty' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.deliveryQty }}</td>
         </ng-container>
 
@@ -423,7 +423,7 @@
         </ng-container>
 
         <ng-container matColumnDef="diff">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.qtyDiff' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="diff" defaultDir="desc">{{ 'compare.col.qtyDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.diff-positive]="l.diff > 0" [class.diff-negative]="l.diff < 0"
             [class.diff-zero]="l.diff === 0">
             {{ l.diff }}
@@ -434,7 +434,7 @@
         </ng-container>
 
         <ng-container matColumnDef="currentPrice">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.currentUnitPrice' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="currentPrice" defaultDir="desc">{{ 'compare.col.currentUnitPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.currentInvoiceUnitPrice > 0">{{ l.currentInvoiceUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.currentInvoiceUnitPrice === 0" class="no-price">-</span>
@@ -442,7 +442,7 @@
         </ng-container>
 
         <ng-container matColumnDef="previousPrice">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.previousUnitPrice' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="previousPrice" defaultDir="desc">{{ 'compare.col.previousUnitPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.previousInvoiceUnitPrice > 0">{{ l.previousInvoiceUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.previousInvoiceUnitPrice === 0" class="no-price">-</span>
@@ -450,7 +450,7 @@
         </ng-container>
 
         <ng-container matColumnDef="priceDiff">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.priceDiff' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="priceDiff" defaultDir="desc">{{ 'compare.col.priceDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.price-positive]="l.priceDiff > 0"
             [class.price-negative]="l.priceDiff < 0"
             [class.price-zero]="l.priceDiff === 0 && (l.currentInvoiceUnitPrice > 0 || l.previousInvoiceUnitPrice > 0)"
@@ -462,17 +462,17 @@
         </ng-container>
 
         <ng-container matColumnDef="productKey">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.code' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="productKey">{{ 'compare.col.code' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.productKey }}</td>
         </ng-container>
 
         <ng-container matColumnDef="unit">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.unit' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="unit">{{ 'compare.col.unit' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.unit }}</td>
         </ng-container>
 
         <ng-container matColumnDef="totalValue">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.totalInvoice' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="totalValue" defaultDir="desc">{{ 'compare.col.totalInvoice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.invoiceTotalValue !== undefined && l.invoiceTotalValue !== null">{{ l.invoiceTotalValue |
               number:'1.2-2' }} €</span>
@@ -481,7 +481,7 @@
         </ng-container>
 
         <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.status' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="comparisonSort" key="status">{{ 'compare.col.status' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <mat-chip-set>
               <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">
@@ -536,14 +536,14 @@
       </div>
     </div>
     <div class="table-wrapper">
-      <table mat-table [dataSource]="invoicePriceComparisonResult.lines" class="comparison-table">
+      <table mat-table [dataSource]="sortedInvoicePriceLines" class="comparison-table">
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.product' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="invoicePriceSort" key="product">{{ 'compare.col.product' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
         <ng-container matColumnDef="invoice1Price">
-          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture 1</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="invoicePriceSort" key="invoice1Price" defaultDir="desc">Prix Unit. Facture 1</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.invoice1UnitPrice > 0">{{ l.invoice1UnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.invoice1UnitPrice === 0" class="no-price">-</span>
@@ -551,7 +551,7 @@
         </ng-container>
 
         <ng-container matColumnDef="invoice2Price">
-          <th mat-header-cell *matHeaderCellDef>Prix Unit. Facture 2</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="invoicePriceSort" key="invoice2Price" defaultDir="desc">Prix Unit. Facture 2</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.invoice2UnitPrice > 0">{{ l.invoice2UnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.invoice2UnitPrice === 0" class="no-price">-</span>
@@ -559,7 +559,7 @@
         </ng-container>
 
         <ng-container matColumnDef="priceDiff">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.priceDiff' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="invoicePriceSort" key="priceDiff" defaultDir="desc">{{ 'compare.col.priceDiff' | t }}</th>
           <td mat-cell *matCellDef="let l" [class.price-positive]="l.priceDiff > 0"
             [class.price-negative]="l.priceDiff < 0"
             [class.price-zero]="l.priceDiff === 0 && (l.invoice1UnitPrice > 0 || l.invoice2UnitPrice > 0)"
@@ -598,24 +598,24 @@
       <span>{{ 'compare.erpPrice.loading' | t }}</span>
     </div>
     <div class="table-wrapper" *ngIf="erpPriceComparisonResult && !erpPriceComparisonLoading">
-      <table mat-table [dataSource]="erpPriceComparisonResult" class="comparison-table">
+      <table mat-table [dataSource]="sortedErpPriceLines" class="comparison-table">
         <ng-container matColumnDef="productCode">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.productCode' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="productCode">{{ 'compare.col.productCode' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.productCode || '-' }}</td>
         </ng-container>
 
         <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.designation' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="product">{{ 'compare.col.designation' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.product }}</td>
         </ng-container>
 
         <ng-container matColumnDef="invoiceUnitPrice">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.invoicePrice' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="invoiceUnitPrice" defaultDir="desc">{{ 'compare.col.invoicePrice' | t }}</th>
           <td mat-cell *matCellDef="let l">{{ l.invoiceUnitPrice | number:'1.2-2' }}</td>
         </ng-container>
 
         <ng-container matColumnDef="erpUnitPrice">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.erpPrice' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="erpUnitPrice" defaultDir="desc">{{ 'compare.col.erpPrice' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <span *ngIf="l.erpUnitPrice != null">{{ l.erpUnitPrice | number:'1.2-2' }}</span>
             <span *ngIf="l.erpUnitPrice == null" class="no-price">-</span>
@@ -623,7 +623,7 @@
         </ng-container>
 
         <ng-container matColumnDef="delta">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.delta' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="delta" defaultDir="desc">{{ 'compare.col.delta' | t }}</th>
           <td mat-cell *matCellDef="let l"
             [class.price-positive]="l.delta != null && l.delta > 0"
             [class.price-negative]="l.delta != null && l.delta < 0"
@@ -635,7 +635,7 @@
         </ng-container>
 
         <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>{{ 'compare.col.status' | t }}</th>
+          <th mat-header-cell *matHeaderCellDef appSortable [state]="erpPriceSort" key="status">{{ 'compare.col.status' | t }}</th>
           <td mat-cell *matCellDef="let l">
             <mat-chip-set>
               <mat-chip [class]="l.status === 'OK' ? 'ok-chip' : 'diff-chip'">{{ l.status }}</mat-chip>

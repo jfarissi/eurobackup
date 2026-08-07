@@ -36,10 +36,20 @@ namespace Backup.Web.Api.Server.Services.Sales
         public static string ActorFrom(System.Security.Claims.ClaimsPrincipal? user)
         {
             if (user?.Identity?.IsAuthenticated != true) return "System";
-            return user.FindFirst("id")?.Value
+
+            // Nom lisible (prénom+nom / username / email) — pas l'id GUID.
+            var display =
+                user.FindFirst("display_name")?.Value
                 ?? user.Identity?.Name
                 ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-                ?? "System";
+                ?? user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value
+                ?? user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value
+                ?? user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+            if (!string.IsNullOrWhiteSpace(display))
+                return display.Trim();
+
+            return "System";
         }
     }
 }

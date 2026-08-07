@@ -34,6 +34,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public DbSet<AccountingEntry> AccountingEntries { get; set; } = null!;
         public DbSet<AccountingEntryLine> AccountingEntryLines { get; set; } = null!;
         public DbSet<DocumentAuditLog> DocumentAuditLogs { get; set; } = null!;
+        public DbSet<EntityAuditLog> EntityAuditLogs { get; set; } = null!;
         public DbSet<SalesReturn> SalesReturns { get; set; } = null!;
         public DbSet<SalesReturnLine> SalesReturnLines { get; set; } = null!;
         public DbSet<SupplierCreditNoteEntity> SupplierCreditNotes { get; set; } = null!;
@@ -521,6 +522,9 @@ namespace Backup.Web.Api.Server.Brokers.Storage
 
         public IQueryable<DocumentAuditLog> SelectAllDocumentAuditLogs() =>
             this.DocumentAuditLogs.AsQueryable();
+
+        public IQueryable<EntityAuditLog> SelectAllEntityAuditLogs() =>
+            this.EntityAuditLogs.AsQueryable();
 
         // Accounting entries
         public async ValueTask<AccountingEntry> InsertAccountingEntryAsync(AccountingEntry entry)

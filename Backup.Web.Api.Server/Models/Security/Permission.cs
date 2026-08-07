@@ -28,6 +28,18 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string ProductUpdate    = "Product.Update";
         public const string ProductDelete    = "Product.Delete";
 
+        // Marques catalogue
+        public const string BrandRead        = "Brand.Read";
+        public const string BrandCreate      = "Brand.Create";
+        public const string BrandUpdate      = "Brand.Update";
+        public const string BrandDelete      = "Brand.Delete";
+
+        // Catégories catalogue
+        public const string CategoryRead     = "Category.Read";
+        public const string CategoryCreate   = "Category.Create";
+        public const string CategoryUpdate   = "Category.Update";
+        public const string CategoryDelete   = "Category.Delete";
+
         // Changements ERP (journal sync / import)
         public const string ErpChangeRead    = "ErpChange.Read";
         public const string ErpChangeUpdate  = "ErpChange.Update";
@@ -127,9 +139,16 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string RoleUpdate       = "Role.Update";
         public const string RoleDelete       = "Role.Delete";
 
+        // Email
+        public const string EmailRead           = "Email.Read";
+        public const string EmailSend           = "Email.Send";
+        public const string EmailSettingsManage = "Email.Settings";
+
         public static IReadOnlyList<string> All => new[]
         {
             ProductRead, ProductCreate, ProductUpdate, ProductDelete,
+            BrandRead, BrandCreate, BrandUpdate, BrandDelete,
+            CategoryRead, CategoryCreate, CategoryUpdate, CategoryDelete,
             ErpChangeRead, ErpChangeUpdate, ErpChangeDelete,
             SupplierRead, SupplierCreate, SupplierUpdate, SupplierDelete,
             CustomerRead, CustomerCreate, CustomerUpdate, CustomerDelete,
@@ -150,6 +169,7 @@ namespace Backup.Web.Api.Server.Models.Security
             DocumentRead, DocumentUpload, DocumentLink,
             UserRead, UserCreate, UserUpdate, UserDelete,
             RoleRead, RoleCreate, RoleUpdate, RoleDelete,
+            EmailRead, EmailSend, EmailSettingsManage,
         };
     }
 }

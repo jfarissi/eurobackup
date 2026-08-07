@@ -30,6 +30,9 @@ import { TPipe } from '../../pipes/t.pipe';
 import { DocumentRelation } from '../../models/relation';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
 import { FieldHelpComponent } from '../shared/field-help/field-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
+import { SendEmailModalComponent } from '../shared/send-email-modal/send-email-modal.component';
 
 /** Lot facture + BL(s) pour comptabilisation groupée. */
 export interface ParsedDocumentGroup {
@@ -43,7 +46,7 @@ export interface ParsedDocumentGroup {
 @Component({
   selector: 'app-purchases',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, ProductLineRefComponent, TPipe, FormHelpComponent, FieldHelpComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, ProductLineRefComponent, TPipe, FormHelpComponent, FieldHelpComponent, SortableThComponent, SendEmailModalComponent],
   templateUrl: './purchases.component.html',
   styleUrls: ['./purchases.component.css']
 })
@@ -84,6 +87,7 @@ export class PurchasesComponent implements OnInit {
   showCreateFromDocumentModal = false;
   showManualInvoiceModal = false;
   showManualPurchaseOrderModal = false;
+  showManualReceiptModal = false;
   showLinkDocumentModal = false;
   showReceiveDeliveryModal = false;
   showComptabiliserModal = false;
@@ -94,7 +98,7 @@ export class PurchasesComponent implements OnInit {
   showMatchPurchaseOrderModal = false;
   showSupplierModal = false;
   editingSupplierId: number | null = null;
-  openSupplierFrom: 'invoice' | 'order' | 'document' | null = null;
+  openSupplierFrom: 'invoice' | 'order' | 'document' | 'receipt' | null = null;
   selectedSupplierId: number | null = null;
   selectedPurchaseOrderId: number | null = null;
   selectedDocumentId: number | null = null;
@@ -110,6 +114,24 @@ export class PurchasesComponent implements OnInit {
 
   newInvoice: SupplierInvoice = this.createEmptyInvoice();
   newPurchaseOrder: PurchaseOrder = this.createEmptyPurchaseOrder();
+  newReceipt: {
+    supplierId: number;
+    purchaseOrderId: number | null;
+    receiptNumber: string;
+    receivedAt: string;
+    notes: string;
+    updateStock: boolean;
+    defaultVatRate: number;
+    lines: Array<{
+      productKey: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      vatRate: number;
+      totalHT: number;
+      totalTTC: number;
+    }>;
+  } = this.createEmptyReceipt();
   newSupplier: Partial<Supplier> = this.createEmptySupplier();
 
   expandedRowKey: string | null = null;
@@ -120,7 +142,21 @@ export class PurchasesComponent implements OnInit {
   detailSupplierInvoice: SupplierInvoice | null = null;
   detailReceipt: Receipt | null = null;
 
+  showEmailModal = false;
+  emailDocumentId = 0;
+  sendingPurchaseOrderId: number | null = null;
+  confirmingPurchaseOrderId: number | null = null;
+
   readonly P = Permissions;
+
+  rfqSort = new TableSortState('date', 'desc');
+  purchaseOrderSort = new TableSortState('date', 'desc');
+  receiptSort = new TableSortState('date', 'desc');
+  supplierInvoiceSort = new TableSortState('date', 'desc');
+  supplierCreditNoteSort = new TableSortState('date', 'desc');
+  supplierSort = new TableSortState('code', 'asc');
+  supplierReturnSort = new TableSortState('date', 'desc');
+  parsedGroupSort = new TableSortState('supplier', 'asc');
 
   constructor(
     private businessService: BusinessService,
@@ -129,6 +165,103 @@ export class PurchasesComponent implements OnInit {
     public perm: PermissionService,
     private i18n: AppI18nService
   ) {}
+
+  get sortedSupplierRfqs() {
+    void this.rfqSort.version;
+    return this.rfqSort.sort(this.supplierRfqs, {
+      number: r => r.rfqNumber,
+      supplier: r => r.supplier?.name ?? '',
+      date: r => r.date,
+      status: r => r.status
+    });
+  }
+
+  get sortedPurchaseOrders() {
+    void this.purchaseOrderSort.version;
+    return this.purchaseOrderSort.sort(this.purchaseOrders, {
+      number: o => o.orderNumber,
+      supplier: o => this.supplierNameForOrder(o),
+      date: o => o.date,
+      expectedDelivery: o => o.expectedDeliveryDate,
+      ht: o => o.totalHT,
+      ttc: o => o.totalTTC,
+      status: o => o.status
+    });
+  }
+
+  get sortedReceipts() {
+    void this.receiptSort.version;
+    return this.receiptSort.sort(this.receipts, {
+      number: r => r.receiptNumber,
+      supplier: r => r.supplier?.name ?? '',
+      date: r => r.receivedAt,
+      document: r => r.documentId ?? 0,
+      order: r => r.purchaseOrder?.orderNumber ?? (r.purchaseOrderId ? String(r.purchaseOrderId) : ''),
+      lines: r => r.lines?.length || 0,
+      status: r => r.status
+    });
+  }
+
+  get sortedSupplierInvoices() {
+    void this.supplierInvoiceSort.version;
+    return this.supplierInvoiceSort.sort(this.supplierInvoices, {
+      number: inv => inv.invoiceNumber,
+      supplier: inv => this.supplierName(inv),
+      document: inv => inv.documentId ?? 0,
+      order: inv => inv.purchaseOrder?.orderNumber ?? (inv.purchaseOrderId ? String(inv.purchaseOrderId) : ''),
+      date: inv => inv.date,
+      dueDate: inv => inv.dueDate,
+      ht: inv => inv.totalHT,
+      ttc: inv => inv.totalTTC,
+      status: inv => inv.status
+    });
+  }
+
+  get sortedSupplierCreditNotes() {
+    void this.supplierCreditNoteSort.version;
+    return this.supplierCreditNoteSort.sort(this.supplierCreditNotes, {
+      number: c => c.creditNoteNumber,
+      supplier: c => c.supplier?.name ?? '',
+      invoice: c => c.supplierInvoice?.invoiceNumber ?? String(c.supplierInvoiceId ?? ''),
+      date: c => c.date,
+      ttc: c => c.totalTTC,
+      status: c => c.status
+    });
+  }
+
+  get sortedSuppliers() {
+    void this.supplierSort.version;
+    return this.supplierSort.sort(this.suppliers, {
+      code: s => s.supplierCode,
+      name: s => s.name,
+      vatNumber: s => s.vatNumber ?? '',
+      city: s => s.city ?? '',
+      phone: s => s.phone ?? '',
+      email: s => s.email ?? ''
+    });
+  }
+
+  get sortedSupplierReturns() {
+    void this.supplierReturnSort.version;
+    return this.supplierReturnSort.sort(this.supplierReturns, {
+      number: r => r.returnNumber,
+      supplier: r => r.supplier?.name ?? '',
+      date: r => r.date,
+      ttc: r => r.totalTTC,
+      status: r => r.status
+    });
+  }
+
+  get sortedParsedDocumentGroups() {
+    void this.parsedGroupSort.version;
+    return this.parsedGroupSort.sort(this.parsedDocumentGroups(), {
+      lot: g => this.groupKindLabel(g),
+      supplier: g => g.supplierName ?? '',
+      invoice: g => g.invoice?.numero ?? String(g.invoice?.id ?? ''),
+      bl: g => g.deliveries.map(d => d.numero || String(d.id)).join(' '),
+      status: g => this.isGroupFullyComptabilise(g) ? 1 : 0
+    });
+  }
 
   ngOnInit(): void {
     this.route.queryParamMap.subscribe(params => {
@@ -151,6 +284,7 @@ export class PurchasesComponent implements OnInit {
   get createButtonLabel(): string {
     switch (this.selectedTab) {
       case 1: return this.i18n.t('purchases.btn.newOrder');
+      case 2: return this.i18n.t('purchases.btn.newReceipt');
       case 5: return this.i18n.t('purchases.btn.newSupplier');
       default: return this.i18n.t('purchases.btn.newInvoice');
     }
@@ -187,15 +321,17 @@ export class PurchasesComponent implements OnInit {
   get createButtonIcon(): string {
     switch (this.selectedTab) {
       case 1: return 'shopping_cart';
+      case 2: return 'inventory_2';
       case 5: return 'person_add';
       default: return 'add';
     }
   }
 
   get showCreateButton(): boolean {
-    if (this.selectedTab === 2 || this.selectedTab === 7) return false;
+    if (this.selectedTab === 7) return false;
     switch (this.selectedTab) {
       case 3: return this.perm.has(Permissions.SupplierInvoiceCreate);
+      case 2: return this.perm.has(Permissions.ReceiptCreate);
       case 1: return this.perm.has(Permissions.PurchaseOrderCreate);
       case 5: return this.perm.has(Permissions.SupplierCreate);
       default: return false;
@@ -205,6 +341,10 @@ export class PurchasesComponent implements OnInit {
   onCreateClick(): void {
     if (this.selectedTab === 1) {
       this.openManualPurchaseOrderModal();
+      return;
+    }
+    if (this.selectedTab === 2) {
+      this.openManualReceiptModal();
       return;
     }
     if (this.selectedTab === 5) {
@@ -409,6 +549,19 @@ export class PurchasesComponent implements OnInit {
     this.newPurchaseOrder = this.createEmptyPurchaseOrder();
   }
 
+  openManualReceiptModal(): void {
+    if (this.suppliers.length === 0) {
+      this.createError = '';
+      this.actionMessage = '';
+      this.highlightMessage = this.i18n.t('purchases.needSupplierFirst');
+      this.openSupplierModal('receipt');
+      return;
+    }
+    this.showManualReceiptModal = true;
+    this.createError = '';
+    this.newReceipt = this.createEmptyReceipt();
+  }
+
   downloadPdfFromList(kind: 'PurchaseOrder' | 'SupplierInvoice', id?: number, fileName?: string): void {
     if (!id) return;
     this.downloadPdf(kind, id, fileName || 'document.pdf');
@@ -443,7 +596,7 @@ export class PurchasesComponent implements OnInit {
     });
   }
 
-  openSupplierModal(from: 'invoice' | 'order' | 'document' | null = null): void {
+  openSupplierModal(from: 'invoice' | 'order' | 'document' | 'receipt' | null = null): void {
     this.openSupplierFrom = from;
     this.editingSupplierId = null;
     this.newSupplier = this.createEmptySupplier();
@@ -1042,6 +1195,72 @@ export class PurchasesComponent implements OnInit {
     });
   }
 
+  saveManualReceipt(): void {
+    if (!this.newReceipt.supplierId) {
+      this.createError = this.i18n.t('purchases.selectSupplierError');
+      return;
+    }
+
+    const lines = this.newReceipt.lines.filter(l => !!l.productKey?.trim() && (l.quantity || 0) > 0);
+    if (lines.length === 0) {
+      this.createError = this.i18n.t('purchases.addLineError');
+      return;
+    }
+
+    this.createError = '';
+    this.saving = true;
+    this.businessService.createReceipt({
+      supplierId: this.newReceipt.supplierId,
+      purchaseOrderId: this.newReceipt.purchaseOrderId || undefined,
+      receiptNumber: this.newReceipt.receiptNumber?.trim() || undefined,
+      receivedAt: this.newReceipt.receivedAt || undefined,
+      notes: this.newReceipt.notes || undefined,
+      updateStock: this.newReceipt.updateStock,
+      defaultVatRate: this.newReceipt.defaultVatRate || 21,
+      lines: lines.map(l => ({
+        productKey: l.productKey.trim(),
+        description: l.description || undefined,
+        quantityReceived: l.quantity,
+        unitPriceExclTax: l.unitPrice || 0,
+        taxRatePercent: l.vatRate || 21
+      }))
+    }).subscribe({
+      next: (result) => {
+        this.saving = false;
+        this.showManualReceiptModal = false;
+        this.selectedTab = 2;
+        const number = result.receipt?.receiptNumber || '';
+        let message = this.i18n.t('purchases.receiptCreated', { number });
+        if (result.stockUpdated) {
+          message += ` ${this.i18n.t('purchases.receiptStockUpdated', { count: result.stockMovementCount, qty: result.stockQuantityIn })}`;
+        }
+        if (result.warnings?.length) {
+          message += ` ${result.warnings.slice(0, 2).join(' ')}`;
+        }
+        this.actionMessage = message;
+        this.refreshAfterReceiptSave(!!this.newReceipt.purchaseOrderId);
+      },
+      error: (error) => {
+        this.saving = false;
+        this.createError = error?.error?.error || error?.error || this.i18n.t('purchases.receiptCreateError');
+      }
+    });
+  }
+
+  /** Après création réception : recharge ciblée (évite loadAllData = 8+ appels). */
+  private refreshAfterReceiptSave(refreshOrders: boolean): void {
+    this.businessService.getReceipts(this.searchQuery || undefined).subscribe({
+      next: (receipts) => this.receipts = receipts,
+      error: () => { /* ignore */ }
+    });
+    if (refreshOrders) {
+      this.businessService.getPurchaseOrders(this.searchQuery || undefined).subscribe({
+        next: (orders) => this.purchaseOrders = orders,
+        error: () => { /* ignore */ }
+      });
+    }
+  }
+
   saveSupplier(): void {
     if (!this.newSupplier.name?.trim()) {
       this.createError = this.i18n.t('purchases.supplierNameRequired');
@@ -1086,6 +1305,10 @@ export class PurchasesComponent implements OnInit {
             } else if (from === 'order') {
               this.newPurchaseOrder.supplierId = saved.id;
               this.showManualPurchaseOrderModal = true;
+            } else if (from === 'receipt') {
+              this.newReceipt = this.createEmptyReceipt();
+              this.newReceipt.supplierId = saved.id;
+              this.showManualReceiptModal = true;
             } else if (from === 'document') {
               this.selectedSupplierId = saved.id;
               this.showCreateFromDocumentModal = true;
@@ -1247,6 +1470,108 @@ export class PurchasesComponent implements OnInit {
     line.totalHT = (line.quantity || 0) * (line.unitPrice || 0);
     line.totalTTC = line.totalHT * (1 + (line.vatRate || 0) / 100);
     this.recalculatePurchaseOrderTotals();
+  }
+
+  purchaseOrdersForReceiptSupplier(): PurchaseOrder[] {
+    const supplierId = this.newReceipt.supplierId;
+    if (!supplierId) return [];
+    return this.purchaseOrders.filter(o => o.supplierId === supplierId);
+  }
+
+  onReceiptSupplierChanged(): void {
+    if (this.newReceipt.purchaseOrderId) {
+      const ok = this.purchaseOrdersForReceiptSupplier().some(o => o.id === this.newReceipt.purchaseOrderId);
+      if (!ok) {
+        this.newReceipt.purchaseOrderId = null;
+        this.resetReceiptLinesEmpty();
+      }
+    }
+  }
+
+  onReceiptPurchaseOrderChanged(purchaseOrderId: number | null): void {
+    if (!purchaseOrderId) {
+      this.resetReceiptLinesEmpty();
+      return;
+    }
+
+    this.createError = '';
+    this.businessService.getPurchaseOrder(purchaseOrderId).subscribe({
+      next: (order) => {
+        if (this.newReceipt.purchaseOrderId !== purchaseOrderId) return;
+
+        if (order.supplierId && order.supplierId !== this.newReceipt.supplierId) {
+          this.newReceipt.supplierId = order.supplierId;
+        }
+
+        const lines = (order.lines || [])
+          .map(line => {
+            const ordered = Number(line.quantity) || 0;
+            const alreadyReceived = Number(line.receivedQuantity) || 0;
+            const remaining = Math.max(0, ordered - alreadyReceived);
+            const quantity = remaining > 0 ? remaining : ordered;
+            const unitPrice = Number(line.unitPrice) || 0;
+            const vatRate = Number(line.vatRate) || this.newReceipt.defaultVatRate || 21;
+            const totalHT = quantity * unitPrice;
+            return {
+              productKey: line.productKey || '',
+              description: line.description || '',
+              quantity,
+              unitPrice,
+              vatRate,
+              totalHT,
+              totalTTC: totalHT * (1 + vatRate / 100)
+            };
+          })
+          .filter(l => !!l.productKey.trim() && l.quantity > 0);
+
+        this.newReceipt.lines = lines.length ? lines : [];
+        if (this.newReceipt.lines.length === 0) {
+          this.addReceiptLine();
+        }
+      },
+      error: (error) => {
+        this.createError = error?.error?.error || this.i18n.t('purchases.receiptFromOrderError');
+      }
+    });
+  }
+
+  private resetReceiptLinesEmpty(): void {
+    this.newReceipt.lines = [];
+    this.addReceiptLine();
+  }
+
+  addReceiptLine(): void {
+    this.newReceipt.lines.push({
+      productKey: '',
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      vatRate: this.newReceipt.defaultVatRate || 21,
+      totalHT: 0,
+      totalTTC: 0
+    });
+  }
+
+  removeReceiptLine(index: number): void {
+    this.newReceipt.lines.splice(index, 1);
+    if (this.newReceipt.lines.length === 0) this.addReceiptLine();
+  }
+
+  calculateReceiptLine(line: (typeof this.newReceipt.lines)[number]): void {
+    line.totalHT = (line.quantity || 0) * (line.unitPrice || 0);
+    line.totalTTC = line.totalHT * (1 + (line.vatRate || 0) / 100);
+  }
+
+  get newReceiptTotalHT(): number {
+    return this.newReceipt.lines.reduce((sum, l) => sum + (l.totalHT || 0), 0);
+  }
+
+  get newReceiptTotalTTC(): number {
+    return this.newReceipt.lines.reduce((sum, l) => sum + (l.totalTTC || 0), 0);
+  }
+
+  get newReceiptTotalVat(): number {
+    return this.newReceiptTotalTTC - this.newReceiptTotalHT;
   }
 
   supplierName(invoice: SupplierInvoice): string {
@@ -1455,6 +1780,29 @@ export class PurchasesComponent implements OnInit {
           totalHT: 0,
           totalTTC: 0,
           lineNumber: 1
+        }
+      ]
+    };
+  }
+
+  private createEmptyReceipt() {
+    return {
+      supplierId: 0,
+      purchaseOrderId: null as number | null,
+      receiptNumber: '',
+      receivedAt: new Date().toISOString().slice(0, 10),
+      notes: '',
+      updateStock: true,
+      defaultVatRate: 21,
+      lines: [
+        {
+          productKey: '',
+          description: '',
+          quantity: 1,
+          unitPrice: 0,
+          vatRate: 21,
+          totalHT: 0,
+          totalTTC: 0
         }
       ]
     };
@@ -1825,5 +2173,56 @@ export class PurchasesComponent implements OnInit {
         this.creditNoteError = err?.error?.error || err?.error || this.i18n.t('purchases.supplierCreditNotes.error');
       }
     });
+  }
+
+  canConfirmPurchaseOrder(order: PurchaseOrder): boolean {
+    return !!order.id && this.perm.has(Permissions.PurchaseOrderUpdate)
+      && (order.status || '').toLowerCase() === 'draft';
+  }
+
+  canSendPurchaseOrder(order: PurchaseOrder): boolean {
+    return !!order.id && this.perm.has(Permissions.PurchaseOrderUpdate)
+      && (order.status || '').toLowerCase() === 'confirmed';
+  }
+
+  confirmPurchaseOrder(order: PurchaseOrder): void {
+    if (!order.id) return;
+    this.confirmingPurchaseOrderId = order.id;
+    this.businessService.confirmPurchaseOrder(order.id).subscribe({
+      next: (updated) => {
+        this.confirmingPurchaseOrderId = null;
+        this.actionMessage = this.i18n.t('purchases.orderConfirmed', { number: updated.orderNumber || '' });
+        this.businessService.getPurchaseOrders(this.searchQuery || undefined).subscribe(res => this.purchaseOrders = res);
+      },
+      error: (err) => {
+        this.confirmingPurchaseOrderId = null;
+        this.actionMessage = err?.error?.error || err?.error || this.i18n.t('purchases.orderConfirmError');
+      }
+    });
+  }
+
+  sendPurchaseOrder(order: PurchaseOrder): void {
+    if (!order.id) return;
+    if (!confirm(this.i18n.t('purchases.sendOrderConfirm', { number: order.orderNumber || '' }))) return;
+    this.sendingPurchaseOrderId = order.id;
+    this.businessService.sendPurchaseOrder(order.id, true).subscribe({
+      next: (res) => {
+        this.sendingPurchaseOrderId = null;
+        let msg = this.i18n.t('purchases.orderSent', { number: res.purchaseOrder.orderNumber || '' });
+        if (res.emailWarning) msg += ` — ${res.emailWarning}`;
+        this.actionMessage = msg;
+        this.businessService.getPurchaseOrders(this.searchQuery || undefined).subscribe(o => this.purchaseOrders = o);
+      },
+      error: (err) => {
+        this.sendingPurchaseOrderId = null;
+        this.actionMessage = err?.error?.error || err?.error || this.i18n.t('purchases.orderSendError');
+      }
+    });
+  }
+
+  openPurchaseOrderEmail(order: PurchaseOrder): void {
+    if (!order.id) return;
+    this.emailDocumentId = order.id;
+    this.showEmailModal = true;
   }
 }

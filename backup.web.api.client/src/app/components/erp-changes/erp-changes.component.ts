@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { ErpChangeValueMode, ErpProductChange, ErpSyncLog } from '../../models/erp-product';
@@ -12,17 +12,22 @@ import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
+import { CompanyService } from '../../services/company.service';
 
 @Component({
   selector: 'app-erp-changes',
   templateUrl: './erp-changes.component.html',
   styleUrls: ['./erp-changes.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent]
+  imports: [CommonModule, FormsModule, MaterialModule, RouterModule, TPipe, FormHelpComponent, SortableThComponent]
 })
 export class ErpChangesComponent implements OnInit, OnDestroy {
   changes: ErpProductChange[] = [];
   syncLogs: ErpSyncLog[] = [];
+  changeSort = new TableSortState('detectedAt', 'desc');
+  syncLogSort = new TableSortState('startedAt', 'desc');
   total = 0;
   page = 1;
   pageSize = 50;
@@ -63,12 +68,18 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     private erpService: ErpProductService,
     private snack: MatSnackBar,
     private i18n: AppI18nService,
-    public perm: PermissionService
+    public perm: PermissionService,
+    private company: CompanyService,
+    private router: Router
   ) {}
 
   readonly P = Permissions;
 
   ngOnInit(): void {
+    if (!this.company.hasErpCatalogSync) {
+      void this.router.navigate(['/erp-products']);
+      return;
+    }
     this.searchSub = this.searchInput$.pipe(
       debounceTime(300),
       distinctUntilChanged()
@@ -414,6 +425,31 @@ export class ErpChangesComponent implements OnInit, OnDestroy {
     const p = change.product;
     if (!p) return `Produit #${change.erpProductId}`;
     return p.name || p.reference || p.erpProductId || `Produit #${change.erpProductId}`;
+  }
+
+  get sortedChanges(): ErpProductChange[] {
+    void this.changeSort.version;
+    return this.changeSort.sort(this.changes, {
+      detectedAt: c => c.detectedAt ?? '',
+      changeType: c => c.changeType ?? '',
+      product: c => this.productTitle(c),
+      fieldName: c => this.fieldLabel(c.fieldName),
+      oldValue: c => c.oldValue ?? '',
+      newValue: c => c.newValue ?? '',
+      isRead: c => c.isRead ? 1 : 0
+    });
+  }
+
+  get sortedSyncLogs(): ErpSyncLog[] {
+    void this.syncLogSort.version;
+    return this.syncLogSort.sort(this.syncLogs, {
+      startedAt: l => l.startedAt ?? '',
+      status: l => l.status ?? '',
+      newProducts: l => l.newProducts ?? 0,
+      updatedProducts: l => l.updatedProducts ?? 0,
+      failedProducts: l => l.failedProducts ?? 0,
+      totalChanges: l => l.totalChanges ?? 0
+    });
   }
 
   unreadCount(): number {

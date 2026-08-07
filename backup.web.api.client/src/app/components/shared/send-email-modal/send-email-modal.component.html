@@ -1,0 +1,71 @@
+<div class="modal-overlay" *ngIf="open" (click)="close()">
+  <div class="modal-content email-modal" (click)="$event.stopPropagation()">
+    <div class="email-modal-header">
+      <h3>{{ 'email.sendTitle' | t }}</h3>
+      <p class="muted" *ngIf="preview">{{ preview.documentNumber }} — {{ preview.recipientName || preview.toEmail }}</p>
+    </div>
+
+    <div class="email-modal-body">
+      <div class="loading" *ngIf="loading">{{ 'common.loading' | t }}</div>
+
+      <ng-container *ngIf="!loading && preview">
+        <div class="form-group">
+          <label>{{ 'email.to' | t }}</label>
+          <input type="email" [(ngModel)]="toEmail" />
+          <p class="warn" *ngIf="!preview.hasValidRecipient && !toEmail">{{ 'email.noRecipientWarn' | t }}</p>
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.cc' | t }}</label>
+          <input type="text" [(ngModel)]="ccEmails" [placeholder]="'email.ccHint' | t" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'email.subject' | t }}</label>
+          <input type="text" [(ngModel)]="subject" />
+        </div>
+        <div class="form-group">
+          <div class="body-header">
+            <label>{{ 'email.body' | t }}</label>
+            <button type="button" class="btn-link" (click)="editHtml = !editHtml">
+              {{ editHtml ? ('email.bodyPreview' | t) : ('email.bodyEditHtml' | t) }}
+            </button>
+          </div>
+          <div class="body-preview" *ngIf="!editHtml" [innerHTML]="bodyHtml"></div>
+          <textarea rows="8" *ngIf="editHtml" [(ngModel)]="bodyHtml"></textarea>
+        </div>
+        <p class="attachment" *ngIf="preview.attachmentFileName">
+          <mat-icon>attach_file</mat-icon>
+          {{ preview.attachmentFileName }}
+          <span *ngIf="preview.attachmentSize">({{ preview.attachmentSize | number:'1.0-0' }} o)</span>
+        </p>
+
+        <div class="already-sent-hint" *ngIf="alreadySentHint">
+          <mat-icon>info</mat-icon>
+          <span>{{ alreadySentHint }}</span>
+        </div>
+
+        <div class="history-block" *ngIf="history.length > 0">
+          <h4>{{ 'email.historyTitle' | t }}</h4>
+          <ul class="history-list">
+            <li *ngFor="let h of history">
+              <span class="history-status" [ngClass]="(h.status || '').toLowerCase()">{{ h.status }}</span>
+              <span>{{ h.toEmail }}</span>
+              <span>{{ h.sentAt || h.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+              <span *ngIf="h.templateCode" class="muted">{{ h.templateCode }}</span>
+              <span *ngIf="h.lastError" class="warn">{{ h.lastError }}</span>
+            </li>
+          </ul>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="error-box" *ngIf="error">{{ error }}</div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" (click)="close()" [disabled]="sending">{{ 'common.cancel' | t }}</button>
+      <button type="button" class="btn-primary" (click)="send()" [disabled]="sending || loading || !preview">
+        <mat-icon>send</mat-icon>
+        {{ sending ? ('common.loading' | t) : ('email.send' | t) }}
+      </button>
+    </div>
+  </div>
+</div>

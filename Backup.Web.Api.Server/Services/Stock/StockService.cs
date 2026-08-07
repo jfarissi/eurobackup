@@ -104,7 +104,8 @@ namespace Backup.Web.Api.Server.Services.Stock
 						quantityDelta: quantityDelta,
 						supplier: deliverySupplier,
 						description: l.Product,
-						unit: l.Unit
+						unit: l.Unit,
+						unitCost: (decimal?)null
 					);
 				})
 				.ToList();
@@ -149,7 +150,8 @@ namespace Backup.Web.Api.Server.Services.Stock
 				quantityDelta: l.DeliveryQty,
 				supplier: deliverySupplier,
 				description: l.Product,
-				unit: (string?)null
+				unit: (string?)null,
+				unitCost: (decimal?)null
 			))
 			.ToList();
 

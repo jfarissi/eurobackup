@@ -4,6 +4,14 @@ export const Permissions = {
   ProductCreate: 'Product.Create',
   ProductUpdate: 'Product.Update',
   ProductDelete: 'Product.Delete',
+  BrandRead: 'Brand.Read',
+  BrandCreate: 'Brand.Create',
+  BrandUpdate: 'Brand.Update',
+  BrandDelete: 'Brand.Delete',
+  CategoryRead: 'Category.Read',
+  CategoryCreate: 'Category.Create',
+  CategoryUpdate: 'Category.Update',
+  CategoryDelete: 'Category.Delete',
   ErpChangeRead: 'ErpChange.Read',
   ErpChangeUpdate: 'ErpChange.Update',
   ErpChangeDelete: 'ErpChange.Delete',
@@ -65,6 +73,9 @@ export const Permissions = {
   RoleCreate: 'Role.Create',
   RoleUpdate: 'Role.Update',
   RoleDelete: 'Role.Delete',
+  EmailRead: 'Email.Read',
+  EmailSend: 'Email.Send',
+  EmailSettingsManage: 'Email.Settings',
 } as const;
 
 export type PermissionCode = typeof Permissions[keyof typeof Permissions];
@@ -76,6 +87,8 @@ export const RoutePermissions: Record<string, PermissionCode[]> = {
   '/purchases': [Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead],
   '/stock': [Permissions.StockRead],
   '/erp-products': [Permissions.ProductRead],
+  '/erp-brands': [Permissions.BrandRead, Permissions.ProductRead],
+  '/erp-categories': [Permissions.CategoryRead, Permissions.ProductRead],
   '/erp-changes': [Permissions.ErpChangeRead],
   '/cash': [Permissions.CashRead, Permissions.CashManage],
   '/accounting': [Permissions.AccountingRead, Permissions.AccountingCreate],
@@ -83,7 +96,7 @@ export const RoutePermissions: Record<string, PermissionCode[]> = {
   '/upload': [Permissions.DocumentUpload],
   '/recherche': [Permissions.DocumentRead],
   '/compare': [Permissions.DocumentLink],
-  '/admin': [Permissions.UserRead, Permissions.RoleRead],
+  '/admin': [Permissions.UserRead, Permissions.RoleRead, Permissions.EmailSettingsManage],
 };
 
 /** Sous-groupe de permissions dans une catégorie métier. */
@@ -136,6 +149,8 @@ export const PermissionCategories: PermissionCategory[] = [
     label: 'admin.perm.cat.erp',
     sections: [
       { label: 'admin.perm.sec.products', permissions: [Permissions.ProductRead, Permissions.ProductCreate, Permissions.ProductUpdate, Permissions.ProductDelete] },
+      { label: 'admin.perm.sec.brands', permissions: [Permissions.BrandRead, Permissions.BrandCreate, Permissions.BrandUpdate, Permissions.BrandDelete] },
+      { label: 'admin.perm.sec.categories', permissions: [Permissions.CategoryRead, Permissions.CategoryCreate, Permissions.CategoryUpdate, Permissions.CategoryDelete] },
       { label: 'admin.perm.sec.erpChanges', permissions: [Permissions.ErpChangeRead, Permissions.ErpChangeUpdate, Permissions.ErpChangeDelete] },
     ],
   },
@@ -166,6 +181,7 @@ export const PermissionCategories: PermissionCategory[] = [
     sections: [
       { label: 'admin.perm.sec.numbering', permissions: [Permissions.NumberingManage] },
       { label: 'admin.perm.sec.help', permissions: [Permissions.HelpManage] },
+      { label: 'admin.perm.sec.email', permissions: [Permissions.EmailRead, Permissions.EmailSend, Permissions.EmailSettingsManage] },
     ],
   },
   {
@@ -186,9 +202,8 @@ const PermissionActionLabels: Record<string, string> = {
   Manage: 'admin.perm.action.Manage',
   Upload: 'admin.perm.action.Upload',
   Link: 'admin.perm.action.Link',
+  Send: 'admin.perm.action.Send',
 };
-
-/** Libellé court d'une permission (ex. « Lecture » dans une section « Clients »). */
 export function permissionActionLabel(code: string): string {
   const action = code.split('.')[1];
   return PermissionActionLabels[action] ?? action ?? code;

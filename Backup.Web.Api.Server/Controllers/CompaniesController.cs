@@ -33,6 +33,7 @@ namespace Backup.Web.Api.Server.Controllers
             public bool IsActive { get; set; }
             public string DefaultLanguageCode { get; set; } = "fr-FR";
             public string DefaultCurrencyCode { get; set; } = "EUR";
+            public bool EnableErpCatalogSync { get; set; }
         }
 
         public class CreateCompanyRequest
@@ -58,7 +59,8 @@ namespace Backup.Web.Api.Server.Controllers
                     TenantId = c.TenantId,
                     IsActive = c.IsActive,
                     DefaultLanguageCode = c.DefaultLanguageCode,
-                    DefaultCurrencyCode = c.DefaultCurrencyCode
+                    DefaultCurrencyCode = c.DefaultCurrencyCode,
+                    EnableErpCatalogSync = c.EnableErpCatalogSync
                 })
                 .ToListAsync();
 
@@ -78,7 +80,8 @@ namespace Backup.Web.Api.Server.Controllers
                     TenantId = c.TenantId,
                     IsActive = c.IsActive,
                     DefaultLanguageCode = c.DefaultLanguageCode,
-                    DefaultCurrencyCode = c.DefaultCurrencyCode
+                    DefaultCurrencyCode = c.DefaultCurrencyCode,
+                    EnableErpCatalogSync = c.EnableErpCatalogSync
                 })
                 .ToList();
             return Ok(companies);
@@ -106,7 +109,8 @@ namespace Backup.Web.Api.Server.Controllers
                 Id = created.Id,
                 Name = created.Name,
                 TenantId = created.TenantId,
-                IsActive = created.IsActive
+                IsActive = created.IsActive,
+                EnableErpCatalogSync = created.EnableErpCatalogSync
             });
         }
     }

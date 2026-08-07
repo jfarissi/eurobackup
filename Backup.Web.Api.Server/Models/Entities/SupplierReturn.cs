@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
@@ -9,7 +10,7 @@ namespace Backup.Web.Api.Server.Models.Entities
     /// Bon de retour fournisseur (BRF) : RG-BRF1–5.
     /// Cycle : Draft → Shipped (stock Out) / Cancelled (reverse stock si déjà expédié).
     /// </summary>
-    public class SupplierReturn : IHasCompanyId, IHasSoftDelete
+    public class SupplierReturn : IHasCompanyId, IHasSoftDelete, IHasAuditTrail
     {
         public int Id { get; set; }
         public string ReturnNumber { get; set; } = string.Empty;
@@ -35,6 +36,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public bool IsDeleted { get; set; }
         public DateTime? DeletedAt { get; set; }
         public string? DeletedBy { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
 
         /// <summary>True dès que le stock a été impacté (Shipped), pour piloter la réversibilité de Cancel.</summary>
         public bool StockApplied { get; set; }
@@ -45,7 +49,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public List<SupplierReturnLine> Lines { get; set; } = new();
     }
 
-    public class SupplierReturnLine
+    public class SupplierReturnLine : IHasAuditTrail
     {
         public int Id { get; set; }
         public int SupplierReturnId { get; set; }
@@ -60,5 +64,9 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int LineNumber { get; set; }
         /// <summary>Conforme, Degraded, NonConforming — motif qualité du retour.</summary>
         public string? QualityStatus { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

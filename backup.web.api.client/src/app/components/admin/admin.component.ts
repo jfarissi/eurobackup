@@ -11,6 +11,9 @@ import { HelpApiService, HelpAnalyticsSummary, HelpContentDto } from '../../serv
 import { HelpContentService } from '../../services/help-content.service';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
+import { EmailService, CompanyEmailSettings, EmailHistoryItem } from '../../services/email.service';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 interface Tenant { id: string; name: string; isActive: boolean; createdAt: string; companyCount: number; }
 interface CompanyAdmin { id: string; tenantId: string; tenantName?: string; name: string; isActive: boolean; defaultLanguageCode: string; defaultCurrencyCode: string; createdAt: string; }
@@ -23,10 +26,24 @@ interface UserAdmin {
   companies?: { companyId: string; name: string }[];
 }
 
+interface ActivityLog {
+  id: number;
+  source?: 'document' | 'entity' | string;
+  documentType: string;
+  entityKey?: string;
+  documentId: number;
+  action: string;
+  summary?: string;
+  details?: string;
+  actor?: string;
+  companyId?: string;
+  createdAt: string;
+}
+
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, TPipe, FormHelpComponent, SortableThComponent],
   templateUrl: './admin.component.html',
   styleUrls: ['./admin.component.css']
 })
@@ -71,8 +88,61 @@ export class AdminComponent implements OnInit {
   assigningUser: UserAdmin | null = null;
   assignCompanyId = '';
 
+  // Activity / traçabilité
+  activityItems: ActivityLog[] = [];
+  activityLoading = false;
+  activityExpandedId: string | null = null;
+  activitySort = new TableSortState('createdAt', 'desc');
+  tenantSort = new TableSortState('name', 'asc');
+  companySort = new TableSortState('name', 'asc');
+  roleSort = new TableSortState('name', 'asc');
+  userSort = new TableSortState('username', 'asc');
+  helpSort = new TableSortState('helpKey', 'asc');
+  helpAnalyticsSort = new TableSortState('helpKey', 'asc');
+  activityFilter = {
+    search: '',
+    documentType: '',
+    actor: '',
+    source: '',
+    from: '',
+    to: '',
+    take: 200
+  };
+  readonly activityDocumentTypes = [
+    '',
+    'Quote',
+    'Order',
+    'DeliveryNote',
+    'Invoice',
+    'CreditNote',
+    'SalesReturn',
+    'DepositInvoice',
+    'Proforma',
+    'PurchaseOrder',
+    'Receipt',
+    'SupplierInvoice',
+    'SupplierCredit',
+    'Customer',
+    'Supplier',
+    'ErpProduct',
+    'SalesInvoice',
+    'SalesOrder',
+    'SalesDeliveryNote'
+  ];
+  readonly activitySources = [
+    { value: '', labelKey: 'admin.activity.source.all' },
+    { value: 'entity', labelKey: 'admin.activity.source.entity' },
+    { value: 'document', labelKey: 'admin.activity.source.document' }
+  ];
+
   // Help CMS
   readonly HelpP = Permissions;
+  readonly EmailP = Permissions;
+  emailSettings: CompanyEmailSettings = this.emptyEmailSettings();
+  emailSettingsLoading = false;
+  emailSettingsSaving = false;
+  emailHistory: EmailHistoryItem[] = [];
+  emailHistoryLoading = false;
   helpArticles: HelpContentDto[] = [];
   helpAnalytics: HelpAnalyticsSummary | null = null;
   showHelpModal = false;
@@ -89,11 +159,93 @@ export class AdminComponent implements OnInit {
     private i18n: AppI18nService,
     private helpApi: HelpApiService,
     private helpContent: HelpContentService,
-    public perm: PermissionService
+    public perm: PermissionService,
+    private emailService: EmailService
   ) {}
 
   ngOnInit(): void {
     this.loadAll();
+    if (this.perm.has(Permissions.EmailSettingsManage)) {
+      this.loadEmailSettings();
+      this.loadEmailHistory();
+    }
+  }
+
+  emptyEmailSettings(): CompanyEmailSettings {
+    return {
+      companyId: '',
+      enabled: false,
+      smtpHost: '',
+      smtpPort: 587,
+      useSsl: true,
+      ignoreSslErrors: false,
+      fromEmail: '',
+      fromDisplayName: '',
+      maxEmailsPerHour: 500,
+      maxAttachmentBytes: 10 * 1024 * 1024,
+      autoPaymentRemindersEnabled: false,
+      paymentReminderDaysN1: 5,
+      paymentReminderDaysN2: 15,
+      paymentReminderDaysN3: 30,
+      autoStockAlertsEnabled: false,
+      stockAlertCooldownHours: 24,
+      autoEmailOnPurchaseOrderSend: true
+    };
+  }
+
+  loadEmailSettings(): void {
+    this.emailSettingsLoading = true;
+    this.emailService.getSettings().subscribe({
+      next: (s) => {
+        this.emailSettings = { ...this.emptyEmailSettings(), ...s };
+        this.emailSettingsLoading = false;
+      },
+      error: () => {
+        this.emailSettingsLoading = false;
+        this.actionError = this.i18n.t('email.settingsLoadError');
+      }
+    });
+  }
+
+  saveEmailSettings(): void {
+    this.emailSettingsSaving = true;
+    this.emailService.saveSettings(this.emailSettings).subscribe({
+      next: (s) => {
+        this.emailSettings = s;
+        this.emailSettingsSaving = false;
+        this.actionMessage = this.i18n.t('email.settingsSaved');
+      },
+      error: (err) => {
+        this.emailSettingsSaving = false;
+        this.actionError = err?.error?.error || this.i18n.t('email.settingsSaveError');
+      }
+    });
+  }
+
+  testEmailConnection(): void {
+    this.actionError = '';
+    this.actionMessage = '';
+    this.emailService.testConnection(this.emailSettings).subscribe({
+      next: () => this.actionMessage = this.i18n.t('email.testOk'),
+      error: (err) => {
+        const msg = err?.error?.error || (typeof err?.error === 'string' ? err.error : null) || this.i18n.t('email.testError');
+        this.actionError = msg;
+      }
+    });
+  }
+
+  loadEmailHistory(): void {
+    this.emailHistoryLoading = true;
+    this.emailService.getHistory().subscribe({
+      next: (items) => {
+        this.emailHistory = items || [];
+        this.emailHistoryLoading = false;
+      },
+      error: () => {
+        this.emailHistory = [];
+        this.emailHistoryLoading = false;
+      }
+    });
   }
 
   emptyHelp(): HelpContentDto {
@@ -180,6 +332,117 @@ export class AdminComponent implements OnInit {
       error: () => this.applyPermissionCatalog([])
     });
     this.loadHelp();
+    this.loadActivity();
+  }
+
+  loadActivity(): void {
+    this.activityLoading = true;
+    const params: Record<string, string | number> = { take: this.activityFilter.take };
+    if (this.activityFilter.search.trim()) params['search'] = this.activityFilter.search.trim();
+    if (this.activityFilter.documentType) params['documentType'] = this.activityFilter.documentType;
+    if (this.activityFilter.actor.trim()) params['actor'] = this.activityFilter.actor.trim();
+    if (this.activityFilter.source) params['source'] = this.activityFilter.source;
+    if (this.activityFilter.from) params['from'] = this.activityFilter.from;
+    if (this.activityFilter.to) params['to'] = this.activityFilter.to;
+
+    this.http.get<{ items: ActivityLog[]; count: number }>('/api/admin/activity', { params: params as any }).subscribe({
+      next: page => {
+        this.activityItems = page?.items ?? [];
+        this.activityLoading = false;
+      },
+      error: () => {
+        this.activityItems = [];
+        this.activityLoading = false;
+      }
+    });
+  }
+
+  resetActivityFilters(): void {
+    this.activityFilter = { search: '', documentType: '', actor: '', source: '', from: '', to: '', take: 200 };
+    this.loadActivity();
+  }
+
+  toggleActivityDetails(row: ActivityLog): void {
+    const key = this.activityRowKey(row);
+    this.activityExpandedId = this.activityExpandedId === key ? null : key;
+  }
+
+  activityRowKey(a: ActivityLog): string {
+    return `${a.source || 'document'}-${a.id}`;
+  }
+
+  get sortedActivityItems(): ActivityLog[] {
+    void this.activitySort.version;
+    return this.activitySort.sort(this.activityItems, {
+      createdAt: a => a.createdAt,
+      source: a => a.source ?? '',
+      actor: a => a.actor ?? '',
+      documentType: a => a.documentType,
+      entityKey: a => a.entityKey || a.documentId,
+      action: a => a.action,
+      summary: a => a.summary ?? ''
+    });
+  }
+
+  get sortedTenants(): Tenant[] {
+    void this.tenantSort.version;
+    return this.tenantSort.sort(this.tenants, {
+      name: t => t.name,
+      active: t => t.isActive,
+      companies: t => t.companyCount,
+      createdAt: t => t.createdAt
+    });
+  }
+
+  get sortedRoles(): RoleAdmin[] {
+    void this.roleSort.version;
+    return this.roleSort.sort(this.roles, {
+      name: r => r.name,
+      permissions: r => r.permissions?.length ?? 0
+    });
+  }
+
+  get sortedUsers(): UserAdmin[] {
+    void this.userSort.version;
+    return this.userSort.sort(this.users, {
+      username: u => u.username,
+      name: u => `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+      email: u => u.email ?? '',
+      role: u => u.isAdmin ? 'Admin' : (u.roles?.[0] || ''),
+      company: u => this.companyName(u.companyId || '') || u.companyId || ''
+    });
+  }
+
+  get sortedHelpArticles(): HelpContentDto[] {
+    void this.helpSort.version;
+    return this.helpSort.sort(this.helpArticles, {
+      helpKey: h => h.helpKey,
+      lang: h => h.lang,
+      title: h => h.title,
+      status: h => h.status
+    });
+  }
+
+  get sortedHelpAnalytics() {
+    void this.helpAnalyticsSort.version;
+    return this.helpAnalyticsSort.sort(this.helpAnalytics?.byKey, {
+      helpKey: r => r.helpKey,
+      opens: r => r.opens,
+      up: r => r.up,
+      down: r => r.down,
+      usefulness: r => r.usefulness
+    });
+  }
+
+  sortedCompaniesForTenant(tenantId: string): CompanyAdmin[] {
+    void this.companySort.version;
+    return this.companySort.sort(this.companiesForTenant(tenantId), {
+      name: c => c.name,
+      language: c => c.defaultLanguageCode,
+      currency: c => c.defaultCurrencyCode,
+      active: c => c.isActive,
+      createdAt: c => c.createdAt
+    });
   }
 
   /** Fusionne API + constantes locales puis regroupe par catégorie métier. */

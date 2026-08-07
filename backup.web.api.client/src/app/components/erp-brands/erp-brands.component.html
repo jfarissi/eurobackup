@@ -1,0 +1,117 @@
+<div class="page catalog-page">
+  <section class="catalog-subheader">
+    <div class="catalog-subheader-inner">
+      <div>
+        <app-form-help helpKey="catalog.brands">
+          <h2>{{ 'catalog.brands.title' | t }}</h2>
+        </app-form-help>
+        <p>{{ 'catalog.brands.subtitle' | t }}</p>
+        <app-catalog-subnav></app-catalog-subnav>
+      </div>
+      <div class="brand-actions">
+        <button class="btn-secondary" type="button" (click)="setBrandFilter('all')" [class.active]="brandFilter === 'all'">
+          {{ 'catalog.brands.filterAll' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="setBrandFilter('vehicle')" [class.active]="brandFilter === 'vehicle'">
+          {{ 'catalog.brands.filterVehicle' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="setBrandFilter('supplier')" [class.active]="brandFilter === 'supplier'">
+          {{ 'catalog.brands.filterSupplier' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="importVehicleBrands()" [disabled]="importingVehicle" *ngIf="perm.has(P.ProductUpdate)">
+          <mat-icon>directions_car</mat-icon>
+          {{ importingVehicle ? ('catalog.brands.vehicleImporting' | t) : ('catalog.brands.importVehicle' | t) }}
+        </button>
+        <button class="btn-primary" type="button" (click)="startCreate()" *ngIf="canCreate">
+          <mat-icon>add</mat-icon>
+          {{ 'catalog.brands.new' | t }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div class="catalog-layout">
+    <div class="list-pane card">
+      <div class="loading-wrap" *ngIf="loading"><mat-spinner diameter="32"></mat-spinner></div>
+      <table class="data-table" *ngIf="!loading">
+        <thead>
+          <tr>
+            <th>{{ 'catalog.brands.col.name' | t }}</th>
+            <th>{{ 'catalog.brands.col.slug' | t }}</th>
+            <th>{{ 'catalog.brands.col.active' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let b of brands" [class.row-selected]="selected?.id === b.id" (click)="select(b)">
+            <td>{{ b.name }}</td>
+            <td class="font-mono">{{ b.slug }}</td>
+            <td>{{ b.isActive ? ('common.yes' | t) : ('common.no' | t) }}</td>
+            <td class="actions-cell" (click)="$event.stopPropagation()">
+              <button type="button" class="icon-btn" (click)="select(b); startEdit()" *ngIf="canUpdate" [matTooltip]="'common.edit' | t">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button type="button" class="icon-btn" (click)="deactivate(b, $event)" *ngIf="canDelete && b.isActive" [matTooltip]="'common.delete' | t">
+                <mat-icon>block</mat-icon>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="brands.length === 0">
+            <td colspan="4" class="muted">{{ 'catalog.brands.empty' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="form-pane card" *ngIf="editing || selected">
+      <div class="form-pane-header">
+        <h3>{{ editing ? (selected ? ('catalog.brands.edit' | t) : ('catalog.brands.new' | t)) : selected!.name }}</h3>
+        <div class="form-pane-actions" *ngIf="!editing && selected">
+          <button type="button" class="btn-secondary btn-sm" (click)="startEdit()" *ngIf="canUpdate">
+            <mat-icon>edit</mat-icon> {{ 'common.edit' | t }}
+          </button>
+          <button type="button" class="btn-secondary btn-sm" (click)="deactivate(selected!)" *ngIf="canDelete && selected.isActive">
+            <mat-icon>block</mat-icon> {{ 'catalog.brands.deactivate' | t }}
+          </button>
+        </div>
+      </div>
+      <p class="error" *ngIf="error">{{ error | t }}</p>
+      <ng-container *ngIf="editing; else viewBrand">
+        <label>{{ 'catalog.brands.col.name' | t }}
+          <input [(ngModel)]="form.name" name="brandName" />
+        </label>
+        <label>{{ 'catalog.brands.col.slug' | t }}
+          <input [(ngModel)]="form.slug" name="brandSlug" [placeholder]="'catalog.brands.slugAuto' | t" />
+        </label>
+        <label>{{ 'catalog.brands.logoUrl' | t }}
+          <input [(ngModel)]="form.logoUrl" name="logoUrl" />
+        </label>
+        <label>{{ 'catalog.brands.websiteUrl' | t }}
+          <input [(ngModel)]="form.websiteUrl" name="websiteUrl" />
+        </label>
+        <label>{{ 'catalog.brands.description' | t }}
+          <textarea [(ngModel)]="form.description" name="description" rows="3"></textarea>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="form.isActive" name="isActive" />
+          {{ 'catalog.brands.col.active' | t }}
+        </label>
+        <div class="form-actions">
+          <button class="btn-secondary" type="button" (click)="cancelEdit()">{{ 'common.cancel' | t }}</button>
+          <button class="btn-primary" type="button" (click)="save()" [disabled]="saving"
+                  *ngIf="(selected && canUpdate) || (!selected && canCreate)">
+            {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+          </button>
+        </div>
+      </ng-container>
+      <ng-template #viewBrand>
+        <dl class="view-grid" *ngIf="selected as b">
+          <div><dt>{{ 'catalog.brands.col.slug' | t }}</dt><dd class="font-mono">{{ b.slug }}</dd></div>
+          <div><dt>{{ 'catalog.brands.col.active' | t }}</dt><dd>{{ b.isActive ? ('common.yes' | t) : ('common.no' | t) }}</dd></div>
+          <div *ngIf="b.websiteUrl"><dt>{{ 'catalog.brands.websiteUrl' | t }}</dt><dd>{{ b.websiteUrl }}</dd></div>
+          <div *ngIf="b.description" class="full"><dt>{{ 'catalog.brands.description' | t }}</dt><dd>{{ b.description }}</dd></div>
+        </dl>
+      </ng-template>
+    </aside>
+  </div>
+</div>

@@ -8,13 +8,15 @@ import { MaterialModule } from '../../material.module';
 import { Document } from '../../models/document';
 import { DocumentRelation } from '../../models/relation';
 import { ComparisonResult } from '../../models/comparison';
+import { TableSortState } from '../../utils/table-sort';
+import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-upload-search',
   templateUrl: './upload-search.component.html',
   styleUrls: ['./upload-search.component.css'],
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule]
+  imports: [CommonModule, FormsModule, MaterialModule, SortableThComponent]
 })
 export class UploadSearchComponent implements OnInit {
   file: File | null = null;
@@ -36,6 +38,8 @@ export class UploadSearchComponent implements OnInit {
   pairItems: Document[] = [];
   factureDropIds: string[] = [];
   blDropIds: string[] = [];
+  documentSort = new TableSortState('id', 'desc');
+  comparisonSort = new TableSortState('product', 'asc');
 
   constructor(private docs: DocumentService, private snack: MatSnackBar) {}
 
@@ -200,6 +204,31 @@ export class UploadSearchComponent implements OnInit {
         }
       },
       error: _ => this.snack.open('Erreur reparse', 'Fermer', { duration: 3000 })
+    });
+  }
+
+  get sortedDocuments(): Document[] {
+    void this.documentSort.version;
+    return this.documentSort.sort(this.documents, {
+      id: d => d.id,
+      typeDocument: d => d.typeDocument ?? '',
+      numero: d => d.numero ?? '',
+      client: d => d.client ?? '',
+      supplier: d => d.supplier ?? '',
+      dateDocument: d => d.dateDocument ?? '',
+      originalFileName: d => d.originalFileName ?? '',
+      linked: d => this.relationMap[d.id] ?? ''
+    });
+  }
+
+  get sortedComparisonLines() {
+    void this.comparisonSort.version;
+    return this.comparisonSort.sort(this.comparaisonResult?.lines, {
+      product: l => l.product ?? '',
+      invoiceQty: l => l.invoiceQty ?? 0,
+      deliveryQty: l => l.deliveryQty ?? 0,
+      diff: l => l.diff ?? 0,
+      status: l => l.status ?? ''
     });
   }
 

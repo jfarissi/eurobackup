@@ -1,9 +1,10 @@
 using System;
+using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models.Entities
 {
     /// <summary>Contenu d'aide métier versionné (RG-AC1–8).</summary>
-    public class HelpContent
+    public class HelpContent : IHasAuditTrail
     {
         public int Id { get; set; }
         /// <summary>Clé stable ex. sales.order, field.sales.customer</summary>
@@ -28,6 +29,7 @@ namespace Backup.Web.Api.Server.Models.Entities
         public string? UpdatedBy { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string? CreatedBy { get; set; }
     }
 
     public class HelpFeedbackEvent
