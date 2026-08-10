@@ -662,7 +662,7 @@ class ProductSync:
 
     # ── Vehicle Compatibility ──
     def sync_vehicle_compatibility(self, product_id: int, vehicles: List[Dict]):
-        """Synchronise la compatibilité véhicule"""
+        """Synchronise la compatibilité véhicule (tous champs connus + RawJson)."""
         if not vehicles:
             return
 
@@ -671,18 +671,64 @@ class ProductSync:
             (product_id,)
         )
 
+        import json as _json
+
         for v in vehicles:
+            try:
+                raw = _json.dumps(v, ensure_ascii=False, default=str)
+            except (TypeError, ValueError):
+                raw = str(v)
+
+            def _i(*keys):
+                for k in keys:
+                    if v.get(k) is None:
+                        continue
+                    try:
+                        return int(float(str(v[k]).replace(",", ".").split()[0]))
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                return None
+
+            def _s(*keys, n=64):
+                for k in keys:
+                    if v.get(k) is None:
+                        continue
+                    s = str(v[k]).strip()
+                    if s:
+                        return s[:n]
+                return None
+
+            power_kw = _i("powerKW", "powerKw", "powerKwFrom")
+            power_hp = _i("powerHP", "powerHp", "horsePower")
+            if power_hp is None and power_kw is not None:
+                power_hp = int(round(power_kw * 1.35962))
+
             self.db.execute(
                 """INSERT INTO ErpProductVehicles
-                   (Id, ProductId, Make, Model, YearFrom, YearTo, EngineCode, KType, BodyType, FuelType, CreatedAt)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   (Id, ProductId, Make, Model, TypeName, YearFrom, YearTo, EngineCode, KType,
+                    ExternalManufacturerId, ExternalModelId, BodyType, FuelType, DriveType, Transmission,
+                    PowerKW, PowerHP, Ccm, Cylinders, Valves, RawJson, CreatedAt)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (
                     str(uuid.uuid4()), product_id,
-                    v.get("make", ""), v.get("model", ""),
-                    v.get("yearFrom"), v.get("yearTo"),
-                    v.get("engineCode", ""), v.get("kType", ""),
-                    v.get("bodyType", ""), v.get("fuelType", ""),
-                    self.now
+                    (v.get("make") or v.get("manufacturerName") or "")[:128],
+                    (v.get("model") or v.get("modelName") or "")[:128],
+                    _s("typeName", "type", n=256),
+                    v.get("yearFrom") or _i("constructionIntervalStart", "modelYearFrom"),
+                    v.get("yearTo") or _i("constructionIntervalEnd", "modelYearTo"),
+                    _s("engineCode", "typeEngineName"),
+                    _s("kType", "vehicleId", "KType"),
+                    _s("manufacturerId", "manuId"),
+                    _s("modelId"),
+                    _s("bodyType", "constructionType"),
+                    _s("fuelType", "fuel"),
+                    _s("driveType", "drive"),
+                    _s("transmission", "gearbox"),
+                    power_kw, power_hp,
+                    _i("ccm", "Ccm", "capacityCC", "cylinderCapacity"),
+                    _i("cylinders", "numberOfCylinders"),
+                    _i("valves", "numberOfValves"),
+                    raw, self.now,
                 )
             )
             self.sync_stats["vehicles"] += 1

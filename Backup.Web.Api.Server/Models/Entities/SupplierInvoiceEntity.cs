@@ -15,6 +15,9 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public int? DocumentId { get; set; } // FK vers Document (parsing PDF existant)
         public int? PurchaseOrderId { get; set; }
         public PurchaseOrder? PurchaseOrder { get; set; }
+        /// <summary>Réception source si facture créée depuis un BL / réception.</summary>
+        public int? ReceiptId { get; set; }
+        public Receipt? Receipt { get; set; }
         public DateTime Date { get; set; } = DateTime.UtcNow;
         public DateTime DueDate { get; set; } = DateTime.UtcNow.AddDays(30);
         public string Status { get; set; } = "Draft"; // Draft, Validated, Paid, Cancelled

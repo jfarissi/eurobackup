@@ -1,0 +1,90 @@
+# ============================================================
+# docker-compose.yml — Stack ERP complète
+# ============================================================
+# Services:
+#   - mysql      : Base de données
+#   - erp-api    : API .NET Core 8
+#   - erp-sync   : Script Python de synchronisation
+#   - erp-client : Frontend Angular (Nginx)
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ── MySQL ──
+  mysql:
+    image: mysql:8.0
+    container_name: erp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: erp_db
+      MYSQL_USER: erp_user
+      MYSQL_PASSWORD: erp_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API .NET Core 8 ──
+  erp-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Server=mysql;Port=3306;Database=erp_db;User=erp_user;Password=erp_password;"
+      RAPIDAPI_KEY: "${RAPIDAPI_KEY:-}"  # À définir dans .env
+      TECDOC_KEY: "${TECDOC_KEY:-}"
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ── Sync Python (cron job) ──
+  erp-sync:
+    build:
+      context: ./sync
+      dockerfile: Dockerfile
+    container_name: erp-sync
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: erp_db
+      DB_USER: erp_user
+      DB_PASSWORD: erp_password
+      RAPIDAPI_KEY: "${RAPIDAPI_KEY:-}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # Le script tourne en cron, pas en service continu
+    command: >
+      sh -c "
+        echo '0 2 * * * cd /app && python sync_auto_parts.py >> /var/log/sync.log 2>&1' | crontab - &&
+        crond -f
+      "
+
+  # ── Frontend Angular ──
+  erp-client:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - erp-api
+
+volumes:
+  mysql_data:

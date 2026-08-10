@@ -77,6 +77,20 @@ builder.Services.AddHttpClient<Backup.Web.Api.Server.Services.ErpSync.IErpProduc
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpExcelImportService, Backup.Web.Api.Server.Services.ErpSync.ErpExcelImportService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.ICarApiImportService, Backup.Web.Api.Server.Services.ErpSync.CarApiImportService>();
 builder.Services.AddSingleton<Backup.Web.Api.Server.Services.ErpSync.ICarApiCatalogService, Backup.Web.Api.Server.Services.ErpSync.CarApiCatalogService>();
+builder.Services.Configure<Backup.Web.Api.Server.Services.AutoParts.PlateScanOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.AutoParts.PlateScanOptions.SectionName));
+builder.Services.Configure<Backup.Web.Api.Server.Services.AutoParts.RapidApiOptions>(
+    builder.Configuration.GetSection(Backup.Web.Api.Server.Services.AutoParts.RapidApiOptions.SectionName));
+builder.Services.AddHttpClient("PlateScan", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient("RapidApi", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IVinLookupService, Backup.Web.Api.Server.Services.AutoParts.VinLookupService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IPlateScanService, Backup.Web.Api.Server.Services.AutoParts.PlateScanService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Archiving.DocumentArchiveBackgroundService>();

@@ -1,0 +1,4 @@
+﻿Id,ErpExternalId,Level,NameNl,NameFr,NameEn,SlugNl,SlugFr,SlugEn,ParentId,SortOrder,IsActive,CreatedAt,UpdatedAt,CreatedBy,UpdatedBy
+3427,RAPID_additional-repairs_e3fce2,Type,Additional Repairs,Additional Repairs,Additional Repairs,additional-repairs,additional-repairs,additional-repairs,,0,1,2026-08-06 14:24:09,,,
+3428,RAPID_ampoule-du-feu-claireur-de-pla_40a1dc,Type,Ampoule du feu éclaireur de plaque,Ampoule du feu éclaireur de plaque,Ampoule du feu éclaireur de plaque,ampoule-du-feu-claireur-de-plaque,ampoule-du-feu-claireur-de-plaque,ampoule-du-feu-claireur-de-plaque,,0,1,2026-08-08 22:47:30,,,
+3429,RAPID_balai-d-essuie-glace-raclette_4394c3,Type,Balai d'essuie-glace / raclette,Balai d'essuie-glace / raclette,Balai d'essuie-glace / raclette,balai-d-essuie-glace-raclette,balai-d-essuie-glace-raclette,balai-d-essuie-glace-raclette,,0,1,2026-08-08 22:47:30,,,

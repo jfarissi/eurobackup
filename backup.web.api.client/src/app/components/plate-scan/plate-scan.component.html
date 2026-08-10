@@ -1,0 +1,141 @@
+<div class="plate-page">
+  <div class="plate-header">
+    <div>
+      <h2>{{ 'plate.title' | t }}</h2>
+      <p class="subtitle">{{ 'plate.subtitle' | t }}</p>
+      <app-catalog-subnav></app-catalog-subnav>
+    </div>
+  </div>
+
+  <div class="warn-box" *ngIf="moduleMissing">
+    {{ 'plate.moduleRequired' | t }}
+  </div>
+
+  <ng-container *ngIf="!moduleMissing">
+    <div class="scan-layout">
+      <section class="scan-panel">
+        <div class="scan-tabs">
+          <button type="button" [class.active]="mode === 'camera'" (click)="mode = 'camera'">{{ 'plate.mode.camera' | t }}</button>
+          <button type="button" [class.active]="mode === 'manual'" (click)="mode = 'manual'">{{ 'plate.mode.manual' | t }}</button>
+          <button type="button" [class.active]="mode === 'vin'" (click)="mode = 'vin'">{{ 'plate.mode.vin' | t }}</button>
+        </div>
+
+        <div *ngIf="mode === 'camera'" class="scan-zone">
+          <div class="drop-zone"
+               (dragover)="onDragOver($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDrop($event)"
+               [class.dragover]="isDragging"
+               (click)="fileInput.click()">
+            <input #fileInput type="file" accept="image/*" capture="environment"
+                   (change)="onFileSelected($event)" hidden />
+            <mat-icon>photo_camera</mat-icon>
+            <p><strong>{{ 'plate.dropHint' | t }}</strong></p>
+            <p class="hint">{{ 'plate.dropFormats' | t }}</p>
+          </div>
+          <div class="preview" *ngIf="previewUrl">
+            <img [src]="previewUrl" [alt]="'plate.previewAlt' | t" />
+            <button class="btn-secondary" type="button" (click)="clearPreview()">{{ 'common.reset' | t }}</button>
+          </div>
+          <button *ngIf="previewUrl" type="button" class="btn-primary" (click)="scanImage()" [disabled]="scanning">
+            {{ scanning ? ('plate.analyzing' | t) : ('plate.analyze' | t) }}
+          </button>
+        </div>
+
+        <div *ngIf="mode === 'manual'" class="scan-zone">
+          <div class="form-group">
+            <label>{{ 'plate.plateNumber' | t }}</label>
+            <input type="text" [(ngModel)]="manualPlate" name="manualPlate"
+                   [placeholder]="'plate.platePlaceholderMA' | t"
+                   (keyup.enter)="searchManual()" />
+          </div>
+          <div class="form-group">
+            <label>{{ 'plate.country' | t }}</label>
+            <select [(ngModel)]="manualCountry" name="manualCountry">
+              <option *ngFor="let c of countries" [value]="c.code">{{ c.labelKey | t }}</option>
+            </select>
+          </div>
+          <button type="button" class="btn-primary" (click)="searchManual()" [disabled]="!manualPlate || scanning">
+            {{ scanning ? ('plate.searching' | t) : ('plate.search' | t) }}
+          </button>
+        </div>
+
+        <div *ngIf="mode === 'vin'" class="scan-zone">
+          <div class="form-group">
+            <label>{{ 'plate.vin' | t }}</label>
+            <input type="text" [(ngModel)]="manualVin" name="manualVin" maxlength="17"
+                   [placeholder]="'plate.vinPlaceholder' | t"
+                   (keyup.enter)="searchVin()" />
+            <p class="hint">{{ 'plate.vinHint' | t }}</p>
+          </div>
+          <button type="button" class="btn-primary" (click)="searchVin()" [disabled]="manualVin.length < 17 || scanning">
+            {{ scanning ? ('plate.searching' | t) : ('plate.decodeVin' | t) }}
+          </button>
+        </div>
+
+        <div class="error-box" *ngIf="error">{{ error }}</div>
+      </section>
+
+      <section class="result-panel" *ngIf="result">
+        <div class="vehicle-card">
+          <div class="vehicle-top">
+            <span class="plate-badge">{{ result.plateNumber }}</span>
+            <span class="demo-chip" *ngIf="result.isDemoData">{{ 'plate.demoData' | t }}</span>
+          </div>
+          <h3>{{ result.make }} {{ result.model }} <span *ngIf="result.year">({{ result.year }})</span></h3>
+          <div class="vehicle-meta">
+            <span *ngIf="result.vin">VIN {{ result.vin }}</span>
+            <span *ngIf="result.engineCode">{{ 'plate.engine' | t }} {{ result.engineCode }}</span>
+            <span *ngIf="result.fuelType">{{ result.fuelType }}</span>
+            <span *ngIf="result.powerHP">{{ result.powerHP }} ch</span>
+          </div>
+          <p class="hint" *ngIf="result.message">{{ result.message }}</p>
+          <a class="btn-secondary"
+             [routerLink]="['/erp-products']"
+             [queryParams]="{ vehicleBrand: result.make, vehicleModel: result.model, vehicleYear: result.year }">
+            {{ 'plate.openCatalog' | t }}
+          </a>
+        </div>
+
+        <h4>{{ 'plate.compatibleProducts' | t }} ({{ result.compatibleProducts?.length || 0 }})</h4>
+        <table class="data-table" *ngIf="result.compatibleProducts?.length; else noProducts">
+          <thead>
+            <tr>
+              <th>{{ 'plate.col.product' | t }}</th>
+              <th>{{ 'plate.col.ref' | t }}</th>
+              <th>{{ 'plate.col.brand' | t }}</th>
+              <th>{{ 'plate.col.price' | t }}</th>
+              <th>{{ 'plate.col.stock' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of result.compatibleProducts">
+              <td>
+                <a [routerLink]="['/erp-products']" [queryParams]="{ q: p.reference || p.name }">{{ p.name || p.erpProductId }}</a>
+                <div class="muted" *ngIf="p.categoryName">{{ p.categoryName }}</div>
+              </td>
+              <td class="font-mono">{{ p.reference || '—' }}</td>
+              <td>{{ p.brand || '—' }}</td>
+              <td>{{ p.priceHT != null ? (p.priceHT | number:'1.2-2') : '—' }}</td>
+              <td>{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #noProducts>
+          <p class="empty">{{ 'plate.noProducts' | t }}</p>
+        </ng-template>
+      </section>
+    </div>
+
+    <section class="history-panel" *ngIf="history.length">
+      <h4>{{ 'plate.history' | t }}</h4>
+      <div class="history-list">
+        <button type="button" class="history-item" *ngFor="let h of history" (click)="reuseHistory(h)">
+          <strong>{{ h.plateNumber }}</strong>
+          <span>{{ h.make }} {{ h.model }} <ng-container *ngIf="h.year">({{ h.year }})</ng-container></span>
+          <span class="muted">{{ h.productsFound }} · {{ h.searchedAt | date:'dd/MM HH:mm' }}</span>
+        </button>
+      </div>
+    </section>
+  </ng-container>
+</div>

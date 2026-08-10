@@ -164,8 +164,47 @@ namespace Backup.Web.Api.Server.Controllers
             }
 
             var total = await query.CountAsync(ct);
-            var items = await query
-                .OrderBy(p => p.Name)
+
+            // Autocomplete ligne doc : si filtre marque fournisseur exclut tout, retomber sur la recherche globale par q.
+            if (total == 0
+                && supplierId is > 0
+                && !string.IsNullOrWhiteSpace(q))
+            {
+                query = _storage.SelectAllErpProducts().AsNoTracking();
+                if (fromExcel.HasValue)
+                    query = query.Where(p => p.FromExcel == fromExcel.Value);
+                if (!string.IsNullOrWhiteSpace(dataSource))
+                    query = query.Where(p => p.DataSource == dataSource);
+
+                var term = q.Trim().ToLowerInvariant();
+                query = query.Where(p =>
+                    (p.Name != null && p.Name.ToLower().Contains(term))
+                    || (p.Name2 != null && p.Name2.ToLower().Contains(term))
+                    || (p.Reference != null && p.Reference.ToLower().Contains(term))
+                    || (p.Ean != null && p.Ean.ToLower().Contains(term))
+                    || (p.ErpProductId != null && p.ErpProductId.ToLower().Contains(term)));
+
+                total = await query.CountAsync(ct);
+            }
+
+            // Prioriser la référence exacte / se terminant par le terme (saisie code produit).
+            IOrderedQueryable<ErpProduct> ordered;
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLowerInvariant();
+                ordered = query
+                    .OrderByDescending(p => p.Reference != null && p.Reference.ToLower() == term)
+                    .ThenByDescending(p => p.ErpProductId != null && p.ErpProductId.ToLower() == term)
+                    .ThenByDescending(p => p.Ean != null && p.Ean.ToLower() == term)
+                    .ThenByDescending(p => p.Reference != null && p.Reference.ToLower().EndsWith(term))
+                    .ThenBy(p => p.Name);
+            }
+            else
+            {
+                ordered = query.OrderBy(p => p.Name);
+            }
+
+            var items = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(ct);
@@ -799,6 +838,41 @@ namespace Backup.Web.Api.Server.Controllers
             }
         }
 
+        [HttpGet("vehicle-makes")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetVehicleMakes(CancellationToken ct = default)
+        {
+            var makes = await _storage.SelectAllErpProductVehicles()
+                .AsNoTracking()
+                .Where(v => v.Make != null && v.Make != "")
+                .Select(v => v.Make)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync(ct);
+            return Ok(makes);
+        }
+
+        [HttpGet("vehicle-models")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetVehicleModels(
+            [FromQuery] string? make = null,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(make))
+                return Ok(Array.Empty<string>());
+
+            var makeLower = make.Trim().ToLowerInvariant();
+            var models = await _storage.SelectAllErpProductVehicles()
+                .AsNoTracking()
+                .Where(v => v.Make != null && v.Make.ToLower() == makeLower
+                            && v.Model != null && v.Model != "")
+                .Select(v => v.Model)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync(ct);
+            return Ok(models);
+        }
+
         [HttpGet("brands")]
         [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetBrands(
@@ -972,7 +1046,10 @@ namespace Backup.Web.Api.Server.Controllers
             if (!string.IsNullOrWhiteSpace(model))
             {
                 var modelLower = model.ToLowerInvariant();
-                vehicleQuery = vehicleQuery.Where(v => v.Model.ToLower() == modelLower);
+                // Exact OU préfixe (UI/plate "Clio" ↔ TecDoc "CLIO II (BB_, CB_)")
+                vehicleQuery = vehicleQuery.Where(v =>
+                    v.Model.ToLower() == modelLower
+                    || v.Model.ToLower().StartsWith(modelLower));
             }
 
             if (vehicleYear.HasValue)
@@ -1039,9 +1116,13 @@ namespace Backup.Web.Api.Server.Controllers
                         && !string.Equals(entryBrand, brand, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    if (!string.IsNullOrWhiteSpace(model)
-                        && !string.Equals(entryModel, model, StringComparison.OrdinalIgnoreCase))
-                        continue;
+                    if (!string.IsNullOrWhiteSpace(model))
+                    {
+                        var em = (entryModel ?? "").Trim();
+                        if (!string.Equals(em, model, StringComparison.OrdinalIgnoreCase)
+                            && !em.StartsWith(model, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                    }
 
                     if (year.HasValue)
                     {
@@ -1080,7 +1161,7 @@ namespace Backup.Web.Api.Server.Controllers
 
             var token = SupplierBrandMatcher.DeriveBrandToken(supplier.Name);
             if (string.IsNullOrWhiteSpace(token))
-                return query.Where(_ => false);
+                return query; // Pas de token fiable → ne pas vider le catalogue.
 
             var tokenLower = token.ToLowerInvariant();
             var brandIds = await _storage.SelectAllErpBrands()

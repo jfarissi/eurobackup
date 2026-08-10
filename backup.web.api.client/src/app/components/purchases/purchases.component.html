@@ -209,16 +209,33 @@
                     <mat-icon>{{ isExpanded('Receipt', receipt.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
                   </button>
                   <strong>{{ receipt.receiptNumber }}</strong>
+                  <div class="hint" *ngIf="receiptSourceOrderLabel(receipt) as orderLabel" style="margin-top: 2px;">
+                    {{ 'purchases.receiptFromOrderBadge' | t:{ number: orderLabel } }}
+                  </div>
                 </td>
                 <td>{{ receipt.supplier?.name || ('purchases.supplierHash' | t:{id: receipt.supplierId}) }}</td>
                 <td>{{ receipt.receivedAt | date:'dd/MM/yyyy' }}</td>
                 <td>{{ receipt.documentId ? ('purchases.docHash' | t:{id: receipt.documentId}) : '-' }}</td>
-                <td>{{ receipt.purchaseOrder?.orderNumber || (receipt.purchaseOrderId ? ('#' + receipt.purchaseOrderId) : '-') }}</td>
+                <td>
+                  <ng-container *ngIf="receiptSourceOrderLabel(receipt) as orderLabel; else noOrder">
+                    <span class="status-badge">{{ 'purchases.receiptFromOrderShort' | t }}</span>
+                    {{ orderLabel }}
+                  </ng-container>
+                  <ng-template #noOrder>-</ng-template>
+                </td>
                 <td>{{ receipt.lines.length }}</td>
                 <td>
                   <span class="status-badge received">{{ receipt.status === 'Posted' ? ('purchases.status.comptabilise' | t) : receipt.status }}</span>
                 </td>
-                <td></td>
+                <td>
+                  <button class="btn-sm secondary" type="button" (click)="openInvoiceFromReceipt(receipt)" *ngIf="canInvoiceFromReceipt(receipt)">
+                    {{ 'purchases.btn.invoiceFromReceipt' | t }}
+                  </button>
+                  <span class="status-badge" *ngIf="isReceiptAlreadyInvoiced(receipt)" [title]="invoiceForReceipt(receipt)?.invoiceNumber || ''">
+                    {{ 'purchases.status.invoiced' | t }}
+                    <ng-container *ngIf="invoiceForReceipt(receipt) as inv"> — {{ inv.invoiceNumber }}</ng-container>
+                  </span>
+                </td>
               </tr>
               <tr *ngIf="isExpanded('Receipt', receipt.id)" class="detail-expand-row">
                 <td colspan="8">
@@ -231,7 +248,14 @@
                         <span>{{ 'purchases.label.date' | t }} <strong>{{ doc.receivedAt | date:'dd/MM/yyyy' }}</strong></span>
                         <span>{{ 'purchases.label.status' | t }} <span class="status-badge received">{{ doc.status === 'Posted' ? ('purchases.status.comptabilise' | t) : doc.status }}</span></span>
                         <span *ngIf="doc.documentId">{{ 'purchases.label.document' | t }} <strong>#{{ doc.documentId }}</strong></span>
+                        <span *ngIf="receiptSourceOrderLabel(doc) as orderLabel">
+                          {{ 'purchases.label.sourceOrder' | t }}
+                          <strong>{{ orderLabel }}</strong>
+                        </span>
                       </div>
+                      <p class="detail-notes" *ngIf="receiptSourceOrderLabel(doc) as orderLabel">
+                        {{ 'purchases.receiptFromOrderDetail' | t:{ number: orderLabel } }}
+                      </p>
                       <p class="detail-notes" *ngIf="doc.notes">{{ doc.notes }}</p>
                       <table class="data-table nested">
                         <thead>
@@ -323,6 +347,9 @@
                   </button>
                   <button class="btn-sm secondary" (click)="approveSupplierInvoice(invoice)" *ngIf="invoice.status === 'ApprovalRequired' && perm.has(P.SupplierInvoiceCreate)">
                     {{ 'purchases.btn.approveMatch' | t }}
+                  </button>
+                  <button class="btn-sm" type="button" (click)="openSupplierPaymentModal(invoice)" *ngIf="canPaySupplierInvoice(invoice)">
+                    {{ 'purchases.btn.payInvoice' | t }}
                   </button>
                 </td>
               </tr>
@@ -572,6 +599,49 @@
         </table>
       </div>
     </mat-tab>
+
+    <!-- Paiements fournisseurs (secondary) -->
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'purchases.tab.payments' | t }}</ng-template>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th appSortable [state]="paymentSort" key="date" defaultDir="desc">{{ 'purchases.payment.col.date' | t }}</th>
+              <th appSortable [state]="paymentSort" key="invoice">{{ 'purchases.payment.col.invoice' | t }}</th>
+              <th appSortable [state]="paymentSort" key="supplier">{{ 'purchases.payment.col.supplier' | t }}</th>
+              <th appSortable [state]="paymentSort" key="amount" defaultDir="desc">{{ 'purchases.payment.col.amount' | t }}</th>
+              <th appSortable [state]="paymentSort" key="method">{{ 'purchases.payment.col.method' | t }}</th>
+              <th appSortable [state]="paymentSort" key="reference">{{ 'purchases.payment.col.reference' | t }}</th>
+              <th appSortable [state]="paymentSort" key="status">{{ 'purchases.payment.col.status' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="paymentsLoading">
+              <td colspan="7">{{ 'common.loading' | t }}</td>
+            </tr>
+            <ng-container *ngIf="!paymentsLoading">
+              <tr *ngFor="let p of sortedSupplierPayments">
+                <td>{{ p.date | date:'yyyy-MM-dd HH:mm' }}</td>
+                <td class="font-mono">{{ p.documentNumber || ('#' + p.invoiceId) }}</td>
+                <td>{{ p.partyName || '—' }}</td>
+                <td class="font-mono">{{ p.amount | number:'1.2-2' }}</td>
+                <td>{{ p.method || '—' }}</td>
+                <td>{{ p.reference || '—' }}</td>
+                <td>
+                  <span class="chip" [class.chip-ok]="p.status === 'Success'" [class.chip-error]="p.status === 'Cancelled'">
+                    {{ p.status }}
+                  </span>
+                </td>
+              </tr>
+              <tr *ngIf="supplierPayments.length === 0">
+                <td colspan="7">{{ 'purchases.empty.payments' | t }}</td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
   </mat-tab-group>
 
   <div class="modal-overlay" *ngIf="showCreateFromDocumentModal">
@@ -632,13 +702,24 @@
       <div class="form-grid">
         <div class="form-group">
           <label>{{ 'common.supplier' | t }}</label>
-          <select [(ngModel)]="newInvoice.supplierId">
+          <select [(ngModel)]="newInvoice.supplierId" (ngModelChange)="onInvoiceSupplierChanged()">
             <option [ngValue]="0">{{ 'purchases.selectSupplier' | t }}</option>
             <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
               {{ supplier.name }} ({{ supplier.supplierCode }})
             </option>
           </select>
           <button class="btn-link" type="button" (click)="showManualInvoiceModal = false; openSupplierModal('invoice')">{{ 'purchases.btn.newSupplierLink' | t }}</button>
+        </div>
+
+        <div class="form-group">
+          <label>{{ 'purchases.col.receiptNumber' | t }}</label>
+          <select [(ngModel)]="newInvoiceReceiptId" (ngModelChange)="onInvoiceReceiptChanged($event)">
+            <option [ngValue]="null">{{ 'purchases.optionalReceipt' | t }}</option>
+            <option *ngFor="let receipt of receiptsForInvoiceSupplier()" [ngValue]="receipt.id">
+              {{ receipt.receiptNumber }}{{ receipt.purchaseOrder?.orderNumber ? (' / ' + (receipt.purchaseOrder?.orderNumber || '')) : '' }}
+            </option>
+          </select>
+          <div class="hint">{{ 'purchases.hint.invoiceFromReceipt' | t }}</div>
         </div>
 
         <div class="form-group">
@@ -1304,6 +1385,45 @@
           {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showSupplierPaymentModal">
+  <div class="modal-content">
+    <h3>{{ 'purchases.modal.supplierPayment' | t }}</h3>
+    <p *ngIf="selectedInvoiceToPay">
+      {{ 'purchases.invoiceLabel' | t }}
+      <strong>{{ selectedInvoiceToPay.invoiceNumber }}</strong>
+      — {{ selectedInvoiceToPay.totalTTC | currency:'EUR' }}
+    </p>
+    <div class="form-group">
+      <label>{{ 'common.amountTtc' | t }}</label>
+      <input type="number" step="0.01" [(ngModel)]="supplierPaymentAmount" />
+    </div>
+    <div class="form-group">
+      <label>{{ 'common.date' | t }}</label>
+      <input type="date" [(ngModel)]="supplierPaymentDate" />
+    </div>
+    <div class="form-group">
+      <label>{{ 'purchases.paymentMethod' | t }}</label>
+      <select [(ngModel)]="supplierPaymentMethod">
+        <option value="BankTransfer">BankTransfer</option>
+        <option value="Cash">Cash</option>
+        <option value="Card">Card</option>
+        <option value="Check">Check</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>{{ 'purchases.paymentReference' | t }}</label>
+      <input type="text" [(ngModel)]="supplierPaymentReference" />
+    </div>
+    <div class="error-box" *ngIf="paymentError">{{ paymentError }}</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" type="button" (click)="showSupplierPaymentModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+      <button class="btn-primary" type="button" (click)="saveSupplierPayment()" [disabled]="saving">
+        {{ saving ? ('common.saving' | t) : ('purchases.btn.payInvoice' | t) }}
+      </button>
     </div>
   </div>
 </div>

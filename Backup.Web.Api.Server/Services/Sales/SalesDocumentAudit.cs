@@ -37,18 +37,45 @@ namespace Backup.Web.Api.Server.Services.Sales
         {
             if (user?.Identity?.IsAuthenticated != true) return "System";
 
-            // Nom lisible (prénom+nom / username / email) — pas l'id GUID.
-            var display =
-                user.FindFirst("display_name")?.Value
-                ?? user.Identity?.Name
-                ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-                ?? user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value
-                ?? user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value
-                ?? user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            // Nom lisible (prénom+nom / username / email) — jamais l'id GUID.
+            foreach (var candidate in new[]
+            {
+                user.FindFirst("display_name")?.Value,
+                user.Identity?.Name,
+                user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
+                user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value,
+                user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
+                user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            })
+            {
+                if (IsReadableActor(candidate))
+                    return candidate!.Trim();
+            }
 
-            if (!string.IsNullOrWhiteSpace(display))
-                return display.Trim();
+            return "System";
+        }
 
+        /// <summary>True si la valeur est un libellé affichable (pas un GUID / id technique).</summary>
+        public static bool IsReadableActor(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            var trimmed = value.Trim();
+            if (Guid.TryParse(trimmed, out _)) return false;
+            return true;
+        }
+
+        public static string FormatUserDisplayName(
+            string? firstName,
+            string? lastName,
+            string? userName = null,
+            string? email = null,
+            string? fallbackId = null)
+        {
+            var full = $"{firstName} {lastName}".Trim();
+            if (!string.IsNullOrWhiteSpace(full)) return full;
+            if (!string.IsNullOrWhiteSpace(userName)) return userName!.Trim();
+            if (!string.IsNullOrWhiteSpace(email)) return email!.Trim();
+            if (!string.IsNullOrWhiteSpace(fallbackId)) return fallbackId!.Trim();
             return "System";
         }
     }

@@ -7,10 +7,14 @@ using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Models.Users;
 using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RESTFulSense.Controllers;
 
 namespace Backup.Web.Api.Server.Controllers
@@ -23,15 +27,18 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly IStorageBroker storage;
         private readonly ICompanyContextService companyContext;
         private readonly INumberingSequenceService numberingService;
+        private readonly UserManager<User> userManager;
 
         public AccountingEntriesController(
             IStorageBroker storage,
             ICompanyContextService companyContext,
-            INumberingSequenceService numberingService)
+            INumberingSequenceService numberingService,
+            UserManager<User> userManager)
         {
             this.storage = storage;
             this.companyContext = companyContext;
             this.numberingService = numberingService;
+            this.userManager = userManager;
         }
 
         public class ManualEntryLineRequest
@@ -54,7 +61,7 @@ namespace Backup.Web.Api.Server.Controllers
 
         [HttpGet]
         [RequirePermission(Permissions.AccountingRead)]
-        public IActionResult GetAll(
+        public async Task<IActionResult> GetAll(
             [FromQuery] string? referenceType = null,
             [FromQuery] int? referenceId = null,
             [FromQuery] string? journalType = null,
@@ -76,7 +83,9 @@ namespace Backup.Web.Api.Server.Controllers
                     e.ReferenceType.ToLower().Contains(s));
             }
 
-            return Ok(query.OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(200).ToList());
+            var entries = query.OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(200).ToList();
+            await ResolveCreatedByDisplayNamesAsync(entries);
+            return Ok(entries);
         }
 
         [HttpGet("{id:int}")]
@@ -85,6 +94,7 @@ namespace Backup.Web.Api.Server.Controllers
         {
             var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
             if (entry == null || !entry.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+            await ResolveCreatedByDisplayNamesAsync(new List<AccountingEntry> { entry });
             return Ok(entry);
         }
 
@@ -108,6 +118,7 @@ namespace Backup.Web.Api.Server.Controllers
                 return BadRequest($"Écriture non équilibrée : débit {totalDebit:0.##} ≠ crédit {totalCredit:0.##}.");
 
             var companyId = this.companyContext.GetCurrentCompanyId();
+            var actor = SalesDocumentAudit.ActorFrom(User);
             var entry = new AccountingEntry
             {
                 EntryNumber = await this.numberingService.GetNextNumberAsync("AccountingEntry", companyId),
@@ -118,7 +129,7 @@ namespace Backup.Web.Api.Server.Controllers
                 Description = string.IsNullOrWhiteSpace(request.Description) ? "Écriture manuelle" : request.Description.Trim(),
                 Status = "Posted",
                 CompanyId = companyId,
-                CreatedBy = User.Identity?.Name ?? "System",
+                CreatedBy = actor,
                 CreatedAt = DateTime.UtcNow,
                 Lines = lines.Select((l, i) => new AccountingEntryLine
                 {
@@ -131,7 +142,38 @@ namespace Backup.Web.Api.Server.Controllers
             };
 
             var created = await this.storage.InsertAccountingEntryAsync(entry);
+            await ResolveCreatedByDisplayNamesAsync(new List<AccountingEntry> { created });
             return Created(created);
+        }
+
+        /// <summary>Remplace CreatedBy stocké en GUID par Prénom Nom (ou username / email).</summary>
+        private async Task ResolveCreatedByDisplayNamesAsync(List<AccountingEntry> entries)
+        {
+            var guidActors = entries
+                .Select(e => e.CreatedBy)
+                .Where(a => !string.IsNullOrWhiteSpace(a) && Guid.TryParse(a, out _))
+                .Select(a => Guid.Parse(a!))
+                .Distinct()
+                .ToList();
+
+            if (guidActors.Count == 0) return;
+
+            var users = await this.userManager.Users
+                .AsNoTracking()
+                .Where(u => guidActors.Contains(u.Id))
+                .Select(u => new { u.Id, u.UserName, u.Email, u.Name, u.FamilyName })
+                .ToListAsync();
+
+            var map = users.ToDictionary(
+                u => u.Id.ToString(),
+                u => SalesDocumentAudit.FormatUserDisplayName(u.Name, u.FamilyName, u.UserName, u.Email, u.Id.ToString()),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var entry in entries)
+            {
+                if (entry.CreatedBy != null && map.TryGetValue(entry.CreatedBy, out var display))
+                    entry.CreatedBy = display;
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import mysql.connector
 import requests
@@ -38,13 +38,94 @@ MAX_MODELS_PER_MFG = int(os.getenv("RAPIDAPI_MAX_MODELS", "2"))
 MAX_VEHICLES_PER_MODEL = int(os.getenv("RAPIDAPI_MAX_VEHICLES", "2"))
 MAX_CATEGORIES_PER_VEHICLE = int(os.getenv("RAPIDAPI_MAX_CATS", "4"))
 REQUEST_PAUSE_S = float(os.getenv("RAPIDAPI_PAUSE", "0.35"))
+# Si false (défaut) : skip article_details/media quand RAPID-{id} existe déjà (économise Ultra).
+# Si true : re-télécharge détails + images.
+REFRESH_EXISTING = os.getenv("RAPIDAPI_REFRESH", "").strip() in ("1", "true", "True", "yes", "YES")
 
-# Catégories utiles (filtres / freinage / éclairage) — match case-insensitive sur le nom
-PREFERRED_CAT_KEYWORDS = (
-    "filter", "filtre", "brake", "frein", "oil", "huile",
-    "spark", "bougie", "lamp", "phare", "wiper", "essuie",
-    "timing", "courroie", "pad", "plaque",
+# Familles de catégories (ordre = priorité). On diversifie : au moins 1 cat / famille si dispo.
+# Les essuie-glaces / ampoules passent en bas pour ne plus saturer le quota.
+CAT_FAMILIES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("bearing", ("bearing", "roulement", "kugellager", "moyeu", "wheel hub", "radlager", "hub")),
+    ("brake", ("brake", "frein", "plaquette", "mâchoire", "machoire", "étrier", "etrier", "disque de frein")),
+    ("filter", ("filter", "filtre")),
+    ("suspension", ("shock", "amortisseur", "ressort", "triangle", "rotule")),
+    ("drivetrain", ("clutch", "embrayage", "cardan", "soufflet")),
+    ("engine", ("timing", "courroie", "bougie", "spark", "huile", "oil", "distribution")),
+    ("cooling", ("radiator", "radiateur", "thermostat", "pompe à eau", "pompe a eau")),
+    ("lighting", ("lamp", "phare", "ampoule", "feu")),
+    ("wiper", ("wiper", "essuie")),
 )
+
+# Focus optionnel : n'importer que les cats matchant ces mots (ex. RAPIDAPI_CAT_FOCUS=roulement,bearing)
+_CAT_FOCUS_RAW = os.getenv("RAPIDAPI_CAT_FOCUS", "").strip().lower()
+CAT_FOCUS: Tuple[str, ...] = tuple(
+    p.strip() for p in _CAT_FOCUS_RAW.replace(";", ",").split(",") if p.strip()
+)
+
+
+def pick_leaf_categories(rows: List[Dict], limit: int) -> List[Tuple[int, str]]:
+    """
+    Feuilles catégorie, diversifiées par famille (roulement avant essuie-glace).
+    Si CAT_FOCUS est défini, ne garde que les noms matchant ces mots-clés.
+    """
+    candidates: List[Tuple[int, str, str]] = []  # (family_rank, cid, name)
+    for row in rows:
+        cid = None
+        name = ""
+        for lvl in (4, 3, 2, 1):
+            id_key = f"categoryId{lvl}"
+            name_key = f"categoryName{lvl}"
+            if row.get(id_key):
+                cid = int(row[id_key])
+                name = str(row.get(name_key) or "")
+                break
+        if not cid or not name:
+            continue
+        low = name.lower()
+        if CAT_FOCUS and not any(k in low for k in CAT_FOCUS):
+            continue
+        family_rank = len(CAT_FAMILIES)  # hors famille = bas
+        for i, (_fname, keys) in enumerate(CAT_FAMILIES):
+            if any(k in low for k in keys):
+                family_rank = i
+                break
+        candidates.append((family_rank, cid, name))
+
+    # Unique by cid (meilleur = plus petit family_rank)
+    best: Dict[int, Tuple[int, str]] = {}
+    for rank, cid, name in candidates:
+        prev = best.get(cid)
+        if prev is None or rank < prev[0]:
+            best[cid] = (rank, name)
+
+    # Round-robin par famille pour remplir `limit`
+    by_family: Dict[int, List[Tuple[int, str]]] = {}
+    for cid, (rank, name) in best.items():
+        by_family.setdefault(rank, []).append((cid, name))
+    for rank in by_family:
+        by_family[rank].sort(key=lambda x: x[1].lower())
+
+    out: List[Tuple[int, str]] = []
+    seen: Set[int] = set()
+    # 1) une (ou plus) pass(es) sur les familles prioritaires
+    max_passes = max(1, limit)
+    for _ in range(max_passes):
+        progressed = False
+        for rank in sorted(by_family.keys()):
+            if len(out) >= limit:
+                break
+            bucket = by_family[rank]
+            while bucket:
+                cid, name = bucket.pop(0)
+                if cid in seen:
+                    continue
+                seen.add(cid)
+                out.append((cid, name))
+                progressed = True
+                break
+        if len(out) >= limit or not progressed:
+            break
+    return out
 
 
 def load_api_key() -> Tuple[str, str]:
@@ -65,7 +146,6 @@ def load_db_config() -> Dict[str, Any]:
     """Préfère les variables d'env (Docker démo) puis ConnectionStrings appsettings."""
     cfg = json.loads(APPSETTINGS.read_text(encoding="utf-8"))
     cs = cfg.get("ConnectionStrings", {}).get("DefaultConnection", "")
-    # Server=localhost;Database=backupcontent;User=root;Password=tata;
     parts = {}
     for chunk in cs.split(";"):
         if "=" in chunk:
@@ -190,36 +270,30 @@ class RapidClient:
             return data
         return data.get("data") or data.get("articleMedia") or []
 
-
-def pick_leaf_categories(rows: List[Dict], limit: int) -> List[Tuple[int, str]]:
-    """Retourne (categoryId, name) feuilles, priorisant les mots-clés utiles."""
-    scored: List[Tuple[int, int, str]] = []
-    for row in rows:
-        cid = None
-        name = ""
-        for lvl in (4, 3, 2, 1):
-            id_key = f"categoryId{lvl}"
-            name_key = f"categoryName{lvl}"
-            if row.get(id_key):
-                cid = int(row[id_key])
-                name = str(row.get(name_key) or "")
-                break
-        if not cid:
-            continue
-        low = name.lower()
-        score = 0 if any(k in low for k in PREFERRED_CAT_KEYWORDS) else 1
-        scored.append((score, cid, name))
-    # unique by id, preferred first
-    seen = set()
-    out: List[Tuple[int, str]] = []
-    for score, cid, name in sorted(scored, key=lambda x: (x[0], x[2])):
-        if cid in seen:
-            continue
-        seen.add(cid)
-        out.append((cid, name))
-        if len(out) >= limit:
-            break
-    return out
+    def article_oem_crossrefs(self, article_no: str, supplier_name: str) -> List[Dict]:
+        """OEM via articleNo + fournisseur (1 req supplémentaire si details sans OEM)."""
+        if not article_no or not supplier_name:
+            return []
+        path = (
+            "/artlookup/search-for-cross-references-through-oem-numbers/"
+            f"article-no/{requests.utils.quote(str(article_no), safe='')}/"
+            f"supplierName/{requests.utils.quote(str(supplier_name), safe='')}"
+        )
+        try:
+            data = self.get(path)
+        except Exception:
+            return []
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return (
+                data.get("oemNumbers")
+                or data.get("oeNumbers")
+                or data.get("data")
+                or data.get("articles")
+                or []
+            )
+        return []
 
 
 def parse_spec_unit(name: str) -> Tuple[str, Optional[str]]:
@@ -283,7 +357,230 @@ def flatten_article(details: Dict, category_name: str = "", list_row: Dict | Non
         "specs": specs,
         "dims": dims,
         "images": images,
+        "oems": extract_oem_list(details, article),
         "raw": details,
+    }
+
+
+def extract_oem_list(details: Dict, article: Dict | None = None) -> List[Dict[str, Any]]:
+    """Extrait les numéros OEM depuis un payload article details (clés variables TecDoc/RapidAPI)."""
+    article = article or details.get("article") or details
+    candidates: List[Any] = []
+    for src in (details, article):
+        if not isinstance(src, dict):
+            continue
+        for key in (
+            # RapidAPI live: articleOemNo = [{oemBrand, oemDisplayNo, ...}]
+            "articleOemNo", "articleOEM", "articleOems",
+            "oemNumbers", "oeNumbers", "oenNumbers",
+            "oem", "OEMs", "oems", "originalNumbers", "replacesNumbers",
+        ):
+            val = src.get(key)
+            if val:
+                candidates.append(val)
+
+    out: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+
+    def add(number: Any, brand: Any = None, is_original: Any = None) -> None:
+        num = str(number or "").strip()
+        if not num or num.lower() in ("none", "null", "-"):
+            return
+        key = num.upper()
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({
+            "oemNumber": num[:128],
+            "brand": (str(brand).strip()[:128] if brand else "") or "",
+            "isOriginal": bool(is_original) if is_original is not None else True,
+        })
+
+    def number_from_item(item: Dict) -> Any:
+        return (
+            item.get("oemDisplayNo") or item.get("oemNumber") or item.get("oeNumber")
+            or item.get("oenNumber") or item.get("displayNo") or item.get("number")
+            or item.get("articleNo") or item.get("oem")
+        )
+
+    def brand_from_item(item: Dict) -> Any:
+        return (
+            item.get("oemBrand") or item.get("brand") or item.get("manufacturerName")
+            or item.get("supplierName") or item.get("mfrName")
+        )
+
+    for block in candidates:
+        if isinstance(block, list):
+            for item in block:
+                if isinstance(item, str):
+                    add(item)
+                elif isinstance(item, dict):
+                    add(
+                        number_from_item(item),
+                        brand_from_item(item),
+                        item.get("isOriginal") if "isOriginal" in item else item.get("original"),
+                    )
+        elif isinstance(block, dict):
+            # parfois { oemNumbers: [...] } ou map brand→number
+            nested = (
+                block.get("oemNumbers") or block.get("oeNumbers")
+                or block.get("articleOemNo") or block.get("data")
+            )
+            if isinstance(nested, list):
+                for item in nested:
+                    if isinstance(item, str):
+                        add(item)
+                    elif isinstance(item, dict):
+                        add(number_from_item(item), brand_from_item(item))
+            else:
+                for k, v in block.items():
+                    if isinstance(v, (str, int)):
+                        add(v, k)
+                    elif isinstance(v, list):
+                        for item in v:
+                            if isinstance(item, str):
+                                add(item, k)
+                            elif isinstance(item, dict):
+                                add(number_from_item(item), brand_from_item(item) or k)
+        elif isinstance(block, str):
+            add(block)
+
+    return out
+
+
+def _clip(value: Optional[str], n: int) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s[:n] if s else None
+
+
+def _first_str(obj: Dict, *keys: str) -> Optional[str]:
+    for k in keys:
+        if k not in obj or obj[k] is None:
+            continue
+        s = str(obj[k]).strip()
+        if s and s.lower() not in ("none", "null", "-"):
+            return s
+    return None
+
+
+def _first_int(obj: Dict, *keys: str) -> Optional[int]:
+    for k in keys:
+        if k not in obj or obj[k] is None:
+            continue
+        raw = obj[k]
+        try:
+            if isinstance(raw, bool):
+                continue
+            if isinstance(raw, (int, float)):
+                return int(raw)
+            s = str(raw).strip().replace(",", ".")
+            # "90 kW" / "1390 ccm"
+            m = re.match(r"^(\d+(?:\.\d+)?)", s)
+            if m:
+                return int(float(m.group(1)))
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _year_part(raw) -> Optional[int]:
+    if raw is None:
+        return None
+    try:
+        return int(str(raw)[:4])
+    except ValueError:
+        return None
+
+
+def extract_vehicle_row(vehicle: Dict, make: str, model_name: str) -> Dict[str, Any]:
+    """
+    Mappe un payload list-vehicles-types vers ErpProductVehicles.
+    Aliases TecDoc / RapidAPI couverts ; RawJson garde le JSON complet.
+    """
+    year_from = _year_part(
+        vehicle.get("constructionIntervalStart")
+        or vehicle.get("modelYearFrom")
+        or vehicle.get("yearOfConstrFrom")
+        or vehicle.get("yearFrom")
+    )
+    year_to = _year_part(
+        vehicle.get("constructionIntervalEnd")
+        or vehicle.get("modelYearTo")
+        or vehicle.get("yearOfConstrTo")
+        or vehicle.get("yearTo")
+    )
+
+    power_kw = _first_int(
+        vehicle,
+        "powerKw", "powerKW", "PowerKW", "powerKwFrom", "powerKwTo",
+        "impulsionPower", "motorPower",
+    )
+    power_hp = _first_int(
+        vehicle,
+        "powerHp", "powerHP", "PowerHP", "powerHpFrom", "powerHpTo",
+        "horsePower", "ps", "PS",
+    )
+    if power_hp is None and power_kw is not None:
+        power_hp = int(round(power_kw * 1.35962))
+    if power_kw is None and power_hp is not None:
+        power_kw = int(round(power_hp / 1.35962))
+
+    ccm = _first_int(
+        vehicle,
+        "capacityCC", "capacityCc", "ccm", "Ccm", "cylinderCapacity",
+        "engineCapacity", "capacityTech",
+    )
+
+    # Codes moteur : string ou liste
+    engine = _first_str(
+        vehicle,
+        "typeEngineName", "engineCode", "EngineCode", "motorCode",
+        "engines", "engineCodes",
+    )
+    if engine is None and isinstance(vehicle.get("engineCodes"), list):
+        codes = [str(x).strip() for x in vehicle["engineCodes"] if x]
+        engine = ", ".join(codes) if codes else None
+
+    raw_json = None
+    try:
+        raw_json = json.dumps(vehicle, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        raw_json = str(vehicle)
+
+    return {
+        "make": (_first_str(vehicle, "manufacturerName", "manuName", "make") or make or "")[:128],
+        "model": (_first_str(vehicle, "modelName", "MakeModelName", "model") or model_name or "")[:128],
+        "type_name": _first_str(
+            vehicle, "typeName", "vehicleTypeName", "type", "fullName", "description"
+        ),
+        "year_from": year_from,
+        "year_to": year_to,
+        "engine_code": engine,
+        "ktype": _first_str(vehicle, "vehicleId", "VehicleId", "ktype", "KType", "carId") or "",
+        "ext_manu_id": _first_str(vehicle, "manufacturerId", "manuId", "makeId"),
+        "ext_model_id": _first_str(vehicle, "modelId", "modId"),
+        "body_type": _first_str(vehicle, "bodyType", "BodyType", "constructionType", "body"),
+        "fuel_type": _first_str(
+            vehicle, "fuelType", "FuelType", "fuelTypeProcess", "fuel", "motorType"
+        ),
+        "drive_type": _first_str(
+            vehicle, "driveType", "DriveType", "drive", "absDriveType", "impulsionType"
+        ),
+        "transmission": _first_str(
+            vehicle, "transmission", "Transmission", "gearbox", "gearBoxType", "salesDescription"
+        ),
+        "power_kw": power_kw,
+        "power_hp": power_hp,
+        "ccm": ccm,
+        "cylinders": _first_int(
+            vehicle, "cylinders", "Cylinders", "numberOfCylinders", "cylinder"
+        ),
+        "valves": _first_int(
+            vehicle, "valves", "Valves", "numberOfValves", "valvesTotal"
+        ),
+        "raw_json": raw_json,
     }
 
 
@@ -292,7 +589,16 @@ class DbWriter:
         self.conn = mysql.connector.connect(**cfg)
         self.cur = self.conn.cursor(dictionary=True)
         self.now = datetime.now()
-        self.stats = {"created": 0, "updated": 0, "vehicles": 0, "images": 0, "errors": 0}
+        self.stats = {
+            "created": 0,
+            "updated": 0,
+            "vehicles": 0,
+            "images": 0,
+            "oems": 0,
+            "errors": 0,
+            "skipped": 0,
+        }
+        self._existing_article_ids: Optional[Set[int]] = None
 
     def close(self):
         self.cur.close()
@@ -306,6 +612,36 @@ class DbWriter:
     def fetchone(self, sql: str, params=None):
         self.cur.execute(sql, params or ())
         return self.cur.fetchone()
+
+    def load_existing_article_ids(self) -> Set[int]:
+        """Ids numériques déjà en base (ErpProductId = RAPID-{id})."""
+        if self._existing_article_ids is not None:
+            return self._existing_article_ids
+        self.cur.execute(
+            "SELECT ErpProductId FROM ErpProducts WHERE ErpProductId LIKE 'RAPID-%'"
+        )
+        out: Set[int] = set()
+        for row in self.cur.fetchall() or []:
+            raw = row.get("ErpProductId") if isinstance(row, dict) else row[0]
+            if not raw:
+                continue
+            try:
+                out.add(int(str(raw).split("-", 1)[1]))
+            except (ValueError, IndexError):
+                continue
+        self._existing_article_ids = out
+        return out
+
+    def get_product_id_by_article(self, article_id: int) -> Optional[int]:
+        row = self.fetchone(
+            "SELECT Id FROM ErpProducts WHERE ErpProductId=%s LIMIT 1",
+            (f"RAPID-{article_id}",),
+        )
+        return int(row["Id"]) if row else None
+
+    def mark_article_known(self, article_id: int) -> None:
+        ids = self.load_existing_article_ids()
+        ids.add(article_id)
 
     def get_or_create_brand(self, name: str) -> Optional[int]:
         if not name:
@@ -399,41 +735,61 @@ class DbWriter:
         return self.cur.lastrowid
 
     def sync_vehicle(self, product_id: int, vehicle: Dict, make: str, model_name: str):
-        year_from = year_to = None
-        start = vehicle.get("constructionIntervalStart") or vehicle.get("modelYearFrom")
-        end = vehicle.get("constructionIntervalEnd") or vehicle.get("modelYearTo")
-        if start:
-            try:
-                year_from = int(str(start)[:4])
-            except ValueError:
-                pass
-        if end:
-            try:
-                year_to = int(str(end)[:4])
-            except ValueError:
-                pass
-        make_v = vehicle.get("manufacturerName") or make
-        model_v = vehicle.get("modelName") or model_name
-        engine = vehicle.get("typeEngineName") or vehicle.get("engineCode") or ""
-        ktype = str(vehicle.get("vehicleId") or "")
-        # avoid duplicates
+        fields = extract_vehicle_row(vehicle, make, model_name)
         exists = self.fetchone(
             """SELECT Id FROM ErpProductVehicles
                WHERE ProductId=%s AND Make=%s AND Model=%s AND IFNULL(KType,'')=%s LIMIT 1""",
-            (product_id, make_v, model_v, ktype),
+            (product_id, fields["make"], fields["model"], fields["ktype"] or ""),
         )
         if exists:
+            # Enrichir une ligne existante (re-sync) avec les champs manquants + RawJson
+            self.execute(
+                """UPDATE ErpProductVehicles SET
+                    TypeName=COALESCE(%s, TypeName),
+                    YearFrom=COALESCE(%s, YearFrom),
+                    YearTo=COALESCE(%s, YearTo),
+                    EngineCode=COALESCE(%s, EngineCode),
+                    ExternalManufacturerId=COALESCE(%s, ExternalManufacturerId),
+                    ExternalModelId=COALESCE(%s, ExternalModelId),
+                    BodyType=COALESCE(%s, BodyType),
+                    FuelType=COALESCE(%s, FuelType),
+                    DriveType=COALESCE(%s, DriveType),
+                    Transmission=COALESCE(%s, Transmission),
+                    PowerKW=COALESCE(%s, PowerKW),
+                    PowerHP=COALESCE(%s, PowerHP),
+                    Ccm=COALESCE(%s, Ccm),
+                    Cylinders=COALESCE(%s, Cylinders),
+                    Valves=COALESCE(%s, Valves),
+                    RawJson=%s
+                   WHERE Id=%s""",
+                (
+                    fields["type_name"], fields["year_from"], fields["year_to"],
+                    fields["engine_code"], fields["ext_manu_id"], fields["ext_model_id"],
+                    fields["body_type"], fields["fuel_type"], fields["drive_type"],
+                    fields["transmission"], fields["power_kw"], fields["power_hp"],
+                    fields["ccm"], fields["cylinders"], fields["valves"],
+                    fields["raw_json"], exists["Id"],
+                ),
+            )
             return
         self.execute(
             """INSERT INTO ErpProductVehicles
-               (Id, ProductId, Make, Model, YearFrom, YearTo, EngineCode, KType, BodyType, FuelType, CreatedAt)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               (Id, ProductId, Make, Model, TypeName, YearFrom, YearTo, EngineCode, KType,
+                ExternalManufacturerId, ExternalModelId, BodyType, FuelType, DriveType, Transmission,
+                PowerKW, PowerHP, Ccm, Cylinders, Valves, RawJson, CreatedAt)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
-                str(uuid.uuid4()), product_id, make_v[:128], model_v[:128],
-                year_from, year_to, (engine or "")[:64], ktype[:64],
-                (vehicle.get("bodyType") or "")[:64],
-                (vehicle.get("fuelType") or "")[:64],
-                self.now,
+                str(uuid.uuid4()), product_id,
+                fields["make"][:128], fields["model"][:128],
+                _clip(fields["type_name"], 256),
+                fields["year_from"], fields["year_to"],
+                _clip(fields["engine_code"], 64), _clip(fields["ktype"], 64),
+                _clip(fields["ext_manu_id"], 64), _clip(fields["ext_model_id"], 64),
+                _clip(fields["body_type"], 64), _clip(fields["fuel_type"], 64),
+                _clip(fields["drive_type"], 64), _clip(fields["transmission"], 64),
+                fields["power_kw"], fields["power_hp"], fields["ccm"],
+                fields["cylinders"], fields["valves"],
+                fields["raw_json"], self.now,
             ),
         )
         self.stats["vehicles"] += 1
@@ -453,6 +809,37 @@ class DbWriter:
             )
             self.stats["images"] += 1
 
+    def sync_oem(self, product_id: int, oems: List[Dict[str, Any]]) -> int:
+        """Remplace les OEM d'un produit. Retourne le nombre inséré."""
+        if not oems:
+            return 0
+        self.execute("DELETE FROM ErpOemCrossReferences WHERE ProductId=%s", (product_id,))
+        n = 0
+        seen: Set[str] = set()
+        for oem in oems:
+            number = str(oem.get("oemNumber") or oem.get("number") or "").strip()
+            if not number:
+                continue
+            key = number.upper()
+            if key in seen:
+                continue
+            seen.add(key)
+            brand = str(oem.get("brand") or "")[:128]
+            is_orig = 1 if oem.get("isOriginal", True) else 0
+            try:
+                self.execute(
+                    """INSERT INTO ErpOemCrossReferences
+                       (Id, ProductId, OemNumber, Brand, IsOriginal, CreatedAt)
+                       VALUES (%s,%s,%s,%s,%s,%s)""",
+                    (str(uuid.uuid4()), product_id, number[:128], brand or None, is_orig, self.now),
+                )
+                n += 1
+            except Exception:
+                # Unique (ProductId, OemNumber) — ignore doublon
+                continue
+        self.stats["oems"] += n
+        return n
+
 
 def preferred_manufacturers(all_mfg: List[Dict]) -> List[Dict]:
     want = {"RENAULT", "PEUGEOT", "CITROEN", "CITROËN", "VW", "VOLKSWAGEN", "BMW", "AUDI", "FORD", "OPEL"}
@@ -462,22 +849,92 @@ def preferred_manufacturers(all_mfg: List[Dict]) -> List[Dict]:
     return picked[:MAX_MANUFACTURERS]
 
 
+def process_article(
+    db: "DbWriter",
+    client: "RapidClient",
+    art: Dict,
+    vehicle: Dict,
+    make: str,
+    model_name: str,
+    cat_name: str,
+    fetched_ids: Set[int],
+    refresh: bool = REFRESH_EXISTING,
+) -> bool:
+    """
+    Traite un article liste. Retourne True si détails API ont été tirés (compte pour MAX_PRODUCTS).
+    Skip détail si RAPID-{id} existe déjà (sauf refresh) — lie quand même le véhicule.
+    """
+    aid = art.get("articleId") or (art.get("article") or {}).get("articleId")
+    if not aid:
+        return False
+    aid = int(aid)
+
+    existing_ids = db.load_existing_article_ids()
+    pid = db.get_product_id_by_article(aid) if aid in existing_ids else None
+
+    # Déjà traité dans ce run → lien véhicule seulement
+    if aid in fetched_ids:
+        if pid:
+            db.sync_vehicle(pid, vehicle, make, model_name)
+        return False
+
+    # Existe en base et pas de refresh → skip API détail/media
+    if pid and not refresh:
+        db.sync_vehicle(pid, vehicle, make, model_name)
+        db.stats["skipped"] += 1
+        return False
+
+    was_existing = pid is not None
+    details = client.article_details(aid)
+    media = client.article_media(aid)
+    if media:
+        details["articleMedia"] = media
+    flat = flatten_article(details, cat_name, art)
+    # Si details sans OEM → endpoint cross-ref (articleNo + supplier)
+    if not flat.get("oems"):
+        extra = client.article_oem_crossrefs(
+            str(flat.get("articleNo") or ""),
+            str(flat.get("supplierName") or ""),
+        )
+        if extra:
+            flat["oems"] = extract_oem_list({"oemNumbers": extra}, {})
+    brand_id = db.get_or_create_brand(flat["supplierName"])
+    cat_db = db.get_or_create_category(flat["category"])
+    pid = db.upsert_product(flat, brand_id, cat_db)
+    if not pid:
+        return False
+    db.sync_vehicle(pid, vehicle, make, model_name)
+    db.sync_images(pid, flat.get("images") or [])
+    oem_n = db.sync_oem(pid, flat.get("oems") or [])
+    db.mark_article_known(aid)
+    fetched_ids.add(aid)
+    d = flat["dims"]
+    action = "↻" if was_existing else "+"
+    print(
+        f"        {action} {flat.get('articleNo')} {(flat.get('name') or '')[:40]} "
+        f"H={d.get('height')} W={d.get('width')} D={d.get('depth')} oem={oem_n}"
+    )
+    return True
+
+
 def run():
     api_key, host = load_api_key()
     db_cfg = load_db_config()
     client = RapidClient(api_key, host)
     db = DbWriter(db_cfg)
 
-    print(f"Host={host} lang={LANG_ID} country={COUNTRY_ID} max={MAX_PRODUCTS}")
+    print(f"Host={host} lang={LANG_ID} country={COUNTRY_ID} max={MAX_PRODUCTS} refresh={REFRESH_EXISTING}")
     print(f"DB={db_cfg['database']}@{db_cfg['host']}")
+    known = db.load_existing_article_ids()
+    print(f"Articles déjà en base (skip détail): {len(known)}")
 
     try:
         mfgs = preferred_manufacturers(client.manufacturers())
         print(f"{len(mfgs)} constructeurs cibles")
-        imported_ids = set()
+        fetched_ids: Set[int] = set()
 
         for mfg in mfgs:
-            if len(imported_ids) >= MAX_PRODUCTS:
+            if len(fetched_ids) >= MAX_PRODUCTS:
                 break
             mid = int(mfg["manufacturerId"])
             mname = mfg.get("manufacturerName", "?")
@@ -489,7 +946,7 @@ def run():
                 continue
 
             for model in models:
-                if len(imported_ids) >= MAX_PRODUCTS:
+                if len(fetched_ids) >= MAX_PRODUCTS:
                     break
                 model_id = int(model["modelId"])
                 model_name = model.get("modelName", "")
@@ -501,7 +958,7 @@ def run():
                     continue
 
                 for vehicle in vehicles:
-                    if len(imported_ids) >= MAX_PRODUCTS:
+                    if len(fetched_ids) >= MAX_PRODUCTS:
                         break
                     vid = int(vehicle["vehicleId"])
                     eng = vehicle.get("typeEngineName", "")
@@ -513,7 +970,7 @@ def run():
                         continue
 
                     for cat_id, cat_name in cats:
-                        if len(imported_ids) >= MAX_PRODUCTS:
+                        if len(fetched_ids) >= MAX_PRODUCTS:
                             break
                         try:
                             arts = client.articles(vid, cat_id)
@@ -523,47 +980,18 @@ def run():
                         print(f"      cat {cat_name} ({cat_id}): {len(arts)} articles")
 
                         for art in arts:
-                            if len(imported_ids) >= MAX_PRODUCTS:
+                            if len(fetched_ids) >= MAX_PRODUCTS:
                                 break
-                            aid = art.get("articleId") or (art.get("article") or {}).get("articleId")
-                            if not aid:
-                                continue
-                            aid = int(aid)
-                            if aid in imported_ids:
-                                # still add vehicle link if product exists
-                                row = db.fetchone(
-                                    "SELECT Id FROM ErpProducts WHERE ErpProductId=%s",
-                                    (f"RAPID-{aid}",),
-                                )
-                                if row:
-                                    db.sync_vehicle(row["Id"], vehicle, mname, model_name)
-                                continue
                             try:
-                                details = client.article_details(aid)
-                                media = client.article_media(aid)
-                                if media:
-                                    details["articleMedia"] = media
-                                flat = flatten_article(details, cat_name, art)
-                                brand_id = db.get_or_create_brand(flat["supplierName"])
-                                cat_db = db.get_or_create_category(flat["category"])
-                                pid = db.upsert_product(flat, brand_id, cat_db)
-                                if not pid:
-                                    continue
-                                db.sync_vehicle(pid, vehicle, mname, model_name)
-                                db.sync_images(pid, flat.get("images") or [])
-                                imported_ids.add(aid)
-                                d = flat["dims"]
-                                print(
-                                    f"        + {flat['articleNo']} {flat['name'][:40]} "
-                                    f"H={d.get('height')} W={d.get('width')} D={d.get('depth')} "
-                                    f"imgs={len(flat.get('images') or [])}"
+                                process_article(
+                                    db, client, art, vehicle, mname, model_name, cat_name, fetched_ids
                                 )
                             except Exception as e:
                                 db.stats["errors"] += 1
-                                print(f"        ERR article {aid}: {e}")
+                                print(f"        ERR article: {e}")
 
         print("\nSTATS", db.stats)
-        print(f"   Articles uniques: {len(imported_ids)}")
+        print(f"   Nouveaux/rafraîchis (API détail): {len(fetched_ids)}")
     finally:
         db.close()
 

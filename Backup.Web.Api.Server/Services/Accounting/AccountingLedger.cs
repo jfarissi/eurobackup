@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Services.Numbering;
+using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
 
 namespace Backup.Web.Api.Server.Services.Accounting
@@ -18,6 +19,7 @@ namespace Backup.Web.Api.Server.Services.Accounting
         public const string RefSupplierCreditNote = "SupplierCreditNote";
         public const string RefPayment = "SalesPayment";
         public const string RefPaymentReversal = "SalesPaymentReversal";
+        public const string RefSupplierPayment = "SupplierPayment";
         public const string RefDepositInvoice = "DepositInvoice";
         public const string RefDepositApplication = "DepositApplication";
         public const string RefDepositCancellation = "DepositCancellation";
@@ -203,6 +205,48 @@ namespace Backup.Web.Api.Server.Services.Accounting
             customer.Balance = Math.Max(0, customer.Balance - payment.Amount);
             customer.UpdatedAt = DateTime.UtcNow;
             await storage.UpdateCustomerAsync(customer);
+
+            return (entry, null);
+        }
+
+        /// <summary>Règlement fournisseur : débit 401, crédit banque/caisse. ReferenceId = SupplierPayment.Id.</summary>
+        public static async Task<(AccountingEntry? Entry, string? Error)> PostSupplierPaymentAsync(
+            IStorageBroker storage,
+            INumberingSequenceService numbering,
+            SupplierInvoiceEntity invoice,
+            SupplierPayment payment,
+            string? createdBy)
+        {
+            if (payment.Amount <= 0) return (null, null);
+            if (HasPostedEntry(storage, RefSupplierPayment, payment.Id, payment.CompanyId ?? invoice.CompanyId))
+                return (null, "Écriture déjà postée pour ce paiement fournisseur.");
+
+            var supplier = await storage.SelectSupplierByIdAsync(invoice.SupplierId);
+            if (supplier == null) return (null, "Fournisseur introuvable.");
+
+            var method = payment.Method ?? "BankTransfer";
+            var cashAccount = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase) ? "530000" : "512000";
+            var cashLabel = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase) ? "Caisse" : "Banque";
+
+            var (entry, error) = await CreateEntryAsync(
+                storage,
+                numbering,
+                invoice.CompanyId,
+                "SupplierPayment",
+                RefSupplierPayment,
+                payment.Id,
+                $"Règlement fournisseur {invoice.InvoiceNumber} ({method}) {payment.Amount:0.##}",
+                createdBy,
+                new[]
+                {
+                    Line("401000", $"Fournisseurs — {supplier.Name}", payment.Amount, 0),
+                    Line(cashAccount, cashLabel, 0, payment.Amount)
+                });
+            if (error != null) return (null, error);
+
+            supplier.Balance = Math.Max(0, supplier.Balance - payment.Amount);
+            supplier.UpdatedAt = DateTime.UtcNow;
+            await storage.UpdateSupplierAsync(supplier);
 
             return (entry, null);
         }
@@ -410,7 +454,8 @@ namespace Backup.Web.Api.Server.Services.Accounting
                 Description = description,
                 Status = "Posted",
                 CompanyId = companyId,
-                CreatedBy = createdBy ?? "System",
+                // Si un GUID a été passé par erreur, laisser vide → ApplyAuditTrail mettra le nom affiché.
+                CreatedBy = SalesDocumentAudit.IsReadableActor(createdBy) ? createdBy!.Trim() : null,
                 CreatedAt = DateTime.UtcNow,
                 Lines = lines.ToList()
             };

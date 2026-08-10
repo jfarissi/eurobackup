@@ -22,6 +22,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public DbSet<PurchaseOrderLine> PurchaseOrderLines { get; set; } = null!;
         public DbSet<SupplierInvoiceEntity> SupplierInvoices { get; set; } = null!;
         public DbSet<SupplierInvoiceLineEntity> SupplierInvoiceLines { get; set; } = null!;
+        public DbSet<SupplierPayment> SupplierPayments { get; set; } = null!;
         public DbSet<StockMovement> StockMovements { get; set; } = null!;
         public DbSet<DocumentNumberSequence> DocumentNumberSequences { get; set; } = null!;
         public DbSet<CashSession> CashSessions { get; set; } = null!;
@@ -299,6 +300,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public IQueryable<SupplierInvoiceEntity> SelectAllSupplierInvoices() => this.SupplierInvoices
             .Include(s => s.Supplier)
             .Include(s => s.PurchaseOrder)
+            .Include(s => s.Receipt)
             .Include(s => s.Lines)
             .AsQueryable();
 
@@ -306,12 +308,32 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             await this.SupplierInvoices
                 .Include(s => s.Supplier)
                 .Include(s => s.PurchaseOrder)
+                .Include(s => s.Receipt)
                 .Include(s => s.Lines)
                 .FirstOrDefaultAsync(s => s.Id == id);
 
         public async ValueTask<SupplierInvoiceEntity> UpdateSupplierInvoiceAsync(SupplierInvoiceEntity supplierInvoice)
         {
             EntityEntry<SupplierInvoiceEntity> entry = this.SupplierInvoices.Update(supplierInvoice);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<SupplierPayment> InsertSupplierPaymentAsync(SupplierPayment payment)
+        {
+            EntityEntry<SupplierPayment> entry = await this.SupplierPayments.AddAsync(payment);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<SupplierPayment> SelectAllSupplierPayments() => this.SupplierPayments.AsQueryable();
+
+        public async ValueTask<SupplierPayment?> SelectSupplierPaymentByIdAsync(int id) =>
+            await this.SupplierPayments.FirstOrDefaultAsync(p => p.Id == id);
+
+        public async ValueTask<SupplierPayment> UpdateSupplierPaymentAsync(SupplierPayment payment)
+        {
+            EntityEntry<SupplierPayment> entry = this.SupplierPayments.Update(payment);
             await this.SaveChangesAsync();
             return entry.Entity;
         }

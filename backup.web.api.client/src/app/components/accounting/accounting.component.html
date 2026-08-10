@@ -7,11 +7,13 @@
       <p class="subtitle">{{ 'accounting.subtitle' | t }}</p>
     </div>
     <div class="actions">
-      <button class="btn-secondary" type="button" (click)="loadEntries()" [disabled]="loading">
+      <button class="btn-secondary" type="button"
+              (click)="selectedTab === 0 ? loadEntries() : loadPayments()"
+              [disabled]="loading || paymentsLoading">
         <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
       </button>
       <button class="btn-primary" type="button" (click)="openManualModal()"
-              *ngIf="perm.has(P.AccountingCreate)">
+              *ngIf="perm.has(P.AccountingCreate) && selectedTab === 0">
         <mat-icon>post_add</mat-icon> {{ 'accounting.btn.newEntry' | t }}
       </button>
     </div>
@@ -20,117 +22,205 @@
   <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
   <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
 
-  <form class="filter-form" (ngSubmit)="loadEntries()">
-    <div class="form-row">
-      <div class="form-group grow">
-        <label>{{ 'common.search' | t }}</label>
-        <input type="text" [(ngModel)]="filterSearch" name="filterSearch" [placeholder]="'accounting.searchPlaceholder' | t" />
-      </div>
-      <div class="form-group">
-        <label>{{ 'accounting.col.journalType' | t }}</label>
-        <select [(ngModel)]="filterJournalType" name="filterJournalType">
-          <option value="">{{ 'common.all' | t }}</option>
-          <option *ngFor="let j of journalTypes" [value]="j">{{ j }}</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>{{ 'accounting.col.referenceType' | t }}</label>
-        <select [(ngModel)]="filterReferenceType" name="filterReferenceType">
-          <option value="">{{ 'common.all' | t }}</option>
-          <option *ngFor="let r of referenceTypes" [value]="r">{{ r }}</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>{{ 'accounting.col.referenceId' | t }}</label>
-        <input type="number" [(ngModel)]="filterReferenceId" name="filterReferenceId" min="0" />
-      </div>
-      <div class="form-actions">
-        <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
-        <button class="btn-secondary" type="button" (click)="resetFilters()">{{ 'common.reset' | t }}</button>
-      </div>
-    </div>
-  </form>
+  <mat-tab-group [(selectedIndex)]="selectedTab" (selectedIndexChange)="onTabChange($event)">
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'accounting.tab.journal' | t }}</ng-template>
 
-  <div class="history-layout">
-    <div class="history-list">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th appSortable [state]="entrySort" key="entryNumber">{{ 'accounting.col.number' | t }}</th>
-            <th appSortable [state]="entrySort" key="entryDate" defaultDir="desc">{{ 'accounting.col.date' | t }}</th>
-            <th appSortable [state]="entrySort" key="journalType">{{ 'accounting.col.journalType' | t }}</th>
-            <th appSortable [state]="entrySort" key="reference">{{ 'accounting.col.reference' | t }}</th>
-            <th appSortable [state]="entrySort" key="description">{{ 'accounting.col.description' | t }}</th>
-            <th appSortable [state]="entrySort" key="debit" defaultDir="desc">{{ 'accounting.col.debit' | t }}</th>
-            <th appSortable [state]="entrySort" key="credit" defaultDir="desc">{{ 'accounting.col.credit' | t }}</th>
-            <th appSortable [state]="entrySort" key="status">{{ 'common.status' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let entry of sortedEntries"
-              [class.selected-row]="selected?.id === entry.id"
-              (click)="selectEntry(entry)">
-            <td><strong>{{ entry.entryNumber }}</strong></td>
-            <td>{{ entry.entryDate | date:'dd/MM/yyyy' }}</td>
-            <td>{{ entry.journalType }}</td>
-            <td>{{ entry.referenceType }}{{ entry.referenceId ? ' #' + entry.referenceId : '' }}</td>
-            <td>{{ entry.description }}</td>
-            <td>{{ entryDebit(entry) | currency:'EUR' }}</td>
-            <td>{{ entryCredit(entry) | currency:'EUR' }}</td>
-            <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ entry.status }}</span></td>
-          </tr>
-          <tr *ngIf="!loading && sortedEntries.length === 0">
-            <td colspan="8" class="empty">{{ 'accounting.empty' | t }}</td>
-          </tr>
-          <tr *ngIf="loading">
-            <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <form class="filter-form" (ngSubmit)="loadEntries()">
+        <div class="form-row">
+          <div class="form-group grow">
+            <label>{{ 'common.search' | t }}</label>
+            <input type="text" [(ngModel)]="filterSearch" name="filterSearch" [placeholder]="'accounting.searchPlaceholder' | t" />
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.col.journalType' | t }}</label>
+            <select [(ngModel)]="filterJournalType" name="filterJournalType">
+              <option value="">{{ 'common.all' | t }}</option>
+              <option *ngFor="let j of journalTypes" [value]="j">{{ j }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.col.referenceType' | t }}</label>
+            <select [(ngModel)]="filterReferenceType" name="filterReferenceType">
+              <option value="">{{ 'common.all' | t }}</option>
+              <option *ngFor="let r of referenceTypes" [value]="r">{{ r }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.col.referenceId' | t }}</label>
+            <input type="number" [(ngModel)]="filterReferenceId" name="filterReferenceId" min="0" />
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
+            <button class="btn-secondary" type="button" (click)="resetFilters()">{{ 'common.reset' | t }}</button>
+          </div>
+        </div>
+      </form>
 
-    <div class="history-detail" *ngIf="selected">
-      <h3>{{ 'accounting.detailTitle' | t:{ number: selected.entryNumber } }}</h3>
-      <div class="detail-meta">
-        <span>{{ 'accounting.col.date' | t }}: <strong>{{ selected.entryDate | date:'dd/MM/yyyy HH:mm' }}</strong></span>
-        <span>{{ 'accounting.col.journalType' | t }}: <strong>{{ selected.journalType }}</strong></span>
-        <span>{{ 'accounting.col.reference' | t }}: <strong>{{ selected.referenceType }} #{{ selected.referenceId }}</strong></span>
-        <span>{{ 'common.status' | t }}: <span class="status-badge" [ngClass]="(selected.status || '').toLowerCase()">{{ selected.status }}</span></span>
-        <span *ngIf="selected.createdBy">{{ 'accounting.col.author' | t }}: <strong>{{ selected.createdBy }}</strong></span>
+      <div class="history-layout">
+        <div class="history-list">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th appSortable [state]="entrySort" key="entryNumber">{{ 'accounting.col.number' | t }}</th>
+                <th appSortable [state]="entrySort" key="entryDate" defaultDir="desc">{{ 'accounting.col.date' | t }}</th>
+                <th appSortable [state]="entrySort" key="journalType">{{ 'accounting.col.journalType' | t }}</th>
+                <th appSortable [state]="entrySort" key="reference">{{ 'accounting.col.reference' | t }}</th>
+                <th appSortable [state]="entrySort" key="description">{{ 'accounting.col.description' | t }}</th>
+                <th appSortable [state]="entrySort" key="debit" defaultDir="desc">{{ 'accounting.col.debit' | t }}</th>
+                <th appSortable [state]="entrySort" key="credit" defaultDir="desc">{{ 'accounting.col.credit' | t }}</th>
+                <th appSortable [state]="entrySort" key="status">{{ 'common.status' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let entry of sortedEntries"
+                  [class.selected-row]="selected?.id === entry.id"
+                  (click)="selectEntry(entry)">
+                <td><strong>{{ entry.entryNumber }}</strong></td>
+                <td>{{ entry.entryDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ entry.journalType }}</td>
+                <td>{{ entry.referenceType }}{{ entry.referenceId ? ' #' + entry.referenceId : '' }}</td>
+                <td>{{ entry.description }}</td>
+                <td>{{ entryDebit(entry) | currency:'EUR' }}</td>
+                <td>{{ entryCredit(entry) | currency:'EUR' }}</td>
+                <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ entry.status }}</span></td>
+              </tr>
+              <tr *ngIf="!loading && sortedEntries.length === 0">
+                <td colspan="8" class="empty">{{ 'accounting.empty' | t }}</td>
+              </tr>
+              <tr *ngIf="loading">
+                <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="history-detail" *ngIf="selected">
+          <h3>{{ 'accounting.detailTitle' | t:{ number: selected.entryNumber } }}</h3>
+          <div class="detail-meta">
+            <span>{{ 'accounting.col.date' | t }}: <strong>{{ selected.entryDate | date:'dd/MM/yyyy HH:mm' }}</strong></span>
+            <span>{{ 'accounting.col.journalType' | t }}: <strong>{{ selected.journalType }}</strong></span>
+            <span>{{ 'accounting.col.reference' | t }}: <strong>{{ selected.referenceType }} #{{ selected.referenceId }}</strong></span>
+            <span>{{ 'common.status' | t }}: <span class="status-badge" [ngClass]="(selected.status || '').toLowerCase()">{{ selected.status }}</span></span>
+            <span *ngIf="selected.createdBy">{{ 'accounting.col.author' | t }}: <strong>{{ selected.createdBy }}</strong></span>
+          </div>
+          <p class="detail-notes" *ngIf="selected.description">{{ selected.description }}</p>
+          <table class="data-table nested">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{{ 'accounting.col.account' | t }}</th>
+                <th>{{ 'accounting.col.label' | t }}</th>
+                <th>{{ 'accounting.col.debit' | t }}</th>
+                <th>{{ 'accounting.col.credit' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let line of selected.lines">
+                <td>{{ line.lineNumber }}</td>
+                <td><strong>{{ line.accountCode }}</strong></td>
+                <td>{{ line.accountLabel }}</td>
+                <td>{{ line.debit | currency:'EUR' }}</td>
+                <td>{{ line.credit | currency:'EUR' }}</td>
+              </tr>
+              <tr *ngIf="!selected.lines?.length">
+                <td colspan="5" class="empty">{{ 'common.noLines' | t }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3"><strong>{{ 'accounting.totals' | t }}</strong></td>
+                <td><strong>{{ entryDebit(selected) | currency:'EUR' }}</strong></td>
+                <td><strong>{{ entryCredit(selected) | currency:'EUR' }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
-      <p class="detail-notes" *ngIf="selected.description">{{ selected.description }}</p>
-      <table class="data-table nested">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>{{ 'accounting.col.account' | t }}</th>
-            <th>{{ 'accounting.col.label' | t }}</th>
-            <th>{{ 'accounting.col.debit' | t }}</th>
-            <th>{{ 'accounting.col.credit' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let line of selected.lines">
-            <td>{{ line.lineNumber }}</td>
-            <td><strong>{{ line.accountCode }}</strong></td>
-            <td>{{ line.accountLabel }}</td>
-            <td>{{ line.debit | currency:'EUR' }}</td>
-            <td>{{ line.credit | currency:'EUR' }}</td>
-          </tr>
-          <tr *ngIf="!selected.lines?.length">
-            <td colspan="5" class="empty">{{ 'common.noLines' | t }}</td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="3"><strong>{{ 'accounting.totals' | t }}</strong></td>
-            <td><strong>{{ entryDebit(selected) | currency:'EUR' }}</strong></td>
-            <td><strong>{{ entryCredit(selected) | currency:'EUR' }}</strong></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>{{ 'accounting.tab.payments' | t }}</ng-template>
+
+      <form class="filter-form" (ngSubmit)="loadPayments()">
+        <div class="form-row">
+          <div class="form-group grow">
+            <label>{{ 'common.search' | t }}</label>
+            <input type="text" [(ngModel)]="paymentSearch" name="paymentSearch"
+                   [placeholder]="'accounting.payments.searchPlaceholder' | t" />
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.payments.col.side' | t }}</label>
+            <select [(ngModel)]="paymentSide" name="paymentSide">
+              <option value="all">{{ 'common.all' | t }}</option>
+              <option value="sales">{{ 'accounting.payments.side.sales' | t }}</option>
+              <option value="purchases">{{ 'accounting.payments.side.purchases' | t }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ 'common.status' | t }}</label>
+            <select [(ngModel)]="paymentStatus" name="paymentStatus">
+              <option value="">{{ 'common.all' | t }}</option>
+              <option value="Success">Success</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.payments.from' | t }}</label>
+            <input type="date" [(ngModel)]="paymentFrom" name="paymentFrom" />
+          </div>
+          <div class="form-group">
+            <label>{{ 'accounting.payments.to' | t }}</label>
+            <input type="date" [(ngModel)]="paymentTo" name="paymentTo" />
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" type="submit" [disabled]="paymentsLoading">{{ 'common.filter' | t }}</button>
+            <button class="btn-secondary" type="button" (click)="resetPaymentFilters()">{{ 'common.reset' | t }}</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th appSortable [state]="paymentSort" key="date" defaultDir="desc">{{ 'accounting.col.date' | t }}</th>
+              <th appSortable [state]="paymentSort" key="side">{{ 'accounting.payments.col.side' | t }}</th>
+              <th appSortable [state]="paymentSort" key="documentNumber">{{ 'accounting.payments.col.document' | t }}</th>
+              <th appSortable [state]="paymentSort" key="partyName">{{ 'accounting.payments.col.party' | t }}</th>
+              <th appSortable [state]="paymentSort" key="amount" defaultDir="desc">{{ 'accounting.payments.col.amount' | t }}</th>
+              <th appSortable [state]="paymentSort" key="method">{{ 'accounting.payments.col.method' | t }}</th>
+              <th appSortable [state]="paymentSort" key="reference">{{ 'accounting.payments.col.reference' | t }}</th>
+              <th appSortable [state]="paymentSort" key="status">{{ 'common.status' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="paymentsLoading">
+              <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+            </tr>
+            <ng-container *ngIf="!paymentsLoading">
+              <tr *ngFor="let p of sortedPayments">
+                <td>{{ p.date | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ paymentSideLabel(p.side) }}</td>
+                <td>
+                  <a *ngIf="p.side === 'sales'" [routerLink]="['/sales']" class="link">{{ p.documentNumber || ('#' + p.invoiceId) }}</a>
+                  <a *ngIf="p.side === 'purchases'" [routerLink]="['/purchases']" class="link">{{ p.documentNumber || ('#' + p.invoiceId) }}</a>
+                </td>
+                <td>{{ p.partyName || '—' }}</td>
+                <td>{{ p.amount | currency:'EUR' }}</td>
+                <td>{{ p.method || '—' }}</td>
+                <td>{{ p.reference || '—' }}</td>
+                <td><span class="status-badge" [ngClass]="(p.status || '').toLowerCase()">{{ p.status }}</span></td>
+              </tr>
+              <tr *ngIf="sortedPayments.length === 0">
+                <td colspan="8" class="empty">{{ 'accounting.payments.empty' | t }}</td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
 </div>
 
 <div class="modal-overlay" *ngIf="showManualModal">

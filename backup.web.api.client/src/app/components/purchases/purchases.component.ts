@@ -12,6 +12,8 @@ import {
   Receipt,
   Supplier,
   SupplierInvoice,
+  SupplierPayment,
+  UnifiedPayment,
   SupplierInvoicePurchaseOrderMatchResult,
   SupplierRfq,
   SupplierRfqLine,
@@ -53,13 +55,16 @@ export interface ParsedDocumentGroup {
 export class PurchasesComponent implements OnInit {
   /**
    * Flux ligne 1: 0 DPF, 1 CDF, 2 Réceptions, 3 Factures F, 4 AF, 5 Fournisseurs
-   * Annexes ligne 2: 6 BRF, 7 Docs parsés
+   * Annexes ligne 2: 6 BRF, 7 Docs parsés, 8 Paiements
    */
   selectedTab = 0;
   loading = false;
   saving = false;
   searchQuery = '';
   actionMessage = '';
+  paymentsLoading = false;
+  supplierPayments: UnifiedPayment[] = [];
+  paymentSort = new TableSortState('date', 'desc');
 
   suppliers: Supplier[] = [];
   purchaseOrders: PurchaseOrder[] = [];
@@ -86,6 +91,15 @@ export class PurchasesComponent implements OnInit {
 
   showCreateFromDocumentModal = false;
   showManualInvoiceModal = false;
+  /** Réception sélectionnée pour préremplir la facture manuelle. */
+  newInvoiceReceiptId: number | null = null;
+  showSupplierPaymentModal = false;
+  selectedInvoiceToPay: SupplierInvoice | null = null;
+  supplierPaymentAmount = 0;
+  supplierPaymentMethod = 'BankTransfer';
+  supplierPaymentReference = '';
+  supplierPaymentDate = '';
+  paymentError = '';
   showManualPurchaseOrderModal = false;
   showManualReceiptModal = false;
   showLinkDocumentModal = false;
@@ -300,9 +314,23 @@ export class PurchasesComponent implements OnInit {
       'purchases.supplierCreditNote',
       'purchases.supplier',
       'purchases.supplierReturn',
-      'purchases.parsedDocuments'
+      'purchases.parsedDocuments',
+      'purchases.tabs'
     ];
     return keys[this.selectedTab] || 'purchases.tabs';
+  }
+
+  get sortedSupplierPayments(): UnifiedPayment[] {
+    void this.paymentSort.version;
+    return this.paymentSort.sort(this.supplierPayments, {
+      date: p => p.date ?? '',
+      invoice: p => p.documentNumber ?? '',
+      supplier: p => p.partyName ?? '',
+      amount: p => +p.amount || 0,
+      method: p => p.method ?? '',
+      reference: p => p.reference ?? '',
+      status: p => p.status ?? ''
+    });
   }
 
   get activeTabHelpAbbrs(): string[] {
@@ -390,6 +418,28 @@ export class PurchasesComponent implements OnInit {
     this.loadSupplierRfqs();
     this.loadSupplierReturns();
     this.loadSupplierCreditNotes();
+    this.loadSupplierPayments();
+  }
+
+  loadSupplierPayments(): void {
+    if (!this.perm.has(Permissions.SupplierInvoiceRead)) {
+      this.supplierPayments = [];
+      return;
+    }
+    this.paymentsLoading = true;
+    this.businessService.getUnifiedPayments({
+      side: 'purchases',
+      search: this.searchQuery || undefined
+    }).subscribe({
+      next: (rows) => {
+        this.supplierPayments = rows || [];
+        this.paymentsLoading = false;
+      },
+      error: () => {
+        this.supplierPayments = [];
+        this.paymentsLoading = false;
+      }
+    });
   }
 
   /** Ferme le popup et recharge le formulaire principal. */
@@ -512,6 +562,11 @@ export class PurchasesComponent implements OnInit {
           .sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
       });
       this.loadDocumentRelations();
+      return;
+    }
+
+    if (this.selectedTab === 8) {
+      this.loadSupplierPayments();
     }
   }
 
@@ -533,7 +588,225 @@ export class PurchasesComponent implements OnInit {
     }
     this.showManualInvoiceModal = true;
     this.createError = '';
+    this.newInvoiceReceiptId = null;
     this.newInvoice = this.createEmptyInvoice();
+  }
+
+  /** Ouvre le modal facture prérempli depuis une réception. */
+  openInvoiceFromReceipt(receipt: Receipt): void {
+    if (!this.canInvoiceFromReceipt(receipt)) return;
+    if (this.suppliers.length === 0) {
+      this.highlightMessage = this.i18n.t('purchases.needSupplierFirst');
+      this.openSupplierModal('invoice');
+      return;
+    }
+
+    this.showManualInvoiceModal = true;
+    this.createError = '';
+    this.newInvoice = this.createEmptyInvoice();
+    this.newInvoice.supplierId = receipt.supplierId;
+    this.newInvoiceReceiptId = receipt.id!;
+
+    // La liste peut ne pas inclure les lignes → charger le détail.
+    if (receipt.lines?.length) {
+      this.applyReceiptToNewInvoice(receipt);
+      return;
+    }
+
+    this.businessService.getReceipt(receipt.id!).subscribe({
+      next: (full) => this.applyReceiptToNewInvoice(full),
+      error: (error) => {
+        this.createError = error?.error?.error
+          || error?.error?.title
+          || this.i18n.t('purchases.invoiceFromReceiptError');
+      }
+    });
+  }
+
+  onInvoiceSupplierChanged(): void {
+    if (this.newInvoiceReceiptId) {
+      const ok = this.receiptsForInvoiceSupplier().some(r => r.id === this.newInvoiceReceiptId);
+      if (!ok) {
+        this.newInvoiceReceiptId = null;
+        this.newInvoice.purchaseOrderId = undefined;
+        this.resetInvoiceLinesEmpty();
+      }
+    }
+  }
+
+  onInvoiceReceiptChanged(receiptId: number | null): void {
+    const selectedId = receiptId == null ? null : Number(receiptId);
+    if (!selectedId || Number.isNaN(selectedId)) {
+      this.newInvoice.purchaseOrderId = undefined;
+      this.resetInvoiceLinesEmpty();
+      return;
+    }
+
+    this.createError = '';
+    this.businessService.getReceipt(selectedId).subscribe({
+      next: (receipt) => {
+        if (Number(this.newInvoiceReceiptId) !== selectedId) return;
+        this.applyReceiptToNewInvoice(receipt);
+      },
+      error: (error) => {
+        this.createError = error?.error?.error
+          || error?.error?.title
+          || this.i18n.t('purchases.invoiceFromReceiptError');
+      }
+    });
+  }
+
+  receiptsForInvoiceSupplier(): Receipt[] {
+    const supplierId = this.newInvoice.supplierId;
+    const list = !supplierId
+      ? this.receipts
+      : this.receipts.filter(r => r.supplierId === supplierId);
+    return list.filter(r => !this.isReceiptAlreadyInvoiced(r) || r.id === this.newInvoiceReceiptId);
+  }
+
+  /** Réception déjà liée à une facture non annulée. */
+  isReceiptAlreadyInvoiced(receipt: Receipt): boolean {
+    if (!receipt?.id) return false;
+    const receiptNumber = (receipt.receiptNumber || '').trim();
+    return this.supplierInvoices.some(inv => {
+      const status = (inv.status || '').toLowerCase();
+      if (status === 'cancelled') return false;
+      if (inv.receiptId && inv.receiptId === receipt.id) return true;
+      // Fallback anciennes factures (note « Depuis réception XXX »)
+      if (receiptNumber && (inv.notes || '').includes(receiptNumber) && inv.supplierId === receipt.supplierId) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  invoiceForReceipt(receipt: Receipt): SupplierInvoice | null {
+    if (!receipt?.id) return null;
+    const receiptNumber = (receipt.receiptNumber || '').trim();
+    return this.supplierInvoices.find(inv => {
+      const status = (inv.status || '').toLowerCase();
+      if (status === 'cancelled') return false;
+      if (inv.receiptId && inv.receiptId === receipt.id) return true;
+      if (receiptNumber && (inv.notes || '').includes(receiptNumber) && inv.supplierId === receipt.supplierId) {
+        return true;
+      }
+      return false;
+    }) || null;
+  }
+
+  private applyReceiptToNewInvoice(receipt: Receipt): void {
+    if (receipt.supplierId) {
+      this.newInvoice.supplierId = receipt.supplierId;
+    }
+    if (receipt.purchaseOrderId) {
+      this.newInvoice.purchaseOrderId = receipt.purchaseOrderId;
+    }
+    if (receipt.documentId) {
+      this.newInvoice.documentId = receipt.documentId;
+    }
+    this.newInvoice.receiptId = receipt.id;
+
+    const noteTag = this.i18n.t('purchases.invoiceFromReceiptNote', { number: receipt.receiptNumber || String(receipt.id) });
+    if (!this.newInvoice.notes?.trim()) {
+      this.newInvoice.notes = noteTag;
+    } else if (!this.newInvoice.notes.includes(receipt.receiptNumber || '')) {
+      this.newInvoice.notes = `${this.newInvoice.notes.trim()} — ${noteTag}`;
+    }
+
+    const lines = (receipt.lines || [])
+      .map((line, index) => {
+        const quantity = Number(line.quantityReceived) || 0;
+        const unitPrice = Number(line.unitPriceExclTax) || 0;
+        const vatRate = Number(line.taxRatePercent) || 21;
+        const productKey = (line.productKey || '').trim();
+        const description = (line.description || '').trim();
+        const totalHT = quantity * unitPrice;
+        return {
+          productKey: productKey || description,
+          description: description || productKey,
+          quantity,
+          unitPrice,
+          vatRate,
+          totalHT,
+          totalTTC: totalHT * (1 + vatRate / 100),
+          lineNumber: index + 1
+        };
+      })
+      .filter(l => (!!l.productKey.trim() || !!l.description.trim()) && l.quantity > 0);
+
+    this.newInvoice.lines = lines.length ? lines : [];
+    if (this.newInvoice.lines.length === 0) {
+      this.addInvoiceLine();
+      this.createError = this.i18n.t('purchases.invoiceFromReceiptNoLines');
+    } else {
+      this.recalculateInvoiceTotals();
+    }
+  }
+
+  private resetInvoiceLinesEmpty(): void {
+    this.newInvoice.lines = [];
+    this.newInvoice.receiptId = undefined;
+    this.addInvoiceLine();
+    this.recalculateInvoiceTotals();
+  }
+
+  canInvoiceFromReceipt(receipt: Receipt): boolean {
+    return !!receipt?.id
+      && this.perm.has(Permissions.SupplierInvoiceCreate)
+      && !this.isReceiptAlreadyInvoiced(receipt);
+  }
+
+  canPaySupplierInvoice(invoice: SupplierInvoice): boolean {
+    if (!invoice?.id || !this.perm.has(Permissions.SupplierInvoiceCreate)) return false;
+    const status = (invoice.status || '').toLowerCase();
+    return status !== 'cancelled' && status !== 'paid';
+  }
+
+  openSupplierPaymentModal(invoice: SupplierInvoice): void {
+    if (!this.canPaySupplierInvoice(invoice)) return;
+    this.selectedInvoiceToPay = invoice;
+    this.supplierPaymentAmount = Number(invoice.totalTTC) || 0;
+    this.supplierPaymentMethod = 'BankTransfer';
+    this.supplierPaymentReference = '';
+    this.supplierPaymentDate = new Date().toISOString().slice(0, 10);
+    this.paymentError = '';
+    this.showSupplierPaymentModal = true;
+  }
+
+  saveSupplierPayment(): void {
+    if (!this.selectedInvoiceToPay?.id) return;
+    if (!this.supplierPaymentAmount || this.supplierPaymentAmount <= 0) {
+      this.paymentError = this.i18n.t('purchases.paymentAmountError');
+      return;
+    }
+
+    this.saving = true;
+    this.paymentError = '';
+    this.businessService.createSupplierPayment(this.selectedInvoiceToPay.id, {
+      amount: this.supplierPaymentAmount,
+      paidAt: this.supplierPaymentDate || undefined,
+      method: this.supplierPaymentMethod,
+      reference: this.supplierPaymentReference || undefined
+    }).subscribe({
+      next: (result) => {
+        this.saving = false;
+        this.showSupplierPaymentModal = false;
+        this.actionMessage = this.i18n.t('purchases.paymentRecorded', {
+          amount: result.payment.amount,
+          number: result.invoice.invoiceNumber
+        });
+        this.businessService.getSupplierInvoices().subscribe(invoices => {
+          this.supplierInvoices = this.sortSupplierInvoices(invoices);
+        });
+        this.loadSupplierPayments();
+      },
+      error: (error) => {
+        this.saving = false;
+        this.paymentError = typeof error?.error === 'string'
+          ? error.error
+          : (error?.error?.error || this.i18n.t('purchases.paymentError'));
+      }
+    });
   }
 
   openManualPurchaseOrderModal(): void {
@@ -1489,32 +1762,46 @@ export class PurchasesComponent implements OnInit {
   }
 
   onReceiptPurchaseOrderChanged(purchaseOrderId: number | null): void {
-    if (!purchaseOrderId) {
+    const selectedId = purchaseOrderId == null ? null : Number(purchaseOrderId);
+
+    if (!selectedId || Number.isNaN(selectedId)) {
       this.resetReceiptLinesEmpty();
       return;
     }
 
     this.createError = '';
-    this.businessService.getPurchaseOrder(purchaseOrderId).subscribe({
+    this.businessService.getPurchaseOrder(selectedId).subscribe({
       next: (order) => {
-        if (this.newReceipt.purchaseOrderId !== purchaseOrderId) return;
+        // ngModel peut typiser en string selon le select — comparer en Number.
+        if (Number(this.newReceipt.purchaseOrderId) !== selectedId) return;
 
         if (order.supplierId && order.supplierId !== this.newReceipt.supplierId) {
           this.newReceipt.supplierId = order.supplierId;
         }
 
-        const lines = (order.lines || [])
+        const sourceLines = order.lines || [];
+        let usedOrderedFallback = false;
+
+        const lines = sourceLines
           .map(line => {
             const ordered = Number(line.quantity) || 0;
             const alreadyReceived = Number(line.receivedQuantity) || 0;
             const remaining = Math.max(0, ordered - alreadyReceived);
-            const quantity = remaining > 0 ? remaining : ordered;
+            // Reste à réceptionner ; si déjà tout reçu (souvent le cas EuroBrico après BL),
+            // on préremplit quand même avec la qté commandée pour pouvoir créer une réception.
+            let quantity = remaining;
+            if (quantity <= 0 && ordered > 0) {
+              quantity = ordered;
+              usedOrderedFallback = true;
+            }
             const unitPrice = Number(line.unitPrice) || 0;
             const vatRate = Number(line.vatRate) || this.newReceipt.defaultVatRate || 21;
+            const productKey = (line.productKey || '').trim();
+            const description = (line.description || '').trim();
             const totalHT = quantity * unitPrice;
             return {
-              productKey: line.productKey || '',
-              description: line.description || '',
+              productKey: productKey || description,
+              description: description || productKey,
               quantity,
               unitPrice,
               vatRate,
@@ -1522,15 +1809,25 @@ export class PurchasesComponent implements OnInit {
               totalTTC: totalHT * (1 + vatRate / 100)
             };
           })
-          .filter(l => !!l.productKey.trim() && l.quantity > 0);
+          // Ref OU description suffisent (anciennes commandes / refs ERP sans productKey).
+          .filter(l => (!!l.productKey.trim() || !!l.description.trim()) && l.quantity > 0);
 
         this.newReceipt.lines = lines.length ? lines : [];
         if (this.newReceipt.lines.length === 0) {
           this.addReceiptLine();
+          if (sourceLines.length > 0) {
+            this.createError = this.i18n.t('purchases.receiptFromOrderNoRemaining');
+          } else {
+            this.createError = this.i18n.t('purchases.receiptFromOrderNoLines');
+          }
+        } else if (usedOrderedFallback) {
+          this.createError = this.i18n.t('purchases.receiptFromOrderAlreadyReceivedHint');
         }
       },
       error: (error) => {
-        this.createError = error?.error?.error || this.i18n.t('purchases.receiptFromOrderError');
+        this.createError = error?.error?.error
+          || error?.error?.title
+          || this.i18n.t('purchases.receiptFromOrderError');
       }
     });
   }
@@ -1580,6 +1877,16 @@ export class PurchasesComponent implements OnInit {
 
   supplierNameForOrder(order: PurchaseOrder): string {
     return order.supplier?.name || this.i18n.t('purchases.supplierNameHash', { id: order.supplierId });
+  }
+
+  /** N° commande source d'une réception, ou null si saisie libre. */
+  receiptSourceOrderLabel(receipt: Receipt | null | undefined): string | null {
+    if (!receipt?.purchaseOrderId) return null;
+    const nested = receipt.purchaseOrder?.orderNumber?.trim();
+    if (nested) return nested;
+    const fromList = this.purchaseOrders.find(o => o.id === receipt.purchaseOrderId);
+    if (fromList?.orderNumber?.trim()) return fromList.orderNumber.trim();
+    return `#${receipt.purchaseOrderId}`;
   }
 
   supplierForSelectedDocument(): string {

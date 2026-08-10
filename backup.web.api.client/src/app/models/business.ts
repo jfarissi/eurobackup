@@ -338,6 +338,8 @@ export interface SupplierInvoice extends AuditTrailFields {
   documentId?: number;
   purchaseOrderId?: number;
   purchaseOrder?: PurchaseOrder;
+  receiptId?: number;
+  receipt?: Receipt;
   date: string;
   dueDate: string;
   status: string;
@@ -347,6 +349,31 @@ export interface SupplierInvoice extends AuditTrailFields {
   notes?: string;
   companyId?: string;
   lines: SupplierInvoiceLine[];
+}
+
+export interface SupplierPayment {
+  id?: number;
+  companyId?: string;
+  supplierInvoiceId: number;
+  amount: number;
+  paidAt: string;
+  method?: string;
+  reference?: string;
+  status: string;
+}
+
+/** Paiement unifié ventes / achats (GET /api/payments/all). */
+export interface UnifiedPayment {
+  side: 'sales' | 'purchases' | string;
+  id: number;
+  date: string;
+  amount: number;
+  method?: string;
+  reference?: string;
+  status: string;
+  documentNumber?: string;
+  partyName?: string;
+  invoiceId: number;
 }
 
 export interface SupplierInvoicePurchaseOrderMatchResult {

@@ -3,9 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatInputModule } from '@angular/material/input';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { Subject, Subscription, of } from 'rxjs';
+import { catchError, debounceTime, finalize, switchMap } from 'rxjs/operators';
 import { ErpProduct } from '../../../models/erp-product';
 import { ProductLineFields } from '../../../models/product-line-fields';
 import { ErpProductService } from '../../../services/erp-product.service';
@@ -27,6 +26,7 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
 
   suggestions: ErpProduct[] = [];
   searching = false;
+  searchFailed = false;
   lastQuery = '';
 
   private readonly search$ = new Subject<{ q: string; supplierId: number | null }>();
@@ -36,28 +36,38 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnInit(): void {
     this.sub = this.search$.pipe(
-      debounceTime(280),
-      distinctUntilChanged((a, b) => a.q === b.q && a.supplierId === b.supplierId),
+      debounceTime(200),
+      // Pas de distinctUntilChanged : resaisir la même réf doit relancer la recherche.
       switchMap(({ q, supplierId }) => {
         const term = q.trim();
         if (term.length < 2) {
           this.lastQuery = term;
           this.searching = false;
+          this.searchFailed = false;
           this.suggestions = [];
           return of(null);
         }
         this.searching = true;
+        this.searchFailed = false;
         this.lastQuery = term;
         return this.erpProductService.getProducts({
           q: term,
           page: 1,
-          pageSize: 12,
+          pageSize: 25,
           supplierId: supplierId && supplierId > 0 ? supplierId : undefined
-        });
+        }).pipe(
+          catchError(() => {
+            this.searchFailed = true;
+            return of({ items: [] as ErpProduct[], total: 0, page: 1, pageSize: 25 });
+          }),
+          finalize(() => {
+            this.searching = false;
+          })
+        );
       })
     ).subscribe(result => {
-      this.searching = false;
-      this.suggestions = result?.items ?? [];
+      if (result == null) return;
+      this.suggestions = result.items ?? [];
     });
   }
 
@@ -80,11 +90,20 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
     this.emitSearch(value);
   }
 
+  /** Relance la recherche au focus (évite « Aucun produit » stale après un échec réseau). */
+  onFocus(): void {
+    const q = (this.line.productKey || '').trim();
+    if (q.length >= 2) {
+      this.emitSearch(q);
+    }
+  }
+
   onOptionSelected(event: MatAutocompleteSelectedEvent): void {
     const product = event.option.value as ErpProduct;
     this.applyProduct(product);
     this.suggestions = [];
     this.lastQuery = '';
+    this.searchFailed = false;
     this.productSelected.emit();
   }
 

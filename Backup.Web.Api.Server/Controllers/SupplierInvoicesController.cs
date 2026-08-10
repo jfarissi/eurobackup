@@ -161,6 +161,7 @@ namespace Backup.Web.Api.Server.Controllers
             existing.SupplierId = invoice.SupplierId;
             existing.DocumentId = invoice.DocumentId;
             existing.PurchaseOrderId = invoice.PurchaseOrderId;
+            existing.ReceiptId = invoice.ReceiptId;
             existing.Date = invoice.Date == default ? existing.Date : invoice.Date;
             existing.DueDate = invoice.DueDate == default ? existing.DueDate : invoice.DueDate;
             existing.DueDate = PaymentTermsHelper.EnsureNotBeforeInvoiceDate(existing.Date, existing.DueDate);
@@ -532,6 +533,127 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(matchResult);
         }
 
+        public class CreateSupplierPaymentRequest
+        {
+            public decimal Amount { get; set; }
+            public DateTime? PaidAt { get; set; }
+            public string? Method { get; set; }
+            public string? Reference { get; set; }
+        }
+
+        [HttpPost("{id:int}/validate")]
+        [RequirePermission(Permissions.SupplierInvoiceCreate)]
+        public async Task<IActionResult> Validate(int id)
+        {
+            var invoice = await this.storage.SelectSupplierInvoiceByIdAsync(id);
+            if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                return NotFound();
+
+            if (!string.Equals(invoice.Status, "Draft", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(invoice.Status, "ApprovalRequired", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest($"Seules les factures Draft / ApprovalRequired peuvent être validées (statut actuel : {invoice.Status}).");
+            }
+
+            invoice.Status = "Validated";
+            NormalizeSupplierInvoice(invoice);
+            var updated = await this.storage.UpdateSupplierInvoiceAsync(invoice);
+            await this.AuditSupplierInvoice(updated.Id, "Validated", $"Validation facture fournisseur {updated.InvoiceNumber}");
+
+            var postError = await TryPostSupplierAccountingAsync(updated);
+            if (postError != null) return BadRequest(postError);
+
+            updated = await this.storage.SelectSupplierInvoiceByIdAsync(updated.Id) ?? updated;
+            return Ok(updated);
+        }
+
+        [HttpGet("{id:int}/payments")]
+        [RequirePermission(Permissions.SupplierInvoiceRead)]
+        public async Task<IActionResult> GetPayments(int id)
+        {
+            var invoice = await this.storage.SelectSupplierInvoiceByIdAsync(id);
+            if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                return NotFound();
+
+            var payments = this.storage.SelectAllSupplierPayments()
+                .Where(p => p.SupplierInvoiceId == id)
+                .OrderByDescending(p => p.PaidAt)
+                .ToList();
+            return Ok(payments);
+        }
+
+        [HttpPost("{id:int}/payments")]
+        [RequirePermission(Permissions.SupplierInvoiceCreate)]
+        public async Task<IActionResult> CreatePayment(int id, [FromBody] CreateSupplierPaymentRequest request)
+        {
+            var invoice = await this.storage.SelectSupplierInvoiceByIdAsync(id);
+            if (invoice == null || !invoice.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                return NotFound();
+
+            if (string.Equals(invoice.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Impossible de payer une facture annulée.");
+
+            if (request == null || request.Amount <= 0)
+                return BadRequest("Montant de paiement invalide.");
+
+            // Poster la facture en compta si besoin (Draft → Validated + écriture 607/44566/401).
+            if (string.Equals(invoice.Status, "Draft", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(invoice.Status, "ApprovalRequired", StringComparison.OrdinalIgnoreCase))
+            {
+                invoice.Status = "Validated";
+                NormalizeSupplierInvoice(invoice);
+                invoice = await this.storage.UpdateSupplierInvoiceAsync(invoice);
+            }
+
+            if (!AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefSupplierInvoice, invoice.Id, invoice.CompanyId))
+            {
+                var (_, invErr) = await AccountingLedger.PostSupplierInvoiceAsync(
+                    this.storage, this.numberingService, invoice, SalesDocumentAudit.ActorFrom(User));
+                if (invErr != null) return BadRequest(invErr);
+            }
+
+            var paidAlready = this.storage.SelectAllSupplierPayments()
+                .Where(p => p.SupplierInvoiceId == id && p.Status.ToLower() == "success")
+                .Sum(p => (decimal?)p.Amount) ?? 0m;
+
+            var remaining = invoice.TotalTTC - paidAlready;
+            if (request.Amount > remaining + 0.01m)
+                return BadRequest($"Montant supérieur au solde restant ({remaining:0.00} €).");
+
+            var payment = new SupplierPayment
+            {
+                CompanyId = invoice.CompanyId,
+                SupplierInvoiceId = invoice.Id,
+                Amount = request.Amount,
+                PaidAt = request.PaidAt ?? DateTime.UtcNow,
+                Method = string.IsNullOrWhiteSpace(request.Method) ? "BankTransfer" : request.Method.Trim(),
+                Reference = request.Reference?.Trim(),
+                Status = "Success",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var created = await this.storage.InsertSupplierPaymentAsync(payment);
+
+            var (_, payErr) = await AccountingLedger.PostSupplierPaymentAsync(
+                this.storage, this.numberingService, invoice, created, SalesDocumentAudit.ActorFrom(User));
+            if (payErr != null) return BadRequest(payErr);
+
+            var totalPaid = paidAlready + created.Amount;
+            if (totalPaid >= invoice.TotalTTC - 0.01m)
+                invoice.Status = "Paid";
+            else if (totalPaid > 0)
+                invoice.Status = "PartiallyPaid";
+
+            NormalizeSupplierInvoice(invoice);
+            await this.storage.UpdateSupplierInvoiceAsync(invoice);
+            await this.AuditSupplierInvoice(invoice.Id, "Payment",
+                $"Paiement {created.Amount:0.00} € — statut {invoice.Status}");
+
+            invoice = await this.storage.SelectSupplierInvoiceByIdAsync(invoice.Id) ?? invoice;
+            return Ok(new { payment = created, invoice });
+        }
+
         private async Task<IActionResult?> ValidateSupplierInvoiceAsync(SupplierInvoiceEntity invoice, int? currentId = null)
         {
             if (invoice.SupplierId <= 0) return BadRequest("SupplierId required");
@@ -567,6 +689,36 @@ namespace Backup.Web.Api.Server.Controllers
                 {
                     return BadRequest("Linked purchase order must belong to the same supplier.");
                 }
+            }
+
+            if (invoice.ReceiptId.HasValue && invoice.ReceiptId.Value > 0)
+            {
+                var receipt = await this.storage.SelectReceiptByIdAsync(invoice.ReceiptId.Value);
+                if (receipt == null || !receipt.BelongsToCompany(this.companyContext.GetCurrentCompanyId()))
+                    return BadRequest("Linked receipt not found");
+
+                if (receipt.SupplierId != invoice.SupplierId)
+                    return BadRequest("Linked receipt must belong to the same supplier.");
+
+                var duplicateReceipt = this.storage.SelectAllSupplierInvoices()
+                    .ForCompany(this.companyContext.GetCurrentCompanyId())
+                    .FirstOrDefault(i =>
+                        i.ReceiptId == invoice.ReceiptId
+                        && i.Status.ToLower() != "cancelled"
+                        && (!currentId.HasValue || i.Id != currentId.Value));
+
+                if (duplicateReceipt != null)
+                {
+                    return Conflict(new
+                    {
+                        error = "Cette réception est déjà liée à une facture fournisseur.",
+                        supplierInvoiceId = duplicateReceipt.Id,
+                        invoiceNumber = duplicateReceipt.InvoiceNumber
+                    });
+                }
+
+                if (!invoice.PurchaseOrderId.HasValue && receipt.PurchaseOrderId.HasValue)
+                    invoice.PurchaseOrderId = receipt.PurchaseOrderId;
             }
 
             if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
@@ -831,7 +983,7 @@ namespace Backup.Web.Api.Server.Controllers
                 return null;
 
             var (_, error) = await AccountingLedger.PostSupplierInvoiceAsync(
-                this.storage, this.numberingService, invoice, User.Identity?.Name);
+                this.storage, this.numberingService, invoice, SalesDocumentAudit.ActorFrom(User));
             return error;
         }
 

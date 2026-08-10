@@ -10,6 +10,7 @@ import { TPipe } from '../../../pipes/t.pipe';
   template: `
     <nav class="catalog-subnav" aria-label="Catalogue">
       <a routerLink="/erp-products" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">{{ 'catalog.nav.products' | t }}</a>
+      <a routerLink="/plate-scan" routerLinkActive="active">{{ 'catalog.nav.plateScan' | t }}</a>
       <a routerLink="/erp-brands" routerLinkActive="active">{{ 'catalog.nav.brands' | t }}</a>
       <a routerLink="/erp-categories" routerLinkActive="active">{{ 'catalog.nav.categories' | t }}</a>
     </nav>

@@ -15,6 +15,8 @@ import {
   ComptabiliserResult,
   ComptabiliserInvoiceResult,
   SupplierInvoice,
+  SupplierPayment,
+  UnifiedPayment,
   SupplierInvoicePurchaseOrderMatchResult,
   StockMovement,
   CashSession,
@@ -251,6 +253,26 @@ export class BusinessService {
     return this.http.get<Payment[]>('/api/payments', { params });
   }
 
+  getUnifiedPayments(filters?: {
+    side?: 'sales' | 'purchases' | 'all';
+    status?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+  }): Observable<UnifiedPayment[]> {
+    let params = new HttpParams();
+    if (filters?.side) params = params.set('side', filters.side);
+    if (filters?.status) params = params.set('status', filters.status);
+    if (filters?.from) params = params.set('from', filters.from);
+    if (filters?.to) params = params.set('to', filters.to);
+    if (filters?.search) params = params.set('search', filters.search);
+    return this.http.get<UnifiedPayment[]>('/api/payments/all', { params });
+  }
+
+  validateSupplierInvoice(id: number): Observable<SupplierInvoice> {
+    return this.http.post<SupplierInvoice>(`/api/supplierinvoices/${id}/validate`, {});
+  }
+
   cancelPayment(paymentId: number): Observable<Payment> {
     return this.http.post<Payment>(`/api/payments/${paymentId}/cancel`, {});
   }
@@ -384,6 +406,20 @@ export class BusinessService {
 
   approveSupplierInvoice(invoiceId: number, reason?: string): Observable<SupplierInvoice> {
     return this.http.post<SupplierInvoice>(`/api/supplierinvoices/${invoiceId}/approve`, { reason });
+  }
+
+  getSupplierPayments(invoiceId: number): Observable<SupplierPayment[]> {
+    return this.http.get<SupplierPayment[]>(`/api/supplierinvoices/${invoiceId}/payments`);
+  }
+
+  createSupplierPayment(
+    invoiceId: number,
+    body: { amount: number; paidAt?: string; method?: string; reference?: string }
+  ): Observable<{ payment: SupplierPayment; invoice: SupplierInvoice }> {
+    return this.http.post<{ payment: SupplierPayment; invoice: SupplierInvoice }>(
+      `/api/supplierinvoices/${invoiceId}/payments`,
+      body
+    );
   }
 
   // Receipts (ErpReceipts) — BL comptabilisés

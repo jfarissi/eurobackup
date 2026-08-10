@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
 import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-product';
@@ -72,8 +72,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   vehicleBrandFilter = '';
   vehicleModelFilter = '';
   vehicleYearFilter: number | null = null;
-  filterVehicleBrands: CarApiVehicleBrand[] = [];
-  filterVehicleModels: CarApiVehicleModel[] = [];
+  filterVehicleBrands: string[] = [];
+  filterVehicleModels: string[] = [];
 
   brands: ErpBrand[] = [];
   mainTypes: ErpCategory[] = [];
@@ -161,7 +161,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     private snack: MatSnackBar,
     private i18n: AppI18nService,
     public perm: PermissionService,
-    public company: CompanyService
+    public company: CompanyService,
+    private route: ActivatedRoute
   ) {}
 
   readonly P = Permissions;
@@ -195,10 +196,42 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const hasVehicleQuery = !!(
+      this.route.snapshot.queryParamMap.get('vehicleBrand')?.trim()
+      || this.route.snapshot.queryParamMap.get('q')?.trim()
+    );
+    this.applyVehicleQueryParams();
     this.loadFilterOptions();
-    this.loadProducts();
+    if (!hasVehicleQuery) this.loadProducts();
     this.initVehicleCompatibility();
     this.loadVehicleFilterBrands();
+  }
+
+  /** Deep-link depuis scan plaque : ?vehicleBrand=&vehicleModel=&vehicleYear= */
+  private applyVehicleQueryParams(): void {
+    const q = this.route.snapshot.queryParamMap;
+    const brand = q.get('vehicleBrand')?.trim();
+    const model = q.get('vehicleModel')?.trim();
+    const yearRaw = q.get('vehicleYear')?.trim();
+    const search = q.get('q')?.trim();
+    if (search) this.searchQuery = search;
+    if (yearRaw && !Number.isNaN(Number(yearRaw))) this.vehicleYearFilter = Number(yearRaw);
+    if (!brand) return;
+
+    this.vehicleBrandFilter = brand;
+    this.filterVehicleModels = [];
+    this.erpService.getVehicleModels(brand).subscribe({
+      next: models => {
+        this.filterVehicleModels = models ?? [];
+        if (model) this.vehicleModelFilter = model;
+        this.applyFilters();
+      },
+      error: () => {
+        this.filterVehicleModels = [];
+        if (model) this.vehicleModelFilter = model;
+        this.applyFilters();
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -487,8 +520,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   loadVehicleFilterBrands(): void {
-    this.carApi.getBrands().subscribe({
-      next: brands => this.filterVehicleBrands = brands ?? [],
+    this.erpService.getVehicleMakes().subscribe({
+      next: makes => this.filterVehicleBrands = makes ?? [],
       error: () => this.filterVehicleBrands = []
     });
   }
@@ -497,7 +530,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.vehicleModelFilter = '';
     this.filterVehicleModels = [];
     if (this.vehicleBrandFilter) {
-      this.carApi.getModels(this.vehicleBrandFilter).subscribe({
+      this.erpService.getVehicleModels(this.vehicleBrandFilter).subscribe({
         next: models => this.filterVehicleModels = models ?? [],
         error: () => this.filterVehicleModels = []
       });

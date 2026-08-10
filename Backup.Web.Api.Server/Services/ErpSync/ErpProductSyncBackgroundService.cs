@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Services.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -74,6 +75,14 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                 if (!options.Enabled)
                     continue;
 
+                if (!await AnyCompanyNeedsErpCatalogSyncAsync(stoppingToken))
+                {
+                    _logger.LogInformation(
+                        "Scheduled ERP sync skipped — aucune société avec module erp_catalog_sync / EnableErpCatalogSync");
+                    _lastCompletedSlotUtc = slot;
+                    continue;
+                }
+
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
@@ -104,6 +113,36 @@ namespace Backup.Web.Api.Server.Services.ErpSync
                     // Marquer ce créneau comme fait → prochain = vendredi suivant.
                     _lastCompletedSlotUtc = slot;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Pièces auto / core seuls → pas d’appel webservice EuroBrico.
+        /// </summary>
+        private async Task<bool> AnyCompanyNeedsErpCatalogSyncAsync(CancellationToken ct)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var storage = scope.ServiceProvider.GetRequiredService<IStorageBroker>();
+
+                var byFlag = await storage.SelectAllCompanies()
+                    .AsNoTracking()
+                    .AnyAsync(c => c.EnableErpCatalogSync, ct);
+                if (byFlag)
+                    return true;
+
+                return await storage.SelectAllCompanyModules()
+                    .AsNoTracking()
+                    .AnyAsync(m =>
+                        m.ModuleCode == ModuleCodes.ErpCatalogSync
+                        && m.IsActive
+                        && (m.ExpiresAt == null || m.ExpiresAt > DateTime.UtcNow), ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Could not check erp_catalog_sync companies — treating as not needed");
+                return false;
             }
         }
 

@@ -68,6 +68,12 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<SupplierInvoiceEntity?> SelectSupplierInvoiceByIdAsync(int id);
         ValueTask<SupplierInvoiceEntity> UpdateSupplierInvoiceAsync(SupplierInvoiceEntity supplierInvoice);
 
+        // Supplier Payments (règlements factures achat)
+        ValueTask<SupplierPayment> InsertSupplierPaymentAsync(SupplierPayment payment);
+        IQueryable<SupplierPayment> SelectAllSupplierPayments();
+        ValueTask<SupplierPayment?> SelectSupplierPaymentByIdAsync(int id);
+        ValueTask<SupplierPayment> UpdateSupplierPaymentAsync(SupplierPayment payment);
+
         // Stock Movements
         ValueTask<StockMovement> InsertStockMovementAsync(StockMovement movement);
         IQueryable<StockMovement> SelectAllStockMovements();

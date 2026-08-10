@@ -3,6 +3,7 @@
   type="text"
   [ngModel]="line.productKey"
   (ngModelChange)="onInput($event)"
+  (focus)="onFocus()"
   [matAutocomplete]="productAuto"
   placeholder="Réf / code"
   autocomplete="off" />
@@ -13,7 +14,10 @@
     <span class="opt-price" *ngIf="productPrice(product) != null">{{ productPrice(product) | currency:'EUR' }}</span>
   </mat-option>
   <mat-option *ngIf="searching" disabled>Recherche…</mat-option>
-  <mat-option *ngIf="!searching && lastQuery.length >= 2 && suggestions.length === 0" disabled>
+  <mat-option *ngIf="!searching && searchFailed && lastQuery.length >= 2" disabled>
+    Erreur de recherche — recliquez le champ
+  </mat-option>
+  <mat-option *ngIf="!searching && !searchFailed && lastQuery.length >= 2 && suggestions.length === 0" disabled>
     Aucun produit trouvé
   </mat-option>
 </mat-autocomplete>

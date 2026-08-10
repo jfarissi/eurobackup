@@ -157,7 +157,7 @@ namespace Backup.Web.Api.Server.Controllers
             var validateErr = DocumentLifecycleRules.RejectIfDepositCannotValidate(deposit.Status);
             if (validateErr != null) return Conflict(new { error = validateErr });
 
-            var (_, glError) = await AccountingLedger.PostDepositInvoiceAsync(this.storage, this.numberingService, deposit, User.Identity?.Name);
+            var (_, glError) = await AccountingLedger.PostDepositInvoiceAsync(this.storage, this.numberingService, deposit, SalesDocumentAudit.ActorFrom(User));
             if (glError != null) return BadRequest(glError);
 
             deposit.Status = "Validated";
@@ -194,7 +194,7 @@ namespace Backup.Web.Api.Server.Controllers
                 || string.Equals(invoice.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
                 return BadRequest($"La facture doit être validée avant application de l'acompte (statut actuel : {invoice.Status}).");
 
-            var (_, glError) = await AccountingLedger.PostDepositApplicationAsync(this.storage, this.numberingService, deposit, invoice, User.Identity?.Name);
+            var (_, glError) = await AccountingLedger.PostDepositApplicationAsync(this.storage, this.numberingService, deposit, invoice, SalesDocumentAudit.ActorFrom(User));
             if (glError != null) return BadRequest(glError);
 
             var appliedAmount = Math.Min(deposit.AmountTTC, Math.Max(0m, invoice.TotalTTC - invoice.PaidAmount));
@@ -229,7 +229,7 @@ namespace Backup.Web.Api.Server.Controllers
 
             if (string.Equals(deposit.Status, "Validated", StringComparison.OrdinalIgnoreCase))
             {
-                var (_, glError) = await AccountingLedger.PostDepositCancellationAsync(this.storage, this.numberingService, deposit, User.Identity?.Name);
+                var (_, glError) = await AccountingLedger.PostDepositCancellationAsync(this.storage, this.numberingService, deposit, SalesDocumentAudit.ActorFrom(User));
                 if (glError != null) return BadRequest(glError);
             }
 

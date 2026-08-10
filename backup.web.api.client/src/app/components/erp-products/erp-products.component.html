@@ -90,12 +90,12 @@
       </select>
       <select class="filter-select" [(ngModel)]="vehicleBrandFilter" (change)="onVehicleBrandFilterChange()" [disabled]="syncingAll">
         <option value="">{{ 'erpProducts.filter.vehicleBrand' | t }}</option>
-        <option *ngFor="let b of filterVehicleBrands" [value]="b.brand">{{ b.brand }}</option>
+        <option *ngFor="let b of filterVehicleBrands" [value]="b">{{ b }}</option>
       </select>
       <select class="filter-select" [(ngModel)]="vehicleModelFilter" (change)="onVehicleModelFilterChange()"
               [disabled]="syncingAll || !vehicleBrandFilter">
         <option value="">{{ 'erpProducts.filter.vehicleModel' | t }}</option>
-        <option *ngFor="let m of filterVehicleModels" [value]="m.name">{{ m.name }}</option>
+        <option *ngFor="let m of filterVehicleModels" [value]="m">{{ m }}</option>
       </select>
       <input class="filter-select filter-year" type="number" min="1968" max="2030"
              [(ngModel)]="vehicleYearFilter"

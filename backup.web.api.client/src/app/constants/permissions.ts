@@ -87,6 +87,7 @@ export const RoutePermissions: Record<string, PermissionCode[]> = {
   '/purchases': [Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead],
   '/stock': [Permissions.StockRead],
   '/erp-products': [Permissions.ProductRead],
+  '/plate-scan': [Permissions.ProductRead],
   '/erp-brands': [Permissions.BrandRead, Permissions.ProductRead],
   '/erp-categories': [Permissions.CategoryRead, Permissions.ProductRead],
   '/erp-changes': [Permissions.ErpChangeRead],

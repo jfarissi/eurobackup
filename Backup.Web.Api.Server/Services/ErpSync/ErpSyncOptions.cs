@@ -4,7 +4,7 @@ namespace Backup.Web.Api.Server.Services.ErpSync
     {
         public const string SectionName = "ErpSync";
 
-        public bool Enabled { get; set; } = true;
+        public bool Enabled { get; set; } = false;
         public string BaseUrl { get; set; } = "http://eurobrico.ddns.net:15021/ServiceMM.svc";
 
         /// <summary>Base HTTP des images produits (PicName), port 15022.</summary>

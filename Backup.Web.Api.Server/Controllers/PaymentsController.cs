@@ -10,6 +10,7 @@ using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.Accounting;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
+using Backup.Web.Api.Server.Services.Security;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -60,6 +61,190 @@ namespace Backup.Web.Api.Server.Controllers
             public string? CreatedBy { get; set; }
             public DateTime CreatedAt { get; set; }
             public SalesInvoice? SalesInvoice { get; set; }
+        }
+
+        /// <summary>Consultation unifiée paiements ventes + achats.</summary>
+        public class UnifiedPaymentListItem
+        {
+            public string Side { get; set; } = "sales"; // sales | purchases
+            public int Id { get; set; }
+            public DateTime Date { get; set; }
+            public decimal Amount { get; set; }
+            public string? Method { get; set; }
+            public string? Reference { get; set; }
+            public string Status { get; set; } = "Success";
+            public string? DocumentNumber { get; set; }
+            public string? PartyName { get; set; }
+            public int InvoiceId { get; set; }
+        }
+
+        [HttpGet("all")]
+        [RequireAnyPermission(Permissions.InvoiceRead, Permissions.SupplierInvoiceRead)]
+        public async Task<IActionResult> GetUnified(
+            [FromQuery] string? side = "all",
+            [FromQuery] string? status = null,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
+            [FromQuery] string? search = null)
+        {
+            try
+            {
+                var companyId = this.companyContext.GetCurrentCompanyId();
+                var sideNorm = (side ?? "all").Trim().ToLowerInvariant();
+                if (sideNorm is not ("sales" or "purchases" or "all"))
+                    return BadRequest("side doit être sales, purchases ou all.");
+
+                var canSales = User.IsInRole("Admin")
+                    || User.HasClaim(PermissionResolver.PermissionClaimType, Permissions.InvoiceRead);
+                var canPurchases = User.IsInRole("Admin")
+                    || User.HasClaim(PermissionResolver.PermissionClaimType, Permissions.SupplierInvoiceRead);
+
+                if (sideNorm == "sales" && !canSales) return Forbid();
+                if (sideNorm == "purchases" && !canPurchases) return Forbid();
+
+                var includeSales = (sideNorm is "sales" or "all") && canSales;
+                var includePurchases = (sideNorm is "purchases" or "all") && canPurchases;
+                if (!includeSales && !includePurchases) return Forbid();
+
+                var statusNorm = string.IsNullOrWhiteSpace(status) ? null : status.Trim();
+                var searchNorm = string.IsNullOrWhiteSpace(search) ? null : search.Trim().ToLowerInvariant();
+                DateTime? fromUtc = from?.Date;
+                DateTime? toExclusive = to?.Date.AddDays(1);
+
+                var result = new List<UnifiedPaymentListItem>();
+
+                if (includeSales)
+                {
+                    var salesQuery = this.storage.SelectAllPayments().ForCompany(companyId);
+                    if (statusNorm != null)
+                        salesQuery = salesQuery.Where(p => p.Status == statusNorm);
+                    if (fromUtc.HasValue)
+                        salesQuery = salesQuery.Where(p => p.PaidAt >= fromUtc.Value);
+                    if (toExclusive.HasValue)
+                        salesQuery = salesQuery.Where(p => p.PaidAt < toExclusive.Value);
+
+                    var salesRows = await salesQuery
+                        .OrderByDescending(p => p.PaidAt)
+                        .Take(500)
+                        .ToListAsync();
+
+                    var invoiceIds = salesRows.Select(p => p.SalesInvoiceId).Distinct().ToList();
+                    var invoices = await this.storage.SelectAllSalesInvoices()
+                        .AsNoTracking()
+                        .Where(i => invoiceIds.Contains(i.Id))
+                        .Select(i => new { i.Id, i.InvoiceNumber, i.CustomerId })
+                        .ToDictionaryAsync(i => i.Id);
+
+                    var customerIds = invoices.Values.Select(i => i.CustomerId).Distinct().ToList();
+                    var customers = await this.storage.SelectAllCustomers()
+                        .AsNoTracking()
+                        .Where(c => customerIds.Contains(c.Id))
+                        .Select(c => new { c.Id, c.Name })
+                        .ToDictionaryAsync(c => c.Id);
+
+                    foreach (var p in salesRows)
+                    {
+                        invoices.TryGetValue(p.SalesInvoiceId, out var inv);
+                        string? party = null;
+                        if (inv != null && customers.TryGetValue(inv.CustomerId, out var cust))
+                            party = cust.Name;
+
+                        if (searchNorm != null)
+                        {
+                            var hay = $"{inv?.InvoiceNumber} {party} {p.Reference} {p.Method} {p.Status}".ToLowerInvariant();
+                            if (!hay.Contains(searchNorm)) continue;
+                        }
+
+                        result.Add(new UnifiedPaymentListItem
+                        {
+                            Side = "sales",
+                            Id = p.Id,
+                            Date = p.PaidAt,
+                            Amount = p.Amount,
+                            Method = p.Method,
+                            Reference = p.Reference,
+                            Status = p.Status,
+                            DocumentNumber = inv?.InvoiceNumber,
+                            PartyName = party,
+                            InvoiceId = p.SalesInvoiceId
+                        });
+                    }
+                }
+
+                if (includePurchases)
+                {
+                    var purchaseQuery = this.storage.SelectAllSupplierPayments().ForCompany(companyId);
+                    if (statusNorm != null)
+                        purchaseQuery = purchaseQuery.Where(p => p.Status == statusNorm);
+                    if (fromUtc.HasValue)
+                        purchaseQuery = purchaseQuery.Where(p => p.PaidAt >= fromUtc.Value);
+                    if (toExclusive.HasValue)
+                        purchaseQuery = purchaseQuery.Where(p => p.PaidAt < toExclusive.Value);
+
+                    var purchaseRows = await purchaseQuery
+                        .OrderByDescending(p => p.PaidAt)
+                        .Take(500)
+                        .ToListAsync();
+
+                    var invIds = purchaseRows.Select(p => p.SupplierInvoiceId).Distinct().ToList();
+                    var supplierInvoices = await this.storage.SelectAllSupplierInvoices()
+                        .AsNoTracking()
+                        .Where(i => invIds.Contains(i.Id))
+                        .Select(i => new { i.Id, i.InvoiceNumber, i.SupplierId })
+                        .ToDictionaryAsync(i => i.Id);
+
+                    var supplierIds = supplierInvoices.Values.Select(i => i.SupplierId).Distinct().ToList();
+                    var suppliers = await this.storage.SelectAllSuppliers()
+                        .AsNoTracking()
+                        .Where(s => supplierIds.Contains(s.Id))
+                        .Select(s => new { s.Id, s.Name })
+                        .ToDictionaryAsync(s => s.Id);
+
+                    foreach (var p in purchaseRows)
+                    {
+                        supplierInvoices.TryGetValue(p.SupplierInvoiceId, out var inv);
+                        string? party = null;
+                        if (inv != null && suppliers.TryGetValue(inv.SupplierId, out var sup))
+                            party = sup.Name;
+
+                        if (searchNorm != null)
+                        {
+                            var hay = $"{inv?.InvoiceNumber} {party} {p.Reference} {p.Method} {p.Status}".ToLowerInvariant();
+                            if (!hay.Contains(searchNorm)) continue;
+                        }
+
+                        result.Add(new UnifiedPaymentListItem
+                        {
+                            Side = "purchases",
+                            Id = p.Id,
+                            Date = p.PaidAt,
+                            Amount = p.Amount,
+                            Method = p.Method,
+                            Reference = p.Reference,
+                            Status = p.Status,
+                            DocumentNumber = inv?.InvoiceNumber,
+                            PartyName = party,
+                            InvoiceId = p.SupplierInvoiceId
+                        });
+                    }
+                }
+
+                var ordered = result
+                    .OrderByDescending(r => r.Date)
+                    .Take(500)
+                    .ToList();
+
+                return Ok(ordered);
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "GET /api/payments/all failed");
+                return StatusCode(500, new
+                {
+                    error = "Impossible de charger les paiements unifiés.",
+                    detail = ex.GetBaseException().Message
+                });
+            }
         }
 
         [HttpGet]
@@ -268,7 +453,7 @@ namespace Backup.Web.Api.Server.Controllers
                     Reference = request.Reference,
                     Bank = request.Bank,
                     Status = "Success",
-                    CreatedBy = User.Identity?.Name ?? "System",
+                    CreatedBy = SalesDocumentAudit.ActorFrom(User),
                     CreatedAt = DateTime.UtcNow
                 });
                 createdPayments.Add(payment);
@@ -285,7 +470,7 @@ namespace Backup.Web.Api.Server.Controllers
                 });
 
                 var (_, payError) = await AccountingLedger.PostSalesPaymentAsync(
-                    this.storage, this.numberingService, invoice, payment, User.Identity?.Name);
+                    this.storage, this.numberingService, invoice, payment, SalesDocumentAudit.ActorFrom(User));
 
                 results.Add(new BatchAllocationResult
                 {
@@ -334,7 +519,7 @@ namespace Backup.Web.Api.Server.Controllers
 
                 // RG-CO4 : écriture inverse du règlement.
                 var (_, revError) = await AccountingLedger.ReverseSalesPaymentAsync(
-                    this.storage, this.numberingService, payment, invoice, User.Identity?.Name);
+                    this.storage, this.numberingService, payment, invoice, SalesDocumentAudit.ActorFrom(User));
                 if (revError != null) return BadRequest(revError);
 
                 var customer = await this.storage.SelectCustomerByIdAsync(invoice.CustomerId);

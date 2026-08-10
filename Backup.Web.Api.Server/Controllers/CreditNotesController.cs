@@ -293,7 +293,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (!AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefCreditNote, creditNote.Id, creditNote.CompanyId))
             {
                 var (_, glError) = await AccountingLedger.PostCreditNoteAsync(
-                    this.storage, this.numberingService, creditNote, User.Identity?.Name);
+                    this.storage, this.numberingService, creditNote, SalesDocumentAudit.ActorFrom(User));
                 if (glError != null) return BadRequest(glError);
             }
 
@@ -356,7 +356,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (!AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefCreditNote, creditNote.Id, creditNote.CompanyId))
             {
                 var (_, glError) = await AccountingLedger.PostCreditNoteAsync(
-                    this.storage, this.numberingService, creditNote, User.Identity?.Name);
+                    this.storage, this.numberingService, creditNote, SalesDocumentAudit.ActorFrom(User));
                 if (glError != null) return BadRequest(glError);
             }
 
@@ -437,7 +437,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (!AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefCreditNote, creditNote.Id, creditNote.CompanyId))
             {
                 var (_, glError) = await AccountingLedger.PostCreditNoteAsync(
-                    this.storage, this.numberingService, creditNote, User.Identity?.Name);
+                    this.storage, this.numberingService, creditNote, SalesDocumentAudit.ActorFrom(User));
                 if (glError != null) return BadRequest(glError);
             }
 

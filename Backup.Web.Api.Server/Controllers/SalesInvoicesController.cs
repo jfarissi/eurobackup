@@ -131,7 +131,7 @@ namespace Backup.Web.Api.Server.Controllers
                         DocumentId = invoice.Id,
                         TemplateCode = templateCode,
                         SendNow = true
-                    }, User.Identity?.Name ?? "System");
+                    }, SalesDocumentAudit.ActorFrom(User));
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -651,7 +651,7 @@ namespace Backup.Web.Api.Server.Controllers
             if (!AccountingLedger.HasPostedEntry(this.storage, AccountingLedger.RefSalesInvoice, invoice.Id, invoice.CompanyId))
             {
                 var (entry, error) = await AccountingLedger.PostSalesInvoiceAsync(
-                    this.storage, this.numberingService, invoice, User.Identity?.Name);
+                    this.storage, this.numberingService, invoice, SalesDocumentAudit.ActorFrom(User));
                 if (error != null) return BadRequest(error);
                 _ = entry;
             }
@@ -755,7 +755,7 @@ namespace Backup.Web.Api.Server.Controllers
                         Amount = amount,
                         Description = $"Invoice {invoice.InvoiceNumber}",
                         ReferenceDocument = invoice.InvoiceNumber,
-                        CreatedBy = User.Identity?.Name ?? "System",
+                        CreatedBy = SalesDocumentAudit.ActorFrom(User),
                         CreatedAt = DateTime.UtcNow
                     });
                 }
@@ -775,12 +775,12 @@ namespace Backup.Web.Api.Server.Controllers
                 Bank = request.Bank,
                 Status = "Success",
                 CashSessionId = cashSessionId,
-                CreatedBy = User.Identity?.Name ?? "System",
+                CreatedBy = SalesDocumentAudit.ActorFrom(User),
                 CreatedAt = DateTime.UtcNow
             });
 
             var (_, payError) = await AccountingLedger.PostSalesPaymentAsync(
-                this.storage, this.numberingService, invoice, payment, User.Identity?.Name);
+                this.storage, this.numberingService, invoice, payment, SalesDocumentAudit.ActorFrom(User));
             if (payError != null) return BadRequest(payError);
 
             SalesInvoiceSettlement.Enrich(updated, this.storage);

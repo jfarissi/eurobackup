@@ -447,10 +447,15 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasKey(v => v.Id);
                 entity.Property(v => v.Make).IsRequired().HasMaxLength(128);
                 entity.Property(v => v.Model).IsRequired().HasMaxLength(128);
+                entity.Property(v => v.TypeName).HasMaxLength(256);
                 entity.Property(v => v.EngineCode).HasMaxLength(64);
                 entity.Property(v => v.KType).HasMaxLength(64);
+                entity.Property(v => v.ExternalManufacturerId).HasMaxLength(64);
+                entity.Property(v => v.ExternalModelId).HasMaxLength(64);
                 entity.Property(v => v.BodyType).HasMaxLength(64);
                 entity.Property(v => v.FuelType).HasMaxLength(64);
+                entity.Property(v => v.DriveType).HasMaxLength(64);
+                entity.Property(v => v.Transmission).HasMaxLength(64);
                 entity.HasIndex(v => v.ProductId);
                 entity.HasIndex(v => new { v.Make, v.Model });
                 entity.HasIndex(v => v.KType);
@@ -458,6 +463,42 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                     .WithMany()
                     .HasForeignKey(v => v.ProductId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpPlateHistory>(entity =>
+            {
+                entity.ToTable("ErpPlateHistories");
+                entity.HasKey(h => h.Id);
+                entity.Property(h => h.CompanyId).HasMaxLength(36);
+                entity.Property(h => h.PlateNumber).IsRequired().HasMaxLength(32);
+                entity.Property(h => h.Country).HasMaxLength(8);
+                entity.Property(h => h.Vin).HasMaxLength(32);
+                entity.Property(h => h.Make).HasMaxLength(128);
+                entity.Property(h => h.Model).HasMaxLength(128);
+                entity.Property(h => h.EngineCode).HasMaxLength(64);
+                entity.Property(h => h.FuelType).HasMaxLength(64);
+                entity.Property(h => h.SearchedBy).HasMaxLength(128);
+                entity.HasIndex(h => new { h.CompanyId, h.SearchedAt });
+                entity.HasIndex(h => h.PlateNumber);
+            });
+
+            modelBuilder.Entity<ErpVinVehicle>(entity =>
+            {
+                entity.ToTable("ErpVinVehicles");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.CompanyId).HasMaxLength(36);
+                entity.Property(v => v.Vin).IsRequired().HasMaxLength(17);
+                entity.Property(v => v.Make).HasMaxLength(128);
+                entity.Property(v => v.Model).HasMaxLength(128);
+                entity.Property(v => v.EngineCode).HasMaxLength(64);
+                entity.Property(v => v.FuelType).HasMaxLength(64);
+                entity.Property(v => v.ExternalVehicleId).HasMaxLength(64);
+                entity.Property(v => v.ExternalModelId).HasMaxLength(64);
+                entity.Property(v => v.ExternalManufacturerId).HasMaxLength(64);
+                entity.Property(v => v.Source).IsRequired().HasMaxLength(32);
+                entity.HasIndex(v => v.Vin).IsUnique();
+                entity.HasIndex(v => new { v.Make, v.Model, v.Year });
+                entity.HasIndex(v => v.CompanyId);
             });
 
             modelBuilder.Entity<ErpOemCrossReference>(entity =>
@@ -842,6 +883,22 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(s => s.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(s => s.Supplier).WithMany().HasForeignKey(s => s.SupplierId);
                 entity.HasIndex(s => s.PurchaseOrderId);
+                entity.HasIndex(s => s.ReceiptId);
+                entity.HasOne(s => s.Receipt).WithMany().HasForeignKey(s => s.ReceiptId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<SupplierPayment>(entity =>
+            {
+                entity.ToTable("SupplierPayments");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.Property(p => p.Amount).HasPrecision(18, 4);
+                entity.Property(p => p.Method).HasMaxLength(64);
+                entity.Property(p => p.Reference).HasMaxLength(128);
+                entity.Property(p => p.Status).HasMaxLength(32);
+                entity.HasIndex(p => p.SupplierInvoiceId);
+                entity.HasIndex(p => p.CompanyId);
+                entity.HasOne(p => p.SupplierInvoice).WithMany().HasForeignKey(p => p.SupplierInvoiceId).OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<SupplierInvoiceLineEntity>(entity =>

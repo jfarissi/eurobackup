@@ -1,0 +1,13 @@
+﻿Id,ErpExternalId,Level,NameNl,NameFr,NameEn,SlugNl,SlugFr,SlugEn,ParentId,SortOrder,IsActive,CreatedAt,UpdatedAt,CreatedBy,UpdatedBy
+3427,RAPID_additional-repairs_e3fce2,Type,Additional Repairs,Additional Repairs,Additional Repairs,additional-repairs,additional-repairs,additional-repairs,,0,1,2026-08-06 14:24:09,,,
+3428,RAPID_ampoule-du-feu-claireur-de-pla_40a1dc,Type,Ampoule du feu éclaireur de plaque,Ampoule du feu éclaireur de plaque,Ampoule du feu éclaireur de plaque,ampoule-du-feu-claireur-de-plaque,ampoule-du-feu-claireur-de-plaque,ampoule-du-feu-claireur-de-plaque,,0,1,2026-08-08 22:47:30,,,
+3429,RAPID_balai-d-essuie-glace-raclette_4394c3,Type,Balai d'essuie-glace / raclette,Balai d'essuie-glace / raclette,Balai d'essuie-glace / raclette,balai-d-essuie-glace-raclette,balai-d-essuie-glace-raclette,balai-d-essuie-glace-raclette,,0,1,2026-08-08 22:47:30,,,
+3430,RAPID_amortisseur-caoutchouc_7cd889,Type,Amortisseur-caoutchouc,Amortisseur-caoutchouc,Amortisseur-caoutchouc,amortisseur-caoutchouc,amortisseur-caoutchouc,amortisseur-caoutchouc,,0,1,2026-08-08 23:16:34,,,
+3431,RAPID_amortisseurs_96b65d,Type,Amortisseurs,Amortisseurs,Amortisseurs,amortisseurs,amortisseurs,amortisseurs,,0,1,2026-08-08 23:16:34,,,
+3432,RAPID_ampoule_0164e3,Type,Ampoule,Ampoule,Ampoule,ampoule,ampoule,ampoule,,0,1,2026-08-08 23:16:34,,,
+3433,RAPID_ampoule-pour-projecteur-antibr_3ed5b7,Type,Ampoule pour projecteur antibrouillard,Ampoule pour projecteur antibrouillard,Ampoule pour projecteur antibrouillard,ampoule-pour-projecteur-antibrouillard,ampoule-pour-projecteur-antibrouillard,ampoule-pour-projecteur-antibrouillard,,0,1,2026-08-08 23:16:34,,,
+3434,RAPID_ampoule-pour-projecteur-princi_b99136,Type,Ampoule pour projecteur principal,Ampoule pour projecteur principal,Ampoule pour projecteur principal,ampoule-pour-projecteur-principal,ampoule-pour-projecteur-principal,ampoule-pour-projecteur-principal,,0,1,2026-08-08 23:16:34,,,
+3435,RAPID_ampoule-projecteur-longue-port_783b3b,Type,Ampoule /projecteur longue portée,Ampoule /projecteur longue portée,Ampoule /projecteur longue portée,ampoule-projecteur-longue-port-e,ampoule-projecteur-longue-port-e,ampoule-projecteur-longue-port-e,,0,1,2026-08-08 23:16:34,,,
+3436,RAPID_moyeu-de-roue_a3af73,Type,Moyeu de roue,Moyeu de roue,Moyeu de roue,moyeu-de-roue,moyeu-de-roue,moyeu-de-roue,,0,1,2026-08-09 00:11:18,,,
+3437,RAPID_moyeu-de-roue-fixation_ff6cb5,Type,Moyeu de roue / fixation,Moyeu de roue / fixation,Moyeu de roue / fixation,moyeu-de-roue-fixation,moyeu-de-roue-fixation,moyeu-de-roue-fixation,,0,1,2026-08-09 11:56:54,,,
+3438,RAPID_moyeu_31ba7f,Type,Moyeu,Moyeu,Moyeu,moyeu,moyeu,moyeu,,0,1,2026-08-09 12:31:26,,,

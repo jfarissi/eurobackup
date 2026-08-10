@@ -5,6 +5,7 @@ namespace Backup.Web.Api.Server.Services.Email
     {
         private readonly IServiceProvider services;
         private readonly ILogger<EmailAutomationBackgroundService> logger;
+        private bool schemaMissingLogged;
 
         public EmailAutomationBackgroundService(IServiceProvider services, ILogger<EmailAutomationBackgroundService> logger)
         {
@@ -18,6 +19,7 @@ namespace Backup.Web.Api.Server.Services.Email
 
             while (!stoppingToken.IsCancellationRequested)
             {
+                var delay = TimeSpan.FromHours(1);
                 try
                 {
                     using var scope = this.services.CreateScope();
@@ -29,14 +31,41 @@ namespace Backup.Web.Api.Server.Services.Email
                     var alerts = await automation.RunStockAlertsAsync(null, "AutoStockAlert");
                     if (alerts.Queued > 0)
                         this.logger.LogInformation("Alertes stock : {Count} email(s)", alerts.Queued);
+
+                    this.schemaMissingLogged = false;
+                }
+                catch (Exception ex) when (IsMissingEmailSchema(ex))
+                {
+                    if (!this.schemaMissingLogged)
+                    {
+                        this.logger.LogWarning(
+                            "Tables email absentes — automation email en pause. " +
+                            "Exécuter scripts/add-email-system.sql (+ add-email-automation.sql).");
+                        this.schemaMissingLogged = true;
+                    }
+                    delay = TimeSpan.FromHours(6);
                 }
                 catch (Exception ex)
                 {
                     this.logger.LogWarning(ex, "Erreur automation email");
                 }
 
-                await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+                await Task.Delay(delay, stoppingToken);
             }
+        }
+
+        private static bool IsMissingEmailSchema(Exception ex)
+        {
+            for (var e = ex; e != null; e = e.InnerException!)
+            {
+                if (e.Message.Contains("EmailMessages", StringComparison.OrdinalIgnoreCase)
+                    || e.Message.Contains("CompanyEmailSettings", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (e.Message.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            return false;
         }
     }
 }

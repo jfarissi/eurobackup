@@ -162,6 +162,17 @@ export class ErpProductService {
     return this.http.get<ErpCategory[]>(`${this.baseUrl}/categories`, { params });
   }
 
+  /** Marques véhicule distinctes depuis ErpProductVehicles (fitment catalogue). */
+  getVehicleMakes(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.baseUrl}/vehicle-makes`);
+  }
+
+  /** Modèles véhicule distincts pour une marque (noms TecDoc tels qu'en base). */
+  getVehicleModels(make: string): Observable<string[]> {
+    const params = new HttpParams().set('make', make);
+    return this.http.get<string[]>(`${this.baseUrl}/vehicle-models`, { params });
+  }
+
   syncCatalog(filter: ErpCatalogSyncFilter, cancelPrevious = true): Observable<ErpSyncLog> {
     let params = new HttpParams().set('cancelPrevious', String(cancelPrevious));
     if (filter.mainTypeId) params = params.set('mainTypeId', filter.mainTypeId);
