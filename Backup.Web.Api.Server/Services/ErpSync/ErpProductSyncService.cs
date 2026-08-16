@@ -1754,7 +1754,10 @@ namespace Backup.Web.Api.Server.Services.ErpSync
             target.Model = source.Model ?? target.Model;
             SetString(v => target.Comment = v, target.Comment, source.Comment, nameof(ErpProduct.Comment));
             target.Link = source.Link ?? target.Link;
-            target.PicName = source.PicName ?? target.PicName;
+            // RapidAPI stocke une URL https dans PicName ; EuroBrico un nom de fichier.
+            // Ne jamais écraser une URL absolue lors d'un LocalEnrich ERP.
+            if (!ErpProductImageUrls.IsAbsoluteHttpUrl(target.PicName))
+                target.PicName = source.PicName ?? target.PicName;
 
             SetDecimal(v => target.PriceHT = v, target.PriceHT, source.PriceHT, nameof(ErpProduct.PriceHT));
             SetDecimal(v => target.UnitPrice = v, target.UnitPrice, source.UnitPrice, nameof(ErpProduct.UnitPrice));

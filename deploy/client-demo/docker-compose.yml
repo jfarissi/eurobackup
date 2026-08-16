@@ -45,6 +45,9 @@ services:
 
   api:
     image: ${DOCKERHUB_USER}/${API_IMAGE_NAME:-pulse-api}:${IMAGE_TAG:-demo}
+    build:
+      context: ../..
+      dockerfile: Backup.Web.Api.Server/Dockerfile
     container_name: pulse-demo-api
     restart: unless-stopped
     depends_on:
@@ -79,6 +82,21 @@ services:
       Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY:-}
       # ERP client optionnel — laisser vide / false en démo pure
       ErpSync__Enabled: ${ERP_SYNC_ENABLED:-false}
+      ErpSync__ImageBaseUrl: ${ERP_IMAGE_BASE_URL:-http://eurobrico.ddns.net:15022}
+      # Sync K-Type à la demande (script Python dans l'image API)
+      RapidApi__Enabled: "true"
+      RapidApi__EnableVinLookup: "true"
+      RapidApi__EnableOnDemandKTypeSync: "true"
+      RapidApi__OnDemandFastMode: "false"
+      RapidApi__ApiKey: ${RAPIDAPI_KEY:-}
+      RapidApi__PythonExecutable: /app/venv/bin/python
+      RapidApi__KTypeSyncScriptPath: /app/docs/sync_ktype_vehicle.py
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${MYSQL_DATABASE:-backupcontent}
+      DB_USER: ${MYSQL_USER:-backup}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-backup}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY:-}
     volumes:
       - pulse-demo-storage:/app/Storage
     healthcheck:

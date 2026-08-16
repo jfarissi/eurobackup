@@ -33,6 +33,12 @@
           </button>
         </div>
 
+        <div class="search-bar-wrap" *ngIf="selectedTab === 2">
+          <button class="search-btn" (click)="toggleShowAllForecast()">
+            {{ (showAllForecast ? 'stock.forecast.atRiskOnly' : 'stock.forecast.showAll') | t }}
+          </button>
+        </div>
+
         <button class="adjust-btn" (click)="reconcileOuts()" *ngIf="perm.has(P.StockUpdate) && selectedTab === 0">
           <mat-icon>sync_problem</mat-icon>
           {{ 'stock.reconcileOuts' | t }}
@@ -62,6 +68,25 @@
       <div class="sort-hint">
         <mat-icon>filter_list</mat-icon>
         <span>{{ 'stock.sortByCode' | t }}</span>
+      </div>
+    </div>
+
+    <div class="stats-bar" *ngIf="selectedTab === 2 && forecast">
+      <div class="stat-chip">
+        <span class="stat-label label-caps">{{ 'stock.forecast.stat.critical' | t }}</span>
+        <span class="stat-value font-mono">{{ forecast.criticalCount }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">{{ 'stock.forecast.stat.warning' | t }}</span>
+        <span class="stat-value font-mono">{{ forecast.warningCount }}</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label label-caps">{{ 'stock.forecast.stat.watch' | t }}</span>
+        <span class="stat-value font-mono">{{ forecast.watchCount }}</span>
+      </div>
+      <div class="sort-hint">
+        <mat-icon>timeline</mat-icon>
+        <span>{{ 'stock.forecast.hint' | t:{lookback: forecast.lookbackDays, horizon: forecast.horizonDays} }}</span>
       </div>
     </div>
   </section>
@@ -218,6 +243,60 @@
                       <td class="reason-cell">{{ movement.reason || '-' }}</td>
                       <td class="col-mono ref-cell">{{ movement.referenceDocument || '-' }}</td>
                       <td class="by-cell">{{ movement.createdBy || '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </mat-tab>
+
+        <mat-tab [label]="'stock.tab.forecast' | t">
+          <div class="tab-body">
+            <div class="no-data" *ngIf="!forecastError && (!forecast || forecast.items.length === 0)">
+              <mat-icon>inventory</mat-icon>
+              <p>{{ 'stock.forecast.empty' | t }}</p>
+            </div>
+
+            <div class="movements-card card" *ngIf="forecast && forecast.items.length > 0">
+              <div class="table-wrap">
+                <table class="data-table stock-table stock-forecast-table">
+                  <thead>
+                    <tr>
+                      <th>{{ 'stock.movements.col.code' | t }}</th>
+                      <th>{{ 'stock.col.label' | t }}</th>
+                      <th class="text-right">{{ 'stock.col.available' | t }}</th>
+                      <th class="text-right">{{ 'stock.forecast.col.avgDaily' | t }}</th>
+                      <th class="text-right">{{ 'stock.forecast.col.cover' | t }}</th>
+                      <th class="text-right">{{ 'stock.forecast.col.dynamicMin' | t }}</th>
+                      <th class="text-right">{{ 'stock.forecast.col.suggested' | t }}</th>
+                      <th>{{ 'stock.forecast.col.risk' | t }}</th>
+                      <th>{{ 'stock.forecast.col.trend' | t }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let line of forecast.items"
+                        class="stock-row stock-row-clickable"
+                        [class.row-critical]="line.risk === 'Critical'"
+                        [class.row-warn]="line.risk === 'Warning'"
+                        (click)="showProductMovements(line.productKey, $event)">
+                      <td class="col-mono code-cell">{{ line.productKey }}</td>
+                      <td>{{ line.description || line.supplier || '—' }}</td>
+                      <td class="text-right col-mono"
+                          [class.zero]="line.available === 0"
+                          [class.negative]="line.available < 0">{{ line.available | number:'1.0-2' }}</td>
+                      <td class="text-right col-mono">{{ line.avgDailyOut | number:'1.2-2' }}</td>
+                      <td class="text-right col-mono">{{ line.daysOfCover != null ? (line.daysOfCover | number:'1.0-1') : '—' }}</td>
+                      <td class="text-right col-mono">{{ line.dynamicMin | number:'1.0-2' }}</td>
+                      <td class="text-right col-mono">{{ line.suggestedQty | number:'1.0-2' }}</td>
+                      <td>
+                        <span class="risk-pill" [ngClass]="forecastRiskClass(line.risk)">
+                          {{ ('stock.forecast.risk.' + line.risk) | t }}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="trend-label">{{ ('stock.forecast.trend.' + line.trend) | t }}</span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>

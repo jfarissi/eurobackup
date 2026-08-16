@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { StockItem } from '../models/stock-item';
+import { StockItem, StockForecastResult } from '../models/stock-item';
 
 @Injectable({ providedIn: 'root' })
 export class StockService {
@@ -20,6 +20,17 @@ export class StockService {
 
   getById(id: number): Observable<StockItem> {
     return this.http.get<StockItem>(`${this.baseUrl}/${id}`);
+  }
+
+  getForecast(opts?: { horizonDays?: number; all?: boolean }): Observable<StockForecastResult> {
+    let params = new HttpParams();
+    if (opts?.horizonDays != null) {
+      params = params.set('horizonDays', String(opts.horizonDays));
+    }
+    if (opts?.all) {
+      params = params.set('all', 'true');
+    }
+    return this.http.get<StockForecastResult>(`${this.baseUrl}/forecast`, { params });
   }
 
   /** Applique les sorties orphelines (clé BL ≠ clé stock) sur QuantityOnHand. */

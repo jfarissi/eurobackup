@@ -13,6 +13,37 @@ export interface StockItem {
   unit?: string | null; // Unité (ST, KG, PC, etc.)
 }
 
+export type StockForecastRisk = 'Critical' | 'Warning' | 'Watch' | 'Ok';
+export type StockForecastTrend = 'Up' | 'Down' | 'Stable';
+
+export interface StockForecastLine {
+  stockItemId: number;
+  productKey: string;
+  description?: string | null;
+  supplier?: string | null;
+  quantityOnHand: number;
+  reservedQuantity: number;
+  available: number;
+  minStock: number;
+  qtyOutLookback: number;
+  avgDailyOut: number;
+  daysOfCover: number | null;
+  dynamicMin: number;
+  suggestedQty: number;
+  risk: StockForecastRisk;
+  trend: StockForecastTrend;
+  stockoutAt?: string | null;
+}
+
+export interface StockForecastResult {
+  lookbackDays: number;
+  horizonDays: number;
+  criticalCount: number;
+  warningCount: number;
+  watchCount: number;
+  items: StockForecastLine[];
+}
+
 export interface StockUpdate {
   id: number;
   productKey: string;

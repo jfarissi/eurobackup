@@ -7,6 +7,7 @@ using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
+using Backup.Web.Api.Server.Services.Dropship;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Pricing;
 using Backup.Web.Api.Server.Services.Sales;
@@ -14,6 +15,7 @@ using Backup.Web.Api.Server.Services.Stock;
 using Backup.Web.Api.Server.Services.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using RESTFulSense.Controllers;
 
 namespace Backup.Web.Api.Server.Controllers
@@ -27,17 +29,23 @@ namespace Backup.Web.Api.Server.Controllers
         private readonly INumberingSequenceService numberingService;
         private readonly ICompanyContextService companyContext;
         private readonly IErpPricingService erpPricing;
+        private readonly IDropshipPurchaseOrderService dropship;
+        private readonly ILogger<SalesOrdersController> logger;
 
         public SalesOrdersController(
             IStorageBroker storage,
             INumberingSequenceService numberingService,
             ICompanyContextService companyContext,
-            IErpPricingService erpPricing)
+            IErpPricingService erpPricing,
+            IDropshipPurchaseOrderService dropship,
+            ILogger<SalesOrdersController> logger)
         {
             this.storage = storage;
             this.numberingService = numberingService;
             this.companyContext = companyContext;
             this.erpPricing = erpPricing;
+            this.dropship = dropship;
+            this.logger = logger;
         }
 
         /// <summary>RG-PT1–5 lite : si UnitPrice &lt;= 0, tente le tarif client (CustomerPriceListItem) puis l'ERP.</summary>
@@ -149,6 +157,16 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(order);
         }
 
+        [HttpGet("{id:int}/dropship-pos")]
+        [RequirePermission(Permissions.OrderRead)]
+        public async Task<IActionResult> GetDropshipPurchaseOrders(int id)
+        {
+            var order = await this.storage.SelectSalesOrderByIdAsync(id);
+            if (order == null || !order.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+            var pos = await this.dropship.ListForSalesOrderAsync(id, order.CompanyId);
+            return Ok(pos.Select(DropshipPurchaseOrderDto.From).ToList());
+        }
+
         [HttpPost]
         [RequirePermission(Permissions.OrderCreate)]
         public async Task<IActionResult> Post([FromBody] SalesOrder order)
@@ -177,6 +195,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(order.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(order.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // RG-PT1–5 lite : si prix de ligne non renseigné, tenter le tarif client puis l'ERP.
             await this.ApplyPriceListFallbackAsync(order.CustomerId, order.CompanyId, order.Lines);
@@ -248,6 +268,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(order.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(order.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // RG-CC9 : client figé après confirmation.
             var customerFreezeErr = SalesBusinessRules.RejectIfCustomerChangedAfterCommit(status, existing.CustomerId, order.CustomerId);
@@ -345,6 +367,8 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Notes = order.Notes;
             existing.Lines = merged;
             existing.HeaderDiscountPercent = SalesBusinessRules.CapDiscountPercent(order.HeaderDiscountPercent);
+            existing.ShippingAmountHt = order.ShippingAmountHt;
+            existing.ShippingVatRate = order.ShippingVatRate;
             RecalcOrderTotals(existing);
             SalesBusinessRules.RefreshOrderFulfillmentStatus(existing);
 
@@ -393,9 +417,11 @@ namespace Backup.Web.Api.Server.Controllers
             {
                 order.OrderNumber = await this.numberingService.GetNextNumberAsync("Order", order.CompanyId);
             }
+            // F8 T1 : la réservation magasin s'applique encore aux lignes dropship (skip résa = tranche suivante).
             await StockLedger.ReserveOrderAsync(this.storage, order);
             var updated = await this.storage.UpdateSalesOrderAsync(order);
             await this.AuditOrder(updated.Id, "Confirmed", $"Confirmation {updated.OrderNumber}");
+            updated = await this.ApplyDropshipAfterConfirmAsync(updated);
             return Ok(updated);
         }
 
@@ -428,10 +454,12 @@ namespace Backup.Web.Api.Server.Controllers
                 order.OrderNumber = await this.numberingService.GetNextNumberAsync("Order", order.CompanyId);
             }
             SalesBusinessRules.AppendNote(order, $"Validée le {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC.");
+            // F8 T1 : la réservation magasin s'applique encore aux lignes dropship (skip résa = tranche suivante).
             await StockLedger.ReserveOrderAsync(this.storage, order);
             SalesBusinessRules.RefreshOrderFulfillmentStatus(order);
             var updated = await this.storage.UpdateSalesOrderAsync(order);
             await this.AuditOrder(updated.Id, "Approved", $"Validation {updated.OrderNumber}");
+            updated = await this.ApplyDropshipAfterConfirmAsync(updated);
             return Ok(updated);
         }
 
@@ -555,24 +583,9 @@ namespace Backup.Web.Api.Server.Controllers
             return Ok(logs);
         }
 
-        /// <summary>RG-CP3 : recalcule les totaux avec remise ligne + remise pied de page.</summary>
-        private static void RecalcOrderTotals(SalesOrder order)
-        {
-            foreach (var line in order.Lines)
-            {
-                line.DiscountPercent = SalesBusinessRules.CapDiscountPercent(line.DiscountPercent);
-                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
-                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
-            }
-
-            var totalHT = order.Lines.Sum(l => l.TotalHT);
-            var totalVat = order.Lines.Sum(l => l.TotalTTC - l.TotalHT);
-            var totalTTC = order.Lines.Sum(l => l.TotalTTC);
-            SalesBusinessRules.ApplyHeaderDiscount(order.HeaderDiscountPercent, ref totalHT, ref totalVat, ref totalTTC);
-            order.TotalHT = totalHT;
-            order.TotalVat = totalVat;
-            order.TotalTTC = totalTTC;
-        }
+        /// <summary>RG-CP3 / RG-FA1 : recalcule les totaux (remises + frais de port).</summary>
+        private static void RecalcOrderTotals(SalesOrder order) =>
+            SalesBusinessRules.RecalculateOrderTotals(order);
 
         /// <summary>RG-RS2 lite : si Company.RequireHardAllocation, la confirmation échoue si le stock disponible ne couvre pas intégralement le besoin (pas de réservation partielle silencieuse).</summary>
         private async Task<string?> ValidateHardAllocationAsync(SalesOrder order)
@@ -594,6 +607,25 @@ namespace Backup.Web.Api.Server.Controllers
             }
 
             return null;
+        }
+
+        private async Task<SalesOrder> ApplyDropshipAfterConfirmAsync(SalesOrder order)
+        {
+            try
+            {
+                var result = await this.dropship.EnsureForConfirmedOrderAsync(order);
+                if (result.Notes.Count == 0) return order;
+
+                foreach (var note in result.Notes)
+                    SalesBusinessRules.AppendNote(order, note);
+
+                return await this.storage.UpdateSalesOrderAsync(order);
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "Dropship CDF failed for sales order {OrderNumber}", order.OrderNumber);
+                return order;
+            }
         }
 
         private async Task AuditOrder(int orderId, string action, string summary, string? details = null)

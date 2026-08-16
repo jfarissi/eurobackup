@@ -26,7 +26,28 @@ import mysql.connector
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
-APPSETTINGS = ROOT / "Backup.Web.Api.Server" / "appsettings.json"
+
+
+def _appsettings_path() -> Path:
+    override = os.getenv("APPSETTINGS_PATH", "").strip()
+    if override:
+        return Path(override)
+    candidates = [
+        ROOT / "Backup.Web.Api.Server" / "appsettings.json",
+        Path("/app/Backup.Web.Api.Server/appsettings.json"),
+        Path("/app/appsettings.json"),
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return candidates[0]
+
+
+def _read_appsettings() -> dict:
+    path = _appsettings_path()
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 DATA_SOURCE = "RapidApi"
 TYPE_ID = int(os.getenv("RAPIDAPI_TYPE_ID", "1"))
@@ -61,6 +82,59 @@ _CAT_FOCUS_RAW = os.getenv("RAPIDAPI_CAT_FOCUS", "").strip().lower()
 CAT_FOCUS: Tuple[str, ...] = tuple(
     p.strip() for p in _CAT_FOCUS_RAW.replace(";", ",").split(",") if p.strip()
 )
+
+FAMILY_LABELS_FR: Dict[str, str] = {
+    "bearing": "Roulements / moyeux",
+    "brake": "Freinage",
+    "filter": "Filtres",
+    "suspension": "Suspension / direction",
+    "drivetrain": "Transmission / embrayage",
+    "engine": "Moteur",
+    "cooling": "Refroidissement",
+    "lighting": "Éclairage",
+    "wiper": "Essuie-glaces",
+    "other": "Autres",
+}
+
+
+def category_family(name: str) -> Tuple[str, int]:
+    low = (name or "").lower()
+    for i, (fname, keys) in enumerate(CAT_FAMILIES):
+        if any(k in low for k in keys):
+            return fname, i
+    return "other", len(CAT_FAMILIES)
+
+
+def flatten_all_leaf_categories(rows: List[Dict]) -> List[Dict]:
+    """Toutes les feuilles RapidAPI, dédupliquées, triées par famille puis nom."""
+    best: Dict[int, Dict] = {}
+    for row in rows:
+        leaf_id = None
+        leaf_name = ""
+        parent = ""
+        for lvl in (4, 3, 2, 1):
+            id_key = f"categoryId{lvl}"
+            name_key = f"categoryName{lvl}"
+            if row.get(id_key):
+                leaf_id = int(row[id_key])
+                leaf_name = str(row.get(name_key) or "")
+                if lvl > 1:
+                    parent = str(row.get(f"categoryName{lvl - 1}") or "")
+                break
+        if not leaf_id or not leaf_name:
+            continue
+        fam, rank = category_family(leaf_name)
+        prev = best.get(leaf_id)
+        if prev is None or rank < prev["familyRank"]:
+            best[leaf_id] = {
+                "id": leaf_id,
+                "name": leaf_name,
+                "parent": parent or None,
+                "family": fam,
+                "familyLabel": FAMILY_LABELS_FR.get(fam, fam),
+                "familyRank": rank,
+            }
+    return sorted(best.values(), key=lambda x: (x["familyRank"], (x["name"] or "").lower()))
 
 
 def pick_leaf_categories(rows: List[Dict], limit: int) -> List[Tuple[int, str]]:
@@ -130,21 +204,34 @@ def pick_leaf_categories(rows: List[Dict], limit: int) -> List[Tuple[int, str]]:
 
 def load_api_key() -> Tuple[str, str]:
     key = os.getenv("RAPIDAPI_KEY", "").strip()
-    host = "auto-parts-catalog.p.rapidapi.com"
+    host = (os.getenv("RAPIDAPI_HOST") or "auto-parts-catalog.p.rapidapi.com").strip()
     if key:
         return key, host
-    cfg = json.loads(APPSETTINGS.read_text(encoding="utf-8"))
+    cfg = _read_appsettings()
     rap = cfg.get("RapidApi") or {}
     key = (rap.get("ApiKey") or "").strip()
     host = (rap.get("Host") or host).strip()
     if not key:
-        raise SystemExit("RapidApi:ApiKey manquante (appsettings.json ou RAPIDAPI_KEY)")
+        raise SystemExit("RapidApi:ApiKey manquante (RAPIDAPI_KEY ou appsettings.json)")
     return key, host
 
 
 def load_db_config() -> Dict[str, Any]:
-    """Préfère les variables d'env (Docker démo) puis ConnectionStrings appsettings."""
-    cfg = json.loads(APPSETTINGS.read_text(encoding="utf-8"))
+    """Préfère les variables d'env (Docker) puis ConnectionStrings appsettings."""
+    env_host = os.getenv("DB_HOST", "").strip()
+    env_db = os.getenv("DB_NAME", "").strip()
+    env_user = os.getenv("DB_USER", "").strip()
+    if env_host and env_db and env_user:
+        return {
+            "host": env_host,
+            "port": int(os.getenv("DB_PORT") or "3306"),
+            "database": env_db,
+            "user": env_user,
+            "password": os.getenv("DB_PASSWORD") or "",
+            "charset": "utf8mb4",
+        }
+
+    cfg = _read_appsettings()
     cs = cfg.get("ConnectionStrings", {}).get("DefaultConnection", "")
     parts = {}
     for chunk in cs.split(";"):
@@ -551,7 +638,8 @@ def extract_vehicle_row(vehicle: Dict, make: str, model_name: str) -> Dict[str, 
 
     return {
         "make": (_first_str(vehicle, "manufacturerName", "manuName", "make") or make or "")[:128],
-        "model": (_first_str(vehicle, "modelName", "MakeModelName", "model") or model_name or "")[:128],
+        # model_name = nom catalogue du sync (ex. AMAROK (T1A, T1B)) — prioritaire sur vehicle.modelName (souvent type/moteur)
+        "model": (model_name or _first_str(vehicle, "modelName", "MakeModelName", "model") or "")[:128],
         "type_name": _first_str(
             vehicle, "typeName", "vehicleTypeName", "type", "fullName", "description"
         ),
@@ -686,6 +774,16 @@ class DbWriter:
         pic = None
         if flat.get("images"):
             pic = (flat["images"][0].get("url") or "")[:500] or None
+        type_ext = None
+        type_name = flat.get("category")
+        if category_id:
+            crow = self.fetchone(
+                "SELECT ErpExternalId, NameFr, Level FROM ErpCategories WHERE Id=%s",
+                (category_id,),
+            )
+            if crow:
+                type_ext = crow.get("ErpExternalId")
+                type_name = crow.get("NameFr") or type_name
         existing = self.fetchone("SELECT Id FROM ErpProducts WHERE ErpProductId = %s", (erp_id,))
         if existing:
             pid = existing["Id"]
@@ -693,12 +791,14 @@ class DbWriter:
                 """UPDATE ErpProducts SET
                     Name=%s, Reference=%s, Ean=%s, Brand=%s, Manufacturer=%s, PicName=COALESCE(%s, PicName),
                     Weight=%s, Height=%s, Width=%s, Depth=%s,
-                    BrandId=%s, CategoryId=%s, UpdatedAt=%s, LastSyncAt=%s, DataSource=%s
+                    BrandId=%s, CategoryId=%s, TypeID=%s, TypeName=%s, MainTypeName=%s,
+                    UpdatedAt=%s, LastSyncAt=%s, DataSource=%s
                    WHERE Id=%s""",
                 (
                     name, ref, flat.get("ean") or None, brand, brand, pic,
                     dims.get("weight"), dims.get("height"), dims.get("width"), dims.get("depth"),
-                    brand_id, category_id, self.now, self.now, DATA_SOURCE, pid,
+                    brand_id, category_id, type_ext, type_name, type_name,
+                    self.now, self.now, DATA_SOURCE, pid,
                 ),
             )
             self.stats["updated"] += 1
@@ -711,7 +811,7 @@ class DbWriter:
                 DiscountPerc, ProductDiscountPerc, TypeDiscountPerc, PromoActive,
                 StockQuantity, StockDate, Quantity, PerUnit,
                 Weight, Height, Width, Depth,
-                MainTypeName, TypeName, Archived, CreatedAt, UpdatedAt, LastSyncAt,
+                MainTypeName, TypeName, TypeID, Archived, CreatedAt, UpdatedAt, LastSyncAt,
                 DataSource, FromExcel, BrandId, CategoryId
             ) VALUES (
                 %s,%s,%s,%s,%s,%s,%s,
@@ -719,14 +819,14 @@ class DbWriter:
                 0,0,0,0,
                 0,%s,1,'piece',
                 %s,%s,%s,%s,
-                %s,%s,0,%s,%s,%s,
+                %s,%s,%s,0,%s,%s,%s,
                 %s,0,%s,%s
             )""",
             (
                 erp_id, name, ref, flat.get("ean") or None, brand, brand, pic,
                 self.now,
                 dims.get("weight"), dims.get("height"), dims.get("width"), dims.get("depth"),
-                flat.get("category"), flat.get("category"),
+                type_name, type_name, type_ext,
                 self.now, self.now, self.now,
                 DATA_SOURCE, brand_id, category_id,
             ),

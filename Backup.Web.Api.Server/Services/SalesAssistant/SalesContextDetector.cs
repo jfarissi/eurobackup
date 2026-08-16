@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Services.AutoParts;
 using Backup.Web.Api.Server.Services.StoreChat;
 using Microsoft.EntityFrameworkCore;
 
@@ -183,6 +184,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             var brandQuery = !string.IsNullOrWhiteSpace(session.PreferredBrand);
             (string id, string label, string[] keys)[] domains =
             {
+                (AutoPartsSymptomMatcher.DomainId, "Diagnostic pièces auto", new[]
+                {
+                    "bruit de frein", "frein grince", "freins grincent", "grince", "grincement",
+                    "plaquette", "plaquettes", "disque de frein", "étrier", "etrier",
+                    "brake pad", "brake disc", "squeak", "squeal", "grinding brake",
+                    "usure plaquette", "pédale de frein", "pedale de frein",
+                    "vibration au freinage", "kit frein", "brake kit",
+                    "remmen piepen", "remschijf", "remblok", "caliper",
+                    "bruit roulement", "roulement de roue"
+                }),
                 ("wall_construction", "Construction de mur", new[]
                 {
                     "construire un mur", "construction de mur", "mur de séparation", "mur de separation",
@@ -243,6 +254,15 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 session.ActiveProjectDomainLabel = SalesLocale.DomainDisplay(session, domain.id, domain.label);
                 if (!string.Equals(previousDomain, domain.id, StringComparison.OrdinalIgnoreCase))
                     ClearStickyOnDomainChange(session, previousDomain, domain.id);
+
+                if (string.Equals(domain.id, AutoPartsSymptomMatcher.DomainId, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var hint in AutoPartsSymptomMatcher.TypeHintsFor(text))
+                    {
+                        if (!session.SearchTypeHints.Contains(hint, StringComparer.OrdinalIgnoreCase))
+                            session.SearchTypeHints.Add(hint);
+                    }
+                }
 
                 if (!string.Equals(previousDomain, domain.id, StringComparison.OrdinalIgnoreCase)
                     && IsGardenDomain(domain.id))
@@ -313,7 +333,8 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
 
         private static bool IsLightingOrNonMasonryDomain(string domainId) =>
             domainId is "electrical" or "painting" or "tiling" or "plumbing" or "roofing"
-                or "garden_cleaning" or "garden_landscaping" or "garden_maintenance";
+                or "garden_cleaning" or "garden_landscaping" or "garden_maintenance"
+                or "auto_parts";
 
         private static bool IsMasonryMaterialHint(string hint) =>
             ContainsIgnoreCase(hint, "parpaing")
@@ -596,6 +617,16 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 : (lighting
                     ? new List<string> { "ampoule", "lampe" }
                     : session.SearchTypeHints.ToList());
+
+            if (AutoPartsSymptomMatcher.LooksLike(text)
+                || string.Equals(session.ActiveProjectDomainId, AutoPartsSymptomMatcher.DomainId, StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var hint in AutoPartsSymptomMatcher.TypeHintsFor(text).Reverse())
+                {
+                    types.RemoveAll(t => string.Equals(t, hint, StringComparison.OrdinalIgnoreCase));
+                    types.Insert(0, hint);
+                }
+            }
 
             // Éclairage : ignorer une marque collante sauf si elle est écrite dans le message.
             string? brand = session.PreferredBrand;

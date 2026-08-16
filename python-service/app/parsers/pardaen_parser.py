@@ -8,9 +8,10 @@ class PardaenParser(BaseParser):
     """Parser deterministic for PARDAEN invoices and delivery notes."""
 
     # Chaque segment après le préfixe chiffres doit contenir au moins un chiffre (1-TRA706T, 1-1399).
+    # Virgule autorisée (refs type 1-9559-1,5-70 = 1,5 mm).
     # Rejette les fragments description type 8-DELIGE (lettres seules).
-    _SKU_PART = r"[A-Za-z0-9]*\d+[A-Za-z0-9]*"
-    _INVOICE_SKU = rf"(?:\d+(?:-{_SKU_PART})+|S-[A-Za-z0-9-]+)"
+    _SKU_PART = r"[A-Za-z0-9,]*(?:\d+(?:,\d+)?)[A-Za-z0-9,]*"
+    _INVOICE_SKU = rf"(?:\d+(?:-{_SKU_PART})+|S-[A-Za-z0-9,-]+)"
     _STRICT_SKU_PREFIX_RE = re.compile(
         rf"^\s*{_INVOICE_SKU}\b",
         re.IGNORECASE,
@@ -58,11 +59,11 @@ class PardaenParser(BaseParser):
     )
     MONEY_RE = re.compile(r"\d+[.,]\d{2}")
     INVOICE_MONEY_RE = re.compile(_INVOICE_MONEY)
-    SKU_RE = re.compile(r"^\s*([A-Z0-9-]{3,})\s*$")
+    SKU_RE = re.compile(r"^\s*([A-Z0-9,-]{3,})\s*$")
     # Dense table rows: SKU followed by Pardaen's custom barcode token ("X(..(" or "u(..(" etc.)
     # Use lookahead so "(X|" stays in the remainder for "_split_dense_line_tail".
     DENSE_ROW_SKU_RE = re.compile(
-        r"^\s*([A-Za-z0-9][A-Za-z0-9-]{2,})\s+(?=[XxuU]\()",
+        r"^\s*([A-Za-z0-9][A-Za-z0-9,-]{2,})\s+(?=[XxuU]\()",
         re.IGNORECASE,
     )
     EAN_RE = re.compile(r"\b\d{8,14}\b")
@@ -190,7 +191,9 @@ class PardaenParser(BaseParser):
             return False
         return "verzendnr." in text or "verzending" in text
 
-    def _is_noise_line(self, line: str, is_delivery: bool = False) -> bool:
+    def _is_noise_line(
+        self, line: str, is_delivery: bool = False, next_line: Optional[str] = None
+    ) -> bool:
         low = line.lower().strip()
         if not low:
             return True
@@ -206,8 +209,18 @@ class PardaenParser(BaseParser):
         # Table headings sometimes appear as separate tokens / merged lines.
         if "nr." in low and "barcode" in low:
             return True
-        # BL only: standalone page index (1–4). On invoices the same tokens are often qty (3, 4…).
+        # BL: standalone 1–4 may be page index OR real qty (often 1 Blister/Stk).
+        # Only treat as page noise when the following line is NOT a unit.
         if is_delivery and re.fullmatch(r"[1-4]", low):
+            if next_line is None:
+                return False
+            nxt = next_line.strip()
+            if (
+                self.UNIT_ONLY_RE.match(nxt)
+                or self._VALID_UNIT_PREFIX_RE.match(nxt)
+                or re.match(r"^paar\b", nxt, re.IGNORECASE)
+            ):
+                return False
             return True
         if is_delivery and re.fullmatch(r"vle\d{5,}", low):
             return True
@@ -1600,7 +1613,9 @@ class PardaenParser(BaseParser):
                 break
             if self._BARCODE_ONLY_LINE_RE.match(s):
                 break
-            if self._is_noise_line(lines[j], True):
+            if self._is_noise_line(
+                lines[j], True, lines[j + 1] if j + 1 < len(lines) else None
+            ):
                 j += 1
                 continue
             desc_parts.append(s)
@@ -1860,7 +1875,11 @@ class PardaenParser(BaseParser):
                 nxt_low = nxt.lower()
                 # Stop continuation before page footer / next table header repeats
                 # (otherwise desc picks up totals, BELGI�, BL number, Nr./Barcode headings).
-                if self._is_noise_line(nxt.strip(), is_delivery):
+                if self._is_noise_line(
+                    nxt.strip(),
+                    is_delivery,
+                    lines[j + 1] if j + 1 < len(lines) else None,
+                ):
                     j += 1
                     continue
                 if any(sw in nxt_low for sw in stop_words):
@@ -1879,7 +1898,9 @@ class PardaenParser(BaseParser):
                     break
                 if re.fullmatch(r"VLE\d{5,}", nxt.strip(), re.IGNORECASE):
                     break
-                if not self._is_bl_continuation_line(nxt) and self._is_noise_line(nxt, True):
+                if not self._is_bl_continuation_line(nxt) and self._is_noise_line(
+                    nxt, True, lines[j + 1] if j + 1 < len(lines) else None
+                ):
                     j += 1
                     continue
                 if not self._is_bl_continuation_line(nxt):

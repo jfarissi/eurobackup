@@ -29,10 +29,12 @@ export class CompanyService {
   private readonly companiesSubject = new BehaviorSubject<Company[]>([]);
   private readonly activeCompanyIdSubject = new BehaviorSubject<string | null>(this.readStoredCompanyId());
   private readonly modulesSubject = new BehaviorSubject<CompanyModule[]>([]);
+  private readonly modulesReadySubject = new BehaviorSubject(false);
 
   readonly companies$ = this.companiesSubject.asObservable();
   readonly activeCompanyId$ = this.activeCompanyIdSubject.asObservable();
   readonly modules$ = this.modulesSubject.asObservable();
+  readonly modulesReady$ = this.modulesReadySubject.asObservable();
 
   constructor(private http: HttpClient) {}
 
@@ -48,14 +50,20 @@ export class CompanyService {
     return this.modulesSubject.value;
   }
 
+  /** True après le premier chargement /api/company-modules pour la société active. */
+  get modulesReady(): boolean {
+    return this.modulesReadySubject.value;
+  }
+
   loadAvailable(): Observable<Company[]> {
     return this.http.get<Company[]>('/api/companies/available').pipe(
       tap(companies => {
         this.companiesSubject.next(companies);
         if (!this.activeCompanyId && companies.length > 0) {
           this.setActiveCompanyId(companies[0].id);
+        } else {
+          this.loadModules().subscribe();
         }
-        this.loadModules().subscribe();
       })
     );
   }
@@ -77,12 +85,18 @@ export class CompanyService {
   }
 
   setActiveCompanyId(companyId: string | null): void {
+    if (companyId === this.activeCompanyIdSubject.value && this.modulesReadySubject.value) {
+      return;
+    }
     this.activeCompanyIdSubject.next(companyId);
+    this.modulesReadySubject.next(false);
     if (companyId) {
       localStorage.setItem(COMPANY_KEY, companyId);
     } else {
       localStorage.removeItem(COMPANY_KEY);
       this.modulesSubject.next([]);
+      this.modulesReadySubject.next(true);
+      return;
     }
     this.loadModules().subscribe();
   }
@@ -110,12 +124,21 @@ export class CompanyService {
   loadModules(): Observable<CompanyModule[]> {
     if (!this.activeCompanyId) {
       this.modulesSubject.next([]);
+      this.modulesReadySubject.next(true);
       return of([]);
     }
+    const silentRefresh = this.modulesReadySubject.value;
+    if (!silentRefresh) {
+      this.modulesReadySubject.next(false);
+    }
     return this.http.get<CompanyModule[]>('/api/company-modules').pipe(
-      tap(mods => this.modulesSubject.next(mods ?? [])),
+      tap(mods => {
+        this.modulesSubject.next(mods ?? []);
+        this.modulesReadySubject.next(true);
+      }),
       catchError(() => {
         this.modulesSubject.next([]);
+        this.modulesReadySubject.next(true);
         return of([]);
       })
     );

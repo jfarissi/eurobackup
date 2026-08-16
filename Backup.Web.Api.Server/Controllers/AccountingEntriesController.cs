@@ -8,6 +8,7 @@ using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Models.Users;
+using Backup.Web.Api.Server.Services.Accounting;
 using Backup.Web.Api.Server.Services.Numbering;
 using Backup.Web.Api.Server.Services.Sales;
 using Backup.Web.Api.Server.Services.Tenancy;
@@ -119,11 +120,22 @@ namespace Backup.Web.Api.Server.Controllers
 
             var companyId = this.companyContext.GetCurrentCompanyId();
             var actor = SalesDocumentAudit.ActorFrom(User);
+            var entryDate = request.EntryDate ?? DateTime.UtcNow;
+
+            // Phase 2 : même validation de période que le générateur (verrouillée / hors exercice → 400).
+            var period = await AccountingEntryResolver.ResolvePeriodAsync(this.storage, companyId, entryDate);
+            if (period.Error != null) return BadRequest(period.Error);
+
+            // Journal des opérations diverses (null si absent : ne bloque jamais la saisie).
+            var journal = await AccountingEntryResolver.ResolveJournalAsync(this.storage, companyId, "OD");
+
             var entry = new AccountingEntry
             {
                 EntryNumber = await this.numberingService.GetNextNumberAsync("AccountingEntry", companyId),
-                EntryDate = request.EntryDate ?? DateTime.UtcNow,
+                EntryDate = entryDate,
                 JournalType = string.IsNullOrWhiteSpace(request.JournalType) ? "Manual" : request.JournalType.Trim(),
+                JournalId = journal?.Id,
+                FiscalPeriodId = period.Period?.Id,
                 ReferenceType = string.IsNullOrWhiteSpace(request.ReferenceType) ? "Manual" : request.ReferenceType.Trim(),
                 ReferenceId = request.ReferenceId,
                 Description = string.IsNullOrWhiteSpace(request.Description) ? "Écriture manuelle" : request.Description.Trim(),

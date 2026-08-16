@@ -1,0 +1,111 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <h2>{{ 'accounting.fiscal.title' | t }}</h2>
+      <p class="subtitle">{{ 'accounting.fiscal.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="load()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openModal()" *ngIf="canManage">
+        <mat-icon>add</mat-icon> {{ 'accounting.fiscal.btn.open' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <div class="years-layout">
+    <div class="years-list">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'accounting.fiscal.col.name' | t }}</th>
+            <th>{{ 'accounting.fiscal.col.start' | t }}</th>
+            <th>{{ 'accounting.fiscal.col.end' | t }}</th>
+            <th>{{ 'accounting.fiscal.col.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let year of years"
+              [class.selected-row]="selected?.id === year.id"
+              (click)="select(year)">
+            <td><strong>{{ year.name }}</strong></td>
+            <td>{{ year.startDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ year.endDate | date:'dd/MM/yyyy' }}</td>
+            <td>
+              <span class="status-badge" [ngClass]="(year.status || '').toLowerCase()">
+                {{ ('accounting.fiscal.status.' + year.status) | t }}
+              </span>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && years.length === 0">
+            <td colspan="4" class="empty">{{ 'accounting.fiscal.empty' | t }}</td>
+          </tr>
+          <tr *ngIf="loading">
+            <td colspan="4" class="empty">{{ 'common.loading' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="periods-panel" *ngIf="selected">
+      <h3>{{ 'accounting.fiscal.periods.title' | t:{ name: selected.name } }}</h3>
+      <div class="periods-grid">
+        <div class="period-card" *ngFor="let p of selected.periods" [class.locked]="p.isLocked">
+          <div class="period-head">
+            <strong>{{ periodLabel(p) }}</strong>
+            <span class="status-badge" [ngClass]="p.isLocked ? 'locked' : 'open'">
+              {{ (p.isLocked ? 'accounting.fiscal.period.locked' : 'accounting.fiscal.period.unlocked') | t }}
+            </span>
+          </div>
+          <div class="period-flags">
+            <span class="flag-badge" *ngIf="p.isVatDeclared">{{ 'accounting.fiscal.period.vatDeclared' | t }}</span>
+            <span class="flag-badge" *ngIf="p.isBankReconciled">{{ 'accounting.fiscal.period.bankReconciled' | t }}</span>
+          </div>
+          <button class="btn-secondary period-action" type="button" *ngIf="canManage"
+                  (click)="toggleLock(p)" [disabled]="togglingPeriodId === p.id">
+            <mat-icon>{{ p.isLocked ? 'lock_open' : 'lock' }}</mat-icon>
+            {{ (p.isLocked ? 'accounting.fiscal.btn.unlock' : 'accounting.fiscal.btn.lock') | t }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal">
+  <div class="modal-content">
+    <h3>{{ 'accounting.fiscal.modal.open' | t }}</h3>
+
+    <form [formGroup]="form" (ngSubmit)="openYear()">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'accounting.fiscal.field.startDate' | t }} *</label>
+          <input type="date" formControlName="startDate" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'accounting.fiscal.field.endDate' | t }} *</label>
+          <input type="date" formControlName="endDate" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group grow">
+          <label>{{ 'accounting.fiscal.field.name' | t }}</label>
+          <input type="text" formControlName="name" [placeholder]="'accounting.fiscal.field.nameHint' | t" />
+        </div>
+      </div>
+
+      <div class="error-box" *ngIf="modalError">{{ modalError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="closeModal()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="submit" [disabled]="saving || form.invalid">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

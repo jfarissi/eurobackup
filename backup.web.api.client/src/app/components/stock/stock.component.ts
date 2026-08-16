@@ -1,10 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { StockService } from '../../services/stock.service';
 import { BusinessService } from '../../services/business.service';
-import { StockItem } from '../../models/stock-item';
+import { StockForecastResult, StockItem } from '../../models/stock-item';
 import { StockMovement } from '../../models/business';
 import { MaterialModule } from '../../material.module';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -35,6 +35,9 @@ export class StockComponent implements OnInit {
   expandedSuppliers = new Set<string>();
   stockSort = new TableSortState('productKey', 'asc');
   movementSort = new TableSortState('createdAt', 'desc');
+  forecast: StockForecastResult | null = null;
+  forecastError = false;
+  showAllForecast = false;
 
   showAdjustModal = false;
   adjustError = '';
@@ -48,12 +51,19 @@ export class StockComponent implements OnInit {
     private snack: MatSnackBar,
     private i18n: AppI18nService,
     public perm: PermissionService,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(q => {
+      if ((q.get('tab') || '').toLowerCase() === 'forecast') {
+        this.selectedTab = 2;
+      }
+    });
     this.loadStock();
     this.loadMovements();
+    this.loadForecast();
   }
 
   loadStock(): void {
@@ -80,6 +90,29 @@ export class StockComponent implements OnInit {
         this.snack.open(this.i18n.t('stock.movements.loadError'), this.i18n.t('common.close'), { duration: 3000 });
       }
     });
+  }
+
+  loadForecast(): void {
+    this.forecastError = false;
+    this.stockService.getForecast({ all: this.showAllForecast }).subscribe({
+      next: (result) => {
+        this.forecast = result;
+      },
+      error: () => {
+        this.forecastError = true;
+        this.forecast = null;
+        this.snack.open(this.i18n.t('stock.forecast.loadError'), this.i18n.t('common.close'), { duration: 3000 });
+      }
+    });
+  }
+
+  toggleShowAllForecast(): void {
+    this.showAllForecast = !this.showAllForecast;
+    this.loadForecast();
+  }
+
+  forecastRiskClass(risk: string): string {
+    return (risk || 'ok').toLowerCase();
   }
 
   groupBySupplier(): void {
@@ -153,6 +186,7 @@ export class StockComponent implements OnInit {
         );
         this.loadStock();
         this.loadMovements();
+        this.loadForecast();
       },
       error: () => {
         this.snack.open(this.i18n.t('stock.reconcileOuts.error'), this.i18n.t('common.close'), { duration: 3000 });
@@ -186,6 +220,7 @@ export class StockComponent implements OnInit {
         this.snack.open(this.i18n.t('stock.adjust.success'), this.i18n.t('common.close'), { duration: 2500 });
         this.loadStock();
         this.loadMovements();
+        this.loadForecast();
       },
       error: (err) => {
         this.adjustError = err?.error?.error || err?.error || this.i18n.t('stock.adjust.error');

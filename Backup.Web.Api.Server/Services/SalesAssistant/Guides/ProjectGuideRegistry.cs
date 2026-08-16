@@ -18,6 +18,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant.Guides
 
         public static ProjectGuideRegistry CreateDefault() => new(
         [
+            AutoPartsSymptomGuide.Instance,
             WallProjectGuide.Instance,
             PaintProjectGuide.Instance,
             TilingProjectGuide.Instance,

@@ -1,14 +1,20 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../material.module';
-import { ErpBrand, ErpCategory, ErpProduct, ErpSyncLog } from '../../models/erp-product';
+import { ErpBrand, ErpCategory, ErpProduct, ErpProductOem, ErpProductVehicle, ErpSyncLog } from '../../models/erp-product';
 import { ErpProductService } from '../../services/erp-product.service';
+import { SupplierQuoteService } from '../../services/supplier-quote.service';
+import { SupplierQuoteRealtimeService } from '../../services/supplier-quote-realtime.service';
+import { SupplierQuotesResult } from '../../models/supplier-quote';
+import { ProductDiagram, DiagramHotspot } from '../../models/product-diagram';
+import { ProductDiagramService } from '../../services/product-diagram.service';
 import { environment } from '../../../environments/environment';
-import { forkJoin, Observable, of, Subscription, switchMap, takeWhile, timer } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { forkJoin, interval, Observable, of, Subscription, switchMap, takeWhile, timer, combineLatest } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { PermissionService } from '../../services/permission.service';
@@ -18,6 +24,8 @@ import { CatalogSubnavComponent } from '../shared/catalog-subnav/catalog-subnav.
 import { TableSortState } from '../../utils/table-sort';
 import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 import { CompanyService } from '../../services/company.service';
+import { BusinessService } from '../../services/business.service';
+import { Supplier } from '../../models/business';
 import { ErpBrandService } from '../../services/erp-brand.service';
 import { ErpCategoryService } from '../../services/erp-category.service';
 import {
@@ -45,13 +53,15 @@ import {
 export class ErpProductsComponent implements OnInit, OnDestroy {
   products: ErpProduct[] = [];
   selected: ErpProduct | null = null;
-  detailTab: 'info' | 'variants' | 'images' | 'attributes' = 'info';
+  detailTab: 'info' | 'variants' | 'images' | 'attributes' | 'vehicles' | 'oems' | 'suppliers' | 'diagram' = 'info';
   createTab: 'info' | 'variants' | 'images' | 'attributes' = 'info';
 
   get productModalOpen(): boolean {
     return this.productEditing;
   }
   listSort = new TableSortState('name', 'asc');
+  catalogView: 'list' | 'cards' = ErpProductsComponent.readStoredCatalogView();
+  private static readonly catalogViewKey = 'pulse.erpProducts.catalogView';
   total = 0;
   page = 1;
   pageSize = 50;
@@ -62,8 +72,22 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   syncMode: 'catalog' | 'enrich' | null = null;
   syncFilterLabel = '';
   private syncPollSub: Subscription | null = null;
+  private companyContextSub: Subscription | null = null;
+  private galleryLoopSub: Subscription | null = null;
+  private quotesRealtimeSub: Subscription | null = null;
+  supplierQuotes: SupplierQuotesResult | null = null;
+  supplierQuotesLoading = false;
+  productDiagrams: ProductDiagram[] = [];
+  productDiagramsLoading = false;
+
+  /** Index courant de la galerie détail (loop multi-images pièces auto). */
+  galleryIndex = 0;
+  galleryPaused = false;
+  galleryLightboxOpen = false;
 
   searchQuery = '';
+  /** Deep-link OEM / catalogue : ouvrir ce produit après chargement. */
+  private pendingFocusProductId: number | null = null;
   brandFilter = '';
   sourceFilter = '';
   mainTypeId = '';
@@ -72,16 +96,37 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   vehicleBrandFilter = '';
   vehicleModelFilter = '';
   vehicleYearFilter: number | null = null;
+  /** Saisie année (4 chiffres max, ex. 2018). */
+  vehicleYearDraft = '';
+  vehicleFuelFilter = '';
+  vehicleBodyFilter = '';
+  vehicleDriveFilter = '';
+  vehicleTransmissionFilter = '';
+  vehicleEngineFilter = '';
+  vehicleKTypeFilter = '';
+  vehicleFiltersOpen = true;
   filterVehicleBrands: string[] = [];
   filterVehicleModels: string[] = [];
+  filterVehicleFuels: string[] = [];
+  filterVehicleBodies: string[] = [];
+  filterVehicleDrives: string[] = [];
+  filterVehicleTransmissions: string[] = [];
 
   brands: ErpBrand[] = [];
   mainTypes: ErpCategory[] = [];
+  /** Catalogue RapidAPI : catégories plates Level=Type (pas de MainType). */
+  categoryRootsAreTypes = false;
   types: ErpCategory[] = [];
   subTypes: ErpCategory[] = [];
 
   variants: ErpProductVariant[] = [];
   images: ErpProductImage[] = [];
+  productVehicles: ErpProductVehicle[] = [];
+  productOems: ErpProductOem[] = [];
+  /** Filtres locaux de l'onglet Véhicules (détail produit). */
+  detailVehicleMake = '';
+  detailVehicleModel = '';
+  detailVehicleQuery = '';
   attrDefs: ErpProductAttributeDefinition[] = [];
   attrValues: ErpProductAttributeValue[] = [];
   editingVariantId: string | null = null;
@@ -111,12 +156,15 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     weight: null as number | null,
     height: null as number | null,
     width: null as number | null,
-    depth: null as number | null
+    depth: null as number | null,
+    isDropship: false,
+    dropshipSupplierId: null as number | null
   };
   formMainTypes: ErpCategory[] = [];
   formTypes: ErpCategory[] = [];
   formSubTypes: ErpCategory[] = [];
   formBrands: ErpBrand[] = [];
+  formSuppliers: Supplier[] = [];
   draftVariants: Array<{
     sku: string;
     barcode: string;
@@ -134,7 +182,6 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   draftImageUrl = '';
   draftImageAlt = '';
 
-  importingCarApi = false;
   readonly vehicleCompatCode = 'vehicle_compat';
   vehicleCompatDef: ErpProductAttributeDefinition | null = null;
   vehicleBrands: CarApiVehicleBrand[] = [];
@@ -143,14 +190,16 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   vehiclePick = { brand: '', model: '', generation: '', yearFrom: null as number | null, yearTo: null as number | null };
   vehicleCompatList: VehicleCompatibilityEntry[] = [];
 
-  readonly sourceOptions = [
+  private readonly allSourceOptions = [
     { value: '', labelKey: 'erpProducts.filter.allSources' },
     { value: 'Excel', labelKey: 'erpProducts.filter.sourceExcel' },
     { value: 'Merged', labelKey: 'erpProducts.filter.sourceMerged' },
-    { value: 'Erp', labelKey: 'erpProducts.filter.sourceErp' },
-    { value: 'CarApi', labelKey: 'erpProducts.filter.sourceCarApi' },
-    { value: 'RapidApi', labelKey: 'erpProducts.filter.sourceRapidApi' }
+    { value: 'Erp', labelKey: 'erpProducts.filter.sourceErp' }
   ];
+
+  get sourceOptions(): { value: string; labelKey: string }[] {
+    return this.allSourceOptions;
+  }
 
   constructor(
     private erpService: ErpProductService,
@@ -158,6 +207,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     private categoryService: ErpCategoryService,
     private extras: ErpCatalogExtrasService,
     private carApi: CarApiService,
+    private supplierQuotesApi: SupplierQuoteService,
+    private supplierQuotesRealtime: SupplierQuoteRealtimeService,
+    private productDiagramsApi: ProductDiagramService,
+    private businessService: BusinessService,
+    private sanitizer: DomSanitizer,
     private snack: MatSnackBar,
     private i18n: AppI18nService,
     public perm: PermissionService,
@@ -171,9 +225,17 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     return this.company.hasErpCatalogSync;
   }
 
-  /** Import catalogue auto (CarApi / RapidAPI) : module auto_parts, ou legacy sans modules. */
+  /** Module pièces auto (scan plaque / VIN) : pas Euro Brico ERP. */
   get showAutoPartsImport(): boolean {
+    if (!this.company.modulesReady) return false;
     if (this.hasErpCatalogSync) return false;
+    if (this.company.modules.length === 0) return true;
+    return this.company.hasAutoParts;
+  }
+
+  /** Filtres véhicule (marque / modèle / année) : réservés au module auto_parts. */
+  get showVehicleFilters(): boolean {
+    if (!this.company.modulesReady) return false;
     if (this.company.modules.length === 0) return true;
     return this.company.hasAutoParts;
   }
@@ -195,28 +257,135 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnInit(): void {
-    const hasVehicleQuery = !!(
-      this.route.snapshot.queryParamMap.get('vehicleBrand')?.trim()
-      || this.route.snapshot.queryParamMap.get('q')?.trim()
-    );
-    this.applyVehicleQueryParams();
-    this.loadFilterOptions();
-    if (!hasVehicleQuery) this.loadProducts();
-    this.initVehicleCompatibility();
-    this.loadVehicleFilterBrands();
+  setCatalogView(view: 'list' | 'cards'): void {
+    this.catalogView = view;
+    try {
+      localStorage.setItem(ErpProductsComponent.catalogViewKey, view);
+    } catch {
+      /* ignore quota / private mode */
+    }
   }
 
-  /** Deep-link depuis scan plaque : ?vehicleBrand=&vehicleModel=&vehicleYear= */
+  private static readStoredCatalogView(): 'list' | 'cards' {
+    try {
+      return localStorage.getItem(ErpProductsComponent.catalogViewKey) === 'cards' ? 'cards' : 'list';
+    } catch {
+      return 'list';
+    }
+  }
+
+  ngOnInit(): void {
+    this.bindCompanyContext();
+    this.quotesRealtimeSub = this.supplierQuotesRealtime.quotes$.subscribe(result => {
+      if (this.selected?.id === result.productId) {
+        this.supplierQuotes = result;
+      }
+    });
+  }
+
+  private lastBoundCompanyId: string | null = null;
+
+  /** Attendre modules société (évite mode pièces auto au F5 sur EuroBrico). */
+  private bindCompanyContext(): void {
+    this.companyContextSub?.unsubscribe();
+    this.companyContextSub = combineLatest([
+      this.company.modulesReady$.pipe(filter(ready => ready)),
+      this.company.activeCompanyId$
+    ]).pipe(
+      distinctUntilChanged((a, b) => a[0] === b[0] && a[1] === b[1]),
+      map(([, companyId]) => companyId)
+    ).subscribe(companyId => {
+      if (!companyId) return;
+
+      const companyChanged = this.lastBoundCompanyId !== companyId;
+      if (companyChanged) {
+        this.lastBoundCompanyId = companyId;
+      } else {
+        return;
+      }
+
+      const hasVehicleQuery = !!(
+        this.route.snapshot.queryParamMap.get('vehicleBrand')?.trim()
+        || this.route.snapshot.queryParamMap.get('q')?.trim()
+        || this.route.snapshot.queryParamMap.get('productId')?.trim()
+        || this.route.snapshot.queryParamMap.get('id')?.trim()
+        || this.route.snapshot.queryParamMap.get('vehicleKType')?.trim()
+      );
+
+      this.resetCategoryFiltersForCompany();
+      this.applyVehicleQueryParams();
+      this.loadFilterOptions();
+      if (!hasVehicleQuery) this.loadProducts();
+      if (this.showVehicleFilters) {
+        this.initVehicleCompatibility();
+        this.loadVehicleFilterBrands();
+      }
+    });
+  }
+
+  private resetCategoryFiltersForCompany(): void {
+    this.categoryRootsAreTypes = false;
+    this.mainTypeId = '';
+    this.typeId = '';
+    this.subTypeId = '';
+    this.mainTypes = [];
+    this.types = [];
+    this.subTypes = [];
+    this.vehicleBrandFilter = '';
+    this.vehicleModelFilter = '';
+    this.vehicleYearFilter = null;
+    this.vehicleYearDraft = '';
+    this.vehicleFuelFilter = '';
+    this.vehicleBodyFilter = '';
+    this.vehicleDriveFilter = '';
+    this.vehicleTransmissionFilter = '';
+    this.vehicleEngineFilter = '';
+    this.vehicleKTypeFilter = '';
+    this.sourceFilter = '';
+    this.filterVehicleModels = [];
+    this.filterVehicleFuels = [];
+    this.filterVehicleBodies = [];
+    this.filterVehicleDrives = [];
+    this.filterVehicleTransmissions = [];
+  }
+
+  /** Deep-link : ?q= / ?productId= / ?vehicleBrand=&vehicleModel=&vehicleYear=&vehicleKType= */
   private applyVehicleQueryParams(): void {
     const q = this.route.snapshot.queryParamMap;
+    const search = q.get('q')?.trim();
+    if (search) this.searchQuery = search;
+
+    const productIdRaw = q.get('productId')?.trim() || q.get('id')?.trim();
+    const focusProductId = productIdRaw && !Number.isNaN(Number(productIdRaw))
+      ? Number(productIdRaw)
+      : null;
+    this.pendingFocusProductId = focusProductId;
+
+    const kType = q.get('vehicleKType')?.trim();
+    if (kType) this.vehicleKTypeFilter = kType;
+
+    if (!this.showVehicleFilters) {
+      if (search || focusProductId != null || kType) this.applyFilters();
+      return;
+    }
+
     const brand = q.get('vehicleBrand')?.trim();
     const model = q.get('vehicleModel')?.trim();
     const yearRaw = q.get('vehicleYear')?.trim();
-    const search = q.get('q')?.trim();
-    if (search) this.searchQuery = search;
-    if (yearRaw && !Number.isNaN(Number(yearRaw))) this.vehicleYearFilter = Number(yearRaw);
-    if (!brand) return;
+    const fuel = q.get('vehicleFuel')?.trim();
+    if (yearRaw) {
+      const digits = this.sanitizeVehicleYearDraft(yearRaw);
+      const y = this.normalizeVehicleYear(Number(digits));
+      this.vehicleYearFilter = y;
+      this.vehicleYearDraft = digits;
+    }
+    if (fuel) this.vehicleFuelFilter = fuel;
+    if (!brand) {
+      this.loadVehicleFuelOptions();
+      // OEM / lien catalogue : ?q= / ?productId= / ?vehicleKType= sans marque
+      if (fuel || search || focusProductId != null || kType) this.applyFilters();
+      return;
+    }
 
     this.vehicleBrandFilter = brand;
     this.filterVehicleModels = [];
@@ -224,18 +393,40 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       next: models => {
         this.filterVehicleModels = models ?? [];
         if (model) this.vehicleModelFilter = model;
+        this.loadVehicleFuelOptions();
         this.applyFilters();
       },
       error: () => {
         this.filterVehicleModels = [];
         if (model) this.vehicleModelFilter = model;
+        this.loadVehicleFuelOptions();
         this.applyFilters();
       }
     });
   }
 
   ngOnDestroy(): void {
+    this.companyContextSub?.unsubscribe();
+    this.quotesRealtimeSub?.unsubscribe();
+    void this.supplierQuotesRealtime.unwatch();
+    this.stopGalleryLoop();
     this.stopSyncPoll();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (!this.galleryLightboxOpen) return;
+    if (event.key === 'Escape') {
+      this.closeGalleryLightbox();
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.nextGalleryImage();
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.prevGalleryImage();
+    }
   }
 
   get hasSyncFilter(): boolean {
@@ -333,6 +524,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   private currentCategoryFilter(): { mainTypeId?: string; typeId?: string; subTypeId?: string } {
+    if (this.categoryRootsAreTypes) {
+      return {
+        typeId: this.mainTypeId || undefined
+      };
+    }
     return {
       subTypeId: this.subTypeId || undefined,
       typeId: (!this.subTypeId && this.typeId) || undefined,
@@ -380,10 +576,44 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   loadMainTypes(): void {
+    if (this.showVehicleFilters) {
+      this.loadAutoPartsCategories();
+      return;
+    }
+    this.loadEuroBricoMainTypes();
+  }
+
+  /** Pièces auto : une seule liste Type (RapidAPI / CarAPI). */
+  private loadAutoPartsCategories(): void {
+    this.categoryRootsAreTypes = true;
+    this.types = [];
+    this.subTypes = [];
+    this.typeId = '';
+    this.subTypeId = '';
+    const brand = this.currentBrandFilter();
     this.erpService.getCategories({
-      level: 'MainType',
-      brand: this.currentBrandFilter()
+      level: 'Type',
+      brand,
+      flatCatalog: true
     }).subscribe({
+      next: (items) => {
+        this.mainTypes = items ?? [];
+        if (this.mainTypeId && !this.mainTypes.some(c => c.erpExternalId === this.mainTypeId)) {
+          this.mainTypeId = '';
+        }
+      },
+      error: () => { this.mainTypes = []; }
+    });
+  }
+
+  /** EuroBrico : hiérarchie MainType → Type → SubType. */
+  private loadEuroBricoMainTypes(): void {
+    this.categoryRootsAreTypes = false;
+    const brand = this.currentBrandFilter();
+    const req = brand
+      ? this.erpService.getCategories({ level: 'MainType', brand })
+      : this.categoryService.list({ level: 'MainType', activeOnly: true });
+    req.subscribe({
       next: (items) => {
         this.mainTypes = items ?? [];
         if (this.mainTypeId && !this.mainTypes.some(c => c.erpExternalId === this.mainTypeId)) {
@@ -393,6 +623,43 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
           this.types = [];
           this.subTypes = [];
         }
+      },
+      error: () => {
+        this.categoryService.list({ level: 'MainType', activeOnly: true }).subscribe({
+          next: items => {
+            this.mainTypes = items ?? [];
+          },
+          error: () => { this.mainTypes = []; }
+        });
+      }
+    });
+  }
+
+  private loadChildCategories(
+    level: 'Type' | 'SubType',
+    parent: ErpCategory,
+    target: 'types' | 'subTypes'
+  ): void {
+    const brand = this.currentBrandFilter();
+    const req = brand
+      ? this.erpService.getCategories({ level, parentId: parent.id, brand })
+      : this.categoryService.list({ level, parentId: parent.id, activeOnly: true });
+    req.subscribe({
+      next: (items) => {
+        if (target === 'types') this.types = items ?? [];
+        else this.subTypes = items ?? [];
+      },
+      error: () => {
+        this.categoryService.list({ level, parentId: parent.id, activeOnly: true }).subscribe({
+          next: items => {
+            if (target === 'types') this.types = items ?? [];
+            else this.subTypes = items ?? [];
+          },
+          error: () => {
+            if (target === 'types') this.types = [];
+            else this.subTypes = [];
+          }
+        });
       }
     });
   }
@@ -414,15 +681,11 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.types = [];
     this.subTypes = [];
 
-    const mainType = this.mainTypes.find(c => c.erpExternalId === this.mainTypeId);
-    if (mainType) {
-      this.erpService.getCategories({
-        level: 'Type',
-        parentId: mainType.id,
-        brand: this.currentBrandFilter()
-      }).subscribe({
-        next: (items) => { this.types = items ?? []; }
-      });
+    if (!this.categoryRootsAreTypes) {
+      const mainType = this.mainTypes.find(c => c.erpExternalId === this.mainTypeId);
+      if (mainType) {
+        this.loadChildCategories('Type', mainType, 'types');
+      }
     }
 
     this.loadBrands();
@@ -436,13 +699,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
     const type = this.types.find(c => c.erpExternalId === this.typeId);
     if (type) {
-      this.erpService.getCategories({
-        level: 'SubType',
-        parentId: type.id,
-        brand: this.currentBrandFilter()
-      }).subscribe({
-        next: (items) => { this.subTypes = items ?? []; }
-      });
+      this.loadChildCategories('SubType', type, 'subTypes');
     }
 
     this.loadBrands();
@@ -460,27 +717,65 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     return category.nameNl || category.nameFr || category.nameEn || category.erpExternalId;
   }
 
+  productCategoryDisplay(p: ErpProduct): string {
+    if (this.categoryRootsAreTypes) {
+      return p.typeName || p.mainTypeName || p.subTypeName || '—';
+    }
+    const parts = [p.mainTypeName, p.typeName, p.subTypeName].filter(x => !!x && x.trim());
+    return parts.length ? parts.join(' / ') : '—';
+  }
+
+  dropshipSupplierName(id: number | null | undefined): string {
+    if (id == null) return '';
+    return this.formSuppliers.find(s => s.id === id)?.name || `#${id}`;
+  }
+
+  onDropshipToggle(): void {
+    if (!this.productForm.isDropship) this.productForm.dropshipSupplierId = null;
+  }
+
+  @HostListener('document:visibilitychange')
+  onDocumentVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.syncVehicleYearFromDraft();
+    }
+  }
+
   loadProducts(): void {
+    this.syncVehicleYearFromDraft();
+
     this.loading = true;
+    const cat = this.currentCategoryFilter();
     this.erpService.getProducts({
       page: this.page,
       pageSize: this.pageSize,
       q: this.searchQuery.trim() || undefined,
       brand: this.currentBrandFilter(),
-      dataSource: this.sourceFilter || undefined,
-      subTypeId: this.subTypeId || undefined,
-      typeId: (!this.subTypeId && this.typeId) || undefined,
-      mainTypeId: (!this.subTypeId && !this.typeId && this.mainTypeId) || undefined,
-      vehicleBrand: this.vehicleBrandFilter || undefined,
-      vehicleModel: this.vehicleModelFilter || undefined,
-      vehicleYear: this.vehicleYearFilter ?? undefined,
+      dataSource: this.hasErpCatalogSync ? (this.sourceFilter || undefined) : undefined,
+      subTypeId: cat.subTypeId,
+      typeId: cat.typeId,
+      mainTypeId: cat.mainTypeId,
+      vehicleBrand: this.showVehicleFilters ? (this.vehicleBrandFilter || undefined) : undefined,
+      vehicleModel: this.showVehicleFilters ? (this.vehicleModelFilter || undefined) : undefined,
+      vehicleYear: this.showVehicleFilters ? this.vehicleYearQueryParam() : undefined,
+      vehicleFuel: this.showVehicleFilters ? (this.vehicleFuelFilter || undefined) : undefined,
+      vehicleBody: this.showVehicleFilters ? (this.vehicleBodyFilter || undefined) : undefined,
+      vehicleDrive: this.showVehicleFilters ? (this.vehicleDriveFilter || undefined) : undefined,
+      vehicleTransmission: this.showVehicleFilters ? (this.vehicleTransmissionFilter || undefined) : undefined,
+      vehicleEngine: this.showVehicleFilters ? (this.vehicleEngineFilter || undefined) : undefined,
+      vehicleKType: this.vehicleKTypeFilter || undefined,
     }).subscribe({
       next: (res) => {
         this.products = res.items ?? [];
         this.total = res.total ?? 0;
         this.page = res.page ?? this.page;
         this.loading = false;
-        if (this.selected) {
+        if (this.pendingFocusProductId != null) {
+          const focus = this.products.find(p => p.id === this.pendingFocusProductId);
+          if (focus) this.selectProduct(focus);
+          else if (this.products.length === 1) this.selectProduct(this.products[0]);
+          this.pendingFocusProductId = null;
+        } else if (this.selected) {
           const refreshed = this.products.find(p => p.id === this.selected!.id);
           if (refreshed) this.selected = refreshed;
         }
@@ -513,7 +808,19 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.vehicleBrandFilter = '';
     this.vehicleModelFilter = '';
     this.vehicleYearFilter = null;
+    this.vehicleYearDraft = '';
+    this.vehicleFuelFilter = '';
+    this.vehicleBodyFilter = '';
+    this.vehicleDriveFilter = '';
+    this.vehicleTransmissionFilter = '';
+    this.vehicleEngineFilter = '';
+    this.vehicleKTypeFilter = '';
     this.filterVehicleModels = [];
+    this.filterVehicleFuels = [];
+    this.filterVehicleBodies = [];
+    this.filterVehicleDrives = [];
+    this.filterVehicleTransmissions = [];
+    this.categoryRootsAreTypes = false;
     this.page = 1;
     this.loadFilterOptions();
     this.loadProducts();
@@ -524,9 +831,43 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       next: makes => this.filterVehicleBrands = makes ?? [],
       error: () => this.filterVehicleBrands = []
     });
+    this.loadVehicleFacets();
+  }
+
+  loadVehicleFacets(): void {
+    if (!this.showVehicleFilters) {
+      this.filterVehicleFuels = [];
+      this.filterVehicleBodies = [];
+      this.filterVehicleDrives = [];
+      this.filterVehicleTransmissions = [];
+      return;
+    }
+    this.erpService.getVehicleFacets(
+      this.vehicleBrandFilter || undefined,
+      this.vehicleModelFilter || undefined
+    ).subscribe({
+      next: facets => {
+        this.filterVehicleFuels = facets?.fuels ?? [];
+        this.filterVehicleBodies = facets?.bodyTypes ?? [];
+        this.filterVehicleDrives = facets?.driveTypes ?? [];
+        this.filterVehicleTransmissions = facets?.transmissions ?? [];
+      },
+      error: () => {
+        this.filterVehicleFuels = [];
+        this.filterVehicleBodies = [];
+        this.filterVehicleDrives = [];
+        this.filterVehicleTransmissions = [];
+      }
+    });
+  }
+
+  /** @deprecated use loadVehicleFacets */
+  loadVehicleFuelOptions(): void {
+    this.loadVehicleFacets();
   }
 
   onVehicleBrandFilterChange(): void {
+    this.vehicleKTypeFilter = '';
     this.vehicleModelFilter = '';
     this.filterVehicleModels = [];
     if (this.vehicleBrandFilter) {
@@ -535,15 +876,174 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         error: () => this.filterVehicleModels = []
       });
     }
+    this.loadVehicleFacets();
     this.applyFilters();
   }
 
   onVehicleModelFilterChange(): void {
+    this.vehicleKTypeFilter = '';
+    this.loadVehicleFacets();
     this.applyFilters();
   }
 
   onVehicleYearFilterChange(): void {
+    this.vehicleKTypeFilter = '';
+    this.vehicleYearFilter = this.normalizeVehicleYear(this.vehicleYearFilter);
+    this.vehicleYearDraft = this.vehicleYearFilter != null ? String(this.vehicleYearFilter) : '';
     this.applyFilters();
+  }
+
+  onVehicleYearDraftChange(value: string | null): void {
+    const digits = this.sanitizeVehicleYearDraft(value);
+    this.vehicleYearDraft = digits;
+
+    if (digits.length === 0) {
+      this.vehicleYearFilter = null;
+      this.vehicleKTypeFilter = '';
+      this.applyFilters();
+      return;
+    }
+    if (digits.length < 4) {
+      if (this.vehicleYearFilter != null) {
+        this.vehicleYearFilter = null;
+        this.vehicleKTypeFilter = '';
+        this.applyFilters();
+      }
+      return;
+    }
+
+    this.vehicleYearFilter = this.normalizeVehicleYear(Number(digits));
+    this.vehicleKTypeFilter = '';
+    this.applyFilters();
+  }
+
+  commitVehicleYearFilter(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.captureVehicleYearFromInput(event);
+    this.syncVehicleYearFromDraft();
+    this.vehicleKTypeFilter = '';
+    this.applyFilters();
+  }
+
+  /** Lit la valeur directement depuis l'input (ngModel pas encore à jour au keydown Enter). */
+  private captureVehicleYearFromInput(event?: Event): void {
+    const el = event?.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    this.vehicleYearDraft = this.sanitizeVehicleYearDraft(el.value);
+  }
+
+  /** Applique le brouillon année au filtre actif (sans relancer la recherche). */
+  private syncVehicleYearFromDraft(): void {
+    const digits = this.vehicleYearDraftText();
+    if (!digits) {
+      this.vehicleYearFilter = null;
+      return;
+    }
+    this.vehicleYearFilter = this.normalizeVehicleYear(Number(digits));
+  }
+
+  private sanitizeVehicleYearDraft(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 4);
+  }
+
+  private vehicleYearDraftText(): string {
+    return this.sanitizeVehicleYearDraft(this.vehicleYearDraft);
+  }
+
+  /** Paramètre API : année valide ou brute (4 chiffres) → backend renvoie 0 si invalide. */
+  private vehicleYearQueryParam(): string | undefined {
+    const digits = this.vehicleYearDraftText();
+    if (digits.length >= 4) return digits;
+    const y = this.normalizeVehicleYear(this.vehicleYearFilter);
+    return y != null ? String(y) : undefined;
+  }
+
+  private normalizeVehicleYear(raw: number | null | undefined): number | null {
+    if (raw == null) return null;
+    const y = Math.trunc(Number(raw));
+    if (!Number.isFinite(y) || y < 1950 || y > 2035) return null;
+    return y;
+  }
+
+  private resolvedVehicleYear(): number | undefined {
+    const fromFilter = this.normalizeVehicleYear(this.vehicleYearFilter);
+    if (fromFilter != null) return fromFilter;
+    const trimmed = this.vehicleYearDraftText();
+    if (trimmed.length >= 4) {
+      const fromDraft = this.normalizeVehicleYear(Number(trimmed));
+      if (fromDraft != null) return fromDraft;
+    }
+    return undefined;
+  }
+
+  productVehicleLabel(p: ErpProduct): string {
+    const make = p.vehicleMake?.trim() || '';
+    const model = p.vehicleModel?.trim() || '';
+    const type = p.vehicleTypeName?.trim() || '';
+    const base = `${make} ${model}`.trim();
+    if (!base && !type) return '—';
+    if (type && type !== model) return `${base} ${type}`.trim();
+    return base || type;
+  }
+
+  productVehicleYears(p: ErpProduct): string {
+    const from = p.vehicleYearFrom ?? null;
+    const to = p.vehicleYearTo ?? null;
+    if (from && to && from !== to) return `${from}–${to}`;
+    if (from) return String(from);
+    if (to) return String(to);
+    return '';
+  }
+
+  onVehicleFuelFilterChange(): void {
+    this.applyFilters();
+  }
+
+  onVehicleSpecFilterChange(): void {
+    this.applyFilters();
+  }
+
+  clearVehicleFilters(): void {
+    this.vehicleBrandFilter = '';
+    this.vehicleModelFilter = '';
+    this.vehicleYearFilter = null;
+    this.vehicleYearDraft = '';
+    this.vehicleFuelFilter = '';
+    this.vehicleBodyFilter = '';
+    this.vehicleDriveFilter = '';
+    this.vehicleTransmissionFilter = '';
+    this.vehicleEngineFilter = '';
+    this.vehicleKTypeFilter = '';
+    this.filterVehicleModels = [];
+    this.loadVehicleFacets();
+    this.applyFilters();
+  }
+
+  get hasActiveVehicleFilters(): boolean {
+    return !!(
+      this.vehicleBrandFilter
+      || this.vehicleModelFilter
+      || this.vehicleYearFilter
+      || this.vehicleYearDraftText()
+      || this.vehicleFuelFilter
+      || this.vehicleBodyFilter
+      || this.vehicleDriveFilter
+      || this.vehicleTransmissionFilter
+      || this.vehicleEngineFilter
+      || this.vehicleKTypeFilter
+    );
+  }
+
+  get activeVehicleLabel(): string {
+    const parts = [
+      this.vehicleBrandFilter,
+      this.vehicleModelFilter,
+      this.resolvedVehicleYear() != null ? String(this.resolvedVehicleYear()) : '',
+      this.vehicleFuelFilter,
+      this.vehicleBodyFilter
+    ].filter(Boolean);
+    return parts.join(' · ') || '—';
   }
 
   triggerCatalogSync(): void {
@@ -608,7 +1108,18 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.detailTab = 'info';
     this.productEditing = false;
     this.productCreating = false;
+    this.galleryIndex = 0;
+    this.galleryLightboxOpen = false;
+    this.stopGalleryLoop();
     this.loadProductExtras(product.id);
+    this.loadSupplierQuotes(product.id);
+    this.loadProductDiagrams(product.id);
+    if (product.isDropship && this.formSuppliers.length === 0) {
+      this.businessService.getSuppliers().subscribe({
+        next: items => { this.formSuppliers = items ?? []; },
+        error: () => { this.formSuppliers = []; }
+      });
+    }
   }
 
   closeDetail(): void {
@@ -617,7 +1128,17 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.productCreating = false;
     this.variants = [];
     this.images = [];
+    this.productVehicles = [];
+    this.productOems = [];
+    this.detailVehicleMake = '';
+    this.detailVehicleModel = '';
+    this.detailVehicleQuery = '';
     this.attrValues = [];
+    this.galleryLightboxOpen = false;
+    this.stopGalleryLoop();
+    this.supplierQuotes = null;
+    this.productDiagrams = [];
+    void this.supplierQuotesRealtime.unwatch();
   }
 
   startCreateProduct(): void {
@@ -652,7 +1173,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       weight: null,
       height: null,
       width: null,
-      depth: null
+      depth: null,
+      isDropship: false,
+      dropshipSupplierId: null
     };
     this.formTypes = [];
     this.formSubTypes = [];
@@ -681,7 +1204,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       weight: this.selected.weight ?? null,
       height: this.selected.height ?? null,
       width: this.selected.width ?? null,
-      depth: this.selected.depth ?? null
+      depth: this.selected.depth ?? null,
+      isDropship: !!this.selected.isDropship,
+      dropshipSupplierId: this.selected.dropshipSupplierId ?? null
     };
     this.formTypes = [];
     this.formSubTypes = [];
@@ -697,9 +1222,20 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   loadProductFormLookups(done?: () => void): void {
+    let pending = 3;
+    const finish = () => {
+      pending -= 1;
+      if (pending <= 0) done?.();
+    };
+
+    this.businessService.getSuppliers().subscribe({
+      next: items => { this.formSuppliers = items ?? []; finish(); },
+      error: () => { this.formSuppliers = []; finish(); }
+    });
+
     const apply = (items: ErpBrand[]) => {
       this.formBrands = this.mergeBrandOptions((items ?? []).filter(b => !this.isVehicleBrand(b)));
-      done?.();
+      finish();
     };
     this.brandService.list().subscribe({
       next: items => {
@@ -707,7 +1243,6 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
           apply(items);
           return;
         }
-        // Fallback si ErpBrands vide côté API
         this.erpService.getBrands().subscribe({
           next: apply,
           error: () => apply([])
@@ -720,9 +1255,21 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         });
       }
     });
+
+    const applyCats = (items: ErpCategory[]) => {
+      this.formMainTypes = items ?? [];
+      finish();
+    };
+    if (this.categoryRootsAreTypes) {
+      this.erpService.getCategories({ level: 'Type', flatCatalog: true }).subscribe({
+        next: applyCats,
+        error: () => applyCats([])
+      });
+      return;
+    }
     this.categoryService.list({ level: 'MainType', activeOnly: true }).subscribe({
-      next: items => this.formMainTypes = items ?? [],
-      error: () => this.formMainTypes = []
+      next: applyCats,
+      error: () => applyCats([])
     });
   }
 
@@ -805,6 +1352,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     apply: (mainId: number | null, typeId: number | null, subId: number | null) => void
   ): void {
     const level = (leaf.level || '').toLowerCase();
+    if (this.categoryRootsAreTypes) {
+      apply(leaf.id, null, null);
+      return;
+    }
     if (level === 'maintype') {
       apply(leaf.id, null, null);
       return;
@@ -841,6 +1392,13 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     p: ErpProduct,
     apply: (mainId: number | null, typeId: number | null, subId: number | null) => void
   ): void {
+    if (this.categoryRootsAreTypes) {
+      const typeExt = (p.typeID || p.mainTypeID || '').trim();
+      const match = this.findCategoryMatch(this.formMainTypes, typeExt, p.typeName || p.mainTypeName);
+      apply(match?.id ?? null, null, null);
+      return;
+    }
+
     const mainExt = (p.mainTypeID || '').trim();
     const typeExt = (p.typeID || '').trim();
     const subExt = (p.subTypeID || '').trim();
@@ -881,6 +1439,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
   }
 
   onFormMainTypeChange(): void {
+    if (this.categoryRootsAreTypes) return;
     this.productForm.typeCatId = null;
     this.productForm.subTypeCatId = null;
     this.formTypes = [];
@@ -923,7 +1482,8 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   quickAddCategory(level: 'MainType' | 'Type' | 'SubType'): void {
     if (!this.perm.hasAny(Permissions.CategoryCreate, Permissions.ProductCreate)) return;
-    if (level === 'Type' && !this.productForm.mainTypeCatId) {
+    const flatType = this.categoryRootsAreTypes && level === 'Type';
+    if (level === 'Type' && !flatType && !this.productForm.mainTypeCatId) {
       this.snack.open(this.i18n.t('catalog.products.pickMainFirst'), undefined, { duration: 2500 });
       return;
     }
@@ -933,7 +1493,7 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     }
     const name = prompt(this.i18n.t('catalog.products.categoryPrompt'));
     if (!name?.trim()) return;
-    const parentId = level === 'MainType'
+    const parentId = level === 'MainType' || flatType
       ? null
       : (level === 'Type' ? this.productForm.mainTypeCatId : this.productForm.typeCatId);
     this.categoryService.create({
@@ -946,10 +1506,10 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       isActive: true
     }).subscribe({
       next: created => {
-        if (level === 'MainType') {
+        if (level === 'MainType' || flatType) {
           this.formMainTypes = [...this.formMainTypes, created];
           this.productForm.mainTypeCatId = created.id;
-          this.onFormMainTypeChange();
+          if (!flatType) this.onFormMainTypeChange();
         } else if (level === 'Type') {
           this.formTypes = [...this.formTypes, created];
           this.productForm.typeCatId = created.id;
@@ -1141,7 +1701,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
         vatPercent: this.productForm.vatPercent,
         brandId,
         brandName,
-        categoryId
+        categoryId,
+        isDropship: this.productForm.isDropship,
+        dropshipSupplierId: this.productForm.isDropship ? this.productForm.dropshipSupplierId : null
       }).subscribe({
         next: res => {
           const product = res.product;
@@ -1183,7 +1745,9 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       weight: this.productForm.weight,
       height: this.productForm.height,
       width: this.productForm.width,
-      depth: this.productForm.depth
+      depth: this.productForm.depth,
+      isDropship: this.productForm.isDropship,
+      dropshipSupplierId: this.productForm.isDropship ? this.productForm.dropshipSupplierId : null
     }).subscribe({
       next: updated => {
         this.productSaving = false;
@@ -1213,8 +1777,78 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     });
   }
 
-  setDetailTab(tab: 'info' | 'variants' | 'images' | 'attributes'): void {
+  setDetailTab(tab: 'info' | 'variants' | 'images' | 'attributes' | 'vehicles' | 'oems' | 'suppliers' | 'diagram'): void {
     this.detailTab = tab;
+    if (tab === 'suppliers' && this.selected) {
+      this.loadSupplierQuotes(this.selected.id);
+    }
+    if (tab === 'diagram' && this.selected) {
+      this.loadProductDiagrams(this.selected.id);
+    }
+  }
+
+  loadSupplierQuotes(productId: number): void {
+    this.supplierQuotesLoading = true;
+    this.supplierQuotesApi.get(productId).subscribe({
+      next: result => {
+        this.supplierQuotes = result;
+        this.supplierQuotesLoading = false;
+        void this.supplierQuotesRealtime.watch(productId);
+      },
+      error: () => {
+        this.supplierQuotes = null;
+        this.supplierQuotesLoading = false;
+      }
+    });
+  }
+
+  refreshSupplierQuotes(): void {
+    if (!this.selected) return;
+    this.supplierQuotesLoading = true;
+    this.supplierQuotesApi.refresh(this.selected.id).subscribe({
+      next: result => {
+        this.supplierQuotes = result;
+        this.supplierQuotesLoading = false;
+      },
+      error: () => {
+        this.supplierQuotesLoading = false;
+      }
+    });
+  }
+
+  quoteScoreLabel(reason?: string | null): string {
+    if (reason === 'stock_local') return this.i18n.t('catalog.quotes.reasonLocal');
+    if (reason === 'lowest_price') return this.i18n.t('catalog.quotes.reasonPrice');
+    return '';
+  }
+
+  loadProductDiagrams(productId: number): void {
+    this.productDiagramsLoading = true;
+    this.productDiagramsApi.getByProduct(productId).subscribe({
+      next: list => {
+        this.productDiagrams = list ?? [];
+        this.productDiagramsLoading = false;
+      },
+      error: () => {
+        this.productDiagrams = [];
+        this.productDiagramsLoading = false;
+      }
+    });
+  }
+
+  diagramImage(url: string): SafeUrl | string {
+    if (url?.startsWith('data:')) {
+      return this.sanitizer.bypassSecurityTrustUrl(url);
+    }
+    return url;
+  }
+
+  openDiagramPart(hotspot: DiagramHotspot): void {
+    if (!hotspot?.targetProductId) return;
+    this.erpService.getById(hotspot.targetProductId).subscribe({
+      next: product => this.selectProduct(product),
+      error: () => this.snack.open(this.i18n.t('catalog.diagram.openError'), undefined, { duration: 2500 })
+    });
   }
 
   loadProductExtras(productId: number): void {
@@ -1222,13 +1856,34 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     this.editingVariantId = null;
     this.variantForm = { sku: '', stockQuantity: 0, attributesJson: '{}', isActive: true };
     this.imageForm = { url: '', altText: '', isMain: false, sortOrder: 0 };
+    this.productVehicles = [];
+    this.productOems = [];
+    this.detailVehicleMake = '';
+    this.detailVehicleModel = '';
+    this.detailVehicleQuery = '';
     this.extras.getVariants(productId).subscribe({
       next: v => this.variants = v ?? [],
       error: () => this.variants = []
     });
     this.extras.getImages(productId).subscribe({
-      next: i => this.images = i ?? [],
-      error: () => this.images = []
+      next: i => {
+        this.images = i ?? [];
+        this.galleryIndex = 0;
+        this.startGalleryLoop();
+      },
+      error: () => {
+        this.images = [];
+        this.galleryIndex = 0;
+        this.startGalleryLoop();
+      }
+    });
+    this.erpService.getProductVehicles(productId).subscribe({
+      next: v => this.productVehicles = v ?? [],
+      error: () => this.productVehicles = []
+    });
+    this.erpService.getProductOems(productId).subscribe({
+      next: o => this.productOems = o ?? [],
+      error: () => this.productOems = []
     });
     this.extras.getAttributeDefinitions().subscribe({
       next: defs => {
@@ -1248,6 +1903,78 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
       },
       error: () => { this.attrDefs = []; this.extrasLoading = false; }
     });
+  }
+
+  vehicleYearsLabel(v: ErpProductVehicle): string {
+    const from = v.yearFrom != null ? String(v.yearFrom) : '…';
+    const to = v.yearTo != null ? String(v.yearTo) : '…';
+    if (v.yearFrom == null && v.yearTo == null) return '—';
+    return `${from} – ${to}`;
+  }
+
+  vehiclePowerLabel(v: ErpProductVehicle): string {
+    const parts: string[] = [];
+    if (v.powerKW != null) parts.push(`${v.powerKW} kW`);
+    if (v.powerHP != null) parts.push(`${v.powerHP} ch`);
+    if (v.ccm != null) parts.push(`${v.ccm} cm³`);
+    return parts.length ? parts.join(' · ') : '';
+  }
+
+  get detailVehicleMakes(): string[] {
+    return [...new Set(this.productVehicles.map(v => v.make).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  get detailVehicleModels(): string[] {
+    const make = (this.detailVehicleMake || '').trim().toLowerCase();
+    const source = make
+      ? this.productVehicles.filter(v => (v.make || '').toLowerCase() === make)
+      : this.productVehicles;
+    return [...new Set(source.map(v => v.model).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  get filteredProductVehicles(): ErpProductVehicle[] {
+    const make = (this.detailVehicleMake || '').trim().toLowerCase();
+    const model = (this.detailVehicleModel || '').trim().toLowerCase();
+    const q = (this.detailVehicleQuery || '').trim().toLowerCase();
+    return this.productVehicles.filter(v => {
+      if (make && (v.make || '').toLowerCase() !== make) return false;
+      if (model && (v.model || '').toLowerCase() !== model) return false;
+      if (!q) return true;
+      const hay = [
+        v.make, v.model, v.typeName, v.engineCode, v.fuelType, v.bodyType,
+        v.driveType, v.transmission, v.kType,
+        v.powerKW != null ? String(v.powerKW) : '',
+        v.powerHP != null ? String(v.powerHP) : '',
+        v.ccm != null ? String(v.ccm) : ''
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  /** Groupes Make → Model pour affichage compact du détail. */
+  get productVehicleGroups(): { make: string; model: string; items: ErpProductVehicle[] }[] {
+    const map = new Map<string, ErpProductVehicle[]>();
+    for (const v of this.filteredProductVehicles) {
+      const key = `${v.make || ''}|||${v.model || ''}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(v);
+    }
+    return Array.from(map.entries()).map(([key, items]) => {
+      const [make, model] = key.split('|||');
+      return { make, model, items };
+    });
+  }
+
+  onDetailVehicleMakeChange(): void {
+    this.detailVehicleModel = '';
+  }
+
+  clearDetailVehicleFilters(): void {
+    this.detailVehicleMake = '';
+    this.detailVehicleModel = '';
+    this.detailVehicleQuery = '';
   }
 
   startEditVariant(v: ErpProductVariant): void {
@@ -1526,20 +2253,145 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
 
   /** Miniatures : URL absolue RapidAPI/S3 telle quelle ; sinon proxy ERP local (PicName fichier). */
   productImageUrl(product: ErpProduct | null | undefined): string | null {
-    const picName = product?.picName?.trim();
-    if (!picName) return null;
+    return this.normalizeMediaSrc(product?.picName);
+  }
 
-    let file = picName.replace(/\\/g, '/');
-    if (/^https?:\/\//i.test(file)) {
-      return file;
-    }
+  isPdfUrl(url: string | null | undefined): boolean {
+    if (!url?.trim()) return false;
+    const raw = url.trim().split('?')[0].split('#')[0].toLowerCase();
+    if (raw.endsWith('.pdf')) return true;
+    // Proxy EuroBrico : ?f=fichier.pdf
+    try {
+      const q = new URL(url, 'http://local').searchParams.get('f');
+      if (q && q.toLowerCase().split('?')[0].endsWith('.pdf')) return true;
+    } catch { /* ignore */ }
+    return /\.pdf$/i.test(decodeURIComponent(raw));
+  }
+
+  /** Médias galerie (images + PDF). */
+  get galleryItems(): Array<{ url: string; kind: 'image' | 'pdf' }> {
+    const items: Array<{ url: string; kind: 'image' | 'pdf' }> = [];
+    const seen = new Set<string>();
+    const add = (raw: string | null | undefined) => {
+      const url = this.normalizeMediaSrc(raw);
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      items.push({ url, kind: this.isPdfUrl(raw) || this.isPdfUrl(url) ? 'pdf' : 'image' });
+    };
+
+    const sorted = [...this.images].sort((a, b) => {
+      if (a.isMain !== b.isMain) return a.isMain ? -1 : 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
+    for (const img of sorted) add(img.url);
+    add(this.selected?.picName);
+    return items;
+  }
+
+  get galleryUrls(): string[] {
+    return this.galleryItems.map(i => i.url);
+  }
+
+  get currentGalleryItem(): { url: string; kind: 'image' | 'pdf' } | null {
+    const items = this.galleryItems;
+    if (!items.length) return null;
+    return items[((this.galleryIndex % items.length) + items.length) % items.length];
+  }
+
+  get currentGalleryUrl(): string | null {
+    return this.currentGalleryItem?.url ?? null;
+  }
+
+  get currentGalleryIsPdf(): boolean {
+    return this.currentGalleryItem?.kind === 'pdf';
+  }
+
+  get galleryCount(): number {
+    return this.galleryItems.length;
+  }
+
+  normalizeMediaSrc(raw: string | null | undefined): string | null {
+    if (!raw?.trim()) return null;
+    let file = raw.trim().replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(file)) return file;
     file = file.replace(/^\/+/, '');
     const slash = file.lastIndexOf('/');
     if (slash >= 0) file = file.slice(slash + 1);
     if (!file || file.includes('..')) return null;
-
     const api = (environment.apiBaseUrl ?? '/api').replace(/\/+$/, '');
+    // PDF : lien direct proxy image (sert aussi les fichiers) ou URL telle quelle
     return `${api}/erp-products/image?f=${encodeURIComponent(file)}`;
+  }
+
+  /** @deprecated use normalizeMediaSrc */
+  normalizeImageSrc(raw: string | null | undefined): string | null {
+    return this.normalizeMediaSrc(raw);
+  }
+
+  startGalleryLoop(): void {
+    this.stopGalleryLoop();
+    if (this.galleryItems.length <= 1) return;
+    this.galleryLoopSub = interval(3200).subscribe(() => {
+      if (this.galleryPaused && !this.galleryLightboxOpen) return;
+      this.nextGalleryImage();
+    });
+  }
+
+  stopGalleryLoop(): void {
+    this.galleryLoopSub?.unsubscribe();
+    this.galleryLoopSub = null;
+  }
+
+  nextGalleryImage(): void {
+    const n = this.galleryItems.length;
+    if (n <= 0) return;
+    this.galleryIndex = (this.galleryIndex + 1) % n;
+  }
+
+  prevGalleryImage(): void {
+    const n = this.galleryItems.length;
+    if (n <= 0) return;
+    this.galleryIndex = (this.galleryIndex - 1 + n) % n;
+  }
+
+  setGalleryIndex(index: number): void {
+    const n = this.galleryItems.length;
+    if (n <= 0) return;
+    this.galleryIndex = ((index % n) + n) % n;
+  }
+
+  openGalleryLightbox(index?: number): void {
+    if (!this.galleryItems.length) return;
+    if (index != null) this.setGalleryIndex(index);
+    const item = this.currentGalleryItem;
+    if (item?.kind === 'pdf') {
+      window.open(item.url, '_blank', 'noopener');
+      return;
+    }
+    this.galleryLightboxOpen = true;
+  }
+
+  closeGalleryLightbox(): void {
+    this.galleryLightboxOpen = false;
+  }
+
+  openGalleryMedia(item: { url: string; kind: 'image' | 'pdf' }, index: number): void {
+    this.setGalleryIndex(index);
+    if (item.kind === 'pdf') {
+      window.open(item.url, '_blank', 'noopener');
+      return;
+    }
+    this.openGalleryLightbox(index);
+  }
+
+  onGalleryMainError(event: Event): void {
+    const img = event.target as HTMLImageElement | null;
+    if (!img) return;
+    if (this.galleryCount > 1) {
+      this.nextGalleryImage();
+      return;
+    }
+    img.style.visibility = 'hidden';
   }
 
   onProductImageError(event: Event): void {
@@ -1547,52 +2399,18 @@ export class ErpProductsComponent implements OnInit, OnDestroy {
     if (!img) return;
     img.style.display = 'none';
     const parent = img.parentElement;
-    if (parent && !parent.querySelector('.product-thumb.placeholder')) {
+    if (parent && !parent.querySelector('.product-thumb.placeholder') && !parent.querySelector('.gallery-placeholder')) {
       const ph = document.createElement('div');
-      ph.className = img.classList.contains('detail')
-        ? 'product-thumb detail placeholder'
+      ph.className = img.classList.contains('detail') || parent.classList.contains('gallery-stage')
+        ? 'product-thumb detail placeholder gallery-placeholder'
         : 'product-thumb placeholder';
       ph.textContent = '—';
       parent.appendChild(ph);
     }
   }
 
-  importCarCatalog(applyFrenchOnly = false): void {
-    if (this.importingCarApi) return;
-    this.importingCarApi = true;
-    this.snack.open(
-      applyFrenchOnly ? this.i18n.t('erpProducts.applyFrenchNamesRunning') : this.i18n.t('erpProducts.importCarApiRunning'),
-      undefined,
-      { duration: 2500 }
-    );
-    this.erpService.importCarApi({
-      importParts: !applyFrenchOnly,
-      importVehicleBrands: !applyFrenchOnly,
-      applyFrenchNames: true,
-      ensureVehicleAttribute: true
-    }).subscribe({
-      next: res => {
-        this.importingCarApi = false;
-        const i = res.import;
-        const msg = applyFrenchOnly
-          ? this.i18n.t('erpProducts.applyFrenchNamesDone', { count: i.frenchNamesUpdated || i.partsUpdated })
-          : this.i18n.t('erpProducts.importCarApiDone', {
-              created: i.partsCreated,
-              updated: i.partsUpdated,
-              skipped: i.partsSkipped
-            });
-        this.snack.open(msg, undefined, { duration: 5000 });
-        this.loadProducts();
-        this.loadFilterOptions();
-      },
-      error: err => {
-        this.importingCarApi = false;
-        this.snack.open(err?.error?.message || err?.error?.detail || 'Error', undefined, { duration: 4000 });
-      }
-    });
-  }
-
   initVehicleCompatibility(): void {
+    if (!this.showVehicleFilters) return;
     if (this.vehicleBrands.length) return;
     this.carApi.getBrands().subscribe({
       next: brands => this.vehicleBrands = brands ?? [],

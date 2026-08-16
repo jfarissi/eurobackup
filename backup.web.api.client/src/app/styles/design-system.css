@@ -75,42 +75,84 @@ h1, h2, h3, h4 {
 }
 
 /* Buttons */
+button.btn-primary,
+a.btn-primary,
 .btn-primary {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--primary);
-  color: #ffffff;
+  background-color: #37474f !important;
+  background-image: none !important;
+  color: #ffffff !important;
   border: none;
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
+  -webkit-appearance: none;
+  appearance: none;
 }
+button.btn-primary mat-icon,
 .btn-primary mat-icon {
-  color: #ffffff;
+  color: #ffffff !important;
 }
+button.btn-primary:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+button.btn-primary:active:not(:disabled),
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+button.btn-primary:disabled,
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+button.btn-secondary,
+a.btn-secondary,
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: transparent;
-  color: var(--on-surface-variant);
+  background-color: transparent !important;
+  background-image: none !important;
+  color: var(--on-surface-variant) !important;
   border: 1px solid var(--outline);
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.btn-secondary:hover:not(:disabled) { background: var(--surface-variant); }
+button.btn-secondary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) { background-color: var(--surface-variant) !important; }
+
+/* Alias scan — surcharge du reset Tailwind (button { background: transparent }) */
+button.btn-scan,
+a.btn-scan,
+.btn-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #37474f !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.btn-scan:hover:not(:disabled),
+.btn-scan:hover:not(:disabled) { opacity: 0.9; }
+button.btn-scan:active:not(:disabled),
+.btn-scan:active:not(:disabled) { transform: scale(0.98); }
+button.btn-scan:disabled,
+.btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-accent {
   display: inline-flex;

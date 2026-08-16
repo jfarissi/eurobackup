@@ -168,6 +168,9 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Status = string.IsNullOrWhiteSpace(invoice.Status) ? existing.Status : invoice.Status.Trim();
             existing.Notes = invoice.Notes;
             existing.CompanyId = invoice.CompanyId;
+            existing.HeaderDiscountPercent = invoice.HeaderDiscountPercent;
+            existing.ShippingAmountHt = invoice.ShippingAmountHt;
+            existing.ShippingVatRate = invoice.ShippingVatRate;
             existing.Lines = invoice.Lines ?? new List<SupplierInvoiceLineEntity>();
 
             NormalizeSupplierInvoice(existing);
@@ -741,6 +744,16 @@ namespace Backup.Web.Api.Server.Controllers
                 }
             }
 
+            foreach (var line in invoice.Lines ?? new List<SupplierInvoiceLineEntity>())
+            {
+                var discountErr = SalesBusinessRules.ValidateDiscountPercent(line.DiscountPercent, $"ligne {line.ProductKey}");
+                if (discountErr != null) return BadRequest(discountErr);
+            }
+            var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(invoice.HeaderDiscountPercent, "remise pied de page");
+            if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(invoice.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
+
             return null;
         }
 
@@ -800,13 +813,9 @@ namespace Backup.Web.Api.Server.Controllers
                 line.LineNumber = line.LineNumber <= 0 ? i + 1 : line.LineNumber;
                 line.Description = line.Description?.Trim() ?? string.Empty;
                 line.ProductKey = line.ProductKey?.Trim() ?? string.Empty;
-                line.TotalHT = line.Quantity * line.UnitPrice;
-                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
             }
 
-            invoice.TotalHT = invoice.Lines.Sum(l => l.TotalHT);
-            invoice.TotalVat = invoice.Lines.Sum(l => l.TotalTTC - l.TotalHT);
-            invoice.TotalTTC = invoice.Lines.Sum(l => l.TotalTTC);
+            SalesBusinessRules.RecalculateSupplierInvoiceTotals(invoice);
         }
 
         private static List<SupplierInvoiceLineEntity> MapDocumentLines(IEnumerable<DocumentLine> lines, decimal defaultVatRate)

@@ -200,7 +200,13 @@
   </main>
 
   <footer class="assistant-input">
-    <div class="journey-actions" *ngIf="showNextCta || cartItemCount > 0">
+    <div class="journey-actions" *ngIf="showNextCta || cartItemCount > 0 || showAutoPartsHint">
+      <button type="button" class="btn-outline"
+              *ngIf="showAutoPartsHint && cartItemCount === 0 && !showNextCta"
+              [disabled]="isTyping"
+              (click)="sendAutoPartsDemo()">
+        {{ i18n.t('autoPartsDemo') }}
+      </button>
       <button type="button" class="btn-outline"
               *ngIf="showNextCta"
               [disabled]="isTyping || isGeneratingQuote || isPlacingOrder"

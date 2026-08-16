@@ -57,6 +57,17 @@ export interface ErpProduct {
   createdBy?: string | null;
   updatedBy?: string | null;
   lastSyncAt?: string | null;
+  isDropship?: boolean;
+  dropshipSupplierId?: number | null;
+  /** Fitment véhicule (liste catalogue, renseigné si filtre véhicule actif). */
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleTypeName?: string | null;
+  vehicleYearFrom?: number | null;
+  vehicleYearTo?: number | null;
+  vehicleEngineCode?: string | null;
+  vehicleKType?: string | null;
+  vehicleFuelType?: string | null;
 }
 
 export interface ErpProductsPage {
@@ -64,6 +75,27 @@ export interface ErpProductsPage {
   page: number;
   pageSize: number;
   items: ErpProduct[];
+}
+
+/** Fitment véhicule lié à un produit (ErpProductVehicles). */
+export interface ErpProductVehicle {
+  id: string;
+  make: string;
+  model: string;
+  typeName?: string | null;
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  engineCode?: string | null;
+  kType?: string | null;
+  bodyType?: string | null;
+  fuelType?: string | null;
+  driveType?: string | null;
+  transmission?: string | null;
+  powerKW?: number | null;
+  powerHP?: number | null;
+  ccm?: number | null;
+  cylinders?: number | null;
+  valves?: number | null;
 }
 
 export interface ErpProductsQuery {
@@ -78,10 +110,54 @@ export interface ErpProductsQuery {
   subTypeId?: string;
   /** Filtre marques du fournisseur (Brand LIKE token dérivé du nom). */
   supplierId?: number;
-  /** Filtre compatibilité véhicule (attribut vehicle_compat). */
+  /** Filtre compatibilité véhicule (attribut vehicle_compat / ErpProductVehicles). */
   vehicleBrand?: string;
   vehicleModel?: string;
-  vehicleYear?: number;
+  vehicleYear?: number | string;
+  /** Carburant véhicule (Diesel, Petrol/Essence…). */
+  vehicleFuel?: string;
+  vehicleBody?: string;
+  vehicleDrive?: string;
+  vehicleTransmission?: string;
+  vehicleEngine?: string;
+  /** K-Type TecDoc / vehicleId catalogue. */
+  vehicleKType?: string;
+}
+
+export interface ErpVehicleFacets {
+  fuels: string[];
+  bodyTypes: string[];
+  driveTypes: string[];
+  transmissions: string[];
+}
+
+/** Cross-référence OEM liée à un produit. */
+export interface ErpProductOem {
+  id: string;
+  oemNumber: string;
+  brand?: string | null;
+  isOriginal: boolean;
+}
+
+export interface OemSearchHit {
+  productId: number;
+  erpProductId: string;
+  name?: string | null;
+  reference?: string | null;
+  brand?: string | null;
+  unitPrice?: number | null;
+  stockQuantity?: number | null;
+  matchedOem: string;
+  oemBrand?: string | null;
+  isOriginal: boolean;
+}
+
+export interface OemSearchPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
+  items: OemSearchHit[];
 }
 
 export interface ErpProductChange {
@@ -208,6 +284,8 @@ export interface CreateErpProductRequest {
   brandName?: string;
   categoryId?: number;
   supplierName?: string;
+  isDropship?: boolean;
+  dropshipSupplierId?: number | null;
 }
 
 export interface CreateErpProductResult {

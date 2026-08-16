@@ -1,0 +1,156 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <h2>{{ 'accounting.plan.title' | t }}</h2>
+      <p class="subtitle">{{ 'accounting.plan.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="load()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openCreate()" *ngIf="canManage">
+        <mat-icon>add</mat-icon> {{ 'accounting.plan.btn.new' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form" (ngSubmit)="load()">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'common.search' | t }}</label>
+        <input type="text" [(ngModel)]="filterSearch" name="filterSearch"
+               [placeholder]="'accounting.plan.searchPlaceholder' | t" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'accounting.plan.filter.class' | t }}</label>
+        <select [(ngModel)]="filterClass" name="filterClass">
+          <option value="">{{ 'common.all' | t }}</option>
+          <option *ngFor="let c of accountClasses" [ngValue]="c">{{ c }}</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
+        <button class="btn-secondary" type="button" (click)="resetFilters()">{{ 'common.reset' | t }}</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th appSortable [state]="sort" key="accountNumber">{{ 'accounting.plan.col.number' | t }}</th>
+          <th appSortable [state]="sort" key="label">{{ 'accounting.plan.col.label' | t }}</th>
+          <th appSortable [state]="sort" key="accountClass">{{ 'accounting.plan.col.class' | t }}</th>
+          <th appSortable [state]="sort" key="accountType">{{ 'accounting.plan.col.type' | t }}</th>
+          <th>{{ 'accounting.plan.col.flags' | t }}</th>
+          <th appSortable [state]="sort" key="parent">{{ 'accounting.plan.col.parent' | t }}</th>
+          <th *ngIf="canManage">{{ 'common.actions' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let account of sortedAccounts">
+          <td><strong>{{ account.accountNumber }}</strong></td>
+          <td>{{ account.label }}</td>
+          <td>{{ account.accountClass }}</td>
+          <td>{{ ('accounting.plan.type.' + account.accountType) | t }}</td>
+          <td>
+            <span class="flag-badge" *ngIf="account.isLettrable">{{ 'accounting.plan.flag.lettrable' | t }}</span>
+            <span class="flag-badge" *ngIf="account.isBilan">{{ 'accounting.plan.flag.bilan' | t }}</span>
+            <span class="flag-badge" *ngIf="account.isResultat">{{ 'accounting.plan.flag.resultat' | t }}</span>
+          </td>
+          <td>{{ parentLabel(account) || '—' }}</td>
+          <td *ngIf="canManage" class="row-actions">
+            <button class="icon-action" type="button" (click)="openEdit(account)"
+                    [matTooltip]="'common.edit' | t">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button class="icon-action delete" type="button" (click)="remove(account)"
+                    [matTooltip]="'common.delete' | t">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
+        </tr>
+        <tr *ngIf="!loading && sortedAccounts.length === 0">
+          <td [attr.colspan]="canManage ? 7 : 6" class="empty">{{ 'accounting.plan.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="loading">
+          <td [attr.colspan]="canManage ? 7 : 6" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal">
+  <div class="modal-content">
+    <h3>{{ (editing ? 'accounting.plan.modal.edit' : 'accounting.plan.modal.create') | t:{ number: editing?.accountNumber } }}</h3>
+
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'accounting.plan.field.number' | t }} *</label>
+          <input type="text" formControlName="accountNumber" />
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'accounting.plan.field.label' | t }} *</label>
+          <input type="text" formControlName="label" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group grow">
+          <label>{{ 'accounting.plan.field.labelArabic' | t }}</label>
+          <input type="text" formControlName="labelArabic" dir="rtl" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'accounting.plan.field.class' | t }} *</label>
+          <select formControlName="accountClass">
+            <option *ngFor="let c of accountClasses" [ngValue]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ 'accounting.plan.field.type' | t }} *</label>
+          <select formControlName="accountType">
+            <option *ngFor="let t of accountTypes" [value]="t">{{ ('accounting.plan.type.' + t) | t }}</option>
+          </select>
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'accounting.plan.field.parent' | t }}</label>
+          <input type="text"
+                 formControlName="parent"
+                 [matAutocomplete]="parentAuto"
+                 [placeholder]="'accounting.plan.searchPlaceholder' | t"
+                 (input)="parentFilter = $any($event.target).value" />
+          <mat-autocomplete #parentAuto="matAutocomplete" [displayWith]="parentDisplay.bind(this)">
+            <mat-option [value]="null">{{ 'common.none' | t }}</mat-option>
+            <mat-option *ngFor="let p of parentOptions" [value]="p">
+              {{ p.accountNumber }} — {{ p.label }}
+            </mat-option>
+          </mat-autocomplete>
+        </div>
+      </div>
+
+      <div class="form-row flags-row">
+        <mat-checkbox formControlName="isLettrable">{{ 'accounting.plan.flag.lettrable' | t }}</mat-checkbox>
+        <mat-checkbox formControlName="isBilan">{{ 'accounting.plan.flag.bilan' | t }}</mat-checkbox>
+        <mat-checkbox formControlName="isResultat">{{ 'accounting.plan.flag.resultat' | t }}</mat-checkbox>
+      </div>
+
+      <div class="error-box" *ngIf="modalError">{{ modalError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="closeModal()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="submit" [disabled]="saving || form.invalid">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

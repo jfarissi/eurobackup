@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { TPipe } from '../../../pipes/t.pipe';
+import { CompanyService } from '../../../services/company.service';
 
 @Component({
   selector: 'app-catalog-subnav',
@@ -10,7 +11,8 @@ import { TPipe } from '../../../pipes/t.pipe';
   template: `
     <nav class="catalog-subnav" aria-label="Catalogue">
       <a routerLink="/erp-products" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">{{ 'catalog.nav.products' | t }}</a>
-      <a routerLink="/plate-scan" routerLinkActive="active">{{ 'catalog.nav.plateScan' | t }}</a>
+      <a *ngIf="company.hasAutoParts" routerLink="/oem-search" routerLinkActive="active">{{ 'catalog.nav.oemSearch' | t }}</a>
+      <a *ngIf="company.hasAutoParts" routerLink="/plate-scan" routerLinkActive="active">{{ 'catalog.nav.plateScan' | t }}</a>
       <a routerLink="/erp-brands" routerLinkActive="active">{{ 'catalog.nav.brands' | t }}</a>
       <a routerLink="/erp-categories" routerLinkActive="active">{{ 'catalog.nav.categories' | t }}</a>
     </nav>
@@ -37,4 +39,6 @@ import { TPipe } from '../../../pipes/t.pipe';
     }
   `]
 })
-export class CatalogSubnavComponent {}
+export class CatalogSubnavComponent {
+  constructor(public company: CompanyService) {}
+}

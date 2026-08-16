@@ -31,7 +31,8 @@ public class JwtUtils : IJwtUtils
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(GetJwtKey());
-        var roleName = user.Role?.Name ?? (user.IsAdmin ? "Admin" : "User");
+        var roleName = user.Role?.Name
+            ?? (user.IsAdmin ? "Admin" : "User");
 
         var claims = new List<Claim>
         {
@@ -44,6 +45,8 @@ public class JwtUtils : IJwtUtils
         var effectiveCompanyId = !string.IsNullOrWhiteSpace(companyId) ? companyId : user.CompanyId;
         if (!string.IsNullOrWhiteSpace(effectiveCompanyId))
             claims.Add(new Claim("CompanyId", effectiveCompanyId));
+        if (user.CustomerId.HasValue)
+            claims.Add(new Claim("CustomerId", user.CustomerId.Value.ToString()));
 
         if (!string.IsNullOrWhiteSpace(user.Email))
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));

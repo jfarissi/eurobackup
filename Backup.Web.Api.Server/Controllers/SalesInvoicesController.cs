@@ -292,6 +292,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(invoice.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(invoice.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // RG-CP1 : devise figée à la création depuis Company.DefaultCurrencyCode.
             var invoiceCompany = await this.storage.SelectCompanyByIdAsync(invoice.CompanyId);
@@ -440,6 +442,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(invoice.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(invoice.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // Lignes issues d'un BL : produit figé, qté ≤ livré, suppression interdite.
             var locked = existing.Lines.Where(l => l.DeliveredQuantity > 0).ToList();
@@ -542,6 +546,8 @@ namespace Backup.Web.Api.Server.Controllers
             if (invoice.Date != default) existing.Date = invoice.Date;
             existing.Lines = merged;
             existing.HeaderDiscountPercent = SalesBusinessRules.CapDiscountPercent(invoice.HeaderDiscountPercent);
+            existing.ShippingAmountHt = invoice.ShippingAmountHt;
+            existing.ShippingVatRate = invoice.ShippingVatRate;
             SalesBusinessRules.RecalculateInvoiceTotals(existing);
 
             var updated = await this.storage.UpdateSalesInvoiceAsync(existing);

@@ -77,7 +77,7 @@ public class AuthController : ControllerBase
             var roleName = roles.FirstOrDefault() ?? "User";
             user.IsAdmin = roles.Contains("Admin")
                 || string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase);
-            user.Role = null;
+            user.Role = new Role { Name = roleName };
 
             var companies = await LoadUserCompaniesAsync(user.Id);
             var companyId = user.CompanyId;
@@ -130,6 +130,7 @@ public class AuthController : ControllerBase
         var companyName = companies.FirstOrDefault(c => c.Id == request.CompanyId)?.Name;
         var roles = await _userManager.GetRolesAsync(user);
         user.IsAdmin = roles.Contains("Admin");
+        user.Role = new Role { Name = roles.FirstOrDefault() ?? "User" };
 
         var permissions = await PermissionResolver.GetUserPermissionsAsync(_userManager, _roleManager, user);
         var token = _jwtUtils.GenerateJwtToken(user, request.CompanyId, permissions);
@@ -155,6 +156,7 @@ public class AuthController : ControllerBase
         var companies = await LoadUserCompaniesAsync(userId);
         var companyId = User.FindFirstValue("CompanyId") ?? user.CompanyId;
         var companyName = companies.FirstOrDefault(c => c.Id == companyId)?.Name;
+        user.Role = new Role { Name = roles.FirstOrDefault() ?? "User" };
         var permissions = await PermissionResolver.GetUserPermissionsAsync(_userManager, _roleManager, user);
         var token = _jwtUtils.GenerateJwtToken(user, companyId, permissions);
 

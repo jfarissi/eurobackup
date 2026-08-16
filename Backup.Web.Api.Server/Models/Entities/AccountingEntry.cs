@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Backup.Web.Api.Server.Models.Entities.Accounting;
 using Backup.Web.Api.Server.Services.Audit;
 using Backup.Web.Api.Server.Services.Tenancy;
 
@@ -17,6 +18,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public int ReferenceId { get; set; }
         public string Description { get; set; } = string.Empty;
         public string Status { get; set; } = "Posted";
+        /// <summary>Journal structuré (Phase 1 — nullable, renseigné par le générateur Phase 2).</summary>
+        public int? JournalId { get; set; }
+        public Journal? Journal { get; set; }
+        /// <summary>Période fiscale de comptabilisation (Phase 1 — nullable).</summary>
+        public int? FiscalPeriodId { get; set; }
+        public FiscalPeriod? FiscalPeriod { get; set; }
         public string? CompanyId { get; set; }
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -36,6 +43,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal Debit { get; set; }
         public decimal Credit { get; set; }
         public int LineNumber { get; set; }
+        /// <summary>Lien vers le compte du plan (Phase 1 — nullable ; AccountCode reste la référence texte).</summary>
+        public int? ChartOfAccountId { get; set; }
+        public ChartOfAccount? ChartOfAccount { get; set; }
+        /// <summary>Code de lettrage (Phase 3) — null tant que la ligne n'est pas lettrée.</summary>
+        public string? LettrageCode { get; set; }
+        public DateTime? LettrageDate { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

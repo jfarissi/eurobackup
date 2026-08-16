@@ -34,20 +34,28 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] int? parentId = null,
             [FromQuery] bool? activeOnly = null)
         {
-            var query = this.storage.SelectAllErpCategories().AsNoTracking();
-            if (!string.IsNullOrWhiteSpace(level))
-                query = query.Where(c => c.Level == level);
-            if (parentId.HasValue)
-                query = query.Where(c => c.ParentId == parentId.Value);
-            if (activeOnly == true)
-                query = query.Where(c => c.IsActive);
+            try
+            {
+                var query = this.storage.SelectAllErpCategories().AsNoTracking();
+                if (!string.IsNullOrWhiteSpace(level))
+                    query = query.Where(c => c.Level == level);
+                if (parentId.HasValue)
+                    query = query.Where(c => c.ParentId == parentId.Value);
+                if (activeOnly == true)
+                    query = query.Where(c => c.IsActive);
 
-            var list = await query
-                .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.NameFr)
-                .ThenBy(c => c.NameNl)
-                .ToListAsync();
-            return Ok(list);
+                var list = await query
+                    .OrderBy(c => c.SortOrder)
+                    .ThenBy(c => c.NameFr)
+                    .ThenBy(c => c.NameNl)
+                    .ToListAsync();
+                return Ok(list);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Lecture des catégories impossible", detail = msg });
+            }
         }
 
         [HttpGet("{id:int}")]

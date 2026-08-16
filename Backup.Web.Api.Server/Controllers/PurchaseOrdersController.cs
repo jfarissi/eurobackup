@@ -64,9 +64,11 @@ namespace Backup.Web.Api.Server.Controllers
 
         [HttpGet]
         [RequirePermission(Permissions.PurchaseOrderRead)]
-        public IActionResult GetAll([FromQuery] string? search = null)
+        public IActionResult GetAll([FromQuery] string? search = null, [FromQuery] int? salesOrderId = null)
         {
             var query = this.storage.SelectAllPurchaseOrders().ForCompany(this.companyContext.GetCurrentCompanyId());
+            if (salesOrderId is > 0)
+                query = query.Where(p => p.SalesOrderId == salesOrderId);
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.ToLowerInvariant();
@@ -108,9 +110,17 @@ namespace Backup.Web.Api.Server.Controllers
             // RG-CP1 : devise figée à la création depuis Company.DefaultCurrencyCode.
             order.CurrencyCode = await SalesBusinessRules.ResolveCompanyCurrencyAsync(this.storage, order.CompanyId);
 
-            order.TotalHT = order.Lines.Sum(l => l.Quantity * l.UnitPrice);
-            order.TotalVat = order.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.VatRate / 100m));
-            order.TotalTTC = order.TotalHT + order.TotalVat;
+            foreach (var line in order.Lines ?? new List<PurchaseOrderLine>())
+            {
+                var discountErr = SalesBusinessRules.ValidateDiscountPercent(line.DiscountPercent, $"ligne {line.ProductKey}");
+                if (discountErr != null) return BadRequest(discountErr);
+            }
+            var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(order.HeaderDiscountPercent, "remise pied de page");
+            if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(order.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
+
+            SalesBusinessRules.RecalculatePurchaseOrderTotals(order);
 
             var created = await this.storage.InsertPurchaseOrderAsync(order);
             await this.AuditPurchaseOrder(created.Id, "Created", $"Création {created.OrderNumber} ({created.Status})");
@@ -136,10 +146,21 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Status = order.Status;
             existing.Notes = order.Notes;
             existing.Lines = order.Lines;
+            existing.HeaderDiscountPercent = order.HeaderDiscountPercent;
+            existing.ShippingAmountHt = order.ShippingAmountHt;
+            existing.ShippingVatRate = order.ShippingVatRate;
 
-            existing.TotalHT = order.Lines.Sum(l => l.Quantity * l.UnitPrice);
-            existing.TotalVat = order.Lines.Sum(l => l.Quantity * l.UnitPrice * (l.VatRate / 100m));
-            existing.TotalTTC = existing.TotalHT + existing.TotalVat;
+            foreach (var line in existing.Lines ?? new List<PurchaseOrderLine>())
+            {
+                var discountErr = SalesBusinessRules.ValidateDiscountPercent(line.DiscountPercent, $"ligne {line.ProductKey}");
+                if (discountErr != null) return BadRequest(discountErr);
+            }
+            var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(existing.HeaderDiscountPercent, "remise pied de page");
+            if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(existing.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
+
+            SalesBusinessRules.RecalculatePurchaseOrderTotals(existing);
 
             var updated = await this.storage.UpdatePurchaseOrderAsync(existing);
             return Ok(updated);

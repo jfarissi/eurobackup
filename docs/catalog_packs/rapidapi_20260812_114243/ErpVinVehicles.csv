@@ -1,0 +1,2 @@
+﻿Id,CompanyId,Vin,Make,Model,Year,EngineCode,FuelType,PowerHP,ExternalVehicleId,ExternalModelId,ExternalManufacturerId,Source,RawJson,CreatedAt,UpdatedAt,HitCount,LastHitAt
+c54df4b0-ad86-443e-9bb6-af68f3c39ebd,00000000-0000-0000-0000-000000000002,1C4NJCCU3ED585126,JEEP,Compass,2014,,Diesel,,,,,Nhtsa,,2026-08-12 09:04:47,2026-08-12 09:04:47,1,2026-08-12 09:04:47

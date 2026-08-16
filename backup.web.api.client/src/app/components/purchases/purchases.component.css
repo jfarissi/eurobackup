@@ -282,6 +282,18 @@ a.btn-primary {
   display: flex;
   gap: 18px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.header-discount-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.header-discount-field input {
+  width: 72px;
 }
 
 .icon-btn {

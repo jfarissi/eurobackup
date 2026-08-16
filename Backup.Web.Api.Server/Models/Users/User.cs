@@ -35,6 +35,9 @@ namespace Backup.Web.Api.Server.Models.Users
         /// <summary>Société active par défaut (claim JWT CompanyId).</summary>
         public string? CompanyId { get; set; }
 
+        /// <summary>Client lié pour le portail Garage (F5). Null = utilisateur staff.</summary>
+        public int? CustomerId { get; set; }
+
         [NotMapped]
         public string? Token { get; set; }
 

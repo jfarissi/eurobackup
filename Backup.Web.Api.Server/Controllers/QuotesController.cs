@@ -66,24 +66,9 @@ namespace Backup.Web.Api.Server.Controllers
             }
         }
 
-        /// <summary>RG-CP3 : recalcule les totaux avec remise ligne + remise pied de page.</summary>
-        private static void RecalcQuoteTotals(Quote quote)
-        {
-            foreach (var line in quote.Lines)
-            {
-                line.DiscountPercent = SalesBusinessRules.CapDiscountPercent(line.DiscountPercent);
-                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
-                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
-            }
-
-            var totalHT = quote.Lines.Sum(l => l.TotalHT);
-            var totalVat = quote.Lines.Sum(l => l.TotalTTC - l.TotalHT);
-            var totalTTC = quote.Lines.Sum(l => l.TotalTTC);
-            SalesBusinessRules.ApplyHeaderDiscount(quote.HeaderDiscountPercent, ref totalHT, ref totalVat, ref totalTTC);
-            quote.TotalHT = totalHT;
-            quote.TotalVat = totalVat;
-            quote.TotalTTC = totalTTC;
-        }
+        /// <summary>RG-CP3 / RG-FA1 : recalcule les totaux (remises + frais de port).</summary>
+        private static void RecalcQuoteTotals(Quote quote) =>
+            SalesBusinessRules.RecalculateQuoteTotals(quote);
 
         [HttpGet]
         [RequirePermission(Permissions.QuoteRead)]
@@ -128,6 +113,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(quote.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(quote.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // RG-PT1–5 lite : si prix de ligne non renseigné, tenter le tarif client puis l'ERP.
             await this.ApplyPriceListFallbackAsync(quote.CustomerId, quote.CompanyId, quote.Lines);
@@ -190,6 +177,8 @@ namespace Backup.Web.Api.Server.Controllers
             }
             var headerDiscountErr = SalesBusinessRules.ValidateDiscountPercent(quote.HeaderDiscountPercent, "remise pied de page");
             if (headerDiscountErr != null) return BadRequest(headerDiscountErr);
+            var shippingErr = SalesBusinessRules.ValidateShippingAmount(quote.ShippingAmountHt);
+            if (shippingErr != null) return BadRequest(shippingErr);
 
             // RG-DV7 : au-delà du Draft (Sent/Accepted), toute modification bascule en versionning
             // (édition autorisée mais Version incrémentée + note + audit "Versioned" au lieu d'un simple écrasement).
@@ -204,6 +193,8 @@ namespace Backup.Web.Api.Server.Controllers
             existing.Notes = quote.Notes;
             existing.Lines = quote.Lines;
             existing.HeaderDiscountPercent = quote.HeaderDiscountPercent;
+            existing.ShippingAmountHt = quote.ShippingAmountHt;
+            existing.ShippingVatRate = quote.ShippingVatRate;
 
             RecalcQuoteTotals(existing);
 
@@ -380,15 +371,11 @@ namespace Backup.Web.Api.Server.Controllers
             if (linesToConvert.Count == 0)
                 return BadRequest("Aucune quantité à convertir (déjà convertie ou sélection vide).");
 
-            var convertedHt = linesToConvert.Sum(x => x.Qty * x.Line.UnitPrice);
-            var convertedVat = linesToConvert.Sum(x => x.Qty * x.Line.UnitPrice * (x.Line.VatRate / 100m));
-            var convertedTtc = convertedHt + convertedVat;
+            // RG-FA2 lite : frais de port reportés sur la première conversion uniquement.
+            var isFirstConversion = quote.Lines.All(l => l.ConvertedQuantity <= 0.0001m);
 
             var customer = await this.storage.SelectCustomerByIdAsync(quote.CustomerId);
             if (customer == null) return BadRequest("Client introuvable.");
-            // RG-T5 : le plafond de crédit est vérifié sur le TTC réellement converti, pas le TTC total du devis.
-            var creditError = SalesBusinessRules.ValidateCreditLimit(this.storage, customer, convertedTtc);
-            if (creditError != null) return BadRequest(creditError);
 
             var orderCompanyId = quote.CompanyId ?? this.companyContext.GetCurrentCompanyId();
             var order = new SalesOrder
@@ -399,10 +386,9 @@ namespace Backup.Web.Api.Server.Controllers
                 QuoteId = quote.Id,
                 Date = DateTime.UtcNow,
                 Status = "Confirmed",
-                TotalHT = convertedHt,
-                TotalVat = convertedVat,
-                TotalTTC = convertedTtc,
                 HeaderDiscountPercent = quote.HeaderDiscountPercent,
+                ShippingAmountHt = isFirstConversion ? quote.ShippingAmountHt : 0m,
+                ShippingVatRate = quote.ShippingVatRate,
                 // RG-CP1 : devise figée à la création depuis Company.DefaultCurrencyCode.
                 CurrencyCode = await SalesBusinessRules.ResolveCompanyCurrencyAsync(this.storage, orderCompanyId),
                 Notes = $"Converti depuis le devis {quote.QuoteNumber}",
@@ -422,6 +408,11 @@ namespace Backup.Web.Api.Server.Controllers
                     SupplierId = x.Line.SupplierId
                 }).ToList()
             };
+            SalesBusinessRules.RecalculateOrderTotals(order);
+
+            // RG-T5 : le plafond de crédit est vérifié sur le TTC réellement converti (lignes + FDP).
+            var creditError = SalesBusinessRules.ValidateCreditLimit(this.storage, customer, order.TotalTTC);
+            if (creditError != null) return BadRequest(creditError);
 
             foreach (var (line, qty) in linesToConvert)
                 line.ConvertedQuantity = Math.Min(line.Quantity, line.ConvertedQuantity + qty);

@@ -12,10 +12,12 @@ using Authorize = Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
 using AllowAnonymous = Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models;
+using Backup.Web.Api.Server.Models.Catalog;
 using Backup.Web.Api.Server.Models.Security;
 using Backup.Web.Api.Server.Services.ErpSync;
 using Backup.Web.Api.Server.Services.Purchases;
 using Backup.Web.Api.Server.Services.Tenancy;
+using Backup.Web.Api.Server.Services.AutoParts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Timeouts;
@@ -80,23 +82,28 @@ namespace Backup.Web.Api.Server.Controllers
         {
             var upstream = ErpProductImageUrls.ToUpstreamUrl(_erpSyncOptions.ImageBaseUrl, f);
             if (upstream == null)
-                return NotFound();
+                return NotFound(new { message = "Image introuvable ou nom de fichier invalide", file = f });
 
             try
             {
                 var client = _httpClientFactory.CreateClient("ErpProductImages");
                 using var response = await client.GetAsync(upstream, HttpCompletionOption.ResponseHeadersRead, ct);
                 if (!response.IsSuccessStatusCode)
-                    return StatusCode((int)response.StatusCode);
+                    return StatusCode((int)response.StatusCode, new { message = "Image absente sur le serveur ERP", upstream });
 
                 var contentType = response.Content.Headers.ContentType?.ToString() ?? "image/jpeg";
                 var bytes = await response.Content.ReadAsByteArrayAsync(ct);
                 Response.Headers.CacheControl = "public,max-age=3600";
                 return File(bytes, contentType);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return NotFound();
+                return StatusCode(StatusCodes.Status502BadGateway, new
+                {
+                    message = "Impossible de joindre le serveur images ERP",
+                    upstream,
+                    detail = ex.Message
+                });
             }
         }
 
@@ -115,11 +122,34 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] int? supplierId = null,
             [FromQuery] string? vehicleBrand = null,
             [FromQuery] string? vehicleModel = null,
-            [FromQuery] int? vehicleYear = null,
+            [FromQuery] string? vehicleYear = null,
+            [FromQuery] string? vehicleFuel = null,
+            [FromQuery] string? vehicleBody = null,
+            [FromQuery] string? vehicleDrive = null,
+            [FromQuery] string? vehicleTransmission = null,
+            [FromQuery] string? vehicleEngine = null,
+            [FromQuery] string? vehicleKType = null,
             CancellationToken ct = default)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 200);
+
+            var vehicleYearParsed = TryParseVehicleYear(vehicleYear);
+            if (!string.IsNullOrWhiteSpace(vehicleYear) && !vehicleYearParsed.HasValue)
+            {
+                return Ok(new { total = 0, page, pageSize, items = Array.Empty<ErpProduct>() });
+            }
+
+            var hasVehicleFilter =
+                !string.IsNullOrWhiteSpace(vehicleBrand)
+                || !string.IsNullOrWhiteSpace(vehicleModel)
+                || vehicleYearParsed.HasValue
+                || !string.IsNullOrWhiteSpace(vehicleFuel)
+                || !string.IsNullOrWhiteSpace(vehicleBody)
+                || !string.IsNullOrWhiteSpace(vehicleDrive)
+                || !string.IsNullOrWhiteSpace(vehicleTransmission)
+                || !string.IsNullOrWhiteSpace(vehicleEngine)
+                || !string.IsNullOrWhiteSpace(vehicleKType);
 
             var query = _storage.SelectAllErpProducts().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(brand))
@@ -137,16 +167,15 @@ namespace Backup.Web.Api.Server.Controllers
             if (!string.IsNullOrWhiteSpace(subTypeId))
                 query = query.Where(p => p.SubTypeID == subTypeId);
             else if (!string.IsNullOrWhiteSpace(typeId))
-                query = query.Where(p => p.TypeID == typeId);
+                query = ApplyCategoryExternalIdFilter(query, typeId, "Type");
             else if (!string.IsNullOrWhiteSpace(mainTypeId))
-                query = query.Where(p => p.MainTypeID == mainTypeId);
+                query = ApplyCategoryExternalIdFilter(query, mainTypeId, "MainType");
 
-            if (!string.IsNullOrWhiteSpace(vehicleBrand)
-                || !string.IsNullOrWhiteSpace(vehicleModel)
-                || vehicleYear.HasValue)
+            if (hasVehicleFilter)
             {
                 var matchingIds = await FindProductIdsByVehicleCompatAsync(
-                    vehicleBrand, vehicleModel, vehicleYear, ct);
+                    vehicleBrand, vehicleModel, vehicleYearParsed, vehicleFuel,
+                    vehicleBody, vehicleDrive, vehicleTransmission, vehicleEngine, vehicleKType, ct);
                 query = query.Where(p => matchingIds.Contains(p.Id));
             }
 
@@ -209,7 +238,109 @@ namespace Backup.Web.Api.Server.Controllers
                 .Take(pageSize)
                 .ToListAsync(ct);
 
+            if (hasVehicleFilter && items.Count > 0)
+            {
+                await AttachVehicleFitmentsAsync(
+                    items,
+                    vehicleBrand,
+                    vehicleModel,
+                    vehicleYearParsed,
+                    vehicleKType,
+                    ct);
+            }
+
             return Ok(new { total, page, pageSize, items });
+        }
+
+        private static int? TryParseVehicleYear(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            if (!int.TryParse(raw.Trim(), out var year)) return null;
+            if (year < 1950 || year > 2035) return null;
+            return year;
+        }
+
+        private async Task AttachVehicleFitmentsAsync(
+            List<ErpProduct> items,
+            string? vehicleBrand,
+            string? vehicleModel,
+            int? vehicleYear,
+            string? vehicleKType,
+            CancellationToken ct)
+        {
+            var productIds = items.Select(p => p.Id).ToList();
+            var fitments = await _storage.SelectAllErpProductVehicles()
+                .AsNoTracking()
+                .Where(v => productIds.Contains(v.ProductId))
+                .ToListAsync(ct);
+
+            foreach (var product in items)
+            {
+                var fit = PickBestVehicleFitment(
+                    fitments.Where(v => v.ProductId == product.Id).ToList(),
+                    vehicleBrand,
+                    vehicleModel,
+                    vehicleYear,
+                    vehicleKType);
+                if (fit == null) continue;
+
+                product.VehicleMake = fit.Make;
+                product.VehicleModel = fit.Model;
+                product.VehicleTypeName = fit.TypeName;
+                product.VehicleYearFrom = fit.YearFrom;
+                product.VehicleYearTo = fit.YearTo;
+                product.VehicleEngineCode = fit.EngineCode;
+                product.VehicleKType = fit.KType;
+                product.VehicleFuelType = fit.FuelType;
+            }
+        }
+
+        private static ErpProductVehicle? PickBestVehicleFitment(
+            List<ErpProductVehicle> candidates,
+            string? vehicleBrand,
+            string? vehicleModel,
+            int? vehicleYear,
+            string? vehicleKType)
+        {
+            if (candidates.Count == 0) return null;
+
+            ErpProductVehicle? Pick(Func<ErpProductVehicle, bool> pred) =>
+                candidates.FirstOrDefault(pred);
+
+            if (!string.IsNullOrWhiteSpace(vehicleKType))
+            {
+                var k = vehicleKType.Trim();
+                var byK = Pick(v => string.Equals(v.KType, k, StringComparison.OrdinalIgnoreCase));
+                if (byK != null) return byK;
+            }
+
+            if (!string.IsNullOrWhiteSpace(vehicleBrand) && !string.IsNullOrWhiteSpace(vehicleModel))
+            {
+                var byMakeModel = Pick(v =>
+                    VehicleMakeAliases.Matches(v.Make, vehicleBrand)
+                    && (string.Equals(v.Model, vehicleModel, StringComparison.OrdinalIgnoreCase)
+                        || v.Model.StartsWith(vehicleModel, StringComparison.OrdinalIgnoreCase)));
+                if (byMakeModel != null) return byMakeModel;
+            }
+
+            if (!string.IsNullOrWhiteSpace(vehicleBrand))
+            {
+                var byMake = Pick(v => VehicleMakeAliases.Matches(v.Make, vehicleBrand));
+                if (byMake != null) return byMake;
+            }
+
+            if (vehicleYear.HasValue)
+            {
+                var year = vehicleYear.Value;
+                var maxOpenYear = DateTime.UtcNow.Year + 1;
+                var byYear = Pick(v =>
+                    (v.YearFrom.HasValue || v.YearTo.HasValue)
+                    && (!v.YearFrom.HasValue || v.YearFrom <= year)
+                    && (v.YearTo.HasValue ? v.YearTo >= year : year <= maxOpenYear));
+                if (byYear != null) return byYear;
+            }
+
+            return candidates[0];
         }
 
         [HttpGet("{id:int}")]
@@ -236,6 +367,8 @@ namespace Backup.Web.Api.Server.Controllers
             public string? BrandName { get; set; }
             public int? CategoryId { get; set; }
             public string? SupplierName { get; set; }
+            public bool IsDropship { get; set; }
+            public int? DropshipSupplierId { get; set; }
         }
 
         /// <summary>
@@ -281,6 +414,8 @@ namespace Backup.Web.Api.Server.Controllers
                 TypeVatPerc = request.VatPercent ?? 21m,
                 DataSource = "Manual",
                 FromExcel = false,
+                IsDropship = request.IsDropship,
+                DropshipSupplierId = request.IsDropship ? request.DropshipSupplierId : null,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -317,6 +452,8 @@ namespace Backup.Web.Api.Server.Controllers
             public decimal? Height { get; set; }
             public decimal? Width { get; set; }
             public decimal? Depth { get; set; }
+            public bool? IsDropship { get; set; }
+            public int? DropshipSupplierId { get; set; }
         }
 
         [HttpPut("{id:int}")]
@@ -345,6 +482,15 @@ namespace Backup.Web.Api.Server.Controllers
             if (request.Height.HasValue) existing.Height = request.Height;
             if (request.Width.HasValue) existing.Width = request.Width;
             if (request.Depth.HasValue) existing.Depth = request.Depth;
+            if (request.IsDropship.HasValue)
+            {
+                existing.IsDropship = request.IsDropship.Value;
+                existing.DropshipSupplierId = request.IsDropship.Value ? request.DropshipSupplierId : null;
+            }
+            else if (request.DropshipSupplierId.HasValue && existing.IsDropship)
+            {
+                existing.DropshipSupplierId = request.DropshipSupplierId;
+            }
 
             if (request.BrandId.HasValue || !string.IsNullOrWhiteSpace(request.BrandName))
             {
@@ -838,6 +984,173 @@ namespace Backup.Web.Api.Server.Controllers
             }
         }
 
+        /// <summary>Fitments véhicule d'un produit (ErpProductVehicles) — détail pièce auto.</summary>
+        [HttpGet("{id:int}/vehicles")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetProductVehicles(int id, CancellationToken ct = default)
+        {
+            var exists = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == id, ct);
+            if (!exists)
+                return NotFound(new { message = $"Produit {id} introuvable." });
+
+            var vehicles = await _storage.SelectAllErpProductVehicles()
+                .AsNoTracking()
+                .Where(v => v.ProductId == id)
+                .OrderBy(v => v.Make)
+                .ThenBy(v => v.Model)
+                .ThenBy(v => v.YearFrom)
+                .ThenBy(v => v.TypeName)
+                .Select(v => new
+                {
+                    v.Id,
+                    v.Make,
+                    v.Model,
+                    v.TypeName,
+                    v.YearFrom,
+                    v.YearTo,
+                    v.EngineCode,
+                    v.KType,
+                    v.BodyType,
+                    v.FuelType,
+                    v.DriveType,
+                    v.Transmission,
+                    v.PowerKW,
+                    v.PowerHP,
+                    v.Ccm,
+                    v.Cylinders,
+                    v.Valves
+                })
+                .ToListAsync(ct);
+
+            return Ok(vehicles);
+        }
+
+        /// <summary>Cross-références OEM d'un produit.</summary>
+        [HttpGet("{id:int}/oems")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetProductOems(int id, CancellationToken ct = default)
+        {
+            var exists = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == id, ct);
+            if (!exists)
+                return NotFound(new { message = $"Produit {id} introuvable." });
+
+            var oems = await _storage.SelectAllErpOemCrossReferences()
+                .AsNoTracking()
+                .Where(o => o.ProductId == id)
+                .OrderByDescending(o => o.IsOriginal)
+                .ThenBy(o => o.OemNumber)
+                .Select(o => new
+                {
+                    o.Id,
+                    o.OemNumber,
+                    o.Brand,
+                    o.IsOriginal
+                })
+                .ToListAsync(ct);
+
+            return Ok(oems);
+        }
+
+        /// <summary>Recherche produits par numéro OEM (exact puis préfixe / contient).</summary>
+        [HttpGet("by-oem")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> SearchByOem(
+            [FromQuery] string? q = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50,
+            CancellationToken ct = default)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var term = (q ?? string.Empty).Trim();
+            if (term.Length < 3)
+                return Ok(new { total = 0, page, pageSize, query = term, items = Array.Empty<object>() });
+
+            var termLower = term.ToLowerInvariant();
+            var termCompact = NormalizeOem(term);
+
+            var oemRows = await _storage.SelectAllErpOemCrossReferences()
+                .AsNoTracking()
+                .Where(o => o.OemNumber != null && o.OemNumber != "")
+                .Select(o => new { o.ProductId, o.OemNumber, o.Brand, o.IsOriginal })
+                .ToListAsync(ct);
+
+            var matched = oemRows
+                .Select(o =>
+                {
+                    var oemLower = o.OemNumber.ToLowerInvariant();
+                    var oemCompact = NormalizeOem(o.OemNumber);
+                    var score =
+                        oemLower == termLower || oemCompact == termCompact ? 3
+                        : oemLower.StartsWith(termLower) || oemCompact.StartsWith(termCompact) ? 2
+                        : oemLower.Contains(termLower) || oemCompact.Contains(termCompact) ? 1
+                        : 0;
+                    return new { o.ProductId, o.OemNumber, o.Brand, o.IsOriginal, score };
+                })
+                .Where(x => x.score > 0)
+                .ToList();
+
+            if (matched.Count == 0)
+                return Ok(new { total = 0, page, pageSize, query = term, items = Array.Empty<object>() });
+
+            var bestByProduct = matched
+                .GroupBy(x => x.ProductId)
+                .Select(g => g.OrderByDescending(x => x.score).ThenByDescending(x => x.IsOriginal).First())
+                .OrderByDescending(x => x.score)
+                .ThenBy(x => x.OemNumber)
+                .ToList();
+
+            var total = bestByProduct.Count;
+            var pageHits = bestByProduct.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var productIds = pageHits.Select(x => x.ProductId).ToList();
+
+            var products = await _storage.SelectAllErpProducts()
+                .AsNoTracking()
+                .Where(p => productIds.Contains(p.Id))
+                .ToListAsync(ct);
+            var productMap = products.ToDictionary(p => p.Id);
+
+            var items = pageHits
+                .Where(h => productMap.ContainsKey(h.ProductId))
+                .Select(h =>
+                {
+                    var p = productMap[h.ProductId];
+                    return new
+                    {
+                        productId = p.Id,
+                        erpProductId = p.ErpProductId,
+                        name = p.Name,
+                        reference = p.Reference,
+                        brand = p.Brand,
+                        unitPrice = p.UnitPrice ?? p.RPrice,
+                        stockQuantity = p.StockQuantity,
+                        matchedOem = h.OemNumber,
+                        oemBrand = h.Brand,
+                        isOriginal = h.IsOriginal
+                    };
+                })
+                .ToList();
+
+            return Ok(new { total, page, pageSize, query = term, items });
+        }
+
+        private static string NormalizeOem(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var sb = new StringBuilder(value.Length);
+            foreach (var c in value)
+            {
+                if (char.IsLetterOrDigit(c))
+                    sb.Append(char.ToLowerInvariant(c));
+            }
+            return sb.ToString();
+        }
+
         [HttpGet("vehicle-makes")]
         [RequirePermission(Permissions.ProductRead)]
         public async Task<IActionResult> GetVehicleMakes(CancellationToken ct = default)
@@ -861,16 +1174,93 @@ namespace Backup.Web.Api.Server.Controllers
             if (string.IsNullOrWhiteSpace(make))
                 return Ok(Array.Empty<string>());
 
-            var makeLower = make.Trim().ToLowerInvariant();
+            var makeAliases = VehicleMakeAliases.Expand(make);
             var models = await _storage.SelectAllErpProductVehicles()
                 .AsNoTracking()
-                .Where(v => v.Make != null && v.Make.ToLower() == makeLower
+                .Where(v => v.Make != null && makeAliases.Contains(v.Make.ToLower())
                             && v.Model != null && v.Model != "")
                 .Select(v => v.Model)
                 .Distinct()
                 .OrderBy(m => m)
                 .ToListAsync(ct);
             return Ok(models);
+        }
+
+        /// <summary>Types de carburant distincts (optionnellement filtrés par marque/modèle).</summary>
+        [HttpGet("vehicle-fuel-types")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetVehicleFuelTypes(
+            [FromQuery] string? make = null,
+            [FromQuery] string? model = null,
+            CancellationToken ct = default)
+        {
+            var facets = await LoadVehicleFacetsAsync(make, model, ct);
+            return Ok(facets.Fuels);
+        }
+
+        /// <summary>Facettes véhicule pour la section filtres (carburant, carrosserie, transmission…).</summary>
+        [HttpGet("vehicle-facets")]
+        [RequirePermission(Permissions.ProductRead)]
+        public async Task<IActionResult> GetVehicleFacets(
+            [FromQuery] string? make = null,
+            [FromQuery] string? model = null,
+            CancellationToken ct = default)
+        {
+            var facets = await LoadVehicleFacetsAsync(make, model, ct);
+            return Ok(new
+            {
+                fuels = facets.Fuels,
+                bodyTypes = facets.BodyTypes,
+                driveTypes = facets.DriveTypes,
+                transmissions = facets.Transmissions
+            });
+        }
+
+        private async Task<(List<string> Fuels, List<string> BodyTypes, List<string> DriveTypes, List<string> Transmissions)>
+            LoadVehicleFacetsAsync(string? make, string? model, CancellationToken ct)
+        {
+            var query = _storage.SelectAllErpProductVehicles().AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(make))
+            {
+                var makeAliases = VehicleMakeAliases.Expand(make);
+                query = query.Where(v => v.Make != null && makeAliases.Contains(v.Make.ToLower()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(model))
+            {
+                var modelLower = model.Trim().ToLowerInvariant();
+                query = query.Where(v =>
+                    v.Model != null
+                    && (v.Model.ToLower() == modelLower || v.Model.ToLower().StartsWith(modelLower)));
+            }
+
+            var fuels = await query
+                .Where(v => v.FuelType != null && v.FuelType != "")
+                .Select(v => v.FuelType!)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(ct);
+            var bodies = await query
+                .Where(v => v.BodyType != null && v.BodyType != "")
+                .Select(v => v.BodyType!)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(ct);
+            var drives = await query
+                .Where(v => v.DriveType != null && v.DriveType != "")
+                .Select(v => v.DriveType!)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(ct);
+            var transmissions = await query
+                .Where(v => v.Transmission != null && v.Transmission != "")
+                .Select(v => v.Transmission!)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(ct);
+
+            return (fuels, bodies, drives, transmissions);
         }
 
         [HttpGet("brands")]
@@ -945,71 +1335,81 @@ namespace Backup.Web.Api.Server.Controllers
             [FromQuery] string? brand = null,
             [FromQuery] string? mainTypeId = null,
             [FromQuery] string? typeId = null,
+            /// <summary>Catalogue pièces auto plat (RapidAPI / CarAPI) : exclut les Type EuroBrico sous MainType ERP.</summary>
+            [FromQuery] bool flatCatalog = false,
             CancellationToken ct = default)
         {
-            var query = _storage.SelectAllErpCategories().AsNoTracking();
-            if (!string.IsNullOrWhiteSpace(level))
-                query = query.Where(c => c.Level == level);
-            if (parentId.HasValue)
-                query = query.Where(c => c.ParentId == parentId.Value);
-
-            var hasProductFilter = !string.IsNullOrWhiteSpace(brand)
-                || !string.IsNullOrWhiteSpace(mainTypeId)
-                || !string.IsNullOrWhiteSpace(typeId);
-
-            if (hasProductFilter)
+            try
             {
-                var products = BuildFilteredProductsQuery(brand, mainTypeId, typeId, subTypeId: null);
+                var query = _storage.SelectAllErpCategories().AsNoTracking();
+                if (!string.IsNullOrWhiteSpace(level))
+                    query = query.Where(c => c.Level == level);
+                if (parentId.HasValue)
+                    query = query.Where(c => c.ParentId == parentId.Value);
 
-                if (parentId.HasValue && !string.IsNullOrWhiteSpace(level))
+                if (flatCatalog
+                    && !string.IsNullOrWhiteSpace(level)
+                    && level.Equals("Type", StringComparison.OrdinalIgnoreCase))
                 {
-                    var parent = await _storage.SelectAllErpCategories()
+                    var carApiMainIds = await _storage.SelectAllErpCategories()
                         .AsNoTracking()
-                        .FirstOrDefaultAsync(c => c.Id == parentId.Value, ct);
-                    if (parent != null)
-                    {
-                        if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
-                            products = products.Where(p => p.MainTypeID == parent.ErpExternalId);
-                        else if (level.Equals("SubType", StringComparison.OrdinalIgnoreCase))
-                            products = products.Where(p => p.TypeID == parent.ErpExternalId);
-                    }
+                        .Where(c => c.Level == "MainType" && c.ErpExternalId == "CARAPI-MAIN")
+                        .Select(c => c.Id)
+                        .ToListAsync(ct);
+                    if (carApiMainIds.Count == 0)
+                        query = query.Where(c => c.ParentId == null);
+                    else
+                        query = query.Where(c => c.ParentId == null || carApiMainIds.Contains(c.ParentId.Value));
                 }
 
-                var validIds = await GetDistinctCategoryExternalIdsAsync(products, level, ct);
-                query = validIds.Count > 0
-                    ? query.Where(c => validIds.Contains(c.ErpExternalId))
-                    : query.Where(c => false);
-            }
+                var hasProductFilter = !string.IsNullOrWhiteSpace(brand)
+                    || !string.IsNullOrWhiteSpace(mainTypeId)
+                    || !string.IsNullOrWhiteSpace(typeId);
 
-            var items = await query
-                .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.NameNl)
-                .ToListAsync(ct);
-            return Ok(items);
+                if (hasProductFilter)
+                {
+                    var products = BuildFilteredProductsQuery(brand, mainTypeId, typeId, subTypeId: null);
+
+                    if (parentId.HasValue && !string.IsNullOrWhiteSpace(level))
+                    {
+                        var parent = await _storage.SelectAllErpCategories()
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(c => c.Id == parentId.Value, ct);
+                        if (parent != null)
+                        {
+                            if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
+                                products = products.Where(p => p.MainTypeID == parent.ErpExternalId);
+                            else if (level.Equals("SubType", StringComparison.OrdinalIgnoreCase))
+                                products = products.Where(p => p.TypeID == parent.ErpExternalId);
+                        }
+                    }
+
+                    var validIds = await GetDistinctCategoryExternalIdsAsync(products, level, ct);
+                    query = validIds.Count > 0
+                        ? query.Where(c => validIds.Contains(c.ErpExternalId))
+                        : query.Where(c => false);
+                }
+
+                var items = await query
+                    .OrderBy(c => c.SortOrder)
+                    .ThenBy(c => c.NameNl)
+                    .ToListAsync(ct);
+                return Ok(items);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = "Lecture des catégories impossible", detail = msg });
+            }
         }
 
-        private static async Task<List<string>> GetDistinctCategoryExternalIdsAsync(
+        private async Task<List<string>> GetDistinctCategoryExternalIdsAsync(
             IQueryable<ErpProduct> products,
             string? level,
             CancellationToken ct)
         {
-            if (level.Equals("MainType", StringComparison.OrdinalIgnoreCase))
-            {
-                return await products
-                    .Where(p => p.MainTypeID != null && p.MainTypeID != "")
-                    .Select(p => p.MainTypeID!)
-                    .Distinct()
-                    .ToListAsync(ct);
-            }
-
-            if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
-            {
-                return await products
-                    .Where(p => p.TypeID != null && p.TypeID != "")
-                    .Select(p => p.TypeID!)
-                    .Distinct()
-                    .ToListAsync(ct);
-            }
+            if (string.IsNullOrWhiteSpace(level))
+                return new List<string>();
 
             if (level.Equals("SubType", StringComparison.OrdinalIgnoreCase))
             {
@@ -1020,7 +1420,50 @@ namespace Backup.Web.Api.Server.Controllers
                     .ToListAsync(ct);
             }
 
-            return new List<string>();
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (level.Equals("MainType", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var id in await products
+                    .Where(p => p.MainTypeID != null && p.MainTypeID != "")
+                    .Select(p => p.MainTypeID!)
+                    .Distinct()
+                    .ToListAsync(ct))
+                    ids.Add(id);
+            }
+            else if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var id in await products
+                    .Where(p => p.TypeID != null && p.TypeID != "")
+                    .Select(p => p.TypeID!)
+                    .Distinct()
+                    .ToListAsync(ct))
+                    ids.Add(id);
+            }
+
+            var categoryIds = await products
+                .Where(p => p.CategoryId != null)
+                .Select(p => p.CategoryId!.Value)
+                .Distinct()
+                .ToListAsync(ct);
+
+            if (categoryIds.Count > 0)
+            {
+                var fromCategory = await _storage.SelectAllErpCategories()
+                    .AsNoTracking()
+                    .Where(c => categoryIds.Contains(c.Id)
+                        && c.Level == level
+                        && c.ErpExternalId != null
+                        && c.ErpExternalId != "")
+                    .Select(c => c.ErpExternalId)
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                foreach (var id in fromCategory)
+                    ids.Add(id);
+            }
+
+            return ids.ToList();
         }
 
         /// <summary>
@@ -1030,63 +1473,196 @@ namespace Backup.Web.Api.Server.Controllers
             string? vehicleBrand,
             string? vehicleModel,
             int? vehicleYear,
+            string? vehicleFuel,
+            string? vehicleBody,
+            string? vehicleDrive,
+            string? vehicleTransmission,
+            string? vehicleEngine,
+            string? vehicleKType,
             CancellationToken ct)
         {
             var ids = new HashSet<int>();
             var brand = vehicleBrand?.Trim();
             var model = vehicleModel?.Trim();
+            var fuel = vehicleFuel?.Trim();
+            var body = vehicleBody?.Trim();
+            var drive = vehicleDrive?.Trim();
+            var transmission = vehicleTransmission?.Trim();
+            var engine = vehicleEngine?.Trim();
+            var kType = vehicleKType?.Trim();
+            var fuelAliases = ExpandFuelAliases(fuel);
+            var hasTechFilter = fuelAliases.Count > 0
+                || !string.IsNullOrWhiteSpace(body)
+                || !string.IsNullOrWhiteSpace(drive)
+                || !string.IsNullOrWhiteSpace(transmission)
+                || !string.IsNullOrWhiteSpace(engine)
+                || !string.IsNullOrWhiteSpace(kType);
+
+            // Raccourci K-Type : filtre TecDoc prioritaire (identité véhicule exacte — l'année n'affine pas).
+            if (!string.IsNullOrWhiteSpace(kType))
+            {
+                var k = kType.ToLowerInvariant();
+                var kQuery = _storage.SelectAllErpProductVehicles().AsNoTracking()
+                    .Where(v => v.KType != null && v.KType.ToLower() == k);
+                foreach (var id in await kQuery.Select(v => v.ProductId).Distinct().ToListAsync(ct))
+                    ids.Add(id);
+                if (ids.Count > 0)
+                    return ids;
+            }
 
             var vehicleQuery = _storage.SelectAllErpProductVehicles().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(brand))
             {
-                var brandLower = brand.ToLowerInvariant();
-                vehicleQuery = vehicleQuery.Where(v => v.Make.ToLower() == brandLower);
+                var makeAliases = VehicleMakeAliases.Expand(brand);
+                vehicleQuery = vehicleQuery.Where(v => makeAliases.Contains(v.Make.ToLower()));
             }
 
             if (!string.IsNullOrWhiteSpace(model))
             {
                 var modelLower = model.ToLowerInvariant();
-                // Exact OU préfixe (UI/plate "Clio" ↔ TecDoc "CLIO II (BB_, CB_)")
                 vehicleQuery = vehicleQuery.Where(v =>
-                    v.Model.ToLower() == modelLower
-                    || v.Model.ToLower().StartsWith(modelLower));
+                    v.Model != null && v.Model != ""
+                    && (v.Model.ToLower() == modelLower
+                        || v.Model.ToLower().StartsWith(modelLower)));
             }
 
             if (vehicleYear.HasValue)
             {
                 var year = vehicleYear.Value;
+                // Année hors plage réaliste → aucun résultat (évite 90000000 matchant YearTo NULL)
+                if (year < 1950 || year > 2035)
+                {
+                    return new HashSet<int>();
+                }
+
+                var maxOpenYear = DateTime.UtcNow.Year + 1;
                 vehicleQuery = vehicleQuery.Where(v =>
-                    (v.YearFrom == null || v.YearFrom <= year)
-                    && (v.YearTo == null || v.YearTo >= year));
+                    (v.YearFrom != null || v.YearTo != null)
+                    && (v.YearFrom == null || v.YearFrom <= year)
+                    && (v.YearTo != null
+                        ? v.YearTo >= year
+                        // YearTo ouvert : limité à l'année courante + 1 (pas l'infini)
+                        : year <= maxOpenYear));
             }
 
-            foreach (var id in await vehicleQuery.Select(v => v.ProductId).Distinct().ToListAsync(ct))
-                ids.Add(id);
-
-            // Fallback JSON attribute (compat manuelle car-api)
-            var defIds = await _storage.SelectAllErpProductAttributeDefinitions()
-                .AsNoTracking()
-                .Where(d => d.Code == CarApiCatalogService.VehicleCompatAttributeCode && d.IsActive)
-                .Select(d => d.Id)
-                .ToListAsync(ct);
-
-            if (defIds.Count > 0)
+            if (!string.IsNullOrWhiteSpace(body))
             {
-                var values = await _storage.SelectAllErpProductAttributeValues()
+                var bodyLower = body.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v =>
+                    v.BodyType != null && v.BodyType.ToLower() == bodyLower);
+            }
+
+            if (!string.IsNullOrWhiteSpace(drive))
+            {
+                var driveLower = drive.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v =>
+                    v.DriveType != null && v.DriveType.ToLower() == driveLower);
+            }
+
+            if (!string.IsNullOrWhiteSpace(transmission))
+            {
+                var transmissionLower = transmission.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v =>
+                    v.Transmission != null && v.Transmission.ToLower() == transmissionLower);
+            }
+
+            if (!string.IsNullOrWhiteSpace(engine))
+            {
+                var engineLower = engine.ToLowerInvariant();
+                vehicleQuery = vehicleQuery.Where(v =>
+                    v.EngineCode != null && v.EngineCode.ToLower().Contains(engineLower));
+            }
+
+            if (fuelAliases.Count > 0)
+            {
+                var rows = await vehicleQuery
+                    .Where(v => v.FuelType != null && v.FuelType != "")
+                    .Select(v => new { v.ProductId, Fuel = v.FuelType! })
+                    .ToListAsync(ct);
+                foreach (var row in rows)
+                {
+                    var ft = row.Fuel.ToLowerInvariant();
+                    if (fuelAliases.Any(a => ft.Contains(a)))
+                        ids.Add(row.ProductId);
+                }
+            }
+            else
+            {
+                foreach (var id in await vehicleQuery.Select(v => v.ProductId).Distinct().ToListAsync(ct))
+                    ids.Add(id);
+            }
+
+            // Fallback JSON attribute (compat manuelle) si pas de critères techniques ErpProductVehicles.
+            if (!hasTechFilter)
+            {
+                var defIds = await _storage.SelectAllErpProductAttributeDefinitions()
                     .AsNoTracking()
-                    .Where(v => defIds.Contains(v.AttributeId) && v.Value != null && v.Value != "")
-                    .Select(v => new { v.ProductId, v.Value })
+                    .Where(d => d.Code == CarApiCatalogService.VehicleCompatAttributeCode && d.IsActive)
+                    .Select(d => d.Id)
                     .ToListAsync(ct);
 
-                foreach (var row in values)
+                if (defIds.Count > 0)
                 {
-                    if (!VehicleCompatMatches(row.Value, brand, model, vehicleYear))
-                        continue;
-                    ids.Add(row.ProductId);
+                    var values = await _storage.SelectAllErpProductAttributeValues()
+                        .AsNoTracking()
+                        .Where(v => defIds.Contains(v.AttributeId) && v.Value != null && v.Value != "")
+                        .Select(v => new { v.ProductId, v.Value })
+                        .ToListAsync(ct);
+
+                    foreach (var row in values)
+                    {
+                        if (!VehicleCompatMatches(row.Value, brand, model, vehicleYear))
+                            continue;
+                        ids.Add(row.ProductId);
+                    }
                 }
             }
 
             return ids;
+        }
+
+        /// <summary>
+        /// Étend un filtre carburant UI (Diesel / Essence…) vers alias TecDoc (Petrol, Gasoline…).
+        /// </summary>
+        private static List<string> ExpandFuelAliases(string? fuel)
+        {
+            if (string.IsNullOrWhiteSpace(fuel))
+                return new List<string>();
+
+            var f = fuel.Trim().ToLowerInvariant();
+            var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { f };
+
+            if (f.Contains("diesel") || f.Contains("gazole"))
+            {
+                aliases.Add("diesel");
+                aliases.Add("gazole");
+            }
+            else if (f.Contains("essence") || f.Contains("petrol") || f.Contains("gasoline") || f.Contains("benzine"))
+            {
+                aliases.Add("essence");
+                aliases.Add("petrol");
+                aliases.Add("gasoline");
+                aliases.Add("benzine");
+            }
+            else if (f.Contains("elect") || f.Contains("élect"))
+            {
+                aliases.Add("electric");
+                aliases.Add("électrique");
+                aliases.Add("electrique");
+            }
+            else if (f.Contains("hybrid") || f.Contains("hybride"))
+            {
+                aliases.Add("hybrid");
+                aliases.Add("hybride");
+            }
+            else if (f.Contains("lpg") || f.Contains("gpl") || f == "gas")
+            {
+                aliases.Add("lpg");
+                aliases.Add("gpl");
+                aliases.Add("gas");
+            }
+
+            return aliases.Select(a => a.ToLowerInvariant()).Distinct().ToList();
         }
 
         private static bool VehicleCompatMatches(
@@ -1113,7 +1689,7 @@ namespace Backup.Web.Api.Server.Controllers
                         : null;
 
                     if (!string.IsNullOrWhiteSpace(brand)
-                        && !string.Equals(entryBrand, brand, StringComparison.OrdinalIgnoreCase))
+                        && !VehicleMakeAliases.Matches(entryBrand, brand))
                         continue;
 
                     if (!string.IsNullOrWhiteSpace(model))
@@ -1126,10 +1702,22 @@ namespace Backup.Web.Api.Server.Controllers
 
                     if (year.HasValue)
                     {
+                        if (year.Value < 1950 || year.Value > 2035)
+                            continue;
+                        // Sans plage d'années → ne matche pas un filtre année explicite
+                        if (!yearFrom.HasValue && !yearTo.HasValue)
+                            continue;
                         if (yearFrom.HasValue && year.Value < yearFrom.Value)
                             continue;
-                        if (yearTo.HasValue && year.Value > yearTo.Value)
+                        if (yearTo.HasValue)
+                        {
+                            if (year.Value > yearTo.Value)
+                                continue;
+                        }
+                        else if (year.Value > DateTime.UtcNow.Year + 1)
+                        {
                             continue;
+                        }
                     }
 
                     return true;
@@ -1196,11 +1784,37 @@ namespace Backup.Web.Api.Server.Controllers
             if (!string.IsNullOrWhiteSpace(subTypeId))
                 query = query.Where(p => p.SubTypeID == subTypeId);
             else if (!string.IsNullOrWhiteSpace(typeId))
-                query = query.Where(p => p.TypeID == typeId);
+                query = ApplyCategoryExternalIdFilter(query, typeId, "Type");
             else if (!string.IsNullOrWhiteSpace(mainTypeId))
-                query = query.Where(p => p.MainTypeID == mainTypeId);
+                query = ApplyCategoryExternalIdFilter(query, mainTypeId, "MainType");
 
             return query;
+        }
+
+        /// <summary>
+        /// Filtre catégorie par ErpExternalId : champs MainTypeID/TypeID OU CategoryId (catalogue RapidAPI plat).
+        /// </summary>
+        private IQueryable<ErpProduct> ApplyCategoryExternalIdFilter(
+            IQueryable<ErpProduct> query,
+            string externalId,
+            string level)
+        {
+            var ext = externalId.Trim();
+            var catIds = _storage.SelectAllErpCategories()
+                .AsNoTracking()
+                .Where(c => c.ErpExternalId == ext)
+                .Select(c => c.Id);
+
+            if (level.Equals("Type", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(p =>
+                    p.TypeID == ext
+                    || (p.CategoryId != null && catIds.Contains(p.CategoryId.Value)));
+            }
+
+            return query.Where(p =>
+                p.MainTypeID == ext
+                || (p.CategoryId != null && catIds.Contains(p.CategoryId.Value)));
         }
 
         [HttpGet("changes")]

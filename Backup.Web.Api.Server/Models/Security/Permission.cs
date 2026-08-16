@@ -117,6 +117,8 @@ namespace Backup.Web.Api.Server.Models.Security
         // Comptabilité
         public const string AccountingRead   = "Accounting.Read";
         public const string AccountingCreate = "Accounting.Create";
+        public const string AccountingManagePlan        = "Accounting.ManagePlan";
+        public const string AccountingManageFiscalYears = "Accounting.ManageFiscalYears";
 
         // Numérotation (admin)
         public const string NumberingManage  = "Numbering.Manage";
@@ -138,6 +140,10 @@ namespace Backup.Web.Api.Server.Models.Security
         public const string RoleCreate       = "Role.Create";
         public const string RoleUpdate       = "Role.Update";
         public const string RoleDelete       = "Role.Delete";
+
+        // Portail Garage B2B (F5) — scoped au CustomerId de l'utilisateur
+        public const string GarageOrdersRead   = "Garage.OrdersRead";
+        public const string GarageVehiclesRead = "Garage.VehiclesRead";
 
         // Email
         public const string EmailRead           = "Email.Read";
@@ -163,12 +169,13 @@ namespace Backup.Web.Api.Server.Models.Security
             SupplierCreditNoteRead, SupplierCreditNoteCreate, SupplierCreditNoteUpdate,
             StockRead, StockUpdate,
             CashRead, CashManage,
-            AccountingRead, AccountingCreate,
+            AccountingRead, AccountingCreate, AccountingManagePlan, AccountingManageFiscalYears,
             NumberingManage,
             HelpManage,
             DocumentRead, DocumentUpload, DocumentLink,
             UserRead, UserCreate, UserUpdate, UserDelete,
             RoleRead, RoleCreate, RoleUpdate, RoleDelete,
+            GarageOrdersRead, GarageVehiclesRead,
             EmailRead, EmailSend, EmailSettingsManage,
         };
     }

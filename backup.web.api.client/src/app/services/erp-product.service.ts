@@ -9,9 +9,13 @@ import {
   ErpChangesPage,
   ErpChangesQuery,
   ErpProduct,
+  ErpProductVehicle,
   ErpProductsPage,
   ErpProductsQuery,
   ErpProductSummary,
+  ErpVehicleFacets,
+  ErpProductOem,
+  OemSearchPage,
   CreateErpProductRequest,
   CreateErpProductResult,
   SuggestBrandResult,
@@ -41,7 +45,15 @@ export class ErpProductService {
     if (query.supplierId != null && query.supplierId > 0) params = params.set('supplierId', String(query.supplierId));
     if (query.vehicleBrand) params = params.set('vehicleBrand', query.vehicleBrand);
     if (query.vehicleModel) params = params.set('vehicleModel', query.vehicleModel);
-    if (query.vehicleYear != null) params = params.set('vehicleYear', String(query.vehicleYear));
+    if (query.vehicleYear != null && String(query.vehicleYear).trim() !== '') {
+      params = params.set('vehicleYear', String(query.vehicleYear).trim());
+    }
+    if (query.vehicleFuel) params = params.set('vehicleFuel', query.vehicleFuel);
+    if (query.vehicleBody) params = params.set('vehicleBody', query.vehicleBody);
+    if (query.vehicleDrive) params = params.set('vehicleDrive', query.vehicleDrive);
+    if (query.vehicleTransmission) params = params.set('vehicleTransmission', query.vehicleTransmission);
+    if (query.vehicleEngine) params = params.set('vehicleEngine', query.vehicleEngine);
+    if (query.vehicleKType) params = params.set('vehicleKType', query.vehicleKType);
     return this.http.get<ErpProductsPage>(this.baseUrl, { params });
   }
 
@@ -58,6 +70,8 @@ export class ErpProductService {
     height?: number | null;
     width?: number | null;
     depth?: number | null;
+    isDropship?: boolean;
+    dropshipSupplierId?: number | null;
   }): Observable<ErpProduct> {
     return this.http.put<ErpProduct>(`${this.baseUrl}/${id}`, body);
   }
@@ -152,6 +166,7 @@ export class ErpProductService {
     brand?: string;
     mainTypeId?: string;
     typeId?: string;
+    flatCatalog?: boolean;
   } = {}): Observable<ErpCategory[]> {
     let params = new HttpParams();
     if (query.level) params = params.set('level', query.level);
@@ -159,6 +174,7 @@ export class ErpProductService {
     if (query.brand) params = params.set('brand', query.brand);
     if (query.mainTypeId) params = params.set('mainTypeId', query.mainTypeId);
     if (query.typeId) params = params.set('typeId', query.typeId);
+    if (query.flatCatalog === true) params = params.set('flatCatalog', 'true');
     return this.http.get<ErpCategory[]>(`${this.baseUrl}/categories`, { params });
   }
 
@@ -171,6 +187,41 @@ export class ErpProductService {
   getVehicleModels(make: string): Observable<string[]> {
     const params = new HttpParams().set('make', make);
     return this.http.get<string[]>(`${this.baseUrl}/vehicle-models`, { params });
+  }
+
+  /** Facettes véhicule pour la section filtres (carburant, carrosserie…). */
+  getVehicleFacets(make?: string, model?: string): Observable<ErpVehicleFacets> {
+    let params = new HttpParams();
+    if (make) params = params.set('make', make);
+    if (model) params = params.set('model', model);
+    return this.http.get<ErpVehicleFacets>(`${this.baseUrl}/vehicle-facets`, { params });
+  }
+
+  /** Types de carburant distincts (optionnellement filtrés marque/modèle). */
+  getVehicleFuelTypes(make?: string, model?: string): Observable<string[]> {
+    let params = new HttpParams();
+    if (make) params = params.set('make', make);
+    if (model) params = params.set('model', model);
+    return this.http.get<string[]>(`${this.baseUrl}/vehicle-fuel-types`, { params });
+  }
+
+  /** Fitments véhicule d'un produit (détail pièce). */
+  getProductVehicles(productId: number): Observable<ErpProductVehicle[]> {
+    return this.http.get<ErpProductVehicle[]>(`${this.baseUrl}/${productId}/vehicles`);
+  }
+
+  /** Cross-références OEM d'un produit. */
+  getProductOems(productId: number): Observable<ErpProductOem[]> {
+    return this.http.get<ErpProductOem[]>(`${this.baseUrl}/${productId}/oems`);
+  }
+
+  /** Recherche catalogue par numéro OEM. */
+  searchByOem(q: string, page = 1, pageSize = 50): Observable<OemSearchPage> {
+    let params = new HttpParams()
+      .set('q', q)
+      .set('page', String(page))
+      .set('pageSize', String(pageSize));
+    return this.http.get<OemSearchPage>(`${this.baseUrl}/by-oem`, { params });
   }
 
   syncCatalog(filter: ErpCatalogSyncFilter, cancelPrevious = true): Observable<ErpSyncLog> {

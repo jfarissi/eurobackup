@@ -1,0 +1,88 @@
+<div class="page catalog-page oem-page">
+  <section class="catalog-subheader">
+    <div class="catalog-subheader-inner">
+      <div>
+        <h2>{{ 'oemSearch.title' | t }}</h2>
+        <p>{{ 'oemSearch.subtitle' | t }}</p>
+        <app-catalog-subnav></app-catalog-subnav>
+      </div>
+    </div>
+  </section>
+
+  <section class="oem-body">
+    <div class="oem-body-inner">
+      <div class="warn-box" *ngIf="moduleMissing">
+        {{ 'oemSearch.moduleRequired' | t }}
+      </div>
+
+      <ng-container *ngIf="!moduleMissing">
+        <div class="search-panel">
+          <div class="oem-input-row">
+            <input type="text"
+                   [(ngModel)]="oemQuery"
+                   name="oemQuery"
+                   [placeholder]="placeholderLabel"
+                   (keyup.enter)="search(1)"
+                   [disabled]="loading" />
+            <button type="button" class="btn-primary" (click)="search(1)" [disabled]="loading || oemQuery.trim().length < 3">
+              <ng-container *ngIf="loading; else searchLbl">{{ 'oemSearch.searching' | t }}</ng-container>
+              <ng-template #searchLbl>{{ 'oemSearch.search' | t }}</ng-template>
+            </button>
+          </div>
+          <div class="hints">
+            <button type="button" class="hint-tag" *ngFor="let h of hints" (click)="useHint(h)">{{ h }}</button>
+          </div>
+          <div class="error-box" *ngIf="error">{{ error }}</div>
+        </div>
+
+        <div class="result-panel" *ngIf="searched && !loading">
+          <p class="result-summary" *ngIf="total > 0">{{ resultSummary }}</p>
+          <p class="muted" *ngIf="total === 0">{{ 'oemSearch.empty' | t }}</p>
+
+          <div class="table-wrap" *ngIf="hits.length">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>{{ 'oemSearch.col.oem' | t }}</th>
+                  <th>{{ 'oemSearch.col.product' | t }}</th>
+                  <th>{{ 'oemSearch.col.ref' | t }}</th>
+                  <th>{{ 'oemSearch.col.brand' | t }}</th>
+                  <th>{{ 'oemSearch.col.price' | t }}</th>
+                  <th>{{ 'oemSearch.col.stock' | t }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let h of hits">
+                  <td>
+                    <span class="font-mono">{{ h.matchedOem }}</span>
+                    <span class="oem-original-badge" *ngIf="h.isOriginal">{{ 'catalog.oems.original' | t }}</span>
+                    <div class="muted" *ngIf="h.oemBrand">{{ h.oemBrand }}</div>
+                  </td>
+                  <td>{{ h.name || '—' }}</td>
+                  <td class="font-mono">{{ h.reference || '—' }}</td>
+                  <td>{{ h.brand || '—' }}</td>
+                  <td class="font-mono">{{ formatPrice(h.unitPrice) }}</td>
+                  <td class="font-mono">{{ h.stockQuantity != null ? h.stockQuantity : '—' }}</td>
+                  <td>
+                    <a class="btn-secondary btn-sm"
+                       [routerLink]="['/erp-products']"
+                       [queryParams]="{ productId: h.productId, q: h.reference || h.erpProductId || null }">
+                      {{ 'oemSearch.openProduct' | t }}
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pager" *ngIf="total > pageSize">
+            <button type="button" class="btn-secondary btn-sm" (click)="prevPage()" [disabled]="page <= 1">{{ 'common.prev' | t }}</button>
+            <span>{{ page }} / {{ totalPages }}</span>
+            <button type="button" class="btn-secondary btn-sm" (click)="nextPage()" [disabled]="page >= totalPages">{{ 'common.next' | t }}</button>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </section>
+</div>

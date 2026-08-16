@@ -21,20 +21,6 @@
           <mat-icon>refresh</mat-icon>
           {{ 'erpProducts.refresh' | t }}
         </button>
-        <button class="btn-secondary" type="button"
-                (click)="importCarCatalog(false)"
-                [disabled]="importingCarApi || loading"
-                *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
-          <mat-icon>{{ importingCarApi ? 'hourglass_top' : 'directions_car' }}</mat-icon>
-          {{ importingCarApi ? ('erpProducts.importCarApiRunning' | t) : ('erpProducts.importCarApi' | t) }}
-        </button>
-        <button class="btn-secondary" type="button"
-                (click)="importCarCatalog(true)"
-                [disabled]="importingCarApi || loading"
-                *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
-          <mat-icon>translate</mat-icon>
-          {{ 'erpProducts.applyFrenchNames' | t }}
-        </button>
         <button class="btn-primary" type="button" (click)="startCreateProduct()" *ngIf="perm.has(P.ProductCreate)">
           <mat-icon>add</mat-icon>
           {{ 'catalog.products.new' | t }}
@@ -88,33 +74,24 @@
         <option value="">{{ 'erpProducts.filter.allBrands' | t }}</option>
         <option *ngFor="let b of brands" [value]="b.name">{{ b.name }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="vehicleBrandFilter" (change)="onVehicleBrandFilterChange()" [disabled]="syncingAll">
-        <option value="">{{ 'erpProducts.filter.vehicleBrand' | t }}</option>
-        <option *ngFor="let b of filterVehicleBrands" [value]="b">{{ b }}</option>
-      </select>
-      <select class="filter-select" [(ngModel)]="vehicleModelFilter" (change)="onVehicleModelFilterChange()"
-              [disabled]="syncingAll || !vehicleBrandFilter">
-        <option value="">{{ 'erpProducts.filter.vehicleModel' | t }}</option>
-        <option *ngFor="let m of filterVehicleModels" [value]="m">{{ m }}</option>
-      </select>
-      <input class="filter-select filter-year" type="number" min="1968" max="2030"
-             [(ngModel)]="vehicleYearFilter"
-             (change)="onVehicleYearFilterChange()"
-             [disabled]="syncingAll || !vehicleBrandFilter"
-             [placeholder]="'erpProducts.filter.vehicleYear' | t" />
       <select class="filter-select" [(ngModel)]="mainTypeId" (change)="onMainTypeChange()" [disabled]="syncingAll">
-        <option value="">{{ 'erpProducts.filter.mainCategory' | t }}</option>
+        <option value="">{{ (categoryRootsAreTypes ? 'erpProducts.filter.category' : 'erpProducts.filter.mainCategory') | t }}</option>
         <option *ngFor="let c of mainTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="typeId" (change)="onTypeChange()" [disabled]="syncingAll || !mainTypeId">
+      <select class="filter-select" [(ngModel)]="typeId" (change)="onTypeChange()"
+              *ngIf="!categoryRootsAreTypes"
+              [disabled]="syncingAll || !mainTypeId">
         <option value="">{{ 'erpProducts.filter.subCategory' | t }}</option>
         <option *ngFor="let c of types" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="subTypeId" (change)="onSubTypeChange()" [disabled]="syncingAll || !typeId">
+      <select class="filter-select" [(ngModel)]="subTypeId" (change)="onSubTypeChange()"
+              *ngIf="!categoryRootsAreTypes"
+              [disabled]="syncingAll || !typeId">
         <option value="">{{ 'erpProducts.filter.subSubCategory' | t }}</option>
         <option *ngFor="let c of subTypes" [value]="c.erpExternalId">{{ categoryLabel(c) }}</option>
       </select>
-      <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()" [disabled]="syncingAll">
+      <select class="filter-select" [(ngModel)]="sourceFilter" (change)="applyFilters()" [disabled]="syncingAll"
+              *ngIf="hasErpCatalogSync">
         <option *ngFor="let o of sourceOptions" [value]="o.value">{{ o.labelKey | t }}</option>
       </select>
       <button class="btn-primary btn-sm filter-action-btn" type="button" (click)="applyFilters()">{{ 'erpProducts.filter' | t }}</button>
@@ -127,6 +104,75 @@
         {{ 'erpProducts.syncFiltered' | t }}
       </button>
       <button class="clear-link" type="button" (click)="clearFilters()">{{ 'erpProducts.reset' | t }}</button>
+      <div class="view-toggle" role="group" [attr.aria-label]="'erpProducts.view.label' | t">
+        <button type="button"
+                class="view-toggle-btn"
+                [class.active]="catalogView === 'list'"
+                (click)="setCatalogView('list')"
+                [attr.aria-label]="'erpProducts.view.list' | t"
+                [matTooltip]="'erpProducts.view.list' | t">
+          <mat-icon>view_list</mat-icon>
+        </button>
+        <button type="button"
+                class="view-toggle-btn"
+                [class.active]="catalogView === 'cards'"
+                (click)="setCatalogView('cards')"
+                [attr.aria-label]="'erpProducts.view.cards' | t"
+                [matTooltip]="'erpProducts.view.cards' | t">
+          <mat-icon>grid_view</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="vehicle-filter-section" *ngIf="showVehicleFilters">
+      <button type="button" class="vehicle-filter-toggle" (click)="vehicleFiltersOpen = !vehicleFiltersOpen">
+        <mat-icon>{{ vehicleFiltersOpen ? 'expand_less' : 'expand_more' }}</mat-icon>
+        <span>{{ 'erpProducts.vehicleSection.title' | t }}</span>
+        <span class="vehicle-filter-badge" *ngIf="hasActiveVehicleFilters">{{ 'erpProducts.vehicleSection.active' | t }}</span>
+      </button>
+      <div class="vehicle-filter-grid" *ngIf="vehicleFiltersOpen">
+        <select class="filter-select" [(ngModel)]="vehicleBrandFilter" (change)="onVehicleBrandFilterChange()" [disabled]="syncingAll">
+          <option value="">{{ 'erpProducts.filter.vehicleBrand' | t }}</option>
+          <option *ngFor="let b of filterVehicleBrands" [value]="b">{{ b }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="vehicleModelFilter" (change)="onVehicleModelFilterChange()"
+                [disabled]="syncingAll || !vehicleBrandFilter">
+          <option value="">{{ 'erpProducts.filter.vehicleModel' | t }}</option>
+          <option *ngFor="let m of filterVehicleModels" [value]="m">{{ m }}</option>
+        </select>
+        <input class="filter-select filter-year" type="text" inputmode="numeric" maxlength="4"
+               [ngModel]="vehicleYearDraft"
+               (ngModelChange)="onVehicleYearDraftChange($event)"
+               (blur)="commitVehicleYearFilter($event)"
+               (keydown.enter)="commitVehicleYearFilter($event)"
+               [disabled]="syncingAll"
+               [placeholder]="'erpProducts.filter.vehicleYear' | t" />
+        <select class="filter-select" [(ngModel)]="vehicleFuelFilter" (change)="onVehicleFuelFilterChange()" [disabled]="syncingAll">
+          <option value="">{{ 'erpProducts.filter.vehicleFuel' | t }}</option>
+          <option *ngFor="let f of filterVehicleFuels" [value]="f">{{ f }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="vehicleBodyFilter" (change)="onVehicleSpecFilterChange()" [disabled]="syncingAll">
+          <option value="">{{ 'erpProducts.filter.vehicleBody' | t }}</option>
+          <option *ngFor="let b of filterVehicleBodies" [value]="b">{{ b }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="vehicleDriveFilter" (change)="onVehicleSpecFilterChange()" [disabled]="syncingAll">
+          <option value="">{{ 'erpProducts.filter.vehicleDrive' | t }}</option>
+          <option *ngFor="let d of filterVehicleDrives" [value]="d">{{ d }}</option>
+        </select>
+        <select class="filter-select" [(ngModel)]="vehicleTransmissionFilter" (change)="onVehicleSpecFilterChange()" [disabled]="syncingAll">
+          <option value="">{{ 'erpProducts.filter.vehicleTransmission' | t }}</option>
+          <option *ngFor="let tr of filterVehicleTransmissions" [value]="tr">{{ tr }}</option>
+        </select>
+        <input class="filter-select"
+               [(ngModel)]="vehicleEngineFilter"
+               (keyup.enter)="onVehicleSpecFilterChange()"
+               (change)="onVehicleSpecFilterChange()"
+               [disabled]="syncingAll"
+               [placeholder]="'erpProducts.filter.vehicleEngine' | t" />
+        <button class="clear-link" type="button" *ngIf="hasActiveVehicleFilters" (click)="clearVehicleFilters()">
+          {{ 'erpProducts.vehicleSection.reset' | t }}
+        </button>
+      </div>
     </div>
   </section>
 
@@ -143,26 +189,35 @@
           <mat-icon>inventory_2</mat-icon>
           <p>{{ 'erpProducts.empty' | t }}</p>
           <p class="muted" *ngIf="brandFilter">{{ 'erpProducts.emptyBrandHint' | t }}</p>
-          <p class="muted" *ngIf="vehicleBrandFilter">{{ 'erpProducts.emptyVehicleHint' | t }}</p>
-          <p class="muted" *ngIf="!brandFilter && !vehicleBrandFilter">{{ 'erpProducts.emptyCarApiHint' | t }}</p>
+          <p class="muted" *ngIf="showVehicleFilters && vehicleBrandFilter">{{ 'erpProducts.emptyVehicleHint' | t }}</p>
+          <p class="muted" *ngIf="showVehicleFilters && !brandFilter && !vehicleBrandFilter">{{ 'erpProducts.emptyCarApiHint' | t }}</p>
           <a class="btn-primary" routerLink="/erp-changes" *ngIf="hasErpCatalogSync">{{ 'erpProducts.importExcel' | t }}</a>
-          <button class="btn-primary" type="button" (click)="importCarCatalog(false)" *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
-            {{ 'erpProducts.importCarApi' | t }}
-          </button>
+          <a class="btn-primary" routerLink="/plate-scan" *ngIf="showAutoPartsImport && perm.has(P.ProductUpdate)">
+            {{ 'catalog.nav.plateScan' | t }}
+          </a>
         </div>
 
-        <div class="card table-card" *ngIf="!loading && products.length > 0">
+        <ng-template #productsPager>
+          <div class="pager">
+            <button class="btn-secondary btn-sm" type="button" (click)="prevPage()" [disabled]="page <= 1">{{ 'common.prev' | t }}</button>
+            <span class="pager-info font-mono">{{ 'erpProducts.pageInfo' | t:{page: page, totalPages: totalPages} }}</span>
+            <button class="btn-secondary btn-sm" type="button" (click)="nextPage()" [disabled]="page >= totalPages">{{ 'common.next' | t }}</button>
+          </div>
+        </ng-template>
+
+        <div class="card table-card" *ngIf="!loading && products.length > 0 && catalogView === 'list'">
           <div class="table-wrap">
             <table class="data-table products-table">
               <thead>
                 <tr>
                   <th></th>
                   <th appSortable [state]="listSort" key="name">{{ 'erpProducts.col.product' | t }}</th>
+                  <th *ngIf="hasActiveVehicleFilters">{{ 'erpProducts.col.vehicle' | t }}</th>
                   <th appSortable [state]="listSort" key="reference">{{ 'erpProducts.col.refEan' | t }}</th>
                   <th appSortable [state]="listSort" key="brand">{{ 'erpProducts.col.brand' | t }}</th>
                   <th class="text-right" appSortable [state]="listSort" key="unitPrice" defaultDir="desc">{{ 'erpProducts.col.price' | t }}</th>
                   <th class="text-right" appSortable [state]="listSort" key="stockQuantity" defaultDir="desc">{{ 'erpProducts.col.stock' | t }}</th>
-                  <th appSortable [state]="listSort" key="dataSource">{{ 'erpProducts.col.source' | t }}</th>
+                  <th *ngIf="hasErpCatalogSync" appSortable [state]="listSort" key="dataSource">{{ 'erpProducts.col.source' | t }}</th>
                   <th *ngIf="hasErpCatalogSync" appSortable [state]="listSort" key="lastSyncAt" defaultDir="desc">{{ 'erpProducts.col.sync' | t }}</th>
                   <th></th>
                 </tr>
@@ -172,16 +227,37 @@
                     [class.row-selected]="selected?.id === p.id"
                     (click)="selectProduct(p)">
                   <td class="thumb-cell">
-                    <img *ngIf="productImageUrl(p) as imgUrl" class="product-thumb" [src]="imgUrl"
-                         [alt]="p.name || p.reference || ''" loading="lazy"
-                         (error)="onProductImageError($event)" />
-                    <div *ngIf="!productImageUrl(p)" class="product-thumb placeholder">
-                      <mat-icon>image_not_supported</mat-icon>
-                    </div>
+                    <ng-container *ngIf="productImageUrl(p) as imgUrl; else noThumb">
+                      <div *ngIf="isPdfUrl(p.picName); else thumbImg"
+                           class="product-thumb placeholder pdf-thumb"
+                           [title]="'erpProducts.gallery.pdf' | t">
+                        <mat-icon>picture_as_pdf</mat-icon>
+                      </div>
+                      <ng-template #thumbImg>
+                        <img class="product-thumb" [src]="imgUrl"
+                             [alt]="p.name || p.reference || ''" loading="lazy"
+                             (error)="onProductImageError($event)" />
+                      </ng-template>
+                    </ng-container>
+                    <ng-template #noThumb>
+                      <div class="product-thumb placeholder">
+                        <mat-icon>image_not_supported</mat-icon>
+                      </div>
+                    </ng-template>
                   </td>
                   <td class="product-cell">
-                    <div class="product-name">{{ p.name || '—' }}</div>
+                    <div class="product-name">
+                      {{ p.name || '—' }}
+                      <span class="dropship-badge" *ngIf="p.isDropship">{{ 'catalog.products.dropshipBadge' | t }}</span>
+                    </div>
                     <div class="product-meta font-mono">ID {{ p.erpProductId }}</div>
+                  </td>
+                  <td *ngIf="hasActiveVehicleFilters" class="vehicle-cell">
+                    <div class="product-name">{{ productVehicleLabel(p) }}</div>
+                    <div class="product-meta" *ngIf="productVehicleYears(p)">{{ productVehicleYears(p) }}</div>
+                    <div class="product-meta" *ngIf="p.vehicleKType">K-Type {{ p.vehicleKType }}</div>
+                    <div class="product-meta" *ngIf="p.vehicleEngineCode">{{ p.vehicleEngineCode }}</div>
+                    <div class="product-meta" *ngIf="p.vehicleFuelType">{{ p.vehicleFuelType }}</div>
                   </td>
                   <td>
                     <div class="font-mono">{{ p.reference || '—' }}</div>
@@ -190,7 +266,7 @@
                   <td>{{ p.brand || '—' }}</td>
                   <td class="text-right font-mono">{{ formatPrice(p.unitPrice) }}</td>
                   <td class="text-right font-mono">{{ p.stockQuantity != null ? (p.stockQuantity | number:'1.0-2') : '—' }}</td>
-                  <td>
+                  <td *ngIf="hasErpCatalogSync">
                     <span class="src-chip" [ngClass]="sourceClass(p.dataSource)">
                       {{ p.dataSource || '—' }}
                     </span>
@@ -225,11 +301,78 @@
             </table>
           </div>
 
-          <div class="pager">
-            <button class="btn-secondary btn-sm" type="button" (click)="prevPage()" [disabled]="page <= 1">{{ 'common.prev' | t }}</button>
-            <span class="pager-info font-mono">{{ 'erpProducts.pageInfo' | t:{page: page, totalPages: totalPages} }}</span>
-            <button class="btn-secondary btn-sm" type="button" (click)="nextPage()" [disabled]="page >= totalPages">{{ 'common.next' | t }}</button>
+          <ng-container *ngTemplateOutlet="productsPager"></ng-container>
+        </div>
+
+        <div class="products-cards-panel" *ngIf="!loading && products.length > 0 && catalogView === 'cards'">
+          <div class="products-card-grid">
+            <article class="product-card"
+                     *ngFor="let p of sortedProducts"
+                     [class.selected]="selected?.id === p.id"
+                     (click)="selectProduct(p)">
+              <div class="product-card-media">
+                <ng-container *ngIf="productImageUrl(p) as imgUrl; else cardNoThumb">
+                  <div *ngIf="isPdfUrl(p.picName); else cardThumbImg"
+                       class="product-card-thumb placeholder pdf-thumb"
+                       [title]="'erpProducts.gallery.pdf' | t">
+                    <mat-icon>picture_as_pdf</mat-icon>
+                  </div>
+                  <ng-template #cardThumbImg>
+                    <img class="product-card-thumb" [src]="imgUrl"
+                         [alt]="p.name || p.reference || ''" loading="lazy"
+                         (error)="onProductImageError($event)" />
+                  </ng-template>
+                </ng-container>
+                <ng-template #cardNoThumb>
+                  <div class="product-card-thumb placeholder">
+                    <mat-icon>image_not_supported</mat-icon>
+                  </div>
+                </ng-template>
+              </div>
+              <div class="product-card-body">
+                <div class="product-name">
+                  {{ p.name || '—' }}
+                  <span class="dropship-badge" *ngIf="p.isDropship">{{ 'catalog.products.dropshipBadge' | t }}</span>
+                </div>
+                <div class="product-meta">{{ p.brand || '—' }}</div>
+                <div class="product-meta font-mono">{{ p.reference || p.ean || ('ID ' + p.erpProductId) }}</div>
+                <div class="product-card-vehicle" *ngIf="hasActiveVehicleFilters">
+                  <div>{{ productVehicleLabel(p) }}</div>
+                  <div class="product-meta" *ngIf="productVehicleYears(p)">{{ productVehicleYears(p) }}</div>
+                </div>
+                <div class="product-card-footer">
+                  <span class="product-card-price font-mono">{{ formatPrice(p.unitPrice) }}</span>
+                  <span class="product-card-stock font-mono" [class.stock-out]="(p.stockQuantity ?? 0) <= 0">
+                    {{ 'erpProducts.col.stock' | t }}
+                    {{ p.stockQuantity != null ? (p.stockQuantity | number:'1.0-2') : '—' }}
+                  </span>
+                </div>
+              </div>
+              <div class="product-card-actions" (click)="$event.stopPropagation()">
+                <button class="btn-sync" type="button"
+                        (click)="selectProduct(p); startEditProduct()"
+                        [matTooltip]="'common.edit' | t"
+                        *ngIf="perm.has(P.ProductUpdate)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button class="btn-sync" type="button"
+                        (click)="archiveProduct(p, $event)"
+                        [matTooltip]="'common.delete' | t"
+                        *ngIf="perm.has(P.ProductDelete)">
+                  <mat-icon>archive</mat-icon>
+                </button>
+                <button class="btn-sync"
+                        type="button"
+                        [disabled]="syncingId === p.id"
+                        (click)="syncProduct(p, $event)"
+                        [matTooltip]="'erpProducts.tooltip.syncErp' | t"
+                        *ngIf="hasErpCatalogSync && perm.has(P.ProductUpdate)">
+                  <mat-icon>{{ syncingId === p.id ? 'hourglass_top' : 'sync' }}</mat-icon>
+                </button>
+              </div>
+            </article>
           </div>
+          <ng-container *ngTemplateOutlet="productsPager"></ng-container>
         </div>
       </div>
 
@@ -250,12 +393,68 @@
         </div>
 
         <div class="detail-scroll">
-        <div class="detail-image">
-          <img *ngIf="productImageUrl(p) as imgUrl" class="product-thumb detail" [src]="imgUrl"
-               [alt]="p.name || p.reference || ''" loading="lazy"
-               (error)="onProductImageError($event)" />
-          <div *ngIf="!productImageUrl(p)" class="product-thumb detail placeholder">
+        <div class="detail-image"
+             (mouseenter)="galleryPaused = true"
+             (mouseleave)="galleryPaused = false">
+          <div class="gallery-stage" *ngIf="currentGalleryItem as media">
+            <button type="button" class="gallery-nav prev" *ngIf="galleryCount > 1"
+                    (click)="prevGalleryImage(); $event.stopPropagation()"
+                    [attr.aria-label]="'common.prev' | t">
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+
+            <img *ngIf="media.kind === 'image'"
+                 class="gallery-main"
+                 [src]="media.url"
+                 [alt]="p.name || p.reference || ''"
+                 loading="lazy"
+                 (click)="openGalleryLightbox()"
+                 (error)="onGalleryMainError($event)" />
+
+            <button *ngIf="media.kind === 'pdf'"
+                    type="button"
+                    class="gallery-pdf"
+                    (click)="openGalleryLightbox()"
+                    [attr.title]="'erpProducts.gallery.openPdf' | t">
+              <mat-icon>picture_as_pdf</mat-icon>
+              <span>{{ 'erpProducts.gallery.pdf' | t }}</span>
+            </button>
+
+            <button type="button" class="gallery-nav next" *ngIf="galleryCount > 1"
+                    (click)="nextGalleryImage(); $event.stopPropagation()"
+                    [attr.aria-label]="'common.next' | t">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+            <button type="button" class="gallery-zoom-hint"
+                    (click)="openGalleryLightbox()"
+                    [attr.aria-label]="(currentGalleryIsPdf ? 'erpProducts.gallery.openPdf' : 'erpProducts.gallery.enlarge') | t">
+              <mat-icon>{{ currentGalleryIsPdf ? 'open_in_new' : 'zoom_in' }}</mat-icon>
+            </button>
+            <div class="gallery-counter" *ngIf="galleryCount > 1">
+              {{ galleryIndex + 1 }} / {{ galleryCount }}
+            </div>
+          </div>
+          <div *ngIf="!currentGalleryItem" class="gallery-stage gallery-empty">
             <mat-icon>image_not_supported</mat-icon>
+          </div>
+          <div class="gallery-dots" *ngIf="galleryCount > 1">
+            <button type="button"
+                    class="gallery-dot"
+                    *ngFor="let item of galleryItems; let i = index"
+                    [class.active]="i === galleryIndex"
+                    (click)="setGalleryIndex(i)"
+                    [attr.aria-label]="('erpProducts.gallery.imageN' | t:{n: i + 1})"></button>
+          </div>
+          <div class="gallery-thumbs" *ngIf="galleryCount > 1">
+            <button type="button"
+                    class="gallery-thumb"
+                    *ngFor="let item of galleryItems; let i = index"
+                    [class.active]="i === galleryIndex"
+                    [class.is-pdf]="item.kind === 'pdf'"
+                    (click)="openGalleryMedia(item, i)">
+              <img *ngIf="item.kind === 'image'" [src]="item.url" alt="" loading="lazy" />
+              <mat-icon *ngIf="item.kind === 'pdf'">picture_as_pdf</mat-icon>
+            </button>
           </div>
         </div>
 
@@ -274,10 +473,27 @@
           <button type="button" [class.active]="detailTab === 'variants'" (click)="setDetailTab('variants')">{{ 'catalog.tabs.variants' | t }}</button>
           <button type="button" [class.active]="detailTab === 'images'" (click)="setDetailTab('images')">{{ 'catalog.tabs.images' | t }}</button>
           <button type="button" [class.active]="detailTab === 'attributes'" (click)="setDetailTab('attributes')">{{ 'catalog.tabs.attributes' | t }}</button>
+          <button type="button" *ngIf="showVehicleFilters" [class.active]="detailTab === 'vehicles'" (click)="setDetailTab('vehicles')">
+            {{ 'catalog.tabs.vehicles' | t }}
+            <span class="tab-count" *ngIf="productVehicles.length">{{ productVehicles.length }}</span>
+          </button>
+          <button type="button" *ngIf="showVehicleFilters || productOems.length"
+                  [class.active]="detailTab === 'oems'" (click)="setDetailTab('oems')">
+            {{ 'catalog.tabs.oems' | t }}
+            <span class="tab-count" *ngIf="productOems.length">{{ productOems.length }}</span>
+          </button>
+          <button type="button" *ngIf="showVehicleFilters" [class.active]="detailTab === 'diagram'" (click)="setDetailTab('diagram')">
+            {{ 'catalog.tabs.diagram' | t }}
+            <span class="tab-count" *ngIf="productDiagrams.length">{{ productDiagrams.length }}</span>
+          </button>
+          <button type="button" [class.active]="detailTab === 'suppliers'" (click)="setDetailTab('suppliers')">
+            {{ 'catalog.tabs.suppliers' | t }}
+            <span class="tab-count" *ngIf="supplierQuotes?.offers?.length">{{ supplierQuotes!.offers.length }}</span>
+          </button>
         </div>
 
         <dl class="detail-grid" *ngIf="detailTab === 'info'">
-          <div><dt>{{ 'erpProducts.detail.erpId' | t }}</dt><dd class="font-mono">{{ p.erpProductId }}</dd></div>
+          <div><dt>{{ (hasErpCatalogSync ? 'erpProducts.detail.erpId' : 'erpProducts.detail.id') | t }}</dt><dd class="font-mono">{{ p.erpProductId }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.reference' | t }}</dt><dd class="font-mono">{{ p.reference || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.ean' | t }}</dt><dd class="font-mono">{{ p.ean || '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.brand' | t }}</dt><dd>{{ p.brand || '—' }}</dd></div>
@@ -285,13 +501,17 @@
           <div><dt>{{ 'erpProducts.detail.salePriceHt' | t }}</dt><dd class="font-mono">{{ formatPrice(salePriceHt(p)) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.purchasePrice' | t }}</dt><dd class="font-mono">{{ formatPrice(p.cPrice) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.stock' | t }}</dt><dd class="font-mono">{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</dd></div>
+          <div *ngIf="p.isDropship">
+            <dt>{{ 'erpProducts.detail.dropship' | t }}</dt>
+            <dd>{{ 'catalog.products.dropshipBadge' | t }}<ng-container *ngIf="p.dropshipSupplierId"> · {{ dropshipSupplierName(p.dropshipSupplierId) }}</ng-container></dd>
+          </div>
           <div><dt>{{ 'erpProducts.detail.vat' | t }}</dt><dd class="font-mono">{{ p.typeVatPerc != null ? p.typeVatPerc : '—' }}</dd></div>
-          <div class="full"><dt>{{ 'erpProducts.detail.category' | t }}</dt><dd>{{ p.mainTypeName || '—' }} / {{ p.typeName || '—' }} / {{ p.subTypeName || '—' }}</dd></div>
+          <div class="full"><dt>{{ 'erpProducts.detail.category' | t }}</dt><dd>{{ productCategoryDisplay(p) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.weight' | t }}</dt><dd class="font-mono">{{ p.weight != null ? p.weight + ' kg' : '—' }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.dims' | t }}</dt><dd class="font-mono">{{ formatDimensions(p) }}</dd></div>
-          <div class="full"><dt>{{ 'erpProducts.detail.name2' | t }}</dt><dd>{{ p.name2 || '—' }}</dd></div>
-          <div><dt>{{ 'erpProducts.detail.source' | t }}</dt><dd>{{ p.dataSource || '—' }}</dd></div>
-          <div><dt>{{ 'erpProducts.detail.excelFile' | t }}</dt><dd>{{ p.sourceFile || '—' }}</dd></div>
+          <div class="full" *ngIf="p.name2"><dt>{{ 'erpProducts.detail.name2' | t }}</dt><dd>{{ p.name2 }}</dd></div>
+          <div *ngIf="hasErpCatalogSync"><dt>{{ 'erpProducts.detail.source' | t }}</dt><dd>{{ p.dataSource || '—' }}</dd></div>
+          <div *ngIf="hasErpCatalogSync"><dt>{{ 'erpProducts.detail.excelFile' | t }}</dt><dd>{{ p.sourceFile || '—' }}</dd></div>
           <div *ngIf="hasErpCatalogSync"><dt>{{ 'erpProducts.detail.lastSync' | t }}</dt><dd>{{ formatDate(p.lastSyncAt) }}</dd></div>
           <div><dt>{{ 'erpProducts.detail.updated' | t }}</dt><dd>{{ formatDate(p.updatedAt) }}</dd></div>
           <div class="full" *ngIf="p.comment"><dt>{{ 'erpProducts.detail.comment' | t }}</dt><dd>{{ p.comment }}</dd></div>
@@ -319,7 +539,10 @@
             <div class="extras-row" *ngFor="let img of images">
               <div>
                 <a [href]="img.url" target="_blank" rel="noopener">{{ img.url }}</a>
-                <div class="muted">{{ img.altText || '—' }} · {{ img.isMain ? ('catalog.images.main' | t) : '' }}</div>
+                <div class="muted">
+                  <span *ngIf="isPdfUrl(img.url)" class="media-kind-pdf">PDF · </span>
+                  {{ img.altText || '—' }} · {{ img.isMain ? ('catalog.images.main' | t) : '' }}
+                </div>
               </div>
             </div>
           </div>
@@ -337,6 +560,135 @@
             </div>
           </div>
           <p class="muted" *ngIf="!genericAttrDefs.length && hasErpCatalogSync">{{ 'catalog.attributes.empty' | t }}</p>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'vehicles'">
+          <div class="vehicle-fitment-filters" *ngIf="productVehicles.length">
+            <select class="filter-select" [(ngModel)]="detailVehicleMake" (ngModelChange)="onDetailVehicleMakeChange()">
+              <option value="">{{ 'catalog.vehicles.filterMake' | t }}</option>
+              <option *ngFor="let m of detailVehicleMakes" [value]="m">{{ m }}</option>
+            </select>
+            <select class="filter-select" [(ngModel)]="detailVehicleModel" [disabled]="!detailVehicleMakes.length">
+              <option value="">{{ 'catalog.vehicles.filterModel' | t }}</option>
+              <option *ngFor="let m of detailVehicleModels" [value]="m">{{ m }}</option>
+            </select>
+            <input class="filter-input"
+                   [(ngModel)]="detailVehicleQuery"
+                   [placeholder]="'catalog.vehicles.filterSearch' | t" />
+            <button type="button" class="btn-secondary btn-sm"
+                    *ngIf="detailVehicleMake || detailVehicleModel || detailVehicleQuery"
+                    (click)="clearDetailVehicleFilters()">
+              {{ 'common.reset' | t }}
+            </button>
+          </div>
+          <p class="muted vehicle-fitment-summary" *ngIf="productVehicles.length">
+            <ng-container *ngIf="filteredProductVehicles.length === productVehicles.length; else filteredCount">
+              {{ 'catalog.vehicles.count' | t: { count: productVehicles.length } }}
+            </ng-container>
+            <ng-template #filteredCount>
+              {{ 'catalog.vehicles.filteredCount' | t: { shown: filteredProductVehicles.length, total: productVehicles.length } }}
+            </ng-template>
+          </p>
+          <div class="vehicle-fitment-list" *ngIf="productVehicleGroups.length">
+            <div class="vehicle-fitment-group" *ngFor="let g of productVehicleGroups">
+              <div class="vehicle-fitment-group-title">
+                <strong>{{ g.make }}</strong>
+                <span>{{ g.model }}</span>
+                <span class="muted">({{ g.items.length }})</span>
+              </div>
+              <div class="extras-list">
+                <div class="extras-row vehicle-fitment-row" *ngFor="let v of g.items">
+                  <div>
+                    <strong>{{ v.typeName || ('catalog.vehicles.typeFallback' | t) }}</strong>
+                    <div class="muted">
+                      {{ vehicleYearsLabel(v) }}
+                      <ng-container *ngIf="v.engineCode"> · {{ v.engineCode }}</ng-container>
+                      <ng-container *ngIf="vehiclePowerLabel(v)"> · {{ vehiclePowerLabel(v) }}</ng-container>
+                    </div>
+                    <div class="muted vehicle-fitment-specs">
+                      <span *ngIf="v.fuelType">{{ v.fuelType }}</span>
+                      <span *ngIf="v.bodyType">{{ v.bodyType }}</span>
+                      <span *ngIf="v.driveType">{{ v.driveType }}</span>
+                      <span *ngIf="v.transmission">{{ v.transmission }}</span>
+                      <span *ngIf="v.kType" class="font-mono">KType {{ v.kType }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="muted" *ngIf="!productVehicles.length">{{ 'catalog.vehicles.empty' | t }}</p>
+          <p class="muted" *ngIf="productVehicles.length && !filteredProductVehicles.length">{{ 'catalog.vehicles.noMatch' | t }}</p>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'oems'">
+          <div class="extras-list" *ngIf="productOems.length">
+            <div class="extras-row" *ngFor="let o of productOems">
+              <div>
+                <strong class="font-mono">{{ o.oemNumber }}</strong>
+                <span class="oem-original-badge" *ngIf="o.isOriginal">{{ 'catalog.oems.original' | t }}</span>
+                <div class="muted" *ngIf="o.brand">{{ o.brand }}</div>
+              </div>
+            </div>
+          </div>
+          <p class="muted" *ngIf="!productOems.length">{{ 'catalog.oems.empty' | t }}</p>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'diagram'">
+          <p class="muted" *ngIf="productDiagramsLoading">{{ 'common.loading' | t }}</p>
+          <p class="muted" *ngIf="!productDiagramsLoading && !productDiagrams.length">{{ 'catalog.diagram.empty' | t }}</p>
+          <div *ngFor="let d of productDiagrams" class="diagram-block">
+            <div class="diagram-toolbar">
+              <strong>{{ d.title }}</strong>
+              <span class="muted">{{ 'catalog.diagram.clickHint' | t }}</span>
+            </div>
+            <div class="diagram-stage">
+              <img [src]="diagramImage(d.imageUrl)" [alt]="d.title" />
+              <button type="button"
+                      class="diagram-hotspot"
+                      *ngFor="let h of d.hotspots"
+                      [style.left.%]="h.x"
+                      [style.top.%]="h.y"
+                      [style.width.%]="h.w"
+                      [style.height.%]="h.h"
+                      (click)="openDiagramPart(h)"
+                      [title]="h.targetName || h.label">
+                <span>{{ h.label }}</span>
+                <small *ngIf="h.targetReference">{{ h.targetReference }}</small>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-extras" *ngIf="detailTab === 'suppliers'">
+          <div class="supplier-quotes-toolbar">
+            <span class="muted" *ngIf="supplierQuotes?.quotedAt">
+              {{ 'catalog.quotes.updatedAt' | t }} {{ supplierQuotes!.quotedAt | date:'short' }}
+            </span>
+            <button type="button" class="btn-secondary btn-sm" (click)="refreshSupplierQuotes()" [disabled]="supplierQuotesLoading">
+              <mat-icon>refresh</mat-icon>
+              {{ 'erpProducts.refresh' | t }}
+            </button>
+          </div>
+          <p class="muted" *ngIf="supplierQuotesLoading">{{ 'catalog.quotes.loading' | t }}</p>
+          <p class="muted" *ngIf="!supplierQuotesLoading && !supplierQuotes?.offers?.length">{{ 'catalog.quotes.empty' | t }}</p>
+          <div class="extras-list" *ngIf="supplierQuotes?.offers?.length">
+            <div class="extras-row" *ngFor="let o of supplierQuotes!.offers" [class.quote-best]="o.isBest">
+              <div>
+                <strong>{{ o.supplierName }}</strong>
+                <span class="oem-original-badge" *ngIf="o.isBest">{{ 'catalog.quotes.best' | t }}</span>
+                <div class="muted font-mono">
+                  {{ formatPrice(o.buyPrice) }}
+                  · {{ 'erpProducts.col.stock' | t }} {{ o.stockQty | number:'1.0-0' }}
+                  · {{ o.leadDays }} {{ 'catalog.quotes.days' | t }}
+                </div>
+                <div class="muted" *ngIf="!o.available">{{ 'catalog.quotes.unavailable' | t }}</div>
+                <div class="muted" *ngIf="o.isBest && quoteScoreLabel(supplierQuotes?.scoreReason)">
+                  {{ quoteScoreLabel(supplierQuotes?.scoreReason) }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         </div>
       </aside>
@@ -398,6 +750,22 @@
                 <span>{{ 'createProduct.category' | t }}</span>
                 <a class="link-sm" routerLink="/erp-categories">{{ 'catalog.nav.categories' | t }}</a>
               </div>
+
+              <div class="category-row" *ngIf="categoryRootsAreTypes">
+                <label>{{ 'erpProducts.filter.category' | t }}
+                  <select [(ngModel)]="productForm.mainTypeCatId" name="mmainFlat">
+                    <option [ngValue]="null">—</option>
+                    <option *ngFor="let c of formMainTypes" [ngValue]="c.id">{{ categoryLabel(c) }}</option>
+                  </select>
+                </label>
+                <button type="button" class="btn-secondary btn-sm add-btn" (click)="quickAddCategory('Type')"
+                        *ngIf="perm.hasAny(P.CategoryCreate, P.ProductCreate)"
+                        [matTooltip]="'catalog.categories.new' | t">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+
+              <ng-container *ngIf="!categoryRootsAreTypes">
               <div class="category-row">
                 <label>{{ 'createProduct.mainType' | t }}
                   <select [(ngModel)]="productForm.mainTypeCatId" name="mmain" (ngModelChange)="onFormMainTypeChange()">
@@ -437,6 +805,7 @@
                   <mat-icon>add</mat-icon>
                 </button>
               </div>
+              </ng-container>
             </div>
             <label>{{ 'erpProducts.detail.vat' | t }}<input type="number" [(ngModel)]="productForm.vatPercent" name="mvat" /></label>
             <label>{{ 'erpProducts.detail.weight' | t }}
@@ -454,6 +823,17 @@
             <label class="full" *ngIf="!productCreating">{{ 'erpProducts.detail.comment' | t }}
               <textarea [(ngModel)]="productForm.comment" name="mcomment" rows="2"></textarea>
             </label>
+            <label class="checkbox-inline full">
+              <input type="checkbox" [(ngModel)]="productForm.isDropship" name="mdropship" (ngModelChange)="onDropshipToggle()" />
+              {{ 'catalog.products.dropship' | t }}
+            </label>
+            <label class="full" *ngIf="productForm.isDropship">{{ 'catalog.products.dropshipSupplier' | t }}
+              <select [(ngModel)]="productForm.dropshipSupplierId" name="mdropshipfrs">
+                <option [ngValue]="null">—</option>
+                <option *ngFor="let s of formSuppliers" [ngValue]="s.id">{{ s.name }}</option>
+              </select>
+            </label>
+            <p class="hint full" *ngIf="productForm.isDropship">{{ 'catalog.products.dropshipHint' | t }}</p>
             <p class="hint full">{{ 'catalog.products.priceOnVariantHint' | t }}</p>
           </div>
 
@@ -573,7 +953,7 @@
 
           <!-- Édition : attributs -->
           <div class="draft-block" *ngIf="createTab === 'attributes' && !productCreating">
-            <div class="vehicle-compat-block">
+            <div class="vehicle-compat-block" *ngIf="showVehicleFilters">
               <h4>{{ 'catalog.vehicleCompat.title' | t }}</h4>
               <div class="vehicle-compat-pickers">
                 <label>{{ 'catalog.vehicleCompat.brand' | t }}
@@ -637,4 +1017,31 @@
       </div>
     </div>
   </section>
+
+  <!-- Lightbox galerie (clic pour agrandir + loop) -->
+  <div class="gallery-lightbox" *ngIf="galleryLightboxOpen && currentGalleryItem as media"
+       (click)="closeGalleryLightbox()">
+    <button type="button" class="lightbox-close" (click)="closeGalleryLightbox(); $event.stopPropagation()"
+            [attr.aria-label]="'erpProducts.close' | t">
+      <mat-icon>close</mat-icon>
+    </button>
+    <button type="button" class="lightbox-nav prev" *ngIf="galleryCount > 1"
+            (click)="prevGalleryImage(); $event.stopPropagation()"
+            [attr.aria-label]="'common.prev' | t">
+      <mat-icon>chevron_left</mat-icon>
+    </button>
+    <img *ngIf="media.kind === 'image'" class="lightbox-img" [src]="media.url" [alt]="selected?.name || ''"
+         (click)="$event.stopPropagation()" />
+    <a *ngIf="media.kind === 'pdf'" class="lightbox-pdf" [href]="media.url" target="_blank" rel="noopener"
+       (click)="$event.stopPropagation()">
+      <mat-icon>picture_as_pdf</mat-icon>
+      <span>{{ 'erpProducts.gallery.openPdf' | t }}</span>
+    </a>
+    <button type="button" class="lightbox-nav next" *ngIf="galleryCount > 1"
+            (click)="nextGalleryImage(); $event.stopPropagation()"
+            [attr.aria-label]="'common.next' | t">
+      <mat-icon>chevron_right</mat-icon>
+    </button>
+    <div class="lightbox-counter" *ngIf="galleryCount > 1">{{ galleryIndex + 1 }} / {{ galleryCount }}</div>
+  </div>
 </div>

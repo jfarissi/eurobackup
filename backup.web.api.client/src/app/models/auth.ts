@@ -7,6 +7,7 @@ export interface AuthUser {
   isAdmin: boolean;
   permissions?: string[];
   companyId?: string | null;
+  customerId?: number | null;
   companyName?: string | null;
   companies?: { id: string; name: string; enableErpCatalogSync?: boolean }[];
 }
@@ -26,6 +27,7 @@ export interface LoginResponse {
   isAdmin: boolean;
   permissions?: string[];
   companyId?: string | null;
+  customerId?: number | null;
   companyName?: string | null;
   companies?: { id: string; name: string; enableErpCatalogSync?: boolean }[];
 }

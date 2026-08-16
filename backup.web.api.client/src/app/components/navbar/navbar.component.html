@@ -51,7 +51,8 @@
                   [class.active]="i18n.lang === l.code"
                   (click)="setLanguage(l.code)">{{ l.label }}</button>
         </div>
-        <button type="button" class="btn-secondary help-nav-btn" (click)="openHelpCenter()" [matTooltip]="'help.nav.open' | t">
+        <button type="button" class="btn-secondary help-nav-btn" (click)="openHelpCenter()" [matTooltip]="'help.nav.open' | t"
+                *ngIf="!permissionService.isGaragePortalUser()">
           <mat-icon>help_outline</mat-icon>
           <span class="help-nav-label">{{ 'help.nav.open' | t }}</span>
         </button>

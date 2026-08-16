@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models
@@ -68,6 +69,11 @@ namespace Backup.Web.Api.Server.Models
         public string? ColorCode { get; set; }
         public bool? Archived { get; set; }
 
+        /// <summary>F8 : pièce livrée par le fournisseur (CDF auto à la confirmation vente).</summary>
+        public bool IsDropship { get; set; }
+        /// <summary>Fournisseur dropship par défaut (sinon ligne de vente.SupplierId).</summary>
+        public int? DropshipSupplierId { get; set; }
+
         /// <summary>Excel | Erp | Merged</summary>
         public string? DataSource { get; set; }
         /// <summary>Nom du fichier Excel source (si importé).</summary>
@@ -80,6 +86,16 @@ namespace Backup.Web.Api.Server.Models
         public DateTime? LastSyncAt { get; set; }
         public string? CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }
+
+        /// <summary>Fitment véhicule affiché en liste (rempli à la volée, non persisté).</summary>
+        [NotMapped] public string? VehicleMake { get; set; }
+        [NotMapped] public string? VehicleModel { get; set; }
+        [NotMapped] public string? VehicleTypeName { get; set; }
+        [NotMapped] public int? VehicleYearFrom { get; set; }
+        [NotMapped] public int? VehicleYearTo { get; set; }
+        [NotMapped] public string? VehicleEngineCode { get; set; }
+        [NotMapped] public string? VehicleKType { get; set; }
+        [NotMapped] public string? VehicleFuelType { get; set; }
 
         public ICollection<ErpProductChangeLog> ChangeLogs { get; set; } = new List<ErpProductChangeLog>();
     }

@@ -62,6 +62,7 @@ builder.Services.AddHttpClient(nameof(Backup.Web.Api.Server.Controllers.PythonPr
     client.Timeout = TimeSpan.FromMinutes(30);
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockService, Backup.Web.Api.Server.Services.Stock.StockService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Stock.IStockForecastService, Backup.Web.Api.Server.Services.Stock.StockForecastService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Numbering.INumberingSequenceService, Backup.Web.Api.Server.Services.Numbering.NumberingSequenceService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.BusinessPdf.IBusinessDocumentPdfService, Backup.Web.Api.Server.Services.BusinessPdf.BusinessDocumentPdfService>();
 builder.Services.AddHttpClient("ErpProductImages", client =>
@@ -90,7 +91,31 @@ builder.Services.AddHttpClient("RapidApi", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IVinLookupService, Backup.Web.Api.Server.Services.AutoParts.VinLookupService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IPlateOcrService, Backup.Web.Api.Server.Services.AutoParts.PlateOcrService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IVehicleKTypeResolver, Backup.Web.Api.Server.Services.AutoParts.VehicleKTypeResolver>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.AutoParts.IKTypeSyncProgressStore, Backup.Web.Api.Server.Services.AutoParts.KTypeSyncProgressStore>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IKTypeEnrichmentService, Backup.Web.Api.Server.Services.AutoParts.KTypeEnrichmentService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IRapidApiKTypeSyncService, Backup.Web.Api.Server.Services.AutoParts.RapidApiKTypeSyncService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IPlateScanService, Backup.Web.Api.Server.Services.AutoParts.PlateScanService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.AutoParts.IAutoPartsSymptomService,
+    Backup.Web.Api.Server.Services.AutoParts.AutoPartsSymptomService>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierQuoteSubscriptionStore,
+    Backup.Web.Api.Server.Services.SupplierQuotes.SupplierQuoteSubscriptionStore>();
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierFeedAdapter>(
+    new Backup.Web.Api.Server.Services.SupplierQuotes.DemoWholesalerAdapter(
+        Backup.Web.Api.Server.Services.SupplierQuotes.SupplierFeedCodes.Alliance, 1.06m, 2, 35));
+builder.Services.AddSingleton<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierFeedAdapter>(
+    new Backup.Web.Api.Server.Services.SupplierQuotes.DemoWholesalerAdapter(
+        Backup.Web.Api.Server.Services.SupplierQuotes.SupplierFeedCodes.Autodistribution, 0.98m, 4, 22));
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierFeedAdapter,
+    Backup.Web.Api.Server.Services.SupplierQuotes.LocalWarehouseAdapter>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierQuoteService,
+    Backup.Web.Api.Server.Services.SupplierQuotes.SupplierQuoteAggregator>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.SupplierQuotes.ISupplierQuoteNotifier,
+    Backup.Web.Api.Server.Services.SupplierQuotes.SupplierQuoteNotifier>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Dropship.IDropshipPurchaseOrderService,
+    Backup.Web.Api.Server.Services.Dropship.DropshipPurchaseOrderService>();
+builder.Services.AddHostedService<Backup.Web.Api.Server.Services.SupplierQuotes.SupplierQuoteRefreshHostedService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Archiving.DocumentArchiveBackgroundService>();
@@ -182,6 +207,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.ICompanyContextService, Backup.Web.Api.Server.Services.Tenancy.CompanyContextService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.TenancySeedService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.SupplierSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.GarageSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.ProductDiagramSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Tenancy.StockForecastSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Accounting.AccountingSeedService>();
+builder.Services.AddScoped<Backup.Web.Api.Server.Services.Garage.IGaragePortalService,
+    Backup.Web.Api.Server.Services.Garage.GaragePortalService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Modules.IModuleService, Backup.Web.Api.Server.Services.Modules.ModuleService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Modules.ModuleSeedService>();
 builder.Services.Configure<Backup.Web.Api.Server.Models.AppSettings.AppSettings>(
@@ -322,13 +353,25 @@ try
 
     var moduleSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Modules.ModuleSeedService>();
     await moduleSeed.EnsureDefaultsAsync();
+
+    var garageSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.GarageSeedService>();
+    await garageSeed.EnsureDemoGarageAsync();
+
+    var diagramSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.ProductDiagramSeedService>();
+    await diagramSeed.EnsureDemoDiagramAsync();
+
+    var forecastSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Tenancy.StockForecastSeedService>();
+    await forecastSeed.EnsureDemoForecastAsync();
+
+    var accountingSeed = tenancyScope.ServiceProvider.GetRequiredService<Backup.Web.Api.Server.Services.Accounting.AccountingSeedService>();
+    await accountingSeed.EnsureDefaultsAsync();
 }
 catch (Exception ex)
 {
     var startupLogger = app.Services
         .GetRequiredService<ILoggerFactory>()
         .CreateLogger("TenancySeed");
-    startupLogger.LogError(ex, "Tenancy/supplier/module seed failed on startup");
+        startupLogger.LogError(ex, "Tenancy/supplier/module/garage/forecast/accounting seed failed on startup");
 }
 
 if (builder.Configuration.GetValue("UseHttpsRedirection", true))
@@ -345,6 +388,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapControllers();
 app.MapHub<Backup.Web.Api.Server.Hubs.PermissionsHub>(Backup.Web.Api.Server.Hubs.PermissionsHub.HubPath);
+app.MapHub<Backup.Web.Api.Server.Hubs.SupplierQuotesHub>(Backup.Web.Api.Server.Hubs.SupplierQuotesHub.HubPath);
 
 app.MapFallbackToFile("/index.html");
 

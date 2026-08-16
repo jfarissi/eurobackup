@@ -371,6 +371,57 @@ namespace Backup.Web.Api.Tests.Business
         }
 
         [Fact]
+        public void RecalculateInvoiceTotals_AddsShippingAfterHeaderDiscount()
+        {
+            var invoice = new SalesInvoice
+            {
+                HeaderDiscountPercent = 10m,
+                ShippingAmountHt = 20m,
+                ShippingVatRate = 21m,
+                Lines = new List<SalesInvoiceLine>
+                {
+                    new SalesInvoiceLine { ProductKey = "SKU1", Quantity = 1, UnitPrice = 100m, DiscountPercent = 0m, VatRate = 21m }
+                }
+            };
+
+            SalesBusinessRules.RecalculateInvoiceTotals(invoice);
+
+            // Marchandises après remise 10% : 90 HT + 18.9 TVA ; + port 20 HT + 4.2 TVA
+            Assert.Equal(110m, invoice.TotalHT);
+            Assert.Equal(23.1m, invoice.TotalVat);
+            Assert.Equal(133.1m, invoice.TotalTTC);
+        }
+
+        [Fact]
+        public void RecalculateInvoiceTotals_ShippingFeeLine_ExcludedFromHeaderDiscount()
+        {
+            var invoice = new SalesInvoice
+            {
+                HeaderDiscountPercent = 10m,
+                Lines = new List<SalesInvoiceLine>
+                {
+                    new SalesInvoiceLine { ProductKey = "SKU1", Quantity = 1, UnitPrice = 100m, DiscountPercent = 0m, VatRate = 21m },
+                    new SalesInvoiceLine { ProductKey = "FDP", Quantity = 1, UnitPrice = 20m, DiscountPercent = 0m, VatRate = 21m }
+                }
+            };
+
+            SalesBusinessRules.RecalculateInvoiceTotals(invoice);
+
+            // Marchandises 90 + 18.9 ; FDP 20 + 4.2 (non remisé)
+            Assert.Equal(110m, invoice.TotalHT);
+            Assert.Equal(23.1m, invoice.TotalVat);
+            Assert.Equal(133.1m, invoice.TotalTTC);
+        }
+
+        [Fact]
+        public void ValidateShippingAmount_RejectsNegative()
+        {
+            Assert.NotNull(SalesBusinessRules.ValidateShippingAmount(-1m));
+            Assert.Null(SalesBusinessRules.ValidateShippingAmount(0m));
+            Assert.Null(SalesBusinessRules.ValidateShippingAmount(15m));
+        }
+
+        [Fact]
         public void RecalculateInvoiceTotals_HandlesNullLines()
         {
             var invoice = new SalesInvoice { Lines = null! };
@@ -380,6 +431,28 @@ namespace Backup.Web.Api.Tests.Business
             Assert.NotNull(invoice.Lines);
             Assert.Equal(0m, invoice.TotalHT);
             Assert.Equal(0m, invoice.TotalTTC);
+        }
+
+        [Fact]
+        public void RecalculatePurchaseOrderTotals_AppliesDiscountAndShipping()
+        {
+            var order = new PurchaseOrder
+            {
+                HeaderDiscountPercent = 10m,
+                ShippingAmountHt = 15m,
+                ShippingVatRate = 21m,
+                Lines = new List<PurchaseOrderLine>
+                {
+                    new PurchaseOrderLine { ProductKey = "SKU1", Quantity = 1, UnitPrice = 100m, DiscountPercent = 0m, VatRate = 21m }
+                }
+            };
+
+            SalesBusinessRules.RecalculatePurchaseOrderTotals(order);
+
+            // Marchandises 90 + 18.9 ; port 15 + 3.15
+            Assert.Equal(105m, order.TotalHT);
+            Assert.Equal(22.05m, order.TotalVat);
+            Assert.Equal(127.05m, order.TotalTTC);
         }
 
         [Fact]

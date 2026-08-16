@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Models.Catalog;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,19 @@ namespace Backup.Web.Api.Server.Brokers.Storage
             EntityEntry<ErpProductVehicle> entry = await this.ErpProductVehicles.AddAsync(vehicle);
             await this.SaveChangesAsync();
             return entry.Entity;
+        }
+
+        public async Task<int> FillMissingErpProductVehicleFuelAsync(
+            string kType, string fuel, CancellationToken ct = default)
+        {
+            var k = (kType ?? string.Empty).Trim();
+            var f = (fuel ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(k) || string.IsNullOrWhiteSpace(f))
+                return 0;
+
+            return await this.ErpProductVehicles
+                .Where(v => v.KType == k && (v.FuelType == null || v.FuelType == ""))
+                .ExecuteUpdateAsync(s => s.SetProperty(v => v.FuelType, f), ct);
         }
 
         public IQueryable<ErpOemCrossReference> SelectAllErpOemCrossReferences() =>

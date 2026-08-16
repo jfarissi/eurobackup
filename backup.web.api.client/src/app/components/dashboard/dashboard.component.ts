@@ -14,7 +14,7 @@ import { ErpProductService } from '../../services/erp-product.service';
 import { Permissions, RoutePermissions } from '../../constants/permissions';
 import { Document } from '../../models/document';
 import { DocumentRelation } from '../../models/relation';
-import { StockItem } from '../../models/stock-item';
+import { StockForecastLine, StockForecastResult, StockItem } from '../../models/stock-item';
 import {
   AccountingEntry,
   CashSession,
@@ -85,6 +85,7 @@ export class DashboardComponent implements OnInit {
     recentDocs: true,
     unlinkedBl: true,
     lowStock: true,
+    forecastRisk: true,
     movements: true,
     entries: true,
     invoices: true
@@ -93,6 +94,7 @@ export class DashboardComponent implements OnInit {
   kpis: KpiCard[] = [];
   recentDocs: Document[] = [];
   lowStock: StockItem[] = [];
+  forecastAlerts: StockForecastLine[] = [];
   unlinkedDeliveries: Document[] = [];
   recentMovements: ActivityRow[] = [];
   recentEntries: ActivityRow[] = [];
@@ -227,7 +229,10 @@ export class DashboardComponent implements OnInit {
         : emptyArr<AccountingEntry>(),
       movements: canMovements
         ? this.biz.getStockMovements().pipe(catchError(() => emptyArr<StockMovement>()))
-        : emptyArr<StockMovement>()
+        : emptyArr<StockMovement>(),
+      forecast: canStock
+        ? this.stock.getForecast().pipe(catchError(() => emptyNull<StockForecastResult>()))
+        : emptyNull<StockForecastResult>()
     }).subscribe({
       next: (data) => {
         const documents = data.documents ?? [];
@@ -241,6 +246,12 @@ export class DashboardComponent implements OnInit {
           .filter(s => (s.quantityOnHand ?? 0) <= 0)
           .sort((a, b) => (a.quantityOnHand ?? 0) - (b.quantityOnHand ?? 0))
           .slice(0, 8);
+
+        const atRisk = (data.forecast?.items ?? [])
+          .filter(l => l.risk === 'Critical' || l.risk === 'Warning' || l.risk === 'Watch')
+          .slice(0, 8);
+        this.forecastAlerts = atRisk;
+        const forecastCount = (data.forecast?.criticalCount ?? 0) + (data.forecast?.warningCount ?? 0);
 
         const openPos = (data.purchaseOrders ?? []).filter(po => this.isOpenStatus(po.status));
 
@@ -270,15 +281,16 @@ export class DashboardComponent implements OnInit {
         }
 
         if (canStock) {
+          const stockWarn = forecastCount > 0 || low.length > 0;
           this.kpis.push({
             id: 'stock',
             labelKey: 'dashboard.kpi.stock',
             value: stockItems.length,
-            hintKey: 'dashboard.kpi.stockHint',
-            hintValue: low.length,
+            hintKey: data.forecast ? 'dashboard.kpi.stockForecastHint' : 'dashboard.kpi.stockHint',
+            hintValue: data.forecast ? forecastCount : low.length,
             icon: 'inventory_2',
-            route: '/stock',
-            warn: low.length > 0
+            route: '/stock?tab=forecast',
+            warn: stockWarn
           });
         }
 

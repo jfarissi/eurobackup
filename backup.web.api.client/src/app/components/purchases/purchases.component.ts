@@ -28,6 +28,7 @@ import { ProductLineRefComponent } from '../shared/product-line-ref/product-line
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
+import { capDiscountPercent, calcDocumentTotals, calcLineTotals, capNonNegativeAmount, isShippingFeeKey } from '../../utils/sales-discount.util';
 import { TPipe } from '../../pipes/t.pipe';
 import { DocumentRelation } from '../../models/relation';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
@@ -726,6 +727,7 @@ export class PurchasesComponent implements OnInit {
           description: description || productKey,
           quantity,
           unitPrice,
+          discountPercent: 0,
           vatRate,
           totalHT,
           totalTTC: totalHT * (1 + vatRate / 100),
@@ -735,6 +737,30 @@ export class PurchasesComponent implements OnInit {
       .filter(l => (!!l.productKey.trim() || !!l.description.trim()) && l.quantity > 0);
 
     this.newInvoice.lines = lines.length ? lines : [];
+    if (receipt.purchaseOrderId) {
+      this.businessService.getPurchaseOrder(receipt.purchaseOrderId).subscribe({
+        next: (order) => {
+          this.newInvoice.headerDiscountPercent = order.headerDiscountPercent ?? 0;
+          this.newInvoice.shippingAmountHt = order.shippingAmountHt ?? 0;
+          this.newInvoice.shippingVatRate = order.shippingVatRate ?? 21;
+          if (this.newInvoice.lines.length === 0) {
+            this.addInvoiceLine();
+            this.createError = this.i18n.t('purchases.invoiceFromReceiptNoLines');
+          } else {
+            this.newInvoice.lines.forEach(l => this.calculateInvoiceLine(l));
+          }
+        },
+        error: () => {
+          if (this.newInvoice.lines.length === 0) {
+            this.addInvoiceLine();
+            this.createError = this.i18n.t('purchases.invoiceFromReceiptNoLines');
+          } else {
+            this.recalculateInvoiceTotals();
+          }
+        }
+      });
+      return;
+    }
     if (this.newInvoice.lines.length === 0) {
       this.addInvoiceLine();
       this.createError = this.i18n.t('purchases.invoiceFromReceiptNoLines');
@@ -1700,6 +1726,7 @@ export class PurchasesComponent implements OnInit {
       description: '',
       quantity: 1,
       unitPrice: 0,
+      discountPercent: 0,
       vatRate: 21,
       totalHT: 0,
       totalTTC: 0,
@@ -1714,8 +1741,15 @@ export class PurchasesComponent implements OnInit {
   }
 
   calculateInvoiceLine(line: SupplierInvoice['lines'][number]): void {
-    line.totalHT = (line.quantity || 0) * (line.unitPrice || 0);
-    line.totalTTC = line.totalHT * (1 + (line.vatRate || 0) / 100);
+    line.discountPercent = capDiscountPercent(Number(line.discountPercent || 0));
+    const totals = calcLineTotals(
+      Number(line.quantity || 0),
+      Number(line.unitPrice || 0),
+      line.discountPercent || 0,
+      Number(line.vatRate || 0)
+    );
+    line.totalHT = totals.totalHT;
+    line.totalTTC = totals.totalTTC;
     this.recalculateInvoiceTotals();
   }
 
@@ -1726,6 +1760,7 @@ export class PurchasesComponent implements OnInit {
       quantity: 1,
       receivedQuantity: 0,
       unitPrice: 0,
+      discountPercent: 0,
       vatRate: 21,
       totalHT: 0,
       totalTTC: 0,
@@ -1740,9 +1775,79 @@ export class PurchasesComponent implements OnInit {
   }
 
   calculatePurchaseOrderLine(line: PurchaseOrder['lines'][number]): void {
-    line.totalHT = (line.quantity || 0) * (line.unitPrice || 0);
-    line.totalTTC = line.totalHT * (1 + (line.vatRate || 0) / 100);
+    line.discountPercent = capDiscountPercent(Number(line.discountPercent || 0));
+    const totals = calcLineTotals(
+      Number(line.quantity || 0),
+      Number(line.unitPrice || 0),
+      line.discountPercent || 0,
+      Number(line.vatRate || 0)
+    );
+    line.totalHT = totals.totalHT;
+    line.totalTTC = totals.totalTTC;
     this.recalculatePurchaseOrderTotals();
+  }
+
+  onPurchaseHeaderDiscountChange(): void {
+    this.newPurchaseOrder.headerDiscountPercent = capDiscountPercent(Number(this.newPurchaseOrder.headerDiscountPercent || 0));
+    this.recalculatePurchaseOrderTotals();
+  }
+
+  onPurchaseShippingChange(): void {
+    this.newPurchaseOrder.shippingAmountHt = capNonNegativeAmount(Number(this.newPurchaseOrder.shippingAmountHt || 0));
+    this.newPurchaseOrder.shippingVatRate = capNonNegativeAmount(Number(this.newPurchaseOrder.shippingVatRate || 0));
+    this.recalculatePurchaseOrderTotals();
+  }
+
+  onInvoiceHeaderDiscountChange(): void {
+    this.newInvoice.headerDiscountPercent = capDiscountPercent(Number(this.newInvoice.headerDiscountPercent || 0));
+    this.recalculateInvoiceTotals();
+  }
+
+  onInvoiceShippingChange(): void {
+    this.newInvoice.shippingAmountHt = capNonNegativeAmount(Number(this.newInvoice.shippingAmountHt || 0));
+    this.newInvoice.shippingVatRate = capNonNegativeAmount(Number(this.newInvoice.shippingVatRate || 0));
+    this.recalculateInvoiceTotals();
+  }
+
+  addPurchaseShippingServiceLine(): void {
+    if (this.newPurchaseOrder.lines.some(l => isShippingFeeKey(l.productKey))) {
+      this.createError = this.i18n.t('sales.shippingLineExists');
+      return;
+    }
+    const line: PurchaseOrder['lines'][number] = {
+      productKey: 'FDP',
+      description: this.i18n.t('sales.shippingLineDescription'),
+      quantity: 1,
+      receivedQuantity: 0,
+      unitPrice: 0,
+      discountPercent: 0,
+      vatRate: this.newPurchaseOrder.shippingVatRate || 21,
+      totalHT: 0,
+      totalTTC: 0,
+      lineNumber: this.newPurchaseOrder.lines.length + 1
+    };
+    this.newPurchaseOrder.lines.push(line);
+    this.calculatePurchaseOrderLine(line);
+  }
+
+  addInvoiceShippingServiceLine(): void {
+    if (this.newInvoice.lines.some(l => isShippingFeeKey(l.productKey))) {
+      this.createError = this.i18n.t('sales.shippingLineExists');
+      return;
+    }
+    const line: SupplierInvoice['lines'][number] = {
+      productKey: 'FDP',
+      description: this.i18n.t('sales.shippingLineDescription'),
+      quantity: 1,
+      unitPrice: 0,
+      discountPercent: 0,
+      vatRate: this.newInvoice.shippingVatRate || 21,
+      totalHT: 0,
+      totalTTC: 0,
+      lineNumber: this.newInvoice.lines.length + 1
+    };
+    this.newInvoice.lines.push(line);
+    this.calculateInvoiceLine(line);
   }
 
   purchaseOrdersForReceiptSupplier(): PurchaseOrder[] {
@@ -1976,7 +2081,7 @@ export class PurchasesComponent implements OnInit {
     return '-';
   }
 
-  get detailLines(): Array<{ productKey: string; description: string; quantity: number; unitPrice: number; vatRate: number; totalHT: number; totalTTC: number; receivedQuantity?: number }> {
+  get detailLines(): Array<{ productKey: string; description: string; quantity: number; unitPrice: number; discountPercent?: number; vatRate: number; totalHT: number; totalTTC: number; receivedQuantity?: number }> {
     if (this.detailPurchaseOrder?.lines) {
       return this.detailPurchaseOrder.lines;
     }
@@ -2046,6 +2151,9 @@ export class PurchasesComponent implements OnInit {
       date: new Date().toISOString().slice(0, 10),
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       status: 'Draft',
+      headerDiscountPercent: 0,
+      shippingAmountHt: 0,
+      shippingVatRate: 21,
       totalHT: 0,
       totalVat: 0,
       totalTTC: 0,
@@ -2056,6 +2164,7 @@ export class PurchasesComponent implements OnInit {
           description: '',
           quantity: 1,
           unitPrice: 0,
+          discountPercent: 0,
           vatRate: 21,
           totalHT: 0,
           totalTTC: 0,
@@ -2072,6 +2181,9 @@ export class PurchasesComponent implements OnInit {
       date: new Date().toISOString().slice(0, 10),
       expectedDeliveryDate: '',
       status: 'Draft',
+      headerDiscountPercent: 0,
+      shippingAmountHt: 0,
+      shippingVatRate: 21,
       totalHT: 0,
       totalVat: 0,
       totalTTC: 0,
@@ -2083,6 +2195,7 @@ export class PurchasesComponent implements OnInit {
           quantity: 1,
           receivedQuantity: 0,
           unitPrice: 0,
+          discountPercent: 0,
           vatRate: 21,
           totalHT: 0,
           totalTTC: 0,
@@ -2130,9 +2243,15 @@ export class PurchasesComponent implements OnInit {
   }
 
   private recalculateInvoiceTotals(): void {
-    this.newInvoice.totalHT = this.newInvoice.lines.reduce((sum, line) => sum + (line.totalHT || 0), 0);
-    this.newInvoice.totalTTC = this.newInvoice.lines.reduce((sum, line) => sum + (line.totalTTC || 0), 0);
-    this.newInvoice.totalVat = this.newInvoice.totalTTC - this.newInvoice.totalHT;
+    const totals = calcDocumentTotals(
+      this.newInvoice.lines,
+      this.newInvoice.headerDiscountPercent || 0,
+      this.newInvoice.shippingAmountHt || 0,
+      this.newInvoice.shippingVatRate || 21
+    );
+    this.newInvoice.totalHT = totals.ht;
+    this.newInvoice.totalVat = totals.vat;
+    this.newInvoice.totalTTC = totals.ttc;
   }
 
   private reindexLines(): void {
@@ -2142,9 +2261,15 @@ export class PurchasesComponent implements OnInit {
   }
 
   private recalculatePurchaseOrderTotals(): void {
-    this.newPurchaseOrder.totalHT = this.newPurchaseOrder.lines.reduce((sum, line) => sum + (line.totalHT || 0), 0);
-    this.newPurchaseOrder.totalTTC = this.newPurchaseOrder.lines.reduce((sum, line) => sum + (line.totalTTC || 0), 0);
-    this.newPurchaseOrder.totalVat = this.newPurchaseOrder.totalTTC - this.newPurchaseOrder.totalHT;
+    const totals = calcDocumentTotals(
+      this.newPurchaseOrder.lines,
+      this.newPurchaseOrder.headerDiscountPercent || 0,
+      this.newPurchaseOrder.shippingAmountHt || 0,
+      this.newPurchaseOrder.shippingVatRate || 21
+    );
+    this.newPurchaseOrder.totalHT = totals.ht;
+    this.newPurchaseOrder.totalVat = totals.vat;
+    this.newPurchaseOrder.totalTTC = totals.ttc;
   }
 
   private reindexPurchaseOrderLines(): void {

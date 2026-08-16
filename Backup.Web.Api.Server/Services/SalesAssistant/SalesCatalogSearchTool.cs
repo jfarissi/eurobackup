@@ -97,6 +97,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "schutting", "tegel", "tegels", "grind", "gravier",
                 "pot", "plante", "tuin", "jardin", "gazon artificiel"
             },
+            ["auto_parts"] = new[]
+            {
+                "DIAG-PAD", "DIAG-DISC", "DIAG-CAL", "DIAG-KIT",
+                "plaquette", "plaquettes", "disque de frein", "étrier", "etrier",
+                "kit frein", "brake pad", "brake disc", "remblok", "remschijf"
+            },
             ["garden_maintenance"] = new[]
             {
                 "tondeuse", "grasmaaier", "haie", "haag", "gazon",

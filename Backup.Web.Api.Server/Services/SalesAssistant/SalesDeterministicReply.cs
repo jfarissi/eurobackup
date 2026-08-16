@@ -252,6 +252,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 "electrical" => SalesLocale.T(session, "vague_electrical"),
                 "painting" => SalesLocale.T(session, "vague_painting"),
+                "auto_parts" => SalesLocale.T(session, "vague_auto_parts"),
                 "tiling" => SalesLocale.T(session, "vague_tiling"),
                 "plumbing" => SalesLocale.T(session, "vague_plumbing"),
                 "garden_landscaping" or "garden_cleaning" or "garden_maintenance" =>

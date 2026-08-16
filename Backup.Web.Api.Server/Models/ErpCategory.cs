@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using Backup.Web.Api.Server.Services.Audit;
 
 namespace Backup.Web.Api.Server.Models

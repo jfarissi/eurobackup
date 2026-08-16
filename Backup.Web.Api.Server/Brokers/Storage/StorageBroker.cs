@@ -14,6 +14,7 @@ using Backup.Web.Api.Server.Models.Rols;
 using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Catalog;
 using Backup.Web.Api.Server.Models.Entities;
+using Backup.Web.Api.Server.Models.Entities.Accounting;
 using Backup.Web.Api.Server.Models.Entities.Email;
 using Backup.Web.Api.Server.Models.Entities.SaaS;
 using Backup.Web.Api.Server.Services.Audit;
@@ -231,6 +232,12 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.Property(u => u.CustomerId);
+                entity.HasIndex(u => u.CustomerId);
+            });
+
             modelBuilder.Entity<Document>(entity =>
             {
                 entity.Property(d => d.TypeDocument).HasMaxLength(64);
@@ -338,6 +345,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(p => p.DataSource).HasMaxLength(32);
                 entity.Property(p => p.SourceFile).HasMaxLength(512);
                 entity.HasIndex(p => p.FromExcel);
+                entity.HasIndex(p => p.IsDropship);
+                entity.HasIndex(p => p.DropshipSupplierId);
                 entity.Property(p => p.PriceHT).HasPrecision(18, 4);
                 entity.Property(p => p.UnitPrice).HasPrecision(18, 4);
                 entity.Property(p => p.CPrice).HasPrecision(18, 4);
@@ -410,6 +419,41 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<ErpProductDiagram>(entity =>
+            {
+                entity.ToTable("ErpProductDiagrams");
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.Title).IsRequired().HasMaxLength(255);
+                entity.Property(d => d.ImageUrl).IsRequired().HasMaxLength(2048);
+                entity.Property(d => d.MediaKind).IsRequired().HasMaxLength(16);
+                entity.Property(d => d.Source).IsRequired().HasMaxLength(16);
+                entity.Property(d => d.CreatedBy).HasMaxLength(128);
+                entity.HasIndex(d => d.ProductId);
+                entity.HasOne(d => d.Product)
+                    .WithMany()
+                    .HasForeignKey(d => d.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ErpDiagramHotspot>(entity =>
+            {
+                entity.ToTable("ErpDiagramHotspots");
+                entity.HasKey(h => h.Id);
+                entity.Property(h => h.Label).IsRequired().HasMaxLength(128);
+                entity.Property(h => h.Shape).IsRequired().HasMaxLength(16);
+                entity.Property(h => h.CoordsJson).IsRequired().HasMaxLength(2000);
+                entity.HasIndex(h => h.DiagramId);
+                entity.HasIndex(h => h.TargetProductId);
+                entity.HasOne(h => h.Diagram)
+                    .WithMany(d => d.Hotspots)
+                    .HasForeignKey(h => h.DiagramId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(h => h.TargetProduct)
+                    .WithMany()
+                    .HasForeignKey(h => h.TargetProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<ErpProductAttributeDefinition>(entity =>
             {
                 entity.ToTable("ErpProductAttributeDefinitions");
@@ -459,6 +503,11 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasIndex(v => v.ProductId);
                 entity.HasIndex(v => new { v.Make, v.Model });
                 entity.HasIndex(v => v.KType);
+                entity.HasIndex(v => v.EngineCode);
+                entity.HasIndex(v => v.FuelType);
+                entity.HasIndex(v => v.BodyType);
+                entity.HasIndex(v => v.DriveType);
+                entity.HasIndex(v => v.Transmission);
                 entity.HasOne(v => v.Product)
                     .WithMany()
                     .HasForeignKey(v => v.ProductId)
@@ -480,6 +529,67 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(h => h.SearchedBy).HasMaxLength(128);
                 entity.HasIndex(h => new { h.CompanyId, h.SearchedAt });
                 entity.HasIndex(h => h.PlateNumber);
+            });
+
+            modelBuilder.Entity<ErpPlateVehicle>(entity =>
+            {
+                entity.ToTable("ErpPlateVehicles");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.CompanyId).HasMaxLength(36);
+                entity.Property(v => v.PlateNumber).IsRequired().HasMaxLength(32);
+                entity.Property(v => v.Country).IsRequired().HasMaxLength(8);
+                entity.Property(v => v.Vin).HasMaxLength(32);
+                entity.Property(v => v.KType).HasMaxLength(64);
+                entity.Property(v => v.Make).HasMaxLength(128);
+                entity.Property(v => v.Model).HasMaxLength(128);
+                entity.Property(v => v.EngineCode).HasMaxLength(64);
+                entity.Property(v => v.FuelType).HasMaxLength(64);
+                entity.Property(v => v.Source).IsRequired().HasMaxLength(32);
+                entity.HasIndex(v => v.CustomerId);
+                entity.Property(v => v.CreatedBy).HasMaxLength(128);
+                entity.Property(v => v.UpdatedBy).HasMaxLength(128);
+                entity.HasIndex(v => new { v.CompanyId, v.PlateNumber, v.Country }).IsUnique();
+                entity.HasIndex(v => v.Vin);
+                entity.HasIndex(v => v.KType);
+            });
+
+            modelBuilder.Entity<ErpKTypeEnrichmentQueue>(entity =>
+            {
+                entity.ToTable("ErpKTypeEnrichmentQueue");
+                entity.HasKey(q => q.Id);
+                entity.Property(q => q.CompanyId).HasMaxLength(36);
+                entity.Property(q => q.KType).IsRequired().HasMaxLength(64);
+                entity.Property(q => q.Vin).HasMaxLength(32);
+                entity.Property(q => q.Make).HasMaxLength(128);
+                entity.Property(q => q.Model).HasMaxLength(128);
+                entity.Property(q => q.EngineCode).HasMaxLength(64);
+                entity.Property(q => q.Source).IsRequired().HasMaxLength(32);
+                entity.Property(q => q.Status).IsRequired().HasMaxLength(16);
+                entity.HasIndex(q => q.KType).IsUnique();
+                entity.HasIndex(q => new { q.Status, q.HitCount });
+                entity.HasIndex(q => q.CompanyId);
+            });
+
+            modelBuilder.Entity<ErpRapidApiKTypeCategoryCache>(entity =>
+            {
+                entity.ToTable("ErpRapidApiKTypeCategoryCache");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.KType).IsRequired().HasMaxLength(64);
+                entity.Property(c => c.CategoriesJson).IsRequired();
+                entity.HasIndex(c => c.KType).IsUnique();
+            });
+
+            modelBuilder.Entity<ErpProductSupplierOffer>(entity =>
+            {
+                entity.ToTable("ErpProductSupplierOffers");
+                entity.HasKey(o => o.Id);
+                entity.Property(o => o.CompanyId).HasMaxLength(36);
+                entity.Property(o => o.SupplierSku).HasMaxLength(128);
+                entity.Property(o => o.Source).IsRequired().HasMaxLength(16);
+                entity.Property(o => o.BuyPrice).HasPrecision(18, 4);
+                entity.Property(o => o.StockQty).HasPrecision(18, 4);
+                entity.HasIndex(o => new { o.CompanyId, o.ProductId, o.SupplierId }).IsUnique();
+                entity.HasIndex(o => o.ProductId);
             });
 
             modelBuilder.Entity<ErpVinVehicle>(entity =>
@@ -714,6 +824,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(s => s.Name).IsRequired().HasMaxLength(256);
                 entity.Property(s => s.Balance).HasPrecision(18, 4);
                 entity.Property(s => s.Status).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.FeedCode).HasMaxLength(64);
             });
 
             modelBuilder.Entity<Quote>(entity =>
@@ -850,6 +961,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(p => p.TotalTTC).HasPrecision(18, 4);
                 entity.Property(p => p.CurrencyCode).HasMaxLength(8);
                 entity.HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId);
+                entity.HasIndex(p => p.SalesOrderId);
                 entity.HasMany(p => p.SupplierInvoices)
                     .WithOne(i => i.PurchaseOrder)
                     .HasForeignKey(i => i.PurchaseOrderId)
@@ -1084,6 +1196,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(e => e.Status).HasMaxLength(32);
                 entity.HasIndex(e => new { e.EntryNumber, e.CompanyId }).IsUnique();
                 entity.HasIndex(e => new { e.ReferenceType, e.ReferenceId, e.CompanyId });
+                entity.HasOne(e => e.Journal).WithMany().HasForeignKey(e => e.JournalId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.FiscalPeriod).WithMany().HasForeignKey(e => e.FiscalPeriodId).OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<AccountingEntryLine>(entity =>
@@ -1094,7 +1208,83 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.Property(l => l.AccountLabel).IsRequired().HasMaxLength(256);
                 entity.Property(l => l.Debit).HasPrecision(18, 4);
                 entity.Property(l => l.Credit).HasPrecision(18, 4);
+                entity.Property(l => l.LettrageCode).HasMaxLength(64);
                 entity.HasOne(l => l.AccountingEntry).WithMany(e => e.Lines).HasForeignKey(l => l.AccountingEntryId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(l => l.ChartOfAccount).WithMany().HasForeignKey(l => l.ChartOfAccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Phase 1 — socle comptable : plan comptable, journaux, exercices/périodes, paramètres.
+            modelBuilder.Entity<ChartOfAccount>(entity =>
+            {
+                entity.ToTable("ChartOfAccounts");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.Property(a => a.AccountNumber).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.Label).IsRequired().HasMaxLength(256);
+                entity.Property(a => a.LabelArabic).HasMaxLength(256);
+                entity.Property(a => a.AccountType).IsRequired().HasMaxLength(32);
+                entity.HasIndex(a => new { a.CompanyId, a.AccountNumber }).IsUnique();
+                entity.HasOne(a => a.Parent).WithMany().HasForeignKey(a => a.ParentId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<Journal>(entity =>
+            {
+                entity.ToTable("Journals");
+                entity.HasKey(j => j.Id);
+                entity.Property(j => j.CompanyId).HasMaxLength(36);
+                entity.Property(j => j.Code).IsRequired().HasMaxLength(16);
+                entity.Property(j => j.Label).IsRequired().HasMaxLength(256);
+                entity.Property(j => j.CounterpartAccountCode).HasMaxLength(32);
+                entity.HasIndex(j => new { j.CompanyId, j.Code }).IsUnique();
+            });
+
+            modelBuilder.Entity<FiscalYear>(entity =>
+            {
+                entity.ToTable("FiscalYears");
+                entity.HasKey(f => f.Id);
+                entity.Property(f => f.CompanyId).HasMaxLength(36);
+                entity.Property(f => f.Name).IsRequired().HasMaxLength(128);
+                entity.Property(f => f.Status).IsRequired().HasMaxLength(32);
+                entity.HasIndex(f => new { f.CompanyId, f.StartDate, f.EndDate });
+            });
+
+            modelBuilder.Entity<FiscalPeriod>(entity =>
+            {
+                entity.ToTable("FiscalPeriods");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.HasIndex(p => new { p.FiscalYearId, p.Year, p.Month }).IsUnique();
+                entity.HasOne(p => p.FiscalYear).WithMany(f => f.Periods).HasForeignKey(p => p.FiscalYearId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CompanyAccountingSettings>(entity =>
+            {
+                entity.ToTable("CompanyAccountingSettings");
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.CompanyId).IsRequired().HasMaxLength(36);
+                entity.HasIndex(s => s.CompanyId).IsUnique();
+                entity.Property(s => s.PlanType).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.CustomerAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.SupplierAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.SalesAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.PurchaseAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.VatCollectedAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.VatDeductibleAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.BankAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.CashAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(s => s.CustomerDepositAccountCode).IsRequired().HasMaxLength(32);
+            });
+
+            // Phase 2 — mapping TVA par taux (comptes collecté/déductible spécifiques par société).
+            modelBuilder.Entity<CompanyVatRateAccount>(entity =>
+            {
+                entity.ToTable("CompanyVatRateAccounts");
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.CompanyId).HasMaxLength(36);
+                entity.Property(v => v.Rate).HasPrecision(18, 4);
+                entity.Property(v => v.CollectedAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(v => v.DeductibleAccountCode).IsRequired().HasMaxLength(32);
+                entity.HasIndex(v => new { v.CompanyId, v.Rate }).IsUnique();
             });
 
             modelBuilder.Entity<DocumentAuditLog>(entity =>

@@ -22,7 +22,8 @@ import {
   SalesReturn,
   Proforma,
   DepositInvoice,
-  Supplier
+  Supplier,
+  DropshipPurchaseOrder
 } from '../../models/business';
 import { Observable, forkJoin } from 'rxjs';
 import { ProductLineRefComponent } from '../shared/product-line-ref/product-line-ref.component';
@@ -37,10 +38,14 @@ import { HelpAlertsComponent } from '../shared/help-alerts/help-alerts.component
 import { HelpWalkthroughComponent } from '../shared/help-walkthrough/help-walkthrough.component';
 import { evaluateHelpAlerts, HelpAlert } from '../../services/help-alerts';
 import { StockService } from '../../services/stock.service';
+import { SupplierQuoteService } from '../../services/supplier-quote.service';
+import { SupplierQuotesResult } from '../../models/supplier-quote';
+import { ErpProduct } from '../../models/erp-product';
 import { TableSortState } from '../../utils/table-sort';
 import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 import { SendEmailModalComponent } from '../shared/send-email-modal/send-email-modal.component';
 import { EmailService } from '../../services/email.service';
+import { capDiscountPercent, calcDocumentTotals, calcLineTotals, capNonNegativeAmount } from '../../utils/sales-discount.util';
 
 type DocKind = 'Quote' | 'Order' | 'Invoice';
 
@@ -50,11 +55,17 @@ interface DocLineDraft {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%). */
+  discountPercent: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
   lineNumber: number;
   supplierId?: number | null;
+  productId?: number | null;
+  quoteHint?: string;
+  buyCost?: number | null;
+  supplierQuotes?: SupplierQuotesResult | null;
   deliveredQuantity?: number;
   invoicedQuantity?: number;
   locked?: boolean;
@@ -133,6 +144,12 @@ export class SalesComponent implements OnInit {
   docKind: DocKind = 'Invoice';
   docCustomerId: number | null = null;
   docNotes = '';
+  /** RG-CP3 : remise pied de page (%). */
+  docHeaderDiscountPercent = 0;
+  /** RG-FA1 : frais de port forfaitaires HT. */
+  docShippingAmountHt = 0;
+  /** RG-FA1 : TVA frais de port. */
+  docShippingVatRate = 21;
   docExpirationDate = '';
   docDueDate = '';
   docLines: DocLineDraft[] = [];
@@ -182,6 +199,7 @@ export class SalesComponent implements OnInit {
   detailInvoice: SalesInvoice | null = null;
   detailCreditNote: CreditNote | null = null;
   detailDeliveryNote: SalesDeliveryNote | null = null;
+  detailDropshipPos: DropshipPurchaseOrder[] = [];
   detailAudit: DocumentAuditLog[] = [];
   detailAuditLoading = false;
 
@@ -219,7 +237,8 @@ export class SalesComponent implements OnInit {
     public perm: PermissionService,
     private i18n: AppI18nService,
     private stockService: StockService,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private supplierQuotesApi: SupplierQuoteService
   ) {}
 
   get sortedQuotes() {
@@ -487,6 +506,7 @@ export class SalesComponent implements OnInit {
         unitPrice: l.unitPrice,
         vatRate: l.vatRate
       })),
+      lineDiscounts: this.docLines.map(l => l.discountPercent || 0),
       stockByProduct: this.stockByProduct,
       expectedVatRate: 21
     }, (key, p) => this.i18n.t(key, p));
@@ -516,9 +536,41 @@ export class SalesComponent implements OnInit {
   }
 
   get docTotals(): { ht: number; vat: number; ttc: number } {
-    const ht = this.docLines.reduce((sum, l) => sum + (l.totalHT || 0), 0);
-    const vat = this.docLines.reduce((sum, l) => sum + (l.totalHT || 0) * ((l.vatRate || 0) / 100), 0);
-    return { ht, vat, ttc: ht + vat };
+    return calcDocumentTotals(
+      this.docLines,
+      this.docHeaderDiscountPercent,
+      this.docShippingAmountHt,
+      this.docShippingVatRate
+    );
+  }
+
+  onDocHeaderDiscountChange(): void {
+    this.docHeaderDiscountPercent = capDiscountPercent(Number(this.docHeaderDiscountPercent || 0));
+    this.refreshDocHelpAlerts();
+  }
+
+  onDocShippingChange(): void {
+    this.docShippingAmountHt = capNonNegativeAmount(Number(this.docShippingAmountHt || 0));
+    this.docShippingVatRate = capNonNegativeAmount(Number(this.docShippingVatRate || 0));
+    this.refreshDocHelpAlerts();
+  }
+
+  /** Ajoute une ligne service FDP (RG-FA1 mode ligne). */
+  addShippingServiceLine(): void {
+    const existing = this.docLines.find(l => (l.productKey || '').toUpperCase() === 'FDP');
+    if (existing) {
+      this.actionError = this.i18n.t('sales.shippingLineExists');
+      return;
+    }
+    const line = this.emptyLine(this.docLines.length + 1);
+    line.productKey = 'FDP';
+    line.description = this.i18n.t('sales.shippingLineDescription');
+    line.quantity = 1;
+    line.unitPrice = 0;
+    line.discountPercent = 0;
+    line.vatRate = this.docShippingVatRate || 21;
+    this.docLines = [...this.docLines, line];
+    this.calcLine(line);
   }
 
   canCreateOnTab(): boolean {
@@ -868,6 +920,9 @@ export class SalesComponent implements OnInit {
     this.editingOrderCommitted = false;
     this.docCustomerId = null;
     this.docNotes = '';
+    this.docHeaderDiscountPercent = 0;
+    this.docShippingAmountHt = 0;
+    this.docShippingVatRate = 21;
     this.docLines = [this.emptyLine(1)];
     this.docSalesOrderId = null;
     this.docSalesDeliveryNoteId = null;
@@ -936,6 +991,9 @@ export class SalesComponent implements OnInit {
         this.editingOrderCommitted = committed;
         this.docCustomerId = full.customerId;
         this.docNotes = full.notes || '';
+        this.docHeaderDiscountPercent = full.headerDiscountPercent ?? 0;
+        this.docShippingAmountHt = full.shippingAmountHt ?? 0;
+        this.docShippingVatRate = full.shippingVatRate ?? 21;
         this.docSalesOrderId = null;
         this.docSalesDeliveryNoteId = null;
         this.docSalesDeliveryNoteIds = [];
@@ -950,6 +1008,7 @@ export class SalesComponent implements OnInit {
             description: l.description,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
+            discountPercent: l.discountPercent ?? 0,
             vatRate: l.vatRate,
             totalHT: l.totalHT,
             totalTTC: l.totalTTC,
@@ -1020,6 +1079,9 @@ export class SalesComponent implements OnInit {
         this.editingOrderId = null;
         this.docCustomerId = full.customerId;
         this.docNotes = full.notes || '';
+        this.docHeaderDiscountPercent = full.headerDiscountPercent ?? 0;
+        this.docShippingAmountHt = full.shippingAmountHt ?? 0;
+        this.docShippingVatRate = full.shippingVatRate ?? 21;
         this.docDueDate = this.toDateInput(full.dueDate ? new Date(full.dueDate) : new Date());
         this.docSalesOrderId = full.salesOrderId ?? null;
         const linkedDns = this.deliveryNotes.filter(dn => dn.salesInvoiceId === full.id);
@@ -1034,6 +1096,7 @@ export class SalesComponent implements OnInit {
             description: l.description,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
+            discountPercent: l.discountPercent ?? 0,
             vatRate: l.vatRate,
             totalHT: l.totalHT,
             totalTTC: l.totalTTC,
@@ -1173,17 +1236,22 @@ export class SalesComponent implements OnInit {
     this.businessService.getSalesOrder(this.docSalesOrderId).subscribe({
       next: (order) => {
         this.docCustomerId = order.customerId;
+        this.docHeaderDiscountPercent = order.headerDiscountPercent ?? 0;
+        this.docShippingAmountHt = order.shippingAmountHt ?? 0;
+        this.docShippingVatRate = order.shippingVatRate ?? 21;
         this.docLines = (order.lines || []).map((l, i) => ({
           productKey: l.productKey,
           description: l.description,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
+          discountPercent: l.discountPercent ?? 0,
           vatRate: l.vatRate,
           totalHT: l.totalHT,
           totalTTC: l.totalTTC,
           lineNumber: i + 1,
           supplierId: l.supplierId ?? null
         }));
+        this.docLines.forEach(l => this.calcLine(l));
         if (!this.docLines.length) this.docLines = [this.emptyLine(1)];
         this.docSourceLoading = false;
       },
@@ -1234,6 +1302,7 @@ export class SalesComponent implements OnInit {
                 description: l.description,
                 quantity: Number(l.deliveredQuantity || 0),
                 unitPrice: l.unitPrice,
+                discountPercent: 0,
                 vatRate: l.vatRate,
                 totalHT: 0,
                 totalTTC: 0,
@@ -1317,9 +1386,63 @@ export class SalesComponent implements OnInit {
       if (maxQty > 0 && Number(line.quantity || 0) > maxQty) line.quantity = maxQty;
       if (Number(line.quantity || 0) <= 0) line.quantity = 0.01;
     }
-    line.totalHT = +(Number(line.quantity || 0) * Number(line.unitPrice || 0)).toFixed(2);
-    line.totalTTC = +(line.totalHT * (1 + Number(line.vatRate || 0) / 100)).toFixed(2);
+    line.discountPercent = capDiscountPercent(Number(line.discountPercent || 0));
+    const totals = calcLineTotals(
+      Number(line.quantity || 0),
+      Number(line.unitPrice || 0),
+      line.discountPercent,
+      Number(line.vatRate || 0)
+    );
+    line.totalHT = totals.totalHT;
+    line.totalTTC = totals.totalTTC;
     this.refreshDocHelpAlerts();
+  }
+
+  onSalesProductSelected(line: DocLineDraft, product: ErpProduct): void {
+    line.productId = product?.id ?? null;
+    line.quoteHint = '';
+    line.buyCost = null;
+    line.supplierQuotes = null;
+    this.calcLine(line);
+    if (!product?.id) return;
+    this.supplierQuotesApi.get(product.id).subscribe({
+      next: result => {
+        line.supplierQuotes = result;
+        if (result.bestSupplierId) {
+          line.supplierId = result.bestSupplierId;
+        }
+        this.applySupplierQuoteHint(line);
+      },
+      error: () => {
+        line.supplierQuotes = null;
+        line.quoteHint = '';
+      }
+    });
+  }
+
+  onLineSupplierChange(line: DocLineDraft): void {
+    this.applySupplierQuoteHint(line);
+  }
+
+  private applySupplierQuoteHint(line: DocLineDraft): void {
+    const offers = line.supplierQuotes?.offers ?? [];
+    const offer = offers.find(o => o.supplierId === line.supplierId)
+      ?? offers.find(o => o.isBest);
+    if (!offer) {
+      line.quoteHint = '';
+      line.buyCost = null;
+      return;
+    }
+    line.buyCost = offer.buyPrice;
+    const price = offer.buyPrice.toLocaleString(this.i18n.numberLocale(), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    line.quoteHint = this.i18n.t('catalog.quotes.hint', {
+      price: `${price} €`,
+      days: offer.leadDays,
+      supplier: offer.supplierName
+    });
   }
 
   saveDocument(): void {
@@ -1355,11 +1478,25 @@ export class SalesComponent implements OnInit {
         date: new Date().toISOString(),
         expirationDate: this.docExpirationDate ? new Date(this.docExpirationDate).toISOString() : new Date().toISOString(),
         status: 'Draft',
+        headerDiscountPercent: this.docHeaderDiscountPercent,
+        shippingAmountHt: this.docShippingAmountHt,
+        shippingVatRate: this.docShippingVatRate,
         totalHT: this.docTotals.ht,
         totalVat: this.docTotals.vat,
         totalTTC: this.docTotals.ttc,
         notes: this.docNotes || undefined,
-        lines: this.docLines.map((l, i) => ({ ...l, lineNumber: i + 1 } as QuoteLine))
+        lines: this.docLines.map((l, i) => ({
+          productKey: l.productKey,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          discountPercent: l.discountPercent,
+          vatRate: l.vatRate,
+          totalHT: l.totalHT,
+          totalTTC: l.totalTTC,
+          lineNumber: i + 1,
+          supplierId: l.supplierId ?? null
+        } as QuoteLine))
       };
       this.businessService.createQuote(quote).subscribe({
         next: (created) => this.onDocCreated(this.i18n.t('sales.quoteCreated', { number: created.quoteNumber }), 0),
@@ -1375,6 +1512,9 @@ export class SalesComponent implements OnInit {
         customerId: this.docCustomerId,
         date: new Date().toISOString(),
         status: 'Draft',
+        headerDiscountPercent: this.docHeaderDiscountPercent,
+        shippingAmountHt: this.docShippingAmountHt,
+        shippingVatRate: this.docShippingVatRate,
         totalHT: this.docTotals.ht,
         totalVat: this.docTotals.vat,
         totalTTC: this.docTotals.ttc,
@@ -1387,6 +1527,7 @@ export class SalesComponent implements OnInit {
           deliveredQuantity: l.deliveredQuantity || 0,
           invoicedQuantity: l.invoicedQuantity || 0,
           unitPrice: l.unitPrice,
+          discountPercent: l.discountPercent,
           vatRate: l.vatRate,
           totalHT: l.totalHT,
           totalTTC: l.totalTTC,
@@ -1420,6 +1561,9 @@ export class SalesComponent implements OnInit {
       date: new Date().toISOString(),
       dueDate: this.docDueDate ? new Date(this.docDueDate).toISOString() : new Date().toISOString(),
       status: 'Draft',
+      headerDiscountPercent: this.docHeaderDiscountPercent,
+      shippingAmountHt: this.docShippingAmountHt,
+      shippingVatRate: this.docShippingVatRate,
       totalHT: this.docTotals.ht,
       totalVat: this.docTotals.vat,
       totalTTC: this.docTotals.ttc,
@@ -1433,6 +1577,7 @@ export class SalesComponent implements OnInit {
         deliveredQuantity: l.deliveredQuantity || 0,
         orderedQuantity: l.quantity,
         unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
         vatRate: l.vatRate,
         totalHT: l.totalHT,
         totalTTC: l.totalTTC,
@@ -1954,6 +2099,7 @@ export class SalesComponent implements OnInit {
         else if (kind === 'Order') {
           this.detailOrder = full as SalesOrder;
           this.loadDocumentAudit('Order', id);
+          this.loadDropshipPos(id);
         }
         else if (kind === 'Invoice') {
           this.detailInvoice = full as SalesInvoice;
@@ -1992,11 +2138,22 @@ export class SalesComponent implements OnInit {
     return '-';
   }
 
+  get detailHeaderDiscountPercent(): number {
+    const doc = this.detailQuote || this.detailOrder || this.detailInvoice;
+    return doc?.headerDiscountPercent ?? 0;
+  }
+
+  get detailShippingAmountHt(): number {
+    const doc = this.detailQuote || this.detailOrder || this.detailInvoice;
+    return doc?.shippingAmountHt ?? 0;
+  }
+
   get detailLines(): Array<{
     productKey: string;
     description: string;
     quantity: number;
     unitPrice: number;
+    discountPercent?: number;
     vatRate: number;
     totalHT: number;
     totalTTC: number;
@@ -2068,9 +2225,31 @@ export class SalesComponent implements OnInit {
     this.detailInvoice = null;
     this.detailCreditNote = null;
     this.detailDeliveryNote = null;
+    this.detailDropshipPos = [];
     this.detailAudit = [];
     this.detailAuditLoading = false;
     this.actionError = '';
+  }
+
+  private loadDropshipPos(orderId: number | undefined): void {
+    this.detailDropshipPos = [];
+    if (!orderId) return;
+    this.businessService.getDropshipPurchaseOrders(orderId).subscribe({
+      next: rows => { this.detailDropshipPos = rows || []; },
+      error: () => { this.detailDropshipPos = []; }
+    });
+  }
+
+  private appendDropshipConfirmHint(order: SalesOrder, base: string): void {
+    if (!order.id) return;
+    this.businessService.getDropshipPurchaseOrders(order.id).subscribe({
+      next: rows => {
+        if (this.detailOrder?.id === order.id) this.detailDropshipPos = rows || [];
+        if (rows?.length) {
+          this.actionMessage = `${base} ${this.i18n.t('sales.dropship.created', { numbers: rows.map(r => r.orderNumber).join(', ') })}`;
+        }
+      }
+    });
   }
 
   private loadDocumentAudit(kind: 'Order' | 'Invoice', documentId: number): void {
@@ -2263,6 +2442,7 @@ export class SalesComponent implements OnInit {
       description: '',
       quantity: 1,
       unitPrice: 0,
+      discountPercent: 0,
       vatRate: 21,
       totalHT: 0,
       totalTTC: 0,
@@ -2496,11 +2676,13 @@ export class SalesComponent implements OnInit {
       next: (updated) => {
         this.saving = false;
         const pending = (updated.status || '').toLowerCase() === 'pending';
-        this.actionMessage = pending
+        const base = pending
           ? this.i18n.t('sales.orderPendingCredit', { number: updated.orderNumber })
           : this.i18n.t('sales.orderConfirmed', { number: updated.orderNumber });
+        this.actionMessage = base;
         this.businessService.getSalesOrders().subscribe(o => this.orders = o);
         this.loadPilotage();
+        if (!pending) this.appendDropshipConfirmHint(updated, base);
       },
       error: (err) => {
         this.saving = false;
@@ -2515,9 +2697,11 @@ export class SalesComponent implements OnInit {
     this.businessService.approveSalesOrder(order.id).subscribe({
       next: (updated) => {
         this.saving = false;
-        this.actionMessage = this.i18n.t('sales.orderApproved', { number: updated.orderNumber });
+        const base = this.i18n.t('sales.orderApproved', { number: updated.orderNumber });
+        this.actionMessage = base;
         this.businessService.getSalesOrders().subscribe(o => this.orders = o);
         this.loadPilotage();
+        this.appendDropshipConfirmHint(updated, base);
       },
       error: (err) => {
         this.saving = false;

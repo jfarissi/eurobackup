@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { AuthService } from './auth.service';
-import { PermissionCode, RoutePermissions } from '../constants/permissions';
+import { PermissionCode, Permissions, RoutePermissions } from '../constants/permissions';
 
 /** Ordre de priorité pour la page d'accueil après login. */
 const HOME_CANDIDATES = [
@@ -47,8 +47,18 @@ export class PermissionService {
     return this.hasAny(...required);
   }
 
+  /** Portail F5 : rôle Garage sans droits staff ventes. */
+  isGaragePortalUser(): boolean {
+    const user = this.auth.currentUser;
+    if (!user || user.isAdmin || user.role?.toLowerCase() === 'admin') return false;
+    return this.has(Permissions.GarageOrdersRead) && !this.has(Permissions.OrderRead);
+  }
+
   /** Première route accessible, sinon /access-denied. */
   getDefaultHomeUrl(excludePath?: string): string {
+    if (this.isGaragePortalUser() && excludePath !== '/garage') {
+      return '/garage';
+    }
     for (const path of HOME_CANDIDATES) {
       if (excludePath && path === excludePath) continue;
       if (this.canAccessRoute(path)) return path;

@@ -23,10 +23,14 @@ Usage (PowerShell) :
   $env:RAPIDAPI_MAX_PRODUCTS = "400"
   python sync_rapidapi_morocco.py
 
-  # Marques manquantes seulement
+  # Enrichir les modèles (diversité filtres UI) — budget réparti par modèle
   $env:RAPIDAPI_PROFILE = "wide"
-  $env:RAPIDAPI_MFG_FOCUS = "VOLKSWAGEN,TOYOTA,FORD,KIA,FIAT,OPEL,NISSAN,MERCEDES-BENZ,BMW,SEAT,SKODA,SUZUKI"
-  $env:RAPIDAPI_MAX_PRODUCTS = "3000"
+  $env:RAPIDAPI_MFG_FOCUS = "RENAULT,DACIA,PEUGEOT,TOYOTA,VW"
+  $env:RAPIDAPI_MAX_PRODUCTS = "2500"
+  $env:RAPIDAPI_PER_MFG = "500"
+  $env:RAPIDAPI_MAX_MODELS = "8"
+  $env:RAPIDAPI_MAX_VEHICLES = "3"
+  $env:RAPIDAPI_MAX_CATS = "6"
   python sync_rapidapi_morocco.py
 """
 
@@ -115,6 +119,11 @@ MFG_FOCUS: Tuple[str, ...] = tuple(
     for p in _MFG_FOCUS_RAW.replace(";", ",").split(",")
     if p.strip()
 )
+
+# Plafond d'articles *nouveaux/refresh* par marque (évite que Toyota mange tout le quota).
+# 0 = désactivé. Si focus + non défini → répartition égale du MAX_PRODUCTS.
+_PER_MFG_RAW = os.getenv("RAPIDAPI_PER_MFG", "").strip()
+PER_MFG_PRODUCTS = int(_PER_MFG_RAW) if _PER_MFG_RAW else 0
 
 poc.LANG_ID = int(os.getenv("RAPIDAPI_LANG_ID", "6"))
 poc.COUNTRY_ID = int(os.getenv("RAPIDAPI_COUNTRY_ID", "34"))
@@ -234,8 +243,22 @@ def pick_morocco_manufacturers(all_mfg: List[Dict]) -> List[Dict]:
 
 
 def pick_morocco_models(models: List[Dict], brand_name: str) -> List[Dict]:
-    """1 modèle par mot-clé (Sandero + Logan + Duster…), pas 4 Logan."""
-    preferred = fleet_map().get(_norm(brand_name), [])
+    """1 modèle TecDoc par mot-clé parc (Sandero + Logan + Duster…), pas 4 Logan."""
+    fmap = fleet_map()
+    key = _norm(brand_name)
+    preferred = fmap.get(key, [])
+    if not preferred:
+        # alias VW ↔ VOLKSWAGEN, MERCEDES ↔ MERCEDES BENZ
+        for alias_from, alias_to in (
+            ("VW", "VOLKSWAGEN"),
+            ("VOLKSWAGEN", "VW"),
+            ("MERCEDES", "MERCEDES BENZ"),
+            ("MERCEDES BENZ", "MERCEDES"),
+        ):
+            if key == alias_from or key.startswith(alias_from + " "):
+                preferred = fmap.get(alias_to, [])
+                if preferred:
+                    break
     if not preferred:
         return models[:MAX_MODELS_PER_MFG]
 
@@ -316,7 +339,18 @@ def run() -> None:
         if not mfgs:
             raise SystemExit("Aucun constructeur Maroc trouvé dans /manufacturers/list")
 
+        per_mfg_budget = PER_MFG_PRODUCTS
+        if per_mfg_budget <= 0 and MFG_FOCUS and len(mfgs) > 1:
+            per_mfg_budget = max(80, MAX_PRODUCTS // len(mfgs))
+        if per_mfg_budget > 0:
+            print(
+                f"Budget par marque: {per_mfg_budget} articles (détail API) "
+                f"— évite qu'une marque consomme tout le quota"
+            )
+
         fetched_ids: Set[int] = set()
+        done_mfgs: List[str] = []
+        skipped_mfgs: List[str] = []
         if db is not None:
             known = db.load_existing_article_ids()
             print(
@@ -326,9 +360,11 @@ def run() -> None:
 
         for mfg in mfgs:
             if len(fetched_ids) >= MAX_PRODUCTS:
-                break
+                skipped_mfgs.append(str(mfg.get("manufacturerName") or "?"))
+                continue
             mid = int(mfg["manufacturerId"])
             mname = str(mfg.get("manufacturerName") or "?")
+            mfg_start = len(fetched_ids)
             print(f"\n=== {mname} (id={mid}) ===")
             try:
                 models = pick_morocco_models(client.models(mid), mname)
@@ -355,14 +391,26 @@ def run() -> None:
                             f"      - {v.get('vehicleId')} {v.get('typeEngineName') or ''} "
                             f"{v.get('constructionIntervalStart')}-{v.get('constructionIntervalEnd')}"
                         )
+                done_mfgs.append(mname)
                 continue
 
             assert db is not None
+            mfg_budget_hit = False
+            n_models = max(1, len(models))
+            per_model_budget = 0
+            if per_mfg_budget > 0:
+                per_model_budget = max(25, per_mfg_budget // n_models)
+                print(
+                    f"  budget/modèle ≈ {per_model_budget} "
+                    f"({n_models} modèles × pour diversifier les filtres UI)"
+                )
+
             for model in models:
-                if len(fetched_ids) >= MAX_PRODUCTS:
+                if len(fetched_ids) >= MAX_PRODUCTS or mfg_budget_hit:
                     break
                 model_id = int(model["modelId"])
                 model_name = str(model.get("modelName") or "")
+                model_start = len(fetched_ids)
                 print(f"  modèle: {model_name}")
                 try:
                     vehicles = [
@@ -372,8 +420,9 @@ def run() -> None:
                     print(f"  vehicles ERR: {e}")
                     continue
 
+                model_budget_hit = False
                 for vehicle in vehicles:
-                    if len(fetched_ids) >= MAX_PRODUCTS:
+                    if len(fetched_ids) >= MAX_PRODUCTS or mfg_budget_hit or model_budget_hit:
                         break
                     vid = int(vehicle["vehicleId"])
                     eng = vehicle.get("typeEngineName", "")
@@ -390,7 +439,7 @@ def run() -> None:
                         continue
 
                     for cat_id, cat_name in cats:
-                        if len(fetched_ids) >= MAX_PRODUCTS:
+                        if len(fetched_ids) >= MAX_PRODUCTS or mfg_budget_hit or model_budget_hit:
                             break
                         try:
                             arts = client.articles(vid, cat_id)
@@ -401,6 +450,20 @@ def run() -> None:
 
                         for art in arts:
                             if len(fetched_ids) >= MAX_PRODUCTS:
+                                break
+                            if per_mfg_budget > 0 and (len(fetched_ids) - mfg_start) >= per_mfg_budget:
+                                print(
+                                    f"  → budget marque atteint "
+                                    f"({per_mfg_budget} articles) — passe à la suivante"
+                                )
+                                mfg_budget_hit = True
+                                break
+                            if per_model_budget > 0 and (len(fetched_ids) - model_start) >= per_model_budget:
+                                print(
+                                    f"    → budget modèle atteint "
+                                    f"({per_model_budget}) — modèle suivant"
+                                )
+                                model_budget_hit = True
                                 break
                             try:
                                 poc.process_article(
@@ -417,12 +480,30 @@ def run() -> None:
                                 db.stats["errors"] += 1
                                 print(f"        ERR article: {e}")
 
+                print(f"    >>> modèle {model_name}: +{len(fetched_ids) - model_start} articles")
+
+            added = len(fetched_ids) - mfg_start
+            print(f"  >>> {mname}: +{added} articles (détail) cette marque")
+            done_mfgs.append(mname)
+
+        # Marques du focus jamais atteintes (quota global)
+        if skipped_mfgs:
+            print(
+                f"\n⚠ Quota global MAX_PRODUCTS={MAX_PRODUCTS} atteint — "
+                f"marques non traitées: {skipped_mfgs}"
+            )
+            print(
+                "Relance avec RAPIDAPI_MFG_FOCUS sur ces marques seulement, "
+                "ou augmente RAPIDAPI_MAX_PRODUCTS / RAPIDAPI_PER_MFG."
+            )
+
         if DRY_RUN:
             print("\nDRY RUN terminé — aucune écriture BDD / aucun détail article.")
         else:
             assert db is not None
             print("\nSTATS", db.stats)
             print(f"Nouveaux/rafraîchis (API détail): {len(fetched_ids)}")
+            print(f"Marques traitées: {done_mfgs}")
             print(f"Total RAPID en base: {len(db.load_existing_article_ids())}")
     finally:
         if db is not None:

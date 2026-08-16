@@ -36,13 +36,19 @@ public static class AuthSeedService
         Permissions.DocumentRead,
     };
 
+    private static readonly string[] DefaultGaragePermissions =
+    {
+        Permissions.GarageOrdersRead,
+        Permissions.GarageVehiclesRead,
+    };
+
     public static async Task SeedAsync(IServiceProvider services, ILogger logger)
     {
         var options = services.GetRequiredService<IOptions<AuthSeedOptions>>().Value;
         var userManager = services.GetRequiredService<UserManager<User>>();
         var roleManager = services.GetRequiredService<RoleManager<Role>>();
 
-        foreach (var roleName in new[] { "Admin", "User" })
+        foreach (var roleName in new[] { "Admin", "User", "Garage" })
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
@@ -65,6 +71,7 @@ public static class AuthSeedService
         // Toujours synchroniser les permissions métier manquantes du rôle User
         // (Cash, Numbering, Document, ErpChange, …) — indépendamment du seed admin.
         await EnsureUserRolePermissionsAsync(roleManager, logger);
+        await EnsureGarageRolePermissionsAsync(roleManager, logger);
         await EnsureAdminRolePermissionsAsync(roleManager, logger);
 
         if (!options.Enabled || string.IsNullOrWhiteSpace(options.Email) || string.IsNullOrWhiteSpace(options.Password))
@@ -207,6 +214,43 @@ public static class AuthSeedService
 
         if (added > 0)
             logger.LogInformation("Auth seed: added {Count} missing permission(s) to role User", added);
+    }
+
+    /// <summary>Le rôle Garage n'a que le portail self-service (jamais Order.Read / Product.Read).</summary>
+    private static async Task EnsureGarageRolePermissionsAsync(RoleManager<Role> roleManager, ILogger logger)
+    {
+        var garageRole = await roleManager.FindByNameAsync("Garage");
+        if (garageRole == null) return;
+
+        var existing = await roleManager.GetClaimsAsync(garageRole);
+        var have = existing
+            .Where(c => c.Type == PermissionResolver.PermissionClaimType)
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var perm in DefaultGaragePermissions)
+        {
+            if (have.Contains(perm)) continue;
+            var result = await roleManager.AddClaimAsync(
+                garageRole,
+                new Claim(PermissionResolver.PermissionClaimType, perm));
+            if (result.Succeeded)
+            {
+                have.Add(perm);
+                added++;
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Auth seed: failed to add {Permission} to Garage: {Errors}",
+                    perm,
+                    string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+        }
+
+        if (added > 0)
+            logger.LogInformation("Auth seed: added {Count} permission(s) to role Garage", added);
     }
 
     /// <summary>Le rôle Admin possède toujours toutes les permissions du catalogue.</summary>

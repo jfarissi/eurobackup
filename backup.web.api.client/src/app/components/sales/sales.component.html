@@ -74,7 +74,7 @@
                       <table class="data-table nested">
                         <thead>
                           <tr>
-                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
+                            <th>{{ 'common.ref' | t }}</th><th>{{ 'common.description' | t }}</th><th>{{ 'common.supplier' | t }}</th><th>{{ 'common.qty' | t }}</th><th>{{ 'common.unitPriceHt' | t }}</th><th>{{ 'common.discountPercent' | t }}</th><th>{{ 'common.vatPercent' | t }}</th><th>{{ 'common.totalHt' | t }}</th><th>{{ 'common.totalTtc' | t }}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -84,14 +84,17 @@
                             <td>{{ supplierName(line.supplierId) }}</td>
                             <td>{{ line.quantity }}</td>
                             <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.discountPercent || 0 }}%</td>
                             <td>{{ line.vatRate }}%</td>
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="8" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="9" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
+                        <span *ngIf="detailHeaderDiscountPercent > 0">{{ 'sales.label.headerDiscount' | t }} <strong>{{ detailHeaderDiscountPercent }}%</strong></span>
+                        <span *ngIf="detailShippingAmountHt > 0">{{ 'sales.label.shippingHt' | t }} <strong>{{ detailShippingAmountHt | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
@@ -180,6 +183,7 @@
                             <th>{{ 'sales.col.deliveredQty' | t }}</th>
                             <th>{{ 'sales.col.remainingQty' | t }}</th>
                             <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.discountPercent' | t }}</th>
                             <th>{{ 'common.vatPercent' | t }}</th>
                             <th>{{ 'common.totalHt' | t }}</th>
                             <th>{{ 'common.totalTtc' | t }}</th>
@@ -198,18 +202,32 @@
                               </strong>
                             </td>
                             <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.discountPercent || 0 }}%</td>
                             <td>{{ line.vatRate }}%</td>
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="detailLines.length === 0"><td colspan="10" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="detailLines.length === 0"><td colspan="11" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
+                        <span *ngIf="detailHeaderDiscountPercent > 0">{{ 'sales.label.headerDiscount' | t }} <strong>{{ detailHeaderDiscountPercent }}%</strong></span>
+                        <span *ngIf="detailShippingAmountHt > 0">{{ 'sales.label.shippingHt' | t }} <strong>{{ detailShippingAmountHt | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
                         <button class="btn-sm ghost" type="button" (click)="downloadCurrentDetailPdf()" [disabled]="pdfDownloading">PDF</button>
+                      </div>
+                      <div class="dropship-panel" *ngIf="detailDropshipPos.length">
+                        <h5>{{ 'sales.dropship.title' | t }}</h5>
+                        <ul class="dropship-list">
+                          <li *ngFor="let po of detailDropshipPos">
+                            <strong>{{ po.orderNumber }}</strong>
+                            <span>{{ po.supplierName || ('sales.dropship.supplierHash' | t:{ id: po.supplierId }) }}</span>
+                            <span class="status-badge" [ngClass]="(po.status || '').toLowerCase()">{{ po.status }}</span>
+                            <span>{{ po.totalTTC | currency:'EUR' }}</span>
+                          </li>
+                        </ul>
                       </div>
                       <div class="audit-panel">
                         <h5>{{ 'sales.audit.title' | t }}</h5>
@@ -427,6 +445,7 @@
                             <th>{{ 'sales.col.deliveredQty' | t }}</th>
                             <th>{{ 'sales.col.invoicedQty' | t }}</th>
                             <th>{{ 'common.unitPriceHt' | t }}</th>
+                            <th>{{ 'common.discountPercent' | t }}</th>
                             <th>{{ 'common.vatPercent' | t }}</th>
                             <th>{{ 'common.totalHt' | t }}</th>
                             <th>{{ 'common.totalTtc' | t }}</th>
@@ -441,14 +460,17 @@
                             <td>{{ line.deliveredQuantity ?? line.quantity }}</td>
                             <td>{{ line.quantity }}</td>
                             <td>{{ line.unitPrice | currency:'EUR' }}</td>
+                            <td>{{ line.discountPercent || 0 }}%</td>
                             <td>{{ line.vatRate }}%</td>
                             <td>{{ line.totalHT | currency:'EUR' }}</td>
                             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
                           </tr>
-                          <tr *ngIf="!detailInvoice.lines?.length"><td colspan="10" class="empty">{{ 'common.noLines' | t }}</td></tr>
+                          <tr *ngIf="!detailInvoice.lines?.length"><td colspan="11" class="empty">{{ 'common.noLines' | t }}</td></tr>
                         </tbody>
                       </table>
                       <div class="totals-bar">
+                        <span *ngIf="detailHeaderDiscountPercent > 0">{{ 'sales.label.headerDiscount' | t }} <strong>{{ detailHeaderDiscountPercent }}%</strong></span>
+                        <span *ngIf="detailShippingAmountHt > 0">{{ 'sales.label.shippingHt' | t }} <strong>{{ detailShippingAmountHt | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ht' | t }} <strong>{{ detailTotals.ht | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.vat' | t }} <strong>{{ detailTotals.vat | currency:'EUR' }}</strong></span>
                         <span>{{ 'sales.label.ttc' | t }} <strong>{{ detailTotals.ttc | currency:'EUR' }}</strong></span>
@@ -1031,6 +1053,7 @@
             <th>{{ 'common.supplier' | t }}</th>
             <th>{{ 'common.qty' | t }} <app-field-help helpKey="field.sales.lineQty"></app-field-help></th>
             <th>{{ 'common.unitPriceHt' | t }} <app-field-help helpKey="field.sales.linePrice"></app-field-help></th>
+            <th>{{ 'common.discountPercent' | t }}</th>
             <th>{{ 'common.vatPercent' | t }} <app-field-help helpKey="field.sales.lineVat"></app-field-help></th>
             <th>{{ 'common.totalHt' | t }}</th>
             <th>{{ 'common.totalTtc' | t }}</th>
@@ -1043,19 +1066,21 @@
               <app-product-line-ref
                 [line]="line"
                 [supplierId]="line.supplierId || null"
-                (productSelected)="calcLine(line)"
+                (productSelected)="onSalesProductSelected(line, $event)"
                 *ngIf="!line.locked"></app-product-line-ref>
               <span *ngIf="line.locked" class="font-mono">{{ line.productKey || '-' }}</span>
             </td>
             <td><input type="text" [(ngModel)]="line.description" [placeholder]="'common.label' | t" [readonly]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)" /></td>
             <td>
-              <select [(ngModel)]="line.supplierId" [disabled]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)">
+              <select [(ngModel)]="line.supplierId" (ngModelChange)="onLineSupplierChange(line)" [disabled]="!!line.locked || (docKind === 'Order' && editingOrderCommitted)">
                 <option [ngValue]="null">—</option>
                 <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
               </select>
+              <div class="quote-hint" *ngIf="line.quoteHint">{{ line.quoteHint }}</div>
             </td>
             <td><input type="number" [(ngModel)]="line.quantity" (input)="calcLine(line)" class="num" [min]="docKind === 'Order' && line.locked ? (line.deliveredQuantity || line.invoicedQuantity || 0) : 0.01" [max]="docKind === 'Invoice' && line.locked && line.deliveredQuantity ? line.deliveredQuantity : null" /></td>
             <td><input type="number" [(ngModel)]="line.unitPrice" (input)="calcLine(line)" class="num wide" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
+            <td><input type="number" [(ngModel)]="line.discountPercent" (input)="calcLine(line)" class="num" min="0" max="100" step="0.01" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
             <td><input type="number" [(ngModel)]="line.vatRate" (input)="calcLine(line)" class="num" [readonly]="!!line.priceLocked || (!!line.locked && (docKind === 'Order' || docKind === 'Invoice'))" /></td>
             <td><strong>{{ line.totalHT | currency:'EUR' }}</strong></td>
             <td><strong>{{ line.totalTTC | currency:'EUR' }}</strong></td>
@@ -1064,8 +1089,21 @@
         </tbody>
       </table>
       <button class="btn-secondary" type="button" (click)="addDocLine()">{{ 'common.addLine' | t }}</button>
+      <button class="btn-secondary" type="button" (click)="addShippingServiceLine()">{{ 'sales.btn.addShippingLine' | t }}</button>
 
       <div class="totals-bar">
+        <label class="header-discount-field">
+          {{ 'sales.label.headerDiscount' | t }}
+          <input type="number" [(ngModel)]="docHeaderDiscountPercent" (input)="onDocHeaderDiscountChange()" class="num" min="0" max="100" step="0.01" />
+        </label>
+        <label class="header-discount-field">
+          {{ 'sales.label.shippingHt' | t }}
+          <input type="number" [(ngModel)]="docShippingAmountHt" (input)="onDocShippingChange()" class="num wide" min="0" step="0.01" />
+        </label>
+        <label class="header-discount-field">
+          {{ 'sales.label.shippingVat' | t }}
+          <input type="number" [(ngModel)]="docShippingVatRate" (input)="onDocShippingChange()" class="num" min="0" step="0.01" />
+        </label>
         <span>{{ 'sales.label.ht' | t }} <strong>{{ docTotals.ht | currency:'EUR' }}</strong></span>
         <span>{{ 'sales.label.vat' | t }} <strong>{{ docTotals.vat | currency:'EUR' }}</strong></span>
         <span>{{ 'sales.label.ttc' | t }} <strong>{{ docTotals.ttc | currency:'EUR' }}</strong></span>

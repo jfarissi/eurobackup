@@ -24,6 +24,12 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public decimal TotalHT { get; set; }
         public decimal TotalVat { get; set; }
         public decimal TotalTTC { get; set; }
+        /// <summary>RG-CP3 : remise pied de page (%), appliquée sur les marchandises (hors FDP).</summary>
+        public decimal HeaderDiscountPercent { get; set; }
+        /// <summary>RG-FA1 / RG-FA3 : frais de port / approche HT (forfait en-tête).</summary>
+        public decimal ShippingAmountHt { get; set; }
+        /// <summary>RG-FA1 : TVA applicable aux frais de port en-tête.</summary>
+        public decimal ShippingVatRate { get; set; } = 21.0m;
         /// <summary>RG-CP1 : devise figée à la création (copiée de Company.DefaultCurrencyCode), gelée hors Draft.</summary>
         public string CurrencyCode { get; set; } = "EUR";
         public string? Notes { get; set; }
@@ -45,6 +51,8 @@ using Backup.Web.Api.Server.Services.Tenancy;
         public string Description { get; set; } = string.Empty;
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
+        /// <summary>RG-RM1 : remise ligne (%), 0-100.</summary>
+        public decimal DiscountPercent { get; set; }
         public decimal VatRate { get; set; } = 21.0m;
         public decimal TotalHT { get; set; }
         public decimal TotalTTC { get; set; }

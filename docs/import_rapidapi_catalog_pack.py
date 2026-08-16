@@ -10,6 +10,12 @@ Usage :
   $env:DB_HOST = "localhost"
   $env:DB_NAME = "backupcontent"
   python import_rapidapi_catalog_pack.py
+
+Mode (défaut insert_only) :
+  - ErpProductId déjà en base → ignoré (pas d'UPDATE, pas d'enfants)
+  - ErpProductId absent → INSERT produit + véhicules/images/OEM
+
+  $env:IMPORT_MODE = "upsert"   # ancien comportement (UPDATE si existe)
 """
 
 from __future__ import annotations
@@ -37,6 +43,10 @@ DB = {
 
 PACK = os.getenv("PACK", "").strip()
 DATA_SOURCE = os.getenv("DATA_SOURCE", "RapidApi")
+# insert_only (défaut) : ErpProductId déjà en base → ignoré (pas d'UPDATE)
+# upsert : comportement historique (UPDATE si existe)
+IMPORT_MODE = os.getenv("IMPORT_MODE", "insert_only").strip().lower()
+INSERT_ONLY = IMPORT_MODE in ("insert_only", "skip_existing", "new_only", "insert")
 
 
 def open_pack(pack_path: Path) -> Tuple[Path, Optional[Path]]:
@@ -160,17 +170,22 @@ def upsert_category(cur, row: Dict[str, str], now: datetime) -> Optional[int]:
     return cur.lastrowid
 
 
-def upsert_product(
+def import_product(
     cur,
     row: Dict[str, str],
     brand_id: Optional[int],
     category_id: Optional[int],
     db_cols: List[str],
     now: datetime,
-) -> Optional[int]:
+    insert_only: bool = True,
+) -> Tuple[Optional[int], str]:
+    """
+    Importe un produit du pack.
+    Retourne (product_id, action) avec action = inserted | skipped | updated.
+    """
     erp_id = (row.get("ErpProductId") or "").strip()
     if not erp_id:
-        return None
+        return None, "skipped"
 
     # Colonnes à écrire (intersection CSV ∩ table, hors Id auto + aides)
     skip = {
@@ -179,6 +194,9 @@ def upsert_product(
     }
     cur.execute("SELECT Id FROM ErpProducts WHERE ErpProductId=%s LIMIT 1", (erp_id,))
     existing = cur.fetchone()
+
+    if existing and insert_only:
+        return existing[0], "skipped"
 
     data: Dict[str, Any] = {}
     for k, v in row.items():
@@ -194,6 +212,28 @@ def upsert_product(
     if "FromExcel" in db_cols:
         data["FromExcel"] = 0
 
+    if category_id and "TypeID" in db_cols:
+        cur.execute(
+            "SELECT ErpExternalId, NameFr, Level FROM ErpCategories WHERE Id=%s LIMIT 1",
+            (category_id,),
+        )
+        crow = cur.fetchone()
+        if crow:
+            # tuple or dict depending on cursor
+            if isinstance(crow, dict):
+                ext, name_fr, level = crow.get("ErpExternalId"), crow.get("NameFr"), crow.get("Level")
+            else:
+                ext, name_fr, level = crow[0], crow[1], crow[2]
+            if level == "Type" and ext:
+                data["TypeID"] = ext
+                if name_fr:
+                    data["TypeName"] = name_fr
+                    data["MainTypeName"] = name_fr
+            elif level == "MainType" and ext:
+                data["MainTypeID"] = ext
+                if name_fr:
+                    data["MainTypeName"] = name_fr
+
     if existing:
         pid = existing[0]
         sets = ", ".join(f"`{k}`=%s" for k in data.keys())
@@ -201,7 +241,7 @@ def upsert_product(
             f"UPDATE ErpProducts SET {sets} WHERE Id=%s",
             list(data.values()) + [pid],
         )
-        return pid
+        return pid, "updated"
 
     data["CreatedAt"] = data.get("CreatedAt") or now
     # Id auto-increment : ne pas forcer l'Id exporté
@@ -212,7 +252,7 @@ def upsert_product(
         f"INSERT INTO ErpProducts ({col_sql}) VALUES ({placeholders})",
         [data[c] for c in cols],
     )
-    return cur.lastrowid
+    return cur.lastrowid, "inserted"
 
 
 def replace_children(
@@ -271,10 +311,14 @@ def replace_children(
     return n
 
 
-def import_vin_cache(cur, rows: List[Dict[str, str]], db_cols: List[str], now: datetime) -> int:
+def import_vin_cache(
+    cur, rows: List[Dict[str, str]], db_cols: List[str], now: datetime, insert_only: bool = True
+) -> Tuple[int, int]:
+    """Retourne (traités, insérés). En insert_only, VIN existant → ignoré."""
     if not rows or not db_cols:
-        return 0
+        return 0, 0
     n = 0
+    inserted = 0
     import uuid
     for row in rows:
         vin = (row.get("Vin") or "").strip().upper()
@@ -282,6 +326,8 @@ def import_vin_cache(cur, rows: List[Dict[str, str]], db_cols: List[str], now: d
             continue
         cur.execute("SELECT Id FROM ErpVinVehicles WHERE Vin=%s LIMIT 1", (vin,))
         existing = cur.fetchone()
+        if existing and insert_only:
+            continue
         data = {}
         for k, v in row.items():
             if k in ("Id",) or k not in db_cols:
@@ -304,8 +350,9 @@ def import_vin_cache(cur, rows: List[Dict[str, str]], db_cols: List[str], now: d
                 f"VALUES ({', '.join(['%s']*len(cols))})",
                 [data[c] for c in cols],
             )
+            inserted += 1
         n += 1
-    return n
+    return n, inserted
 
 
 def main() -> int:
@@ -326,6 +373,7 @@ def main() -> int:
         conn = mysql.connector.connect(**DB)
         cur = conn.cursor()
         print(f"DB cible {DB['database']}@{DB['host']}:{DB['port']}")
+        print(f"IMPORT_MODE={IMPORT_MODE} (insert_only={INSERT_ONLY})")
 
         # Brands
         _, brand_rows = read_csv(root / "ErpBrands.csv")
@@ -350,17 +398,31 @@ def main() -> int:
         product_cols = table_columns(cur, "ErpProducts")
         _, product_rows = read_csv(root / "ErpProducts.csv")
         erp_to_pid: Dict[str, int] = {}
+        new_erps: set[str] = set()
+        stats = {"inserted": 0, "skipped": 0, "updated": 0}
         for row in product_rows:
             brand_name = (row.get("_BrandName") or row.get("Brand") or "").strip()
             cat_name = (row.get("_CategoryNameFr") or "").strip()
             cat_level = (row.get("_CategoryLevel") or "Type").strip()
             brand_id = brand_by_name.get(brand_name) if brand_name else None
             category_id = cat_by_key.get((cat_level, cat_name)) if cat_name else None
-            pid = upsert_product(cur, row, brand_id, category_id, product_cols, now)
+            pid, action = import_product(
+                cur, row, brand_id, category_id, product_cols, now, insert_only=INSERT_ONLY)
+            stats[action] = stats.get(action, 0) + 1
             erp = (row.get("ErpProductId") or "").strip()
             if pid and erp:
                 erp_to_pid[erp] = pid
-        print(f"ErpProducts: {len(erp_to_pid)}")
+                if action == "inserted":
+                    new_erps.add(erp)
+        print(
+            f"ErpProducts: {len(erp_to_pid)} mappés "
+            f"(+{stats.get('inserted', 0)} nouveaux, "
+            f"={stats.get('skipped', 0)} ignorés, "
+            f"~{stats.get('updated', 0)} mis à jour)"
+        )
+
+        # Enfants : uniquement pour les produits nouvellement insérés (insert_only)
+        child_erps = new_erps if INSERT_ONLY else set(erp_to_pid.keys())
 
         # Children grouped by ErpProductId
         for table in ("ErpProductVehicles", "ErpProductImages", "ErpOemCrossReferences"):
@@ -382,6 +444,8 @@ def main() -> int:
                 by_erp.setdefault(erp, []).append(row)
             total = 0
             for erp, group in by_erp.items():
+                if erp not in child_erps:
+                    continue
                 pid = erp_to_pid.get(erp)
                 if not pid:
                     continue
@@ -393,8 +457,8 @@ def main() -> int:
             try:
                 vin_cols = table_columns(cur, "ErpVinVehicles")
                 _, vin_rows = read_csv(vin_path)
-                n = import_vin_cache(cur, vin_rows, vin_cols, now)
-                print(f"ErpVinVehicles: {n}")
+                n, vin_ins = import_vin_cache(cur, vin_rows, vin_cols, now, insert_only=INSERT_ONLY)
+                print(f"ErpVinVehicles: {n} traités, {vin_ins} nouveaux")
             except Exception as ex:
                 print(f"ErpVinVehicles: skip ({ex})")
 

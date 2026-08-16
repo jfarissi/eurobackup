@@ -105,6 +105,21 @@
               </li>
             </ul>
           </div>
+          <div class="panel-block" *ngIf="permissions.has(P.StockRead) && forecastAlerts.length">
+            <button type="button" class="section-toggle" (click)="toggleSection('forecastRisk')" [attr.aria-expanded]="isSectionOpen('forecastRisk')">
+              <mat-icon>{{ isSectionOpen('forecastRisk') ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <h3 class="label-caps warn-text">{{ 'dashboard.forecastRisk' | t }}</h3>
+              <span class="section-count">{{ forecastAlerts.length }}</span>
+            </button>
+            <ul class="dash-list" *ngIf="isSectionOpen('forecastRisk')">
+              <li *ngFor="let s of forecastAlerts">
+                <button type="button" (click)="go('/stock?tab=forecast')">
+                  <span class="list-title font-mono">{{ s.productKey }}</span>
+                  <span class="list-meta">{{ ('stock.forecast.risk.' + s.risk) | t }} · {{ s.daysOfCover != null ? (s.daysOfCover | number:'1.0-0') : '—' }} j</span>
+                </button>
+              </li>
+            </ul>
+          </div>
           <div class="panel-block" *ngIf="permissions.has(P.StockRead) && lowStock.length">
             <button type="button" class="section-toggle" (click)="toggleSection('lowStock')" [attr.aria-expanded]="isSectionOpen('lowStock')">
               <mat-icon>{{ isSectionOpen('lowStock') ? 'expand_less' : 'expand_more' }}</mat-icon>
@@ -120,7 +135,7 @@
               </li>
             </ul>
           </div>
-          <p *ngIf="!recentDocs.length && !unlinkedDeliveries.length && !lowStock.length" class="muted">
+          <p *ngIf="!recentDocs.length && !unlinkedDeliveries.length && !lowStock.length && !forecastAlerts.length" class="muted">
             {{ 'dashboard.todoEmpty' | t }}
           </p>
         </div>

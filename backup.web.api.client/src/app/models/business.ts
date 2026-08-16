@@ -53,6 +53,8 @@ export interface QuoteLine extends AuditTrailFields {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%), 0–100. */
+  discountPercent?: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
@@ -68,6 +70,12 @@ export interface Quote extends AuditTrailFields {
   date: string;
   expirationDate: string;
   status: string;
+  /** RG-CP3 : remise pied de page (%), appliquée sur HT/TVA cumulés. */
+  headerDiscountPercent?: number;
+  /** RG-FA1 : frais de port forfaitaires HT. */
+  shippingAmountHt?: number;
+  /** RG-FA1 : TVA applicable aux frais de port. */
+  shippingVatRate?: number;
   totalHT: number;
   totalVat: number;
   totalTTC: number;
@@ -85,6 +93,8 @@ export interface SalesOrderLine extends AuditTrailFields {
   deliveredQuantity: number;
   invoicedQuantity?: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%), 0–100. */
+  discountPercent?: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
@@ -100,6 +110,12 @@ export interface SalesOrder extends AuditTrailFields {
   quoteId?: number;
   date: string;
   status: string;
+  /** RG-CP3 : remise pied de page (%). */
+  headerDiscountPercent?: number;
+  /** RG-FA1 : frais de port forfaitaires HT. */
+  shippingAmountHt?: number;
+  /** RG-FA1 : TVA applicable aux frais de port. */
+  shippingVatRate?: number;
   totalHT: number;
   totalVat: number;
   totalTTC: number;
@@ -170,6 +186,8 @@ export interface SalesInvoiceLine extends AuditTrailFields {
   orderedQuantity?: number;
   deliveredQuantity?: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%), 0–100. */
+  discountPercent?: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
@@ -190,6 +208,12 @@ export interface SalesInvoice extends AuditTrailFields {
   date: string;
   dueDate: string;
   status: string;
+  /** RG-CP3 : remise pied de page (%). */
+  headerDiscountPercent?: number;
+  /** RG-FA1 : frais de port forfaitaires HT. */
+  shippingAmountHt?: number;
+  /** RG-FA1 : TVA applicable aux frais de port. */
+  shippingVatRate?: number;
   totalHT: number;
   totalVat: number;
   totalTTC: number;
@@ -243,6 +267,8 @@ export interface PurchaseOrderLine extends AuditTrailFields {
   quantity: number;
   receivedQuantity: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%). */
+  discountPercent?: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
@@ -257,13 +283,30 @@ export interface PurchaseOrder extends AuditTrailFields {
   date: string;
   expectedDeliveryDate?: string;
   status: string;
+  /** RG-CP3 : remise pied de page (%). */
+  headerDiscountPercent?: number;
+  /** RG-FA1 : frais de port HT. */
+  shippingAmountHt?: number;
+  /** RG-FA1 : TVA frais de port. */
+  shippingVatRate?: number;
   totalHT: number;
   totalVat: number;
   totalTTC: number;
   notes?: string;
   companyId?: string;
   supplierInvoices?: SupplierInvoice[];
+  salesOrderId?: number | null;
   lines: PurchaseOrderLine[];
+}
+
+export interface DropshipPurchaseOrder {
+  id: number;
+  orderNumber: string;
+  supplierId: number;
+  supplierName?: string | null;
+  status: string;
+  totalTTC: number;
+  salesOrderId?: number | null;
 }
 
 export interface ReceiveDeliveryResult {
@@ -324,6 +367,8 @@ export interface SupplierInvoiceLine extends AuditTrailFields {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** RG-RM1 : remise ligne (%). */
+  discountPercent?: number;
   vatRate: number;
   totalHT: number;
   totalTTC: number;
@@ -343,6 +388,12 @@ export interface SupplierInvoice extends AuditTrailFields {
   date: string;
   dueDate: string;
   status: string;
+  /** RG-CP3 : remise pied de page (%). */
+  headerDiscountPercent?: number;
+  /** RG-FA1 : frais de port HT. */
+  shippingAmountHt?: number;
+  /** RG-FA1 : TVA frais de port. */
+  shippingVatRate?: number;
   totalHT: number;
   totalVat: number;
   totalTTC: number;

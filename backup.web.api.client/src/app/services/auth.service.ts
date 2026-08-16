@@ -164,6 +164,7 @@ export class AuthService implements OnDestroy {
       isAdmin: !!res.isAdmin,
       permissions: res.permissions ?? [],
       companyId: res.companyId,
+      customerId: (res as LoginResponse).customerId ?? (res as AuthUser).customerId ?? null,
       companyName: res.companyName,
       companies: res.companies
     };

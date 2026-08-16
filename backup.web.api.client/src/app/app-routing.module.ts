@@ -14,7 +14,7 @@ import { PurchasesComponent } from './components/purchases/purchases.component';
 import { NumberingSettingsComponent } from './components/numbering-settings/numbering-settings.component';
 import { LoginComponent } from './components/login/login.component';
 import { authGuard } from './guards/auth.guard';
-import { permissionGuard } from './guards/permission.guard';
+import { permissionGuard, denyGaragePortalGuard } from './guards/permission.guard';
 import { Permissions } from './constants/permissions';
 import { environment } from '../environments/environment';
 import { homeRedirectGuard } from './guards/home-redirect.guard';
@@ -41,13 +41,19 @@ const routes: Routes = [
   {
     path: 'dashboard',
     component: DashboardComponent,
-    canActivate: [authGuard]
+    canActivate: [authGuard, denyGaragePortalGuard]
   },
   {
     path: 'assistant',
-    canActivate: [authGuard],
+    canActivate: [authGuard, denyGaragePortalGuard],
     loadComponent: () =>
       import('./components/assistant-launcher/assistant-launcher.component').then(m => m.AssistantLauncherComponent)
+  },
+  {
+    path: 'garage',
+    canActivate: [authGuard, permissionGuard(Permissions.GarageOrdersRead, Permissions.GarageVehiclesRead)],
+    loadComponent: () =>
+      import('./components/garage-portal/garage-portal.component').then(m => m.GaragePortalComponent)
   },
   { path: 'upload', component: UploadComponent, canActivate: [authGuard, permissionGuard(Permissions.DocumentUpload)] },
   { path: 'recherche', component: DocumentSearchComponent, canActivate: [authGuard, permissionGuard(Permissions.DocumentRead)] },
@@ -56,6 +62,24 @@ const routes: Routes = [
   { path: 'purchases', component: PurchasesComponent, canActivate: [authGuard, permissionGuard(Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead)] },
   { path: 'cash', component: CashRegisterComponent, canActivate: [authGuard, permissionGuard(Permissions.CashRead, Permissions.CashManage)] },
   { path: 'accounting', component: AccountingComponent, canActivate: [authGuard, permissionGuard(Permissions.AccountingRead, Permissions.AccountingCreate)] },
+  {
+    path: 'accounting/chart-of-accounts',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/chart-of-accounts/chart-of-accounts.component').then(m => m.ChartOfAccountsComponent)
+  },
+  {
+    path: 'accounting/journals',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/journals/journals.component').then(m => m.JournalsComponent)
+  },
+  {
+    path: 'accounting/fiscal-years',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/fiscal-years/fiscal-years.component').then(m => m.FiscalYearsComponent)
+  },
   { path: 'numbering', component: NumberingSettingsComponent, canActivate: [authGuard, permissionGuard(Permissions.NumberingManage)] },
   { path: 'stock', component: StockComponent, canActivate: [authGuard, permissionGuard(Permissions.StockRead)] },
   { path: 'erp-products', component: ErpProductsComponent, canActivate: [authGuard, permissionGuard(Permissions.ProductRead)] },
@@ -64,6 +88,12 @@ const routes: Routes = [
     canActivate: [authGuard, permissionGuard(Permissions.ProductRead)],
     loadComponent: () =>
       import('./components/plate-scan/plate-scan.component').then(m => m.PlateScanComponent)
+  },
+  {
+    path: 'oem-search',
+    canActivate: [authGuard, permissionGuard(Permissions.ProductRead)],
+    loadComponent: () =>
+      import('./components/oem-search/oem-search.component').then(m => m.OemSearchComponent)
   },
   { path: 'erp-brands', loadComponent: () => import('./components/erp-brands/erp-brands.component').then(m => m.ErpBrandsComponent), canActivate: [authGuard, permissionGuard(Permissions.BrandRead, Permissions.ProductRead)] },
   { path: 'erp-categories', loadComponent: () => import('./components/erp-categories/erp-categories.component').then(m => m.ErpCategoriesComponent), canActivate: [authGuard, permissionGuard(Permissions.CategoryRead, Permissions.ProductRead)] },

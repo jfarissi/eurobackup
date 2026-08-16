@@ -1,0 +1,83 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <h2>{{ 'accounting.journals.title' | t }}</h2>
+      <p class="subtitle">{{ 'accounting.journals.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="load()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openCreate()" *ngIf="canManage">
+        <mat-icon>add</mat-icon> {{ 'accounting.journals.btn.new' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'accounting.journals.col.code' | t }}</th>
+          <th>{{ 'accounting.journals.col.label' | t }}</th>
+          <th>{{ 'accounting.journals.col.counterpart' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let journal of journals">
+          <td><strong>{{ journal.code }}</strong></td>
+          <td>{{ journal.label }}</td>
+          <td>{{ journal.counterpartAccountCode || '—' }}</td>
+        </tr>
+        <tr *ngIf="!loading && journals.length === 0">
+          <td colspan="3" class="empty">{{ 'accounting.journals.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="loading">
+          <td colspan="3" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal">
+  <div class="modal-content">
+    <h3>{{ 'accounting.journals.modal.create' | t }}</h3>
+
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'accounting.journals.field.code' | t }} *</label>
+          <select formControlName="code">
+            <option *ngFor="let c of journalCodes" [value]="c">
+              {{ c }} — {{ ('accounting.journals.code.' + c) | t }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'accounting.journals.field.label' | t }} *</label>
+          <input type="text" formControlName="label" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group grow">
+          <label>{{ 'accounting.journals.field.counterpart' | t }}</label>
+          <input type="text" formControlName="counterpartAccountCode" placeholder="511100" />
+        </div>
+      </div>
+
+      <div class="error-box" *ngIf="modalError">{{ modalError }}</div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="closeModal()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="submit" [disabled]="saving || form.invalid">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

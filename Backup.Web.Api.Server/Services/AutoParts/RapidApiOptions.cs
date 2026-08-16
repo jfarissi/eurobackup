@@ -21,12 +21,24 @@ namespace Backup.Web.Api.Server.Services.AutoParts
         public bool EnableVinLookup { get; set; } = false;
 
         /// <summary>
+        /// Import catalogue à la volée pour un K-Type absent (script Python sync_ktype_vehicle.py).
+        /// </summary>
+        public bool EnableOnDemandKTypeSync { get; set; } = true;
+
+        public int OnDemandMaxProducts { get; set; } = 40;
+        public int OnDemandMaxCategories { get; set; } = 6;
+        public bool OnDemandFastMode { get; set; } = true;
+        public string PythonExecutable { get; set; } = "python";
+        public string? KTypeSyncScriptPath { get; set; }
+
+        /// <summary>
         /// Chemins relatifs avec {vin}. Essayés dans l'ordre jusqu'au premier succès.
-        /// Docs Making Data Meaningful : tecdoc-vin-check, decoder-v1, decoder-v2.
+        /// Docs Making Data Meaningful : tecdoc-vin-check (K-Type), decoder-v5 (carburant NHTSA).
         /// </summary>
         public List<string> VinCheckPaths { get; set; } = new()
         {
             "/vin/tecdoc-vin-check/{vin}",
+            "/vin/decoder-v5/{vin}",
             "/vin/decoder-v1/{vin}",
             "/vin/decoder-v2/{vin}"
         };

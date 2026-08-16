@@ -10,6 +10,7 @@ import {
 } from '../../models/store-chat';
 import { AssistantI18nService, AssistantLang } from '../../services/assistant-i18n.service';
 import { StoreChatService } from '../../services/store-chat.service';
+import { CompanyService } from '../../services/company.service';
 import { Subscription, timer } from 'rxjs';
 
 @Component({
@@ -90,7 +91,8 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private ngZone: NgZone,
-    public i18n: AssistantI18nService
+    public i18n: AssistantI18nService,
+    public company: CompanyService
   ) {
     this.messages = [{
       text: this.i18n.t('welcome'),
@@ -123,6 +125,16 @@ export class StoreAssistantComponent implements OnInit, OnDestroy {
     this.newMessage = '';
     this.pushUser(text);
     this.callApi({ text, interactionType: 'text' });
+  }
+
+  get showAutoPartsHint(): boolean {
+    return this.company.hasAutoParts;
+  }
+
+  sendAutoPartsDemo(): void {
+    if (this.isTyping) return;
+    this.newMessage = this.i18n.t('autoPartsDemoPrompt');
+    this.send();
   }
 
   onPhotoSelected(event: Event): void {

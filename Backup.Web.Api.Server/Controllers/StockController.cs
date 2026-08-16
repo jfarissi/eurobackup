@@ -19,11 +19,29 @@ namespace Backup.Web.Api.Server.Controllers
 	{
 		private readonly IStorageBroker storage;
 		private readonly ICompanyContextService companyContext;
+		private readonly IStockForecastService forecast;
 
-		public StockController(IStorageBroker storage, ICompanyContextService companyContext)
+		public StockController(
+			IStorageBroker storage,
+			ICompanyContextService companyContext,
+			IStockForecastService forecast)
 		{
 			this.storage = storage;
 			this.companyContext = companyContext;
+			this.forecast = forecast;
+		}
+
+		[HttpGet("forecast")]
+		[RequirePermission(Permissions.StockRead)]
+		public async Task<IActionResult> GetForecast(
+			[FromQuery] int horizonDays = StockForecastCalculator.DefaultHorizonDays,
+			[FromQuery] bool all = false)
+		{
+			var result = await this.forecast.GetForecastAsync(
+				this.companyContext.GetCurrentCompanyId(),
+				horizonDays,
+				all);
+			return Ok(result);
 		}
 
 		[HttpGet]

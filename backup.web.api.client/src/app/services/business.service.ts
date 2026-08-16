@@ -10,6 +10,7 @@ import {
   SalesDeliveryNote,
   CreditNote,
   PurchaseOrder,
+  DropshipPurchaseOrder,
   ReceiveDeliveryResult,
   Receipt,
   ComptabiliserResult,
@@ -129,6 +130,10 @@ export class BusinessService {
 
   getSalesOrder(id: number): Observable<SalesOrder> {
     return this.http.get<SalesOrder>(`/api/salesorders/${id}`);
+  }
+
+  getDropshipPurchaseOrders(salesOrderId: number): Observable<DropshipPurchaseOrder[]> {
+    return this.http.get<DropshipPurchaseOrder[]>(`/api/salesorders/${salesOrderId}/dropship-pos`);
   }
 
   createSalesOrder(order: SalesOrder): Observable<SalesOrder> {

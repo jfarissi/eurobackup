@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Backup.Web.Api.Server.Brokers.Storage;
 using Backup.Web.Api.Server.Models.Entities;
+using Backup.Web.Api.Server.Services.Stock;
 
 namespace Backup.Web.Api.Server.Services.Sales
 {
@@ -36,33 +37,183 @@ namespace Backup.Web.Api.Server.Services.Sales
             return string.Join(", ", parts);
         }
 
-        /// <summary>RG-FC8 / RG-CP3 : recalcul totaux depuis les lignes (remise ligne + remise pied de page).</summary>
+        /// <summary>RG-FC8 / RG-CP3 / RG-FA1 / RG-RE1 / RG-RE5 : lignes (remise) → remise en-tête sur marchandises → + frais de port.</summary>
         public static void RecalculateInvoiceTotals(SalesInvoice invoice)
         {
             invoice.Lines ??= new System.Collections.Generic.List<SalesInvoiceLine>();
+            invoice.ShippingAmountHt = CapNonNegativeAmount(invoice.ShippingAmountHt);
+            invoice.ShippingVatRate = CapNonNegativeAmount(invoice.ShippingVatRate);
             foreach (var line in invoice.Lines)
             {
-                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (CapDiscountPercent(line.DiscountPercent) / 100m));
+                line.DiscountPercent = CapDiscountPercent(line.DiscountPercent);
+                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
                 line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
             }
 
-            var totalHT = invoice.Lines.Sum(l => l.TotalHT);
-            var totalVat = invoice.Lines.Sum(l => l.TotalTTC - l.TotalHT);
-            var totalTTC = invoice.Lines.Sum(l => l.TotalTTC);
-            ApplyHeaderDiscount(invoice.HeaderDiscountPercent, ref totalHT, ref totalVat, ref totalTTC);
+            RecalculateDocumentTotals(
+                invoice.Lines.Select(l => (l.ProductKey, l.TotalHT, l.TotalTTC)),
+                invoice.HeaderDiscountPercent,
+                invoice.ShippingAmountHt,
+                invoice.ShippingVatRate,
+                out var totalHT, out var totalVat, out var totalTTC);
             invoice.TotalHT = totalHT;
             invoice.TotalVat = totalVat;
             invoice.TotalTTC = totalTTC;
+        }
+
+        /// <summary>RG-FC8 / RG-CP3 / RG-FA1 : même logique pour devis.</summary>
+        public static void RecalculateQuoteTotals(Quote quote)
+        {
+            quote.Lines ??= new System.Collections.Generic.List<QuoteLine>();
+            quote.ShippingAmountHt = CapNonNegativeAmount(quote.ShippingAmountHt);
+            quote.ShippingVatRate = CapNonNegativeAmount(quote.ShippingVatRate);
+            foreach (var line in quote.Lines)
+            {
+                line.DiscountPercent = CapDiscountPercent(line.DiscountPercent);
+                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
+                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
+            }
+
+            RecalculateDocumentTotals(
+                quote.Lines.Select(l => (l.ProductKey, l.TotalHT, l.TotalTTC)),
+                quote.HeaderDiscountPercent,
+                quote.ShippingAmountHt,
+                quote.ShippingVatRate,
+                out var totalHT, out var totalVat, out var totalTTC);
+            quote.TotalHT = totalHT;
+            quote.TotalVat = totalVat;
+            quote.TotalTTC = totalTTC;
+        }
+
+        /// <summary>RG-FC8 / RG-CP3 / RG-FA1 : même logique pour commandes.</summary>
+        public static void RecalculateOrderTotals(SalesOrder order)
+        {
+            order.Lines ??= new System.Collections.Generic.List<SalesOrderLine>();
+            order.ShippingAmountHt = CapNonNegativeAmount(order.ShippingAmountHt);
+            order.ShippingVatRate = CapNonNegativeAmount(order.ShippingVatRate);
+            foreach (var line in order.Lines)
+            {
+                line.DiscountPercent = CapDiscountPercent(line.DiscountPercent);
+                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
+                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
+            }
+
+            RecalculateDocumentTotals(
+                order.Lines.Select(l => (l.ProductKey, l.TotalHT, l.TotalTTC)),
+                order.HeaderDiscountPercent,
+                order.ShippingAmountHt,
+                order.ShippingVatRate,
+                out var totalHT, out var totalVat, out var totalTTC);
+            order.TotalHT = totalHT;
+            order.TotalVat = totalVat;
+            order.TotalTTC = totalTTC;
+        }
+
+        /// <summary>RG-RM1 / RG-CP3 / RG-FA1 / RG-FA3 : totaux commande fournisseur.</summary>
+        public static void RecalculatePurchaseOrderTotals(PurchaseOrder order)
+        {
+            order.Lines ??= new System.Collections.Generic.List<PurchaseOrderLine>();
+            order.ShippingAmountHt = CapNonNegativeAmount(order.ShippingAmountHt);
+            order.ShippingVatRate = CapNonNegativeAmount(order.ShippingVatRate);
+            foreach (var line in order.Lines)
+            {
+                line.DiscountPercent = CapDiscountPercent(line.DiscountPercent);
+                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
+                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
+            }
+
+            RecalculateDocumentTotals(
+                order.Lines.Select(l => (l.ProductKey, l.TotalHT, l.TotalTTC)),
+                order.HeaderDiscountPercent,
+                order.ShippingAmountHt,
+                order.ShippingVatRate,
+                out var totalHT, out var totalVat, out var totalTTC);
+            order.TotalHT = totalHT;
+            order.TotalVat = totalVat;
+            order.TotalTTC = totalTTC;
+        }
+
+        /// <summary>RG-RM1 / RG-CP3 / RG-FA1 / RG-FA3 : totaux facture fournisseur.</summary>
+        public static void RecalculateSupplierInvoiceTotals(SupplierInvoiceEntity invoice)
+        {
+            invoice.Lines ??= new System.Collections.Generic.List<SupplierInvoiceLineEntity>();
+            invoice.ShippingAmountHt = CapNonNegativeAmount(invoice.ShippingAmountHt);
+            invoice.ShippingVatRate = CapNonNegativeAmount(invoice.ShippingVatRate);
+            foreach (var line in invoice.Lines)
+            {
+                line.DiscountPercent = CapDiscountPercent(line.DiscountPercent);
+                line.TotalHT = line.Quantity * line.UnitPrice * (1 - (line.DiscountPercent / 100m));
+                line.TotalTTC = line.TotalHT * (1 + (line.VatRate / 100m));
+            }
+
+            RecalculateDocumentTotals(
+                invoice.Lines.Select(l => (l.ProductKey, l.TotalHT, l.TotalTTC)),
+                invoice.HeaderDiscountPercent,
+                invoice.ShippingAmountHt,
+                invoice.ShippingVatRate,
+                out var totalHT, out var totalVat, out var totalTTC);
+            invoice.TotalHT = totalHT;
+            invoice.TotalVat = totalVat;
+            invoice.TotalTTC = totalTTC;
+        }
+
+        /// <summary>
+        /// RG-RE1 : remise en-tête sur marchandises uniquement.
+        /// RG-RE5 / RG-FA1 : FDP (en-tête ou lignes FDP/SHIPPING) hors remise en-tête, ajoutés ensuite.
+        /// </summary>
+        public static void RecalculateDocumentTotals(
+            IEnumerable<(string? ProductKey, decimal TotalHT, decimal TotalTTC)> lines,
+            decimal headerDiscountPercent,
+            decimal shippingAmountHt,
+            decimal shippingVatRate,
+            out decimal totalHT,
+            out decimal totalVat,
+            out decimal totalTTC)
+        {
+            decimal merchHT = 0m, merchVat = 0m, shipLineHT = 0m, shipLineVat = 0m;
+            foreach (var line in lines)
+            {
+                var lineVat = line.TotalTTC - line.TotalHT;
+                if (StockLedger.IsShippingFeeKey(line.ProductKey))
+                {
+                    shipLineHT += line.TotalHT;
+                    shipLineVat += lineVat;
+                }
+                else
+                {
+                    merchHT += line.TotalHT;
+                    merchVat += lineVat;
+                }
+            }
+
+            var merchTTC = merchHT + merchVat;
+            ApplyHeaderDiscount(headerDiscountPercent, ref merchHT, ref merchVat, ref merchTTC);
+
+            var shipHeaderHT = CapNonNegativeAmount(shippingAmountHt);
+            var shipHeaderVat = shipHeaderHT * (CapNonNegativeAmount(shippingVatRate) / 100m);
+
+            totalHT = merchHT + shipLineHT + shipHeaderHT;
+            totalVat = merchVat + shipLineVat + shipHeaderVat;
+            totalTTC = totalHT + totalVat;
         }
 
         /// <summary>RG-RM1–5 : borne la remise ligne/pied de page entre 0 et 100%.</summary>
         public static decimal CapDiscountPercent(decimal discountPercent) =>
             discountPercent < 0 ? 0m : (discountPercent > 100 ? 100m : discountPercent);
 
+        /// <summary>RG-FA1 : borne un montant (HT/TVA port) à ≥ 0.</summary>
+        public static decimal CapNonNegativeAmount(decimal amount) => amount < 0 ? 0m : amount;
+
         /// <summary>RG-RM1–5 : rejette une remise hors bornes [0, 100].</summary>
         public static string? ValidateDiscountPercent(decimal discountPercent, string context) =>
             discountPercent < 0 || discountPercent > 100
                 ? $"La remise ({context}) doit être comprise entre 0 et 100% (reçu : {discountPercent}%)."
+                : null;
+
+        /// <summary>RG-FA1 : frais de port HT ≥ 0.</summary>
+        public static string? ValidateShippingAmount(decimal shippingAmountHt) =>
+            shippingAmountHt < 0
+                ? $"Les frais de port HT ne peuvent pas être négatifs (reçu : {shippingAmountHt})."
                 : null;
 
         /// <summary>RG-CP3 : applique la remise pied de page sur HT/TVA déjà cumulés (proportionnelle, TTC recalculé).</summary>

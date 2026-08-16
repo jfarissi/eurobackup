@@ -230,6 +230,60 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Nl] = "Tape & bescherming",
                 [En] = "Tapes & protection"
             },
+            ["guide_auto_parts_title"] = new()
+            {
+                [Fr] = "Diagnostic pièces auto (une famille à la fois) :",
+                [Nl] = "Auto-onderdelen diagnose (één productgroep tegelijk):",
+                [En] = "Auto parts diagnosis (one family at a time):"
+            },
+            ["guide_auto_parts_pads"] = new()
+            {
+                [Fr] = "Plaquettes",
+                [Nl] = "Remblokken",
+                [En] = "Brake pads"
+            },
+            ["guide_auto_parts_disc"] = new()
+            {
+                [Fr] = "Disque",
+                [Nl] = "Remschijf",
+                [En] = "Brake disc"
+            },
+            ["guide_auto_parts_caliper"] = new()
+            {
+                [Fr] = "Étrier",
+                [Nl] = "Remklauw",
+                [En] = "Caliper"
+            },
+            ["guide_auto_parts_kit"] = new()
+            {
+                [Fr] = "Kit frein",
+                [Nl] = "Remmenset",
+                [En] = "Brake kit"
+            },
+            ["guide_auto_parts_aisle_pads"] = new()
+            {
+                [Fr] = "Freinage — plaquettes",
+                [Nl] = "Remmen — blokken",
+                [En] = "Brakes — pads"
+            },
+            ["guide_auto_parts_aisle_disc"] = new()
+            {
+                [Fr] = "Freinage — disques",
+                [Nl] = "Remmen — schijven",
+                [En] = "Brakes — discs"
+            },
+            ["guide_auto_parts_aisle_caliper"] = new()
+            {
+                [Fr] = "Freinage — étriers",
+                [Nl] = "Remmen — klauwen",
+                [En] = "Brakes — calipers"
+            },
+            ["guide_auto_parts_aisle_kit"] = new()
+            {
+                [Fr] = "Kits",
+                [Nl] = "Sets",
+                [En] = "Kits"
+            },
             ["guide_roofing_title"] = new()
             {
                 [Fr] = "Parcours toiture (une famille à la fois) :",
@@ -632,6 +686,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Nl] = "Sanitair",
                 [En] = "Plumbing"
             },
+            ["domain_auto_parts"] = new()
+            {
+                [Fr] = "Diagnostic pièces auto",
+                [Nl] = "Auto-onderdelen",
+                [En] = "Auto parts diagnosis"
+            },
             ["tip_primer"] = new()
             {
                 [Fr] = "Sous-couche",
@@ -740,6 +800,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Nl] = "Ik heb voorlopig geen andere verfreferenties. Preciseer (muurverf, primer, roller…).",
                 [En] = "No more paint references for now. Please refine (wall paint, primer, roller…)."
             },
+            ["more_products_empty_auto_parts"] = new()
+            {
+                [Fr] = "Je n'ai pas d'autres pièces Demo pour ce symptôme. Précisez (plaquette, disque, étrier) ou cherchez DIAG-KIT.",
+                [Nl] = "Geen andere Demo-onderdelen voor dit symptoom. Preciseer (remblok, schijf, klauw) of zoek DIAG-KIT.",
+                [En] = "No more Demo parts for this symptom. Refine (pad, disc, caliper) or search DIAG-KIT."
+            },
             ["more_products_empty_garden"] = new()
             {
                 [Fr] = "Je n'ai pas d'autres références jardin pour l'instant. Précisez (bordure, clôture, gravier…).",
@@ -800,6 +866,12 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 [Nl] = "Schilderen: binnen of buiten? Muurverf (latex), voorstrijk, of gereedschap (roller / penselen)?",
                 [En] = "For painting: indoor or outdoor? Wall paint (latex), primer, or tools (roller / brushes)?"
             },
+            ["vague_auto_parts"] = new()
+            {
+                [Fr] = "Quel symptôme ? Bruit / usure au freinage, vibration, ou fuite d’étrier ?",
+                [Nl] = "Welk symptoom? Geluid / slijtage bij remmen, trilling, of lekkende remklauw?",
+                [En] = "Which symptom? Brake noise / wear, vibration, or a leaking caliper?"
+            },
             ["vague_tiling"] = new()
             {
                 [Fr] = "Carrelage : sol ou mur ? Format / couleur, ou plutôt colle et joints ?",
@@ -854,6 +926,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
                 "electrical" => "domain_electrical",
                 "roofing" => "domain_roofing",
                 "plumbing" => "domain_plumbing",
+                "auto_parts" => "domain_auto_parts",
                 _ => null
             };
             if (key == null)
@@ -869,6 +942,7 @@ namespace Backup.Web.Api.Server.Services.SalesAssistant
             {
                 "roofing" => "more_products_empty_roofing",
                 "painting" => "more_products_empty_painting",
+                "auto_parts" => "more_products_empty_auto_parts",
                 "garden_cleaning" or "garden_landscaping" or "garden_maintenance" => "more_products_empty_garden",
                 _ => "more_products_empty"
             };

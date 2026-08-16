@@ -22,13 +22,24 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng curl \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng curl \
+        python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /app/venv
+
+COPY docs/requirements-ktype-sync.txt /tmp/requirements-ktype-sync.txt
+RUN /app/venv/bin/pip install --no-cache-dir -r /tmp/requirements-ktype-sync.txt \
+    && rm /tmp/requirements-ktype-sync.txt
 
 COPY --from=dotnet-build /app/publish .
-RUN mkdir -p /app/Storage
+RUN mkdir -p /app/Storage /app/docs /app/Backup.Web.Api.Server
+COPY docs/sync_ktype_vehicle.py docs/sync_rapidapi_poc.py /app/docs/
+COPY Backup.Web.Api.Server/appsettings.Docker.json /app/Backup.Web.Api.Server/appsettings.json
 
 ENV ASPNETCORE_URLS=http://+:8080
+ENV RapidApi__PythonExecutable=/app/venv/bin/python
+ENV RapidApi__KTypeSyncScriptPath=/app/docs/sync_ktype_vehicle.py
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "Backup.Web.Api.Server.dll"]

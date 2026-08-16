@@ -4,6 +4,7 @@ export const environment = {
   chatbotPublicUrl: 'CHATBOT_PUBLIC_URL_PLACEHOLDER',
   apiBaseUrl: '/api',
   signalRHubUrl: '/hubs/permissions',
+  signalRSupplierQuotesHubUrl: '/hubs/supplier-quotes',
   pythonServiceUrl: '/api/python',
   enablePythonTest: false,
   /** @deprecated Images passent par /api/erp-products/image (proxy HTTP → 15022). */

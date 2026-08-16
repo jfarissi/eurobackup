@@ -22,6 +22,7 @@ public class AuthenticateResponse
     public string Token { get; set; } = string.Empty;
     public bool IsAdmin { get; set; }
     public string? CompanyId { get; set; }
+    public int? CustomerId { get; set; }
     public string? CompanyName { get; set; }
     public List<CompanySummary> Companies { get; set; } = new();
     public List<string> Permissions { get; set; } = new();
@@ -47,6 +48,7 @@ public class AuthenticateResponse
         Token = token;
         IsAdmin = user.IsAdmin || string.Equals(Role, "Admin", StringComparison.OrdinalIgnoreCase);
         CompanyId = companyId ?? user.CompanyId;
+        CustomerId = user.CustomerId;
         CompanyName = companyName;
         Companies = companies ?? new List<CompanySummary>();
         Permissions = permissions ?? new List<string>();

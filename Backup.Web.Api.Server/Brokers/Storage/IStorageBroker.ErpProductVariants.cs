@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Models.Catalog;
 
@@ -33,6 +34,7 @@ namespace Backup.Web.Api.Server.Brokers.Storage
 
         IQueryable<ErpProductVehicle> SelectAllErpProductVehicles();
         ValueTask<ErpProductVehicle> InsertErpProductVehicleAsync(ErpProductVehicle vehicle);
+        Task<int> FillMissingErpProductVehicleFuelAsync(string kType, string fuel, CancellationToken ct = default);
 
         IQueryable<ErpOemCrossReference> SelectAllErpOemCrossReferences();
         ValueTask<ErpOemCrossReference> InsertErpOemCrossReferenceAsync(ErpOemCrossReference oem);

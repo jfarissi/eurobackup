@@ -1,0 +1,21 @@
+{
+  "format": "backup.rapidapi.catalog.pack",
+  "version": 1,
+  "exportedAt": "2026-08-10T14:18:46.767159Z",
+  "dataSource": "RapidApi",
+  "database": "backupcontent",
+  "counts": {
+    "ErpProducts": 17038,
+    "ErpBrands": 553,
+    "ErpCategories": 37,
+    "ErpProductVehicles": 42527,
+    "ErpProductImages": 32699,
+    "ErpOemCrossReferences": 145306,
+    "ErpVinVehicles": 0
+  },
+  "notes": [
+    "Clé produit stable: ErpProductId (ex. RAPID-12345).",
+    "À l'import, BrandId/CategoryId/ProductId sont recalculés.",
+    "Colonnes _BrandName / _Category* / ErpProductId sont des aides d'import."
+  ]
+}

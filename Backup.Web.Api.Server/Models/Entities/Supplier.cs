@@ -21,6 +21,8 @@ namespace Backup.Web.Api.Server.Models.Entities
         /// <summary>RG-CT2 : Active | Blocked | Closed (en plus de IsActive historique).</summary>
         public string Status { get; set; } = "Active";
         public int LeadTimeDays { get; set; } = 7;
+        /// <summary>Adaptateur de feed live (ex. demo.alliance). Null = pas de cotation auto.</summary>
+        public string? FeedCode { get; set; }
         public bool IsActive { get; set; } = true;
         /// <summary>Encours fournisseur TTC (RG-AC6).</summary>
         public decimal Balance { get; set; } = 0m;

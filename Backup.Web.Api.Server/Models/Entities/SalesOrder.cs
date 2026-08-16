@@ -19,8 +19,12 @@ namespace Backup.Web.Api.Server.Models.Entities
         public decimal TotalHT { get; set; }
         public decimal TotalVat { get; set; }
         public decimal TotalTTC { get; set; }
-        /// <summary>RG-CP3 : remise pied de page (%), appliquée sur le HT/TVA cumulés des lignes.</summary>
+        /// <summary>RG-CP3 : remise pied de page (%), appliquée sur le HT/TVA cumulés des lignes marchandises.</summary>
         public decimal HeaderDiscountPercent { get; set; }
+        /// <summary>RG-FA1 : frais de port forfaitaires HT (montant en-tête, hors remise pied de page).</summary>
+        public decimal ShippingAmountHt { get; set; }
+        /// <summary>RG-FA1 : taux de TVA applicable aux frais de port en-tête.</summary>
+        public decimal ShippingVatRate { get; set; } = 21.0m;
         /// <summary>RG-CP1 : devise figée à la création (copiée de Company.DefaultCurrencyCode), gelée hors Draft.</summary>
         public string CurrencyCode { get; set; } = "EUR";
         public string? Notes { get; set; }

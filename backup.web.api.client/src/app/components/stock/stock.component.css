@@ -347,6 +347,39 @@
   background: #fffbeb;
 }
 
+.stock-row.row-critical td {
+  background: #fef2f2;
+}
+
+.risk-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.risk-pill.critical {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.risk-pill.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.risk-pill.watch {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.risk-pill.ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
 .negative {
   color: var(--error) !important;
 }

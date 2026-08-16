@@ -31,19 +31,31 @@ const MAIN_NAV_ITEMS: NavItem[] = [
   { path: '/sales', labelKey: 'nav.sales', tabLabelKey: 'nav.sales', icon: 'point_of_sale', titleKey: 'nav.title.sales' },
   { path: '/purchases', labelKey: 'nav.purchases', tabLabelKey: 'nav.purchases', icon: 'shopping_cart', titleKey: 'nav.title.purchases' },
   { path: '/cash', labelKey: 'nav.cash', tabLabelKey: 'nav.cash', icon: 'receipt_long', titleKey: 'nav.title.cash' },
-  { path: '/accounting', labelKey: 'nav.accounting', tabLabelKey: 'nav.accounting', icon: 'menu_book', titleKey: 'nav.title.accounting' },
+  { path: '/accounting', labelKey: 'nav.accounting', tabLabelKey: 'nav.accounting', icon: 'menu_book', titleKey: 'nav.title.accounting', exact: true },
+  { path: '/accounting/chart-of-accounts', labelKey: 'nav.chartOfAccounts', tabLabelKey: 'nav.chartOfAccounts', icon: 'format_list_numbered', titleKey: 'nav.title.chartOfAccounts' },
+  { path: '/accounting/journals', labelKey: 'nav.journals', tabLabelKey: 'nav.journals', icon: 'library_books', titleKey: 'nav.title.journals' },
+  { path: '/accounting/fiscal-years', labelKey: 'nav.fiscalYears', tabLabelKey: 'nav.fiscalYears', icon: 'event_note', titleKey: 'nav.title.fiscalYears' },
   { path: '/numbering', labelKey: 'nav.numbering', tabLabelKey: 'nav.numbering', icon: 'tag', titleKey: 'nav.title.numbering' },
   { path: '/upload', labelKey: 'nav.upload', tabLabelKey: 'nav.upload', icon: 'cloud_upload', titleKey: 'nav.title.upload' },
   { path: '/recherche', labelKey: 'nav.search', tabLabelKey: 'nav.search', icon: 'search', titleKey: 'nav.title.search' },
   { path: '/compare', labelKey: 'nav.compare', tabLabelKey: 'nav.compare', icon: 'link', titleKey: 'nav.title.compare' },
   { path: '/stock', labelKey: 'nav.stock', tabLabelKey: 'nav.stock', icon: 'inventory_2', titleKey: 'nav.title.stock' },
   { path: '/erp-products', labelKey: 'nav.erpProducts', tabLabelKey: 'nav.erpProducts', icon: 'category', titleKey: 'nav.title.erpProducts' },
+  { path: '/oem-search', labelKey: 'nav.oemSearch', tabLabelKey: 'nav.oemSearch', icon: 'pin', titleKey: 'nav.title.oemSearch' },
   { path: '/plate-scan', labelKey: 'nav.plateScan', tabLabelKey: 'nav.plateScan', icon: 'directions_car', titleKey: 'nav.title.plateScan' },
   { path: '/erp-brands', labelKey: 'nav.erpBrands', tabLabelKey: 'nav.erpBrands', icon: 'storefront', titleKey: 'nav.title.erpBrands' },
   { path: '/erp-categories', labelKey: 'nav.erpCategories', tabLabelKey: 'nav.erpCategories', icon: 'account_tree', titleKey: 'nav.title.erpCategories' },
   { path: '/erp-changes', labelKey: 'nav.erpChanges', tabLabelKey: 'nav.erpChanges', icon: 'sync_alt', titleKey: 'nav.title.erpChanges' },
   { path: '/assistant', labelKey: 'nav.assistant', tabLabelKey: 'nav.assistantTab', icon: 'smart_toy', titleKey: 'nav.title.assistant' },
 ];
+
+const GARAGE_NAV_ITEM: NavItem = {
+  path: '/garage',
+  labelKey: 'nav.garage',
+  tabLabelKey: 'nav.garage',
+  icon: 'garage',
+  titleKey: 'nav.title.garage',
+};
 
 const ADMIN_NAV_ITEM: NavItem = {
   path: '/admin',
@@ -75,6 +87,9 @@ export class NavbarComponent {
   }
 
   get navItems(): NavItem[] {
+    if (this.permissionService.isGaragePortalUser()) {
+      return [GARAGE_NAV_ITEM];
+    }
     return this.visibleItems([...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]);
   }
 
@@ -182,7 +197,10 @@ export class NavbarComponent {
 
   private updateTitle(): void {
     const url = this.router.url.split('?')[0];
-    const item = this.navItems.find(n => url.startsWith(n.path));
+    // Correspondance la plus spécifique (ex. /accounting/journals avant /accounting).
+    const item = this.navItems
+      .filter(n => url.startsWith(n.path))
+      .sort((a, b) => b.path.length - a.path.length)[0];
     this.pageTitleKey = item?.titleKey ?? 'nav.title.default';
     this.pageTitleLiteral = false;
   }
@@ -193,7 +211,8 @@ export class NavbarComponent {
       if (item.path === '/erp-changes' && !this.companyService.hasErpCatalogSync) {
         return false;
       }
-      if (item.path === '/plate-scan' && this.companyService.modules.length > 0 && !this.companyService.hasAutoParts) {
+      // Scan plaque / OEM : réservés au module auto_parts (pas Euro Brico / erp_catalog_sync seul)
+      if ((item.path === '/plate-scan' || item.path === '/oem-search') && !this.companyService.hasAutoParts) {
         return false;
       }
       const perms = RoutePermissions[item.path];

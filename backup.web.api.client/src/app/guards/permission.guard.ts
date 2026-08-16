@@ -19,11 +19,22 @@ export function permissionGuard(...required: PermissionCode[]): CanActivateFn {
 
     if (allowed) return true;
 
-    // Jamais rediriger vers la même URL (évite boucle /upload → /upload)
     const fallback = permissions.getDefaultHomeUrl(currentPath);
     if (fallback === currentPath) {
       return router.createUrlTree(['/access-denied']);
     }
     return router.createUrlTree([fallback]);
+  };
+}
+
+/** Empêche un compte Garage d'ouvrir les écrans staff (dashboard / assistant). */
+export function denyGaragePortalGuard(): CanActivateFn {
+  return () => {
+    const permissions = inject(PermissionService);
+    const router = inject(Router);
+    if (permissions.isGaragePortalUser()) {
+      return router.createUrlTree(['/garage']);
+    }
+    return true;
   };
 }

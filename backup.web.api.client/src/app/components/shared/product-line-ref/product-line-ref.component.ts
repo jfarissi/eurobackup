@@ -22,7 +22,7 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
   @Input() priceMode: 'sale' | 'purchase' = 'sale';
   /** Si défini, ne propose que les produits des marques du fournisseur. */
   @Input() supplierId: number | null = null;
-  @Output() productSelected = new EventEmitter<void>();
+  @Output() productSelected = new EventEmitter<ErpProduct>();
 
   suggestions: ErpProduct[] = [];
   searching = false;
@@ -104,7 +104,7 @@ export class ProductLineRefComponent implements OnInit, OnChanges, OnDestroy {
     this.suggestions = [];
     this.lastQuery = '';
     this.searchFailed = false;
-    this.productSelected.emit();
+    this.productSelected.emit(product);
   }
 
   /** Used by [displayWith] — converts the option value back to a display string. */

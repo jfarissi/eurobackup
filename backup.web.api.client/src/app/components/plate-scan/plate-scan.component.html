@@ -1,12 +1,16 @@
-<div class="plate-page">
-  <div class="plate-header">
-    <div>
-      <h2>{{ 'plate.title' | t }}</h2>
-      <p class="subtitle">{{ 'plate.subtitle' | t }}</p>
-      <app-catalog-subnav></app-catalog-subnav>
+<div class="page catalog-page plate-page">
+  <section class="catalog-subheader">
+    <div class="catalog-subheader-inner">
+      <div>
+        <h2>{{ 'plate.title' | t }}</h2>
+        <p>{{ 'plate.subtitle' | t }}</p>
+        <app-catalog-subnav></app-catalog-subnav>
+      </div>
     </div>
-  </div>
+  </section>
 
+  <section class="plate-body">
+    <div class="plate-body-inner">
   <div class="warn-box" *ngIf="moduleMissing">
     {{ 'plate.moduleRequired' | t }}
   </div>
@@ -74,6 +78,23 @@
         </div>
 
         <div class="error-box" *ngIf="error">{{ error }}</div>
+
+        <div class="sync-progress-panel" *ngIf="syncUiVisible">
+          <div class="sync-progress-header">
+            <strong>{{ syncRefreshing ? ('plate.sync.refreshTitle' | t) : ('plate.sync.title' | t) }}</strong>
+            <span *ngIf="!syncRefreshing">{{ syncProgress?.percent || 0 }}%</span>
+          </div>
+          <mat-progress-bar
+            [mode]="(catalogSyncActive || syncRefreshing) && !(syncProgress?.percent) ? 'indeterminate' : 'determinate'"
+            [value]="syncProgress?.percent || 0">
+          </mat-progress-bar>
+          <p class="hint sync-progress-message">
+            {{ syncProgress?.message || ('plate.sync.message' | t) }}
+            <ng-container *ngIf="syncProgress?.current != null && syncProgress?.total">
+              · {{ syncProgress?.current }}/{{ syncProgress?.total }}
+            </ng-container>
+          </p>
+        </div>
       </section>
 
       <section class="result-panel" *ngIf="result">
@@ -81,29 +102,112 @@
           <div class="vehicle-top">
             <span class="plate-badge">{{ result.plateNumber }}</span>
             <span class="demo-chip" *ngIf="result.isDemoData">{{ 'plate.demoData' | t }}</span>
+            <span class="registry-chip" *ngIf="result.fromRegistry && !result.needsVehicleLink">{{ 'plate.registryKnown' | t }}</span>
+            <span class="match-chip exact" *ngIf="result.productMatchMode === 'KType'">{{ 'plate.match.kType' | t }}</span>
+            <span class="match-chip fallback" *ngIf="result.productMatchMode === 'MakeModel' && !result.kTypeInCatalog">{{ 'plate.match.fallback' | t }}</span>
+            <span class="ocr-chip" *ngIf="result.ocrProvider">OCR {{ result.ocrProvider }}<ng-container *ngIf="result.ocrScore != null"> · {{ result.ocrScore | number:'1.0-2' }}</ng-container></span>
           </div>
-          <h3>{{ result.make }} {{ result.model }} <span *ngIf="result.year">({{ result.year }})</span></h3>
-          <div class="vehicle-meta">
-            <span *ngIf="result.vin">VIN {{ result.vin }}</span>
-            <span *ngIf="result.engineCode">{{ 'plate.engine' | t }} {{ result.engineCode }}</span>
-            <span *ngIf="result.fuelType">{{ result.fuelType }}</span>
-            <span *ngIf="result.powerHP">{{ result.powerHP }} ch</span>
-          </div>
-          <p class="hint" *ngIf="result.message">{{ result.message }}</p>
-          <a class="btn-secondary"
-             [routerLink]="['/erp-products']"
-             [queryParams]="{ vehicleBrand: result.make, vehicleModel: result.model, vehicleYear: result.year }">
-            {{ 'plate.openCatalog' | t }}
-          </a>
+
+          <ng-container *ngIf="!result.needsVehicleLink; else linkNeeded">
+            <h3>
+              {{ result.make }} {{ result.model }} <span *ngIf="result.year">({{ result.year }})</span>
+              <span class="fuel-badge" *ngIf="result.fuelType"
+                    [class.diesel]="isDiesel(result.fuelType)"
+                    [class.petrol]="isPetrol(result.fuelType)">{{ result.fuelType }}</span>
+            </h3>
+            <div class="vehicle-meta">
+              <span *ngIf="result.vin">VIN {{ result.vin }}</span>
+              <span *ngIf="result.kType">K-Type {{ result.kType }}</span>
+              <span *ngIf="result.engineCode">{{ 'plate.engine' | t }} {{ result.engineCode }}</span>
+              <span *ngIf="result.fuelType">{{ 'plate.fuel' | t }} {{ result.fuelType }}</span>
+              <span *ngIf="result.powerHP">{{ result.powerHP }} ch</span>
+            </div>
+            <p class="hint" *ngIf="result.message">{{ result.message }}</p>
+            <a class="btn-secondary"
+               *ngIf="result.make || result.kType"
+               [routerLink]="['/erp-products']"
+               [queryParams]="{ vehicleBrand: result.make || null, vehicleModel: result.model || null, vehicleYear: result.year || null, vehicleKType: result.kType || null }">
+              {{ 'plate.openCatalog' | t }}
+            </a>
+          </ng-container>
+
+          <ng-template #linkNeeded>
+            <h3>{{ 'plate.link.title' | t }}</h3>
+            <p class="hint">{{ result.message || ('plate.link.hint' | t) }}</p>
+            <div class="link-vin-row">
+              <input type="text" [(ngModel)]="linkVin" name="linkVin" maxlength="17"
+                     [placeholder]="'plate.vinPlaceholder' | t"
+                     (keyup.enter)="linkPlateVin()" />
+              <button type="button" class="btn-primary" (click)="linkPlateVin()"
+                      [disabled]="linkVin.length < 17 || scanning">
+                {{ scanning ? ('plate.searching' | t) : ('plate.link.save' | t) }}
+              </button>
+            </div>
+            <p class="hint">{{ 'plate.vinHint' | t }}</p>
+          </ng-template>
         </div>
 
+        <div class="cat-picker" *ngIf="result.kType && !result.needsVehicleLink && !syncUiVisible">
+          <h4>{{ 'plate.cats.title' | t }}</h4>
+          <p class="hint">{{ result.kTypeInCatalog ? ('plate.cats.hintMore' | t) : ('plate.cats.hint' | t) }}</p>
+          <div class="form-group">
+            <input type="text" [(ngModel)]="catFilter" name="catFilter"
+                   [placeholder]="'plate.cats.filter' | t"
+                   (ngModelChange)="onCatFilterChange()" />
+          </div>
+          <p class="hint" *ngIf="catsLoading">{{ 'plate.cats.loading' | t }}</p>
+          <p class="empty" *ngIf="!catsLoading && !categories.length">{{ 'plate.cats.empty' | t }}</p>
+          <div class="cat-picker-list">
+          <div class="cat-family" *ngFor="let g of categoryGroups; trackBy: trackByFamily">
+            <div class="cat-family-bar">
+              <button type="button"
+                      class="cat-family-chevron"
+                      [attr.aria-expanded]="isFamilyOpen(g.family)"
+                      [attr.aria-label]="g.label"
+                      (mousedown)="$event.preventDefault()"
+                      (click)="toggleFamilyOpen(g.family)">
+                {{ isFamilyOpen(g.family) ? '▾' : '▸' }}
+              </button>
+              <label class="cat-family-check">
+                <input type="checkbox"
+                       [checked]="isFamilyFullySelected(g.items)"
+                       [indeterminate]="isFamilyPartiallySelected(g.items)"
+                       (mousedown)="$event.preventDefault()"
+                       (change)="toggleFamily(g.items, $any($event.target).checked)" />
+                <span>{{ g.label }}</span>
+                <small class="cat-family-count">{{ countFamilySelected(g.items) }}/{{ g.items.length }}</small>
+              </label>
+            </div>
+            <div class="cat-family-body" *ngIf="isFamilyOpen(g.family)">
+              <label class="cat-item" *ngFor="let c of g.items; trackBy: trackByCatId">
+                <input type="checkbox"
+                       [checked]="isCatSelected(c.id)"
+                       (mousedown)="$event.preventDefault()"
+                       (change)="toggleCat(c.id, $any($event.target).checked)" />
+                <span>{{ c.name }}<ng-container *ngIf="c.parentName"> <span class="muted">· {{ c.parentName }}</span></ng-container></span>
+              </label>
+            </div>
+          </div>
+          </div>
+          <button type="button" class="btn-primary" (click)="importSelectedCategories()"
+                  [disabled]="selectedCatCount === 0 || scanning || catsLoading">
+            {{ scanning ? ('plate.cats.importing' | t) : ('plate.cats.import' | t) }}
+            <ng-container *ngIf="selectedCatCount"> ({{ selectedCatCount }})</ng-container>
+          </button>
+        </div>
+
+        <ng-container *ngIf="!result.needsVehicleLink">
         <h4>{{ 'plate.compatibleProducts' | t }} ({{ result.compatibleProducts?.length || 0 }})</h4>
         <table class="data-table" *ngIf="result.compatibleProducts?.length; else noProducts">
           <thead>
             <tr>
               <th>{{ 'plate.col.product' | t }}</th>
+              <th>{{ 'plate.col.vehicle' | t }}</th>
+              <th>{{ 'plate.col.years' | t }}</th>
+              <th>{{ 'plate.col.engine' | t }}</th>
               <th>{{ 'plate.col.ref' | t }}</th>
               <th>{{ 'plate.col.brand' | t }}</th>
+              <th>{{ 'plate.col.oem' | t }}</th>
               <th>{{ 'plate.col.price' | t }}</th>
               <th>{{ 'plate.col.stock' | t }}</th>
             </tr>
@@ -111,19 +215,36 @@
           <tbody>
             <tr *ngFor="let p of result.compatibleProducts">
               <td>
-                <a [routerLink]="['/erp-products']" [queryParams]="{ q: p.reference || p.name }">{{ p.name || p.erpProductId }}</a>
+                <a [routerLink]="['/erp-products']" [queryParams]="{ productId: p.id, q: p.reference || p.name || null }">{{ p.name || p.erpProductId }}</a>
                 <div class="muted" *ngIf="p.categoryName">{{ p.categoryName }}</div>
+              </td>
+              <td>
+                <div>{{ vehicleLabel(p) }}</div>
+                <div class="muted" *ngIf="p.kType">K-Type {{ p.kType }}</div>
+              </td>
+              <td class="font-mono">{{ yearsLabel(p) }}</td>
+              <td>
+                <div *ngIf="p.engineCode">{{ p.engineCode }}</div>
+                <div class="muted" *ngIf="p.fuelType">{{ p.fuelType }}</div>
+                <span *ngIf="!p.engineCode && !p.fuelType">—</span>
               </td>
               <td class="font-mono">{{ p.reference || '—' }}</td>
               <td>{{ p.brand || '—' }}</td>
+              <td class="font-mono">{{ p.oemCount != null ? p.oemCount : '—' }}</td>
               <td>{{ p.priceHT != null ? (p.priceHT | number:'1.2-2') : '—' }}</td>
               <td>{{ p.stockQuantity != null ? p.stockQuantity : '—' }}</td>
             </tr>
           </tbody>
         </table>
         <ng-template #noProducts>
-          <p class="empty">{{ 'plate.noProducts' | t }}</p>
+          <p class="empty" *ngIf="result.kType && !result.kTypeInCatalog; else genericNoProducts">
+            {{ 'plate.noProductsKTypeMissing' | t }}
+          </p>
+          <ng-template #genericNoProducts>
+            <p class="empty">{{ 'plate.noProducts' | t }}</p>
+          </ng-template>
         </ng-template>
+        </ng-container>
       </section>
     </div>
 
@@ -131,11 +252,17 @@
       <h4>{{ 'plate.history' | t }}</h4>
       <div class="history-list">
         <button type="button" class="history-item" *ngFor="let h of history" (click)="reuseHistory(h)">
-          <strong>{{ h.plateNumber }}</strong>
-          <span>{{ h.make }} {{ h.model }} <ng-container *ngIf="h.year">({{ h.year }})</ng-container></span>
-          <span class="muted">{{ h.productsFound }} · {{ h.searchedAt | date:'dd/MM HH:mm' }}</span>
+          <div class="history-main">
+            <strong class="history-id">{{ h.plateNumber || h.vin || '—' }}</strong>
+            <span class="history-vehicle" *ngIf="h.make || h.model || h.year">
+              {{ h.make }} {{ h.model }} <ng-container *ngIf="h.year">({{ h.year }})</ng-container>
+            </span>
+          </div>
+          <span class="muted history-meta">{{ h.productsFound }} · {{ h.searchedAt | date:'dd/MM HH:mm' }}</span>
         </button>
       </div>
     </section>
   </ng-container>
+    </div>
+  </section>
 </div>

@@ -1,0 +1,96 @@
+<div class="garage-page">
+  <header class="garage-header">
+    <div>
+      <h1>{{ 'garage.title' | t }}</h1>
+      <p class="muted" *ngIf="me">{{ me.name }} · {{ me.customerCode }}</p>
+    </div>
+    <button type="button" class="btn-secondary" (click)="reload()" [disabled]="loading">
+      <mat-icon>refresh</mat-icon>
+      {{ 'common.refresh' | t }}
+    </button>
+  </header>
+
+  <p class="muted" *ngIf="loading">{{ 'common.loading' | t }}</p>
+  <p class="error" *ngIf="error">{{ error }}</p>
+
+  <section class="garage-card" *ngIf="me && !loading">
+    <h2>{{ 'garage.account' | t }}</h2>
+    <dl class="garage-meta">
+      <div>
+        <dt>{{ 'garage.status' | t }}</dt>
+        <dd>{{ me.status }}</dd>
+      </div>
+      <div>
+        <dt>{{ 'garage.balance' | t }}</dt>
+        <dd>{{ formatMoney(me.balance) }} €</dd>
+      </div>
+      <div>
+        <dt>{{ 'garage.credit' | t }}</dt>
+        <dd>{{ me.creditLimit > 0 ? formatMoney(me.creditLimit) + ' €' : ('garage.unlimited' | t) }}</dd>
+      </div>
+      <div *ngIf="me.email">
+        <dt>{{ 'garage.email' | t }}</dt>
+        <dd>{{ me.email }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="garage-grid" *ngIf="!loading && !error">
+    <div class="garage-card">
+      <h2>{{ 'garage.orders' | t }} <span class="count">{{ orders.length }}</span></h2>
+      <p class="muted" *ngIf="!orders.length">{{ 'garage.ordersEmpty' | t }}</p>
+      <table class="garage-table" *ngIf="orders.length">
+        <thead>
+          <tr>
+            <th>{{ 'garage.col.number' | t }}</th>
+            <th>{{ 'garage.col.date' | t }}</th>
+            <th>{{ 'garage.col.status' | t }}</th>
+            <th>{{ 'garage.col.ttc' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let o of orders" (click)="openOrder(o)" [class.active]="selected?.id === o.id">
+            <td class="font-mono">{{ o.orderNumber }}</td>
+            <td>{{ o.date | date:'shortDate' }}</td>
+            <td>{{ o.status }}</td>
+            <td class="num">{{ formatMoney(o.totalTTC) }} €</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" *ngIf="detailLoading">{{ 'common.loading' | t }}</p>
+      <div class="order-detail" *ngIf="selected">
+        <h3>{{ selected.orderNumber }}</h3>
+        <table class="garage-table">
+          <thead>
+            <tr>
+              <th>{{ 'garage.col.ref' | t }}</th>
+              <th>{{ 'garage.col.label' | t }}</th>
+              <th>{{ 'garage.col.qty' | t }}</th>
+              <th>{{ 'garage.col.ttc' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let l of selected.lines">
+              <td class="font-mono">{{ l.productKey }}</td>
+              <td>{{ l.description }}</td>
+              <td class="num">{{ l.quantity }}</td>
+              <td class="num">{{ formatMoney(l.totalTTC) }} €</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="garage-card">
+      <h2>{{ 'garage.vehicles' | t }} <span class="count">{{ vehicles.length }}</span></h2>
+      <p class="muted" *ngIf="!vehicles.length">{{ 'garage.vehiclesEmpty' | t }}</p>
+      <ul class="vehicle-list" *ngIf="vehicles.length">
+        <li *ngFor="let v of vehicles">
+          <strong class="font-mono">{{ v.plateNumber }}</strong>
+          <span>{{ vehicleLabel(v) }}</span>
+          <span class="muted" *ngIf="v.vin">VIN {{ v.vin }}</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+</div>

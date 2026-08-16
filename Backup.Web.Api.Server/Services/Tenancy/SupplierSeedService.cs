@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Backup.Web.Api.Server.Brokers.Storage;
+using Backup.Web.Api.Server.Models;
 using Backup.Web.Api.Server.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,105 @@ namespace Backup.Web.Api.Server.Services.Tenancy
                 await this.storage.InsertSupplierAsync(seed);
                 this.logger.LogInformation("Imported Pulse supplier {Code} — {Name}", seed.SupplierCode, seed.Name);
             }
+
+            await this.EnsureDemoFeedSuppliersAsync(companyId);
+            await this.EnsureDemoDropshipProductAsync(companyId);
+        }
+
+        public async Task EnsureDemoFeedSuppliersAsync(string companyId)
+        {
+            if (string.IsNullOrWhiteSpace(companyId)) return;
+
+            foreach (var seed in DemoFeedSuppliers)
+            {
+                var existing = await this.storage.SelectAllSuppliers()
+                    .FirstOrDefaultAsync(s =>
+                        s.CompanyId == companyId
+                        && (s.SupplierCode == seed.SupplierCode || s.FeedCode == seed.FeedCode));
+
+                if (existing != null)
+                {
+                    existing.FeedCode = seed.FeedCode;
+                    existing.Name = seed.Name;
+                    existing.LeadTimeDays = seed.LeadTimeDays;
+                    existing.IsActive = true;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    await this.storage.UpdateSupplierAsync(existing);
+                    continue;
+                }
+
+                await this.storage.InsertSupplierAsync(new Supplier
+                {
+                    SupplierCode = seed.SupplierCode,
+                    Name = seed.Name,
+                    FeedCode = seed.FeedCode,
+                    LeadTimeDays = seed.LeadTimeDays,
+                    IsActive = true,
+                    Status = "Active",
+                    CompanyId = companyId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                this.logger.LogInformation("Seeded demo feed supplier {Code} ({Feed}) for company {CompanyId}",
+                    seed.SupplierCode, seed.FeedCode, companyId);
+            }
+        }
+
+        public const string DemoDropshipErpId = "DEMO-DROPSHIP";
+
+        private async Task EnsureDemoDropshipProductAsync(string companyId)
+        {
+            var alliance = await this.storage.SelectAllSuppliers()
+                .FirstOrDefaultAsync(s =>
+                    s.CompanyId == companyId && s.SupplierCode == "DEMO-ALLIANCE");
+
+            var existing = await this.storage.SelectAllErpProducts()
+                .FirstOrDefaultAsync(p => p.ErpProductId == DemoDropshipErpId);
+
+            if (existing != null)
+            {
+                var dirty = false;
+                if (!existing.IsDropship)
+                {
+                    existing.IsDropship = true;
+                    dirty = true;
+                }
+                if (alliance != null && existing.DropshipSupplierId != alliance.Id)
+                {
+                    existing.DropshipSupplierId = alliance.Id;
+                    dirty = true;
+                }
+                if (dirty)
+                {
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.UpdatedBy = "dropship-seed";
+                    await this.storage.UpdateErpProductAsync(existing);
+                    this.logger.LogInformation("Dropship seed: updated {ErpId} (supplier {SupplierId})",
+                        DemoDropshipErpId, existing.DropshipSupplierId);
+                }
+                return;
+            }
+
+            await this.storage.InsertErpProductAsync(new ErpProduct
+            {
+                ErpProductId = DemoDropshipErpId,
+                Name = "Filtre habitacle (Demo dropship)",
+                Reference = "DROPSHIP",
+                Brand = "Demo",
+                UnitPrice = 28.90m,
+                RPrice = 28.90m,
+                CPrice = 14.50m,
+                TypeVatPerc = 21m,
+                StockQuantity = 0,
+                IsDropship = true,
+                DropshipSupplierId = alliance?.Id,
+                DataSource = "Demo",
+                CreatedBy = "dropship-seed",
+                UpdatedBy = "dropship-seed"
+            });
+            this.logger.LogInformation(
+                "Dropship seed: product {ErpId} (ref DROPSHIP) supplier {SupplierId}",
+                DemoDropshipErpId, alliance?.Id);
         }
 
         /// <summary>
@@ -167,6 +267,34 @@ namespace Backup.Web.Api.Server.Services.Tenancy
                 LeadTimeDays = 7,
                 IsActive = true,
                 CreatedAt = new DateTime(2026, 6, 4, 9, 45, 2, DateTimeKind.Utc)
+            }
+        };
+
+        private static readonly Supplier[] DemoFeedSuppliers =
+        {
+            new()
+            {
+                SupplierCode = "DEMO-ALLIANCE",
+                Name = "Alliance Automotive (demo)",
+                FeedCode = SupplierQuotes.SupplierFeedCodes.Alliance,
+                LeadTimeDays = 2,
+                IsActive = true
+            },
+            new()
+            {
+                SupplierCode = "DEMO-AUTODIST",
+                Name = "Autodistribution (demo)",
+                FeedCode = SupplierQuotes.SupplierFeedCodes.Autodistribution,
+                LeadTimeDays = 4,
+                IsActive = true
+            },
+            new()
+            {
+                SupplierCode = "DEMO-LOCAL",
+                Name = "Stock magasin",
+                FeedCode = SupplierQuotes.SupplierFeedCodes.Local,
+                LeadTimeDays = 0,
+                IsActive = true
             }
         };
     }

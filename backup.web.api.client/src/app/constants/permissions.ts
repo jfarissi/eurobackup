@@ -60,6 +60,8 @@ export const Permissions = {
   CashManage: 'Cash.Manage',
   AccountingRead: 'Accounting.Read',
   AccountingCreate: 'Accounting.Create',
+  AccountingManagePlan: 'Accounting.ManagePlan',
+  AccountingManageFiscalYears: 'Accounting.ManageFiscalYears',
   NumberingManage: 'Numbering.Manage',
   HelpManage: 'Help.Manage',
   DocumentRead: 'Document.Read',
@@ -76,6 +78,8 @@ export const Permissions = {
   EmailRead: 'Email.Read',
   EmailSend: 'Email.Send',
   EmailSettingsManage: 'Email.Settings',
+  GarageOrdersRead: 'Garage.OrdersRead',
+  GarageVehiclesRead: 'Garage.VehiclesRead',
 } as const;
 
 export type PermissionCode = typeof Permissions[keyof typeof Permissions];
@@ -83,16 +87,21 @@ export type PermissionCode = typeof Permissions[keyof typeof Permissions];
 /** Route → any of these permissions grants menu/route access */
 export const RoutePermissions: Record<string, PermissionCode[]> = {
   '/dashboard': [],
+  '/garage': [Permissions.GarageOrdersRead, Permissions.GarageVehiclesRead],
   '/sales': [Permissions.CustomerRead, Permissions.QuoteRead, Permissions.OrderRead, Permissions.InvoiceRead, Permissions.DeliveryNoteRead],
   '/purchases': [Permissions.SupplierRead, Permissions.PurchaseOrderRead, Permissions.ReceiptRead, Permissions.SupplierInvoiceRead],
   '/stock': [Permissions.StockRead],
   '/erp-products': [Permissions.ProductRead],
   '/plate-scan': [Permissions.ProductRead],
+  '/oem-search': [Permissions.ProductRead],
   '/erp-brands': [Permissions.BrandRead, Permissions.ProductRead],
   '/erp-categories': [Permissions.CategoryRead, Permissions.ProductRead],
   '/erp-changes': [Permissions.ErpChangeRead],
   '/cash': [Permissions.CashRead, Permissions.CashManage],
   '/accounting': [Permissions.AccountingRead, Permissions.AccountingCreate],
+  '/accounting/chart-of-accounts': [Permissions.AccountingRead],
+  '/accounting/journals': [Permissions.AccountingRead],
+  '/accounting/fiscal-years': [Permissions.AccountingRead],
   '/numbering': [Permissions.NumberingManage],
   '/upload': [Permissions.DocumentUpload],
   '/recherche': [Permissions.DocumentRead],
@@ -174,6 +183,8 @@ export const PermissionCategories: PermissionCategory[] = [
     label: 'admin.perm.cat.accounting',
     sections: [
       { label: 'admin.perm.sec.accounting', permissions: [Permissions.AccountingRead, Permissions.AccountingCreate] },
+      { label: 'admin.perm.sec.accountingPlan', permissions: [Permissions.AccountingManagePlan] },
+      { label: 'admin.perm.sec.accountingFiscalYears', permissions: [Permissions.AccountingManageFiscalYears] },
     ],
   },
   {
@@ -183,6 +194,13 @@ export const PermissionCategories: PermissionCategory[] = [
       { label: 'admin.perm.sec.numbering', permissions: [Permissions.NumberingManage] },
       { label: 'admin.perm.sec.help', permissions: [Permissions.HelpManage] },
       { label: 'admin.perm.sec.email', permissions: [Permissions.EmailRead, Permissions.EmailSend, Permissions.EmailSettingsManage] },
+    ],
+  },
+  {
+    id: 'garage',
+    label: 'admin.perm.cat.garage',
+    sections: [
+      { label: 'admin.perm.sec.garage', permissions: [Permissions.GarageOrdersRead, Permissions.GarageVehiclesRead] },
     ],
   },
   {
@@ -197,10 +215,14 @@ export const PermissionCategories: PermissionCategory[] = [
 
 const PermissionActionLabels: Record<string, string> = {
   Read: 'admin.perm.action.Read',
+  OrdersRead: 'admin.perm.action.Read',
+  VehiclesRead: 'admin.perm.action.Read',
   Create: 'admin.perm.action.Create',
   Update: 'admin.perm.action.Update',
   Delete: 'admin.perm.action.Delete',
   Manage: 'admin.perm.action.Manage',
+  ManagePlan: 'admin.perm.action.ManagePlan',
+  ManageFiscalYears: 'admin.perm.action.ManageFiscalYears',
   Upload: 'admin.perm.action.Upload',
   Link: 'admin.perm.action.Link',
   Send: 'admin.perm.action.Send',
