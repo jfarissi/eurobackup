@@ -113,6 +113,9 @@ def classify_doc_type(text: str) -> Tuple[str, float, Dict[str, int]]:
         "faktuur",
         "invoice number",
         "faktuur nr",
+        "total ht",
+        "total ttc",
+        "montant ht",
     ]
     delivery_terms = [
         "delivery note",
@@ -122,12 +125,38 @@ def classify_doc_type(text: str) -> Tuple[str, float, Dict[str, int]]:
         "verzendbon",
         "pakbon",
     ]
+    bank_terms = [
+        "relevé bancaire",
+        "releve bancaire",
+        "relevé de compte",
+        "releve de compte",
+        "extrait de compte",
+        "bank statement",
+        "account statement",
+        "ofxheader",
+        "<ofx",
+        "solde précédent",
+        "solde precedent",
+        "ancien solde",
+        "nouveau solde",
+        "solde initial",
+        "cih bank",
+        "bmce",
+        "attijariwafa",
+        "attijari",
+        "mouvements du compte",
+        "votre compte n",
+    ]
     s_invoice = _contains_any(t, invoice_terms)
     s_delivery = _contains_any(t, delivery_terms)
-    raw = {"invoice": s_invoice, "delivery": s_delivery}
-    if s_delivery > s_invoice:
-        denom = max(1, s_delivery + s_invoice)
-        return "delivery", round(s_delivery / denom, 3), raw
-    denom = max(1, s_delivery + s_invoice)
-    return "invoice", round(s_invoice / denom, 3), raw
+    s_bank = _contains_any(t, bank_terms)
+    if t.strip().startswith("ofxheader") or "<ofx" in t[:400]:
+        s_bank += 3
+    raw = {"invoice": s_invoice, "delivery": s_delivery, "bank_statement": s_bank}
+    best = max(raw, key=raw.get)
+    best_score = raw[best]
+    if best_score <= 0:
+        return "invoice", 0.0, raw
+    total = sum(raw.values()) or 1
+    return best, round(best_score / total, 3), raw
 

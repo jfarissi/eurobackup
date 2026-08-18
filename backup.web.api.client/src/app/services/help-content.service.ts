@@ -36,6 +36,11 @@ export const HELP_CATALOG: string[] = [
   'compare.tabs', 'compare.association',
   'stock.tabs', 'stock.adjust',
   'accounting.tabs', 'accounting.newEntry',
+  'accounting.chart', 'accounting.journals', 'accounting.fiscalYears',
+  'accounting.lettrage', 'accounting.reports', 'accounting.vat',
+  'accounting.closing', 'accounting.bankRec', 'accounting.exports',
+  'accounting.fixedAssets', 'accounting.payroll', 'accounting.ocr',
+  'accounting.cabinet',
   'cash.tabs', 'cash.open', 'cash.close', 'cash.newOp',
   'erpProducts.tabs', 'erpChanges.tabs', 'createProduct',
   'admin.tabs', 'admin.tenant', 'admin.company', 'admin.roles', 'admin.user',
@@ -45,7 +50,10 @@ export const HELP_CATALOG: string[] = [
   'field.sales.lineQty', 'field.sales.linePrice', 'field.sales.lineVat',
   'field.purchases.supplier', 'field.purchases.purchaseOrder', 'field.purchases.defaultVat',
   'field.upload.supplier', 'field.cash.openingBalance', 'field.stock.quantity',
-  'field.accounting.account', 'field.numbering.format'
+  'field.accounting.account', 'field.accounting.journal', 'field.accounting.period',
+  'field.accounting.lettrageAccount', 'field.accounting.vatMonth',
+  'field.payroll.cnss', 'field.accounting.ocrFile', 'field.accounting.bankFile',
+  'field.numbering.format'
 ];
 
 const FEEDBACK_KEY = 'backup_help_feedback_v1';
@@ -164,7 +172,11 @@ export class HelpContentService {
   }
 
   searchGlossary(query: string): { code: string; label: string }[] {
-    const codes = ['BL', 'BLC', 'BRC', 'BRF', 'DPF', 'CDF', 'AF', 'FAC', 'FF', 'HT', 'TTC', 'TVA', 'OCR'];
+    const codes = [
+      'BL', 'BLC', 'BRC', 'BRF', 'DPF', 'CDF', 'AF', 'FAC', 'FF',
+      'HT', 'TTC', 'TVA', 'OCR',
+      'FEC', 'CNSS', 'ICE', 'IF', 'PCM', 'PCG', 'OD', 'AN', 'EDI', 'AMO', 'IGR', 'DGI'
+    ];
     const q = (query || '').trim().toLowerCase();
     return codes
       .map(code => {

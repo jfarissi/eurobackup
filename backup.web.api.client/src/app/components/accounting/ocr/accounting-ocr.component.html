@@ -1,0 +1,108 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.ocr" [abbrs]="['OCR','ICE','TVA','FF']">
+        <h2>{{ 'ocr.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'ocr.subtitle' | t }}</p>
+    </div>
+  </div>
+  <div class="success-box" *ngIf="actionMessage">
+    {{ actionMessage }}
+    <a *ngIf="importedInvoiceId" class="btn-link" (click)="openPurchases()">{{ 'ocr.btn.openPurchases' | t }}</a>
+  </div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+  <p class="hint">{{ 'ocr.hint' | t }}</p>
+  <form class="filter-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'ocr.field.mode' | t }}</label>
+        <select [(ngModel)]="mode" name="mode">
+          <option value="auto">{{ 'ocr.mode.auto' | t }}</option>
+          <option value="invoice">{{ 'ocr.mode.invoice' | t }}</option>
+          <option value="bank">{{ 'ocr.mode.bank' | t }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'ocr.field.file' | t }} <app-field-help helpKey="field.accounting.ocrFile"></app-field-help></label>
+        <input type="file" accept=".txt,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.webp,.tif,.pdf" (change)="onFile($event)" />
+      </div>
+    </div>
+    <textarea [(ngModel)]="text" name="text" rows="10" [placeholder]="'ocr.placeholder' | t" [disabled]="!!pendingFile"></textarea>
+    <p class="hint" *ngIf="pendingFile">{{ fileName }}</p>
+    <div class="form-actions">
+      <button class="btn-primary" type="button" (click)="extract()" [disabled]="acting || !canExtract">
+        {{ 'ocr.btn.extract' | t }}
+      </button>
+      <button class="btn-secondary" type="button" *ngIf="isInvoice && canImport && invoice"
+              (click)="importInvoice()" [disabled]="acting || !canExtract">
+        {{ 'ocr.btn.importInvoice' | t }}
+      </button>
+      <button class="btn-secondary" type="button" *ngIf="isBank && canImport"
+              (click)="importBank()" [disabled]="acting || !canExtract">
+        {{ 'ocr.btn.importBank' | t }}
+      </button>
+    </div>
+  </form>
+
+  <p class="hint" *ngIf="detectedType">
+    {{ 'ocr.detected' | t:{ type: detectedTypeLabel, value: typeConfidencePct } }}
+    <span *ngIf="extractSource"> ({{ extractSource }})</span>
+  </p>
+  <p class="hint" *ngIf="isDelivery">{{ 'ocr.blHint' | t }}</p>
+
+  <ng-container *ngIf="invoice">
+    <div class="cards">
+      <div class="card"><h3>ICE</h3><p class="amount">{{ invoice.ice || '—' }}</p></div>
+      <div class="card"><h3>IF</h3><p class="amount">{{ invoice.taxId || '—' }}</p></div>
+      <div class="card"><h3>{{ 'ocr.field.number' | t }}</h3><p class="amount">{{ invoice.invoiceNumber || '—' }}</p></div>
+      <div class="card"><h3>{{ 'ocr.field.party' | t }}</h3><p class="amount">{{ invoice.partyName || '—' }}</p></div>
+      <div class="card"><h3>HT</h3><p class="amount">{{ invoice.amountHt | number:'1.2-2' }}</p></div>
+      <div class="card"><h3>TVA</h3><p class="amount">{{ invoice.vatAmount | number:'1.2-2' }}</p></div>
+      <div class="card"><h3>TTC</h3><p class="amount">{{ invoice.amountTtc | number:'1.2-2' }}</p></div>
+      <div class="card"><h3>{{ 'ocr.field.date' | t }}</h3><p class="amount">{{ invoice.invoiceDate | date:'dd/MM/yyyy' }}</p></div>
+    </div>
+    <p>{{ 'ocr.confidence' | t:{ value: confidencePct } }}
+      — {{ (hasPurchaseLines ? 'ocr.source.lines' : 'ocr.source.header') | t:{ count: invoice.lineCount || 0 } }}
+    </p>
+    <div class="table-wrap" *ngIf="invoice.lines?.length">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'ocr.col.product' | t }}</th>
+            <th>{{ 'ocr.col.qty' | t }}</th>
+            <th>{{ 'ocr.col.price' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let l of invoice.lines">
+            <td>{{ l.product }}</td>
+            <td class="num">{{ l.quantity | number:'1.0-2' }}</td>
+            <td class="num">{{ l.unitPrice | number:'1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <div class="table-wrap" *ngIf="bankLines.length">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'ocr.col.date' | t }}</th>
+          <th>{{ 'ocr.col.label' | t }}</th>
+          <th>{{ 'ocr.col.debit' | t }}</th>
+          <th>{{ 'ocr.col.credit' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let l of bankLines">
+          <td>{{ l.operationDate | date:'dd/MM/yyyy' }}</td>
+          <td>{{ l.label }}</td>
+          <td class="num">{{ l.debit | number:'1.2-2' }}</td>
+          <td class="num">{{ l.credit | number:'1.2-2' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

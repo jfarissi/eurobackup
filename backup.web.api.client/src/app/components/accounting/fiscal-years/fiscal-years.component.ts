@@ -8,11 +8,13 @@ import { PermissionService } from '../../../services/permission.service';
 import { Permissions } from '../../../constants/permissions';
 import { AppI18nService } from '../../../services/app-i18n.service';
 import { TPipe } from '../../../pipes/t.pipe';
+import { FormHelpComponent } from '../../shared/form-help/form-help.component';
+import { FieldHelpComponent } from '../../shared/field-help/field-help.component';
 
 @Component({
   selector: 'app-fiscal-years',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MaterialModule, TPipe],
+  imports: [CommonModule, ReactiveFormsModule, MaterialModule, TPipe, FormHelpComponent, FieldHelpComponent],
   templateUrl: './fiscal-years.component.html',
   styleUrls: ['./fiscal-years.component.css']
 })

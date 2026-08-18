@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace Backup.Web.Api.Server.Services.Accounting
 {
     /// <summary>
-    /// Seed comptable idempotent par société (Phase 1) : paramètres par défaut, 6 journaux,
+    /// Seed comptable idempotent par société (Phase 1) : paramètres par défaut, 7 journaux,
     /// plan comptable (PCM Maroc ou PCG Europe selon PlanType) et exercice courant issu des
     /// bornes legacy Company.OpenFiscalPeriodStart/End (conservées pendant la transition).
     /// </summary>
@@ -44,6 +44,7 @@ namespace Backup.Web.Api.Server.Services.Accounting
             var settings = await this.EnsureSettingsAsync(company);
             await this.EnsureJournalsAsync(company, settings);
             await this.EnsureChartOfAccountsAsync(company, settings);
+            await this.EnsureDefaultVatRateAsync(company, settings);
             await this.EnsureFiscalYearFromLegacyBoundsAsync(company);
         }
 
@@ -65,8 +66,20 @@ namespace Backup.Web.Api.Server.Services.Accounting
 
         private async Task EnsureJournalsAsync(Company company, CompanyAccountingSettings settings)
         {
-            var hasAny = this.storage.SelectAllJournals().Any(j => j.CompanyId == company.Id);
-            if (hasAny) return;
+            var existing = this.storage.SelectAllJournals().Where(j => j.CompanyId == company.Id).ToList();
+            if (existing.Count > 0)
+            {
+                if (!existing.Any(j => j.Code == "SAL"))
+                {
+                    await this.storage.InsertJournalAsync(new Journal
+                    {
+                        Code = "SAL",
+                        Label = "Journal de paie",
+                        CompanyId = company.Id
+                    });
+                }
+                return;
+            }
 
             var journals = new[]
             {
@@ -76,13 +89,14 @@ namespace Backup.Web.Api.Server.Services.Accounting
                 new Journal { Code = "CAIS", Label = "Journal de caisse", CounterpartAccountCode = settings.CashAccountCode, CompanyId = company.Id },
                 new Journal { Code = "OD", Label = "Journal des opérations diverses", CompanyId = company.Id },
                 new Journal { Code = "AN", Label = "Journal des à-nouveaux", CompanyId = company.Id },
+                new Journal { Code = "SAL", Label = "Journal de paie", CompanyId = company.Id },
             };
 
             foreach (var journal in journals)
             {
                 await this.storage.InsertJournalAsync(journal);
             }
-            this.logger.LogInformation("Accounting seed: 6 journaux créés pour la société {CompanyId}", company.Id);
+            this.logger.LogInformation("Accounting seed: 7 journaux créés pour la société {CompanyId}", company.Id);
         }
 
         private async Task EnsureChartOfAccountsAsync(Company company, CompanyAccountingSettings settings)
@@ -111,6 +125,30 @@ namespace Backup.Web.Api.Server.Services.Accounting
             this.logger.LogInformation(
                 "Accounting seed: plan {PlanType} ({Count} comptes) créé pour la société {CompanyId}",
                 settings.PlanType, plan.Count, company.Id);
+        }
+
+        /// <summary>
+        /// Mapping TVA du taux standard du plan (21 % PCG Europe / 20 % PCM Maroc) vers les
+        /// comptes collecté/déductible par défaut, pour ventiler la déclaration.
+        /// </summary>
+        private async Task EnsureDefaultVatRateAsync(Company company, CompanyAccountingSettings settings)
+        {
+            var hasAny = this.storage.SelectAllCompanyVatRateAccounts().Any(v => v.CompanyId == company.Id);
+            if (hasAny) return;
+
+            var rate = string.Equals(settings.PlanType, PlanTypePcmMaroc, StringComparison.OrdinalIgnoreCase)
+                ? 20m
+                : 21m;
+            await this.storage.InsertCompanyVatRateAccountAsync(new CompanyVatRateAccount
+            {
+                CompanyId = company.Id,
+                Rate = rate,
+                CollectedAccountCode = settings.VatCollectedAccountCode,
+                DeductibleAccountCode = settings.VatDeductibleAccountCode
+            });
+            this.logger.LogInformation(
+                "Accounting seed: mapping TVA {Rate}% créé pour la société {CompanyId}",
+                rate, company.Id);
         }
 
         /// <summary>

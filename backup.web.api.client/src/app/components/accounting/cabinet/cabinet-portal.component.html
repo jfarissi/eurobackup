@@ -1,0 +1,113 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.cabinet" [abbrs]="['ICE','FEC']">
+        <h2>{{ 'cabinet.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'cabinet.subtitle' | t }}</p>
+    </div>
+  </div>
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form" *ngIf="canManage">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'cabinet.field.company' | t }}</label>
+        <select [(ngModel)]="linkCompanyId" name="linkCompanyId">
+          <option value="">{{ 'cabinet.pickCompany' | t }}</option>
+          <option *ngFor="let c of companies" [value]="c.id">{{ c.name }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'cabinet.field.level' | t }}</label>
+        <select [(ngModel)]="linkLevel" name="linkLevel">
+          <option value="Saisie">{{ 'cabinet.level.Saisie' | t }}</option>
+          <option value="Revue">{{ 'cabinet.level.Revue' | t }}</option>
+          <option value="Audit">{{ 'cabinet.level.Audit' | t }}</option>
+        </select>
+      </div>
+      <button class="btn-primary" type="button" (click)="link()" [disabled]="acting || !linkCompanyId">
+        {{ 'cabinet.btn.link' | t }}
+      </button>
+    </div>
+  </form>
+
+  <div class="years-layout">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'cabinet.col.company' | t }}</th>
+            <th>{{ 'cabinet.col.period' | t }}</th>
+            <th>{{ 'cabinet.col.status' | t }}</th>
+            <th>{{ 'cabinet.col.notes' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let d of dossiers" [class.selected-row]="selected?.companyId === d.companyId" (click)="open(d)">
+            <td><strong>{{ d.name }}</strong><div class="muted">{{ ('cabinet.level.' + d.missionLevel) | t }}</div></td>
+            <td>{{ d.currentPeriod || '—' }}</td>
+            <td>{{ d.closingStatus }}</td>
+            <td>{{ d.unresolvedAnnotations }}</td>
+          </tr>
+          <tr *ngIf="!loading && dossiers.length === 0">
+            <td colspan="4" class="empty">{{ 'cabinet.empty' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="periods-panel" *ngIf="selected">
+      <h3>{{ selected.name }}</h3>
+      <div class="form-row" *ngIf="canManage">
+        <input type="number" [(ngModel)]="closeMonth" name="closeMonth" min="1" max="12" />
+        <input type="number" [(ngModel)]="closeYear" name="closeYear" min="2000" />
+        <button class="btn-primary" type="button" (click)="closePeriod(false)" [disabled]="acting">
+          {{ 'cabinet.btn.close' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="closePeriod(true)" [disabled]="acting">
+          {{ 'cabinet.btn.force' | t }}
+        </button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'cabinet.col.date' | t }}</th>
+            <th>{{ 'cabinet.col.number' | t }}</th>
+            <th>{{ 'cabinet.col.label' | t }}</th>
+            <th>{{ 'cabinet.col.debit' | t }}</th>
+            <th>{{ 'cabinet.col.credit' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let e of entries">
+            <td>{{ e.entryDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ e.entryNumber }}</td>
+            <td>{{ e.description }}</td>
+            <td class="num">{{ e.debit | number:'1.2-2' }}</td>
+            <td class="num">{{ e.credit | number:'1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>{{ 'cabinet.notes.title' | t }}</h4>
+      <div class="note" *ngFor="let n of annotations" [class.resolved]="n.isResolved">
+        <strong>{{ ('cabinet.type.' + n.type) | t }}</strong> — {{ n.author }} — {{ n.createdAt | date:'short' }}
+        <p>{{ n.message }}</p>
+        <button class="btn-secondary" type="button" *ngIf="canManage && !n.isResolved" (click)="resolve(n)">
+          {{ 'cabinet.btn.resolve' | t }}
+        </button>
+      </div>
+      <div class="form-row" *ngIf="canManage">
+        <select [(ngModel)]="noteType" name="noteType">
+          <option value="Question">{{ 'cabinet.type.Question' | t }}</option>
+          <option value="Correction">{{ 'cabinet.type.Correction' | t }}</option>
+          <option value="Information">{{ 'cabinet.type.Information' | t }}</option>
+          <option value="Avertissement">{{ 'cabinet.type.Avertissement' | t }}</option>
+        </select>
+        <input class="grow" type="text" [(ngModel)]="noteMessage" name="noteMessage" [placeholder]="'cabinet.note.placeholder' | t" />
+        <button class="btn-primary" type="button" (click)="addNote()" [disabled]="acting">{{ 'cabinet.btn.send' | t }}</button>
+      </div>
+    </div>
+  </div>
+</div>

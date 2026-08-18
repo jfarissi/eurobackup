@@ -57,6 +57,8 @@ namespace Backup.Web.Api.Server.Controllers
             public string? Description { get; set; }
             public string? ReferenceType { get; set; }
             public int ReferenceId { get; set; }
+            /// <summary>Phase 3 : true = enregistre au brouillon (Draft), sans validation de période bloquante.</summary>
+            public bool SaveAsDraft { get; set; }
             public List<ManualEntryLineRequest> Lines { get; set; } = new();
         }
 
@@ -122,24 +124,34 @@ namespace Backup.Web.Api.Server.Controllers
             var actor = SalesDocumentAudit.ActorFrom(User);
             var entryDate = request.EntryDate ?? DateTime.UtcNow;
 
-            // Phase 2 : même validation de période que le générateur (verrouillée / hors exercice → 400).
-            var period = await AccountingEntryResolver.ResolvePeriodAsync(this.storage, companyId, entryDate);
-            if (period.Error != null) return BadRequest(period.Error);
+            int? fiscalPeriodId = null;
+            if (!request.SaveAsDraft)
+            {
+                // Phase 2 : même validation de période que le générateur (verrouillée / hors exercice → 400).
+                // Un brouillon n'est pas bloqué à la création : la période sera validée à la comptabilisation.
+                var period = await AccountingEntryResolver.ResolvePeriodAsync(this.storage, companyId, entryDate);
+                if (period.Error != null) return BadRequest(period.Error);
+                fiscalPeriodId = period.Period?.Id;
+            }
 
             // Journal des opérations diverses (null si absent : ne bloque jamais la saisie).
             var journal = await AccountingEntryResolver.ResolveJournalAsync(this.storage, companyId, "OD");
 
             var entry = new AccountingEntry
             {
-                EntryNumber = await this.numberingService.GetNextNumberAsync("AccountingEntry", companyId),
+                // Index unique (EntryNumber, CompanyId) : numéro temporaire pour le brouillon,
+                // le numéro EC- définitif est attribué à la comptabilisation (POST {id}/post).
+                EntryNumber = request.SaveAsDraft
+                    ? $"DRAFT-{Guid.NewGuid().ToString("N")[..8]}"
+                    : await this.numberingService.GetNextNumberAsync("AccountingEntry", companyId),
                 EntryDate = entryDate,
                 JournalType = string.IsNullOrWhiteSpace(request.JournalType) ? "Manual" : request.JournalType.Trim(),
                 JournalId = journal?.Id,
-                FiscalPeriodId = period.Period?.Id,
+                FiscalPeriodId = fiscalPeriodId,
                 ReferenceType = string.IsNullOrWhiteSpace(request.ReferenceType) ? "Manual" : request.ReferenceType.Trim(),
                 ReferenceId = request.ReferenceId,
                 Description = string.IsNullOrWhiteSpace(request.Description) ? "Écriture manuelle" : request.Description.Trim(),
-                Status = "Posted",
+                Status = request.SaveAsDraft ? "Draft" : "Posted",
                 CompanyId = companyId,
                 CreatedBy = actor,
                 CreatedAt = DateTime.UtcNow,
@@ -156,6 +168,114 @@ namespace Backup.Web.Api.Server.Controllers
             var created = await this.storage.InsertAccountingEntryAsync(entry);
             await ResolveCreatedByDisplayNamesAsync(new List<AccountingEntry> { created });
             return Created(created);
+        }
+
+        /// <summary>Phase 3 : remplace libellé/date/lignes d'un brouillon (Draft uniquement).</summary>
+        [HttpPut("{id:int}")]
+        [RequirePermission(Permissions.AccountingCreate)]
+        public async Task<IActionResult> Put(int id, [FromBody] ManualEntryRequest request)
+        {
+            var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
+            if (entry == null || !entry.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            var notDraft = AccountingEntryLifecycleService.RejectIfNotDraft(entry.Status);
+            if (notDraft != null) return BadRequest(notDraft);
+
+            if (request.Lines == null || request.Lines.Count < 2)
+                return BadRequest("Au moins deux lignes comptables sont requises.");
+
+            var lines = request.Lines
+                .Where(l => !string.IsNullOrWhiteSpace(l.AccountCode) && (l.Debit > 0 || l.Credit > 0))
+                .ToList();
+            if (lines.Count < 2)
+                return BadRequest("Au moins deux lignes avec montant sont requises.");
+
+            var totalDebit = lines.Sum(l => l.Debit);
+            var totalCredit = lines.Sum(l => l.Credit);
+            if (Math.Abs(totalDebit - totalCredit) > 0.01m)
+                return BadRequest($"Écriture non équilibrée : débit {totalDebit:0.##} ≠ crédit {totalCredit:0.##}.");
+
+            entry.EntryDate = request.EntryDate ?? entry.EntryDate;
+            entry.Description = string.IsNullOrWhiteSpace(request.Description) ? entry.Description : request.Description.Trim();
+            entry.UpdatedAt = DateTime.UtcNow;
+            entry.UpdatedBy = SalesDocumentAudit.ActorFrom(User);
+
+            // Remplace les lignes (les anciennes, trackées, sont supprimées en cascade).
+            entry.Lines.Clear();
+            foreach (var (line, index) in lines.Select((l, i) => (l, i)))
+            {
+                entry.Lines.Add(new AccountingEntryLine
+                {
+                    AccountCode = line.AccountCode.Trim(),
+                    AccountLabel = string.IsNullOrWhiteSpace(line.AccountLabel) ? line.AccountCode.Trim() : line.AccountLabel.Trim(),
+                    Debit = Math.Round(line.Debit, 4),
+                    Credit = Math.Round(line.Credit, 4),
+                    LineNumber = index + 1
+                });
+            }
+
+            var updated = await this.storage.UpdateAccountingEntryAsync(entry);
+            return Ok(updated);
+        }
+
+        /// <summary>Phase 3 : suppression réservée aux brouillons (Draft uniquement).</summary>
+        [HttpDelete("{id:int}")]
+        [RequirePermission(Permissions.AccountingCreate)]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
+            if (entry == null || !entry.BelongsToCompany(this.companyContext.GetCurrentCompanyId())) return NotFound();
+
+            var notDraft = AccountingEntryLifecycleService.RejectIfNotDraft(entry.Status);
+            if (notDraft != null) return BadRequest(notDraft);
+
+            await this.storage.DeleteAccountingEntryAsync(entry);
+            return NoContent();
+        }
+
+        /// <summary>Phase 3 : comptabilise un brouillon (Draft → Posted, attribution du numéro EC-).</summary>
+        [HttpPost("{id:int}/post")]
+        [RequirePermission(Permissions.AccountingValidate)]
+        public async Task<IActionResult> PostDraft(int id)
+        {
+            var companyId = this.companyContext.GetCurrentCompanyId();
+            var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
+            if (entry == null || !entry.BelongsToCompany(companyId)) return NotFound();
+
+            var (posted, error) = await AccountingEntryLifecycleService.PostDraftAsync(
+                this.storage, this.numberingService, id, companyId, SalesDocumentAudit.ActorFrom(User));
+            if (error != null) return BadRequest(error);
+            return Ok(posted);
+        }
+
+        /// <summary>Phase 3 : valide une écriture comptabilisée (Posted → Validated, immuable).</summary>
+        [HttpPost("{id:int}/validate")]
+        [RequirePermission(Permissions.AccountingValidate)]
+        public async Task<IActionResult> Validate(int id)
+        {
+            var companyId = this.companyContext.GetCurrentCompanyId();
+            var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
+            if (entry == null || !entry.BelongsToCompany(companyId)) return NotFound();
+
+            var (validated, error) = await AccountingEntryLifecycleService.ValidateAsync(
+                this.storage, id, companyId, SalesDocumentAudit.ActorFrom(User));
+            if (error != null) return BadRequest(error);
+            return Ok(validated);
+        }
+
+        /// <summary>Phase 3 : extourne une écriture (crée l'écriture inverse, originale → Reversed). Retourne l'extourne.</summary>
+        [HttpPost("{id:int}/reverse")]
+        [RequirePermission(Permissions.AccountingValidate)]
+        public async Task<IActionResult> Reverse(int id)
+        {
+            var companyId = this.companyContext.GetCurrentCompanyId();
+            var entry = await this.storage.SelectAccountingEntryByIdAsync(id);
+            if (entry == null || !entry.BelongsToCompany(companyId)) return NotFound();
+
+            var (reversal, error) = await AccountingEntryLifecycleService.ReverseAsync(
+                this.storage, this.numberingService, id, companyId, SalesDocumentAudit.ActorFrom(User));
+            if (error != null) return BadRequest(error);
+            return Ok(reversal);
         }
 
         /// <summary>Remplace CreatedBy stocké en GUID par Prénom Nom (ou username / email).</summary>

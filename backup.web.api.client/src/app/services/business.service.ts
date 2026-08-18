@@ -304,6 +304,31 @@ export class BusinessService {
     return this.http.post<AccountingEntry>('/api/accountingentries', request);
   }
 
+  /** Phase 3 : mise à jour d'un brouillon (Draft uniquement). */
+  updateAccountingEntry(id: number, request: ManualAccountingEntryRequest): Observable<AccountingEntry> {
+    return this.http.put<AccountingEntry>(`/api/accountingentries/${id}`, request);
+  }
+
+  /** Phase 3 : suppression d'un brouillon (Draft uniquement). */
+  deleteAccountingEntry(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/accountingentries/${id}`);
+  }
+
+  /** Phase 3 : comptabilise un brouillon (Draft → Posted). */
+  postAccountingEntry(id: number): Observable<AccountingEntry> {
+    return this.http.post<AccountingEntry>(`/api/accountingentries/${id}/post`, {});
+  }
+
+  /** Phase 3 : valide une écriture comptabilisée (Posted → Validated). */
+  validateAccountingEntry(id: number): Observable<AccountingEntry> {
+    return this.http.post<AccountingEntry>(`/api/accountingentries/${id}/validate`, {});
+  }
+
+  /** Phase 3 : extourne une écriture (retourne l'écriture inverse créée). */
+  reverseAccountingEntry(id: number): Observable<AccountingEntry> {
+    return this.http.post<AccountingEntry>(`/api/accountingentries/${id}/reverse`, {});
+  }
+
   // Credit Notes
   getCreditNotes(search?: string, customerId?: number, salesInvoiceId?: number): Observable<CreditNote[]> {
     let params = new HttpParams();

@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Backup.Web.Api.Server.Models;
@@ -345,6 +348,154 @@ namespace Backup.Web.Api.Server.Services.Documents.Python
             }
 
             return output;
+        }
+
+        public async Task<Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.UnifiedExtract?> TryAccountingExtractAsync(
+            byte[] bytes, string fileName, string? hint, CancellationToken ct)
+        {
+            if (!this.options.Enabled || bytes == null || bytes.Length == 0) return null;
+            try
+            {
+                using var multipart = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(bytes);
+                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/octet-stream");
+                multipart.Add(fileContent, "file", string.IsNullOrWhiteSpace(fileName) ? "document.bin" : fileName);
+                if (!string.IsNullOrWhiteSpace(hint))
+                    multipart.Add(new StringContent(hint), "hint");
+
+                var url = $"{this.options.Url.TrimEnd('/')}/ocr/extract";
+                using var resp = await this.http.PostAsync(url, multipart, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                return MapAccountingJson(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.UnifiedExtract?> TryAccountingExtractTextAsync(
+            string text, string? fileName, string? hint, CancellationToken ct)
+        {
+            if (!this.options.Enabled || string.IsNullOrWhiteSpace(text)) return null;
+            try
+            {
+                var url = $"{this.options.Url.TrimEnd('/')}/ocr/extract-text";
+                var payload = new Dictionary<string, string?>
+                {
+                    ["text"] = text,
+                    ["file_name"] = fileName,
+                    ["hint"] = hint
+                };
+                using var resp = await this.http.PostAsJsonAsync(url, payload, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                return MapAccountingJson(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private sealed class PythonArticleDto
+        {
+            public string? product { get; set; }
+            public double? quantity { get; set; }
+            public double? unitPrice { get; set; }
+        }
+
+        private sealed class PythonBankDto
+        {
+            public string? date { get; set; }
+            public string? libelle { get; set; }
+            public double debit { get; set; }
+            public double credit { get; set; }
+        }
+
+        private sealed class PythonAccountingDto
+        {
+            public string? type_document { get; set; }
+            public double type_confidence { get; set; }
+            public string? ice { get; set; }
+            public string? tax_id { get; set; }
+            public string? trade_register { get; set; }
+            public string? numero_facture { get; set; }
+            public string? date { get; set; }
+            public string? tiers_nom { get; set; }
+            public double? montant_ht { get; set; }
+            public double? tva { get; set; }
+            public double? montant_ttc { get; set; }
+            public double? taux_tva { get; set; }
+            public double confiance { get; set; }
+            public List<PythonArticleDto>? lignes_articles { get; set; }
+            public List<PythonBankDto>? lignes_releve { get; set; }
+        }
+
+        private static Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.UnifiedExtract? MapAccountingJson(string json)
+        {
+            var dto = JsonSerializer.Deserialize<PythonAccountingDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.type_document)) return null;
+
+            var type = dto.type_document.Trim().ToLowerInvariant();
+            if (type is "bank_statement" or "bank") type = "releve_bancaire";
+            if (type is "invoice" or "delivery") type = type == "delivery" ? "bon_livraison" : "facture";
+
+            var result = new Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.UnifiedExtract
+            {
+                DocumentType = type,
+                TypeConfidence = dto.type_confidence > 0 ? dto.type_confidence : dto.confiance,
+                Source = "python"
+            };
+
+            if (type == "releve_bancaire")
+            {
+                foreach (var line in dto.lignes_releve ?? [])
+                {
+                    if (!DateTime.TryParse(line.date, out var date)) continue;
+                    result.BankLines.Add(new Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.BankLineDto
+                    {
+                        OperationDate = date,
+                        Label = line.libelle ?? "",
+                        Debit = (decimal)line.debit,
+                        Credit = (decimal)line.credit
+                    });
+                }
+                return result;
+            }
+
+            DateTime? invoiceDate = null;
+            if (!string.IsNullOrWhiteSpace(dto.date) && DateTime.TryParse(dto.date, out var parsedDate))
+                invoiceDate = parsedDate;
+            var lines = (dto.lignes_articles ?? []).Select(l => new Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.LinePreview
+            {
+                Product = l.product ?? "",
+                Quantity = (decimal)(l.quantity ?? 0),
+                UnitPrice = (decimal)(l.unitPrice ?? 0)
+            }).ToList();
+            result.Invoice = new Backup.Web.Api.Server.Services.Accounting.AccountingOcrInvoiceImport.InvoiceDto
+            {
+                DocumentType = type,
+                Ice = dto.ice,
+                TaxId = dto.tax_id,
+                TradeRegister = dto.trade_register,
+                InvoiceNumber = dto.numero_facture,
+                InvoiceDate = invoiceDate,
+                PartyName = dto.tiers_nom,
+                AmountHt = (decimal?)dto.montant_ht,
+                VatAmount = (decimal?)dto.tva,
+                AmountTtc = (decimal?)dto.montant_ttc,
+                VatRate = (decimal?)dto.taux_tva,
+                Confidence = dto.confiance,
+                LineCount = lines.Count,
+                Lines = lines,
+                Source = lines.Count > 0 ? "purchaseParser" : "header"
+            };
+            return result;
         }
     }
 }

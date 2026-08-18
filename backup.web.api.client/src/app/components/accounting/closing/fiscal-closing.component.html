@@ -1,0 +1,97 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.closing" [abbrs]="['AN','OD']">
+        <h2>{{ 'closing.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'closing.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadYears()" [disabled]="loading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-secondary" type="button" *ngIf="canManage && selectedId && !preview?.nextYearId"
+              (click)="openNext()" [disabled]="loading || acting">
+        <mat-icon>event</mat-icon> {{ 'closing.btn.openNext' | t }}
+      </button>
+      <button class="btn-primary" type="button" *ngIf="canManage && preview?.canClose"
+              (click)="closeYear()" [disabled]="loading || acting">
+        <mat-icon>lock</mat-icon> {{ 'closing.btn.closeYear' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'closing.field.year' | t }}</label>
+        <select [(ngModel)]="selectedId" name="selectedId" (ngModelChange)="loadPreview()">
+          <option [ngValue]="null">{{ 'closing.pickYear' | t }}</option>
+          <option *ngFor="let y of years" [ngValue]="y.id">{{ y.name }} — {{ ('accounting.fiscal.status.' + y.status) | t }}</option>
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="cards" *ngIf="preview">
+    <div class="card" [class.profit]="preview.profit > 0" [class.loss]="preview.profit < 0">
+      <h3>{{ preview.profit >= 0 ? ('closing.card.profit' | t) : ('closing.card.loss' | t) }}</h3>
+      <p class="amount">{{ preview.profit | currency:'EUR' }}</p>
+      <p class="hint">{{ 'closing.card.resultAccount' | t }} {{ preview.resultAccountCode }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'closing.card.resultLines' | t }}</h3>
+      <p class="amount">{{ preview.resultAccountsToClose }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'closing.card.bilanLines' | t }}</h3>
+      <p class="amount">{{ preview.bilanAccountsToCarry }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'closing.card.nextYear' | t }}</h3>
+      <p class="amount next">{{ preview.nextYearName || ('closing.card.nextYearMissing' | t) }}</p>
+    </div>
+  </div>
+
+  <div class="panel" *ngIf="preview">
+    <h3>{{ 'closing.checks.title' | t }}</h3>
+    <p class="hint" *ngIf="!preview.checks.length">{{ 'closing.checks.ok' | t }}</p>
+    <ul class="checks">
+      <li *ngFor="let c of preview.checks" [class.blocking]="c.severity === 'Blocking'" [class.warning]="c.severity === 'Warning'">
+        <strong>{{ c.code }}</strong> — {{ c.message }}
+      </li>
+    </ul>
+  </div>
+
+  <div class="panel" *ngIf="selectedYear">
+    <h3>{{ 'closing.periods.title' | t }}</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'closing.col.period' | t }}</th>
+          <th>{{ 'closing.col.locked' | t }}</th>
+          <th>{{ 'nav.vatDeclaration' | t }}</th>
+          <th>{{ 'nav.bankReconciliation' | t }}</th>
+          <th *ngIf="canManage">{{ 'common.actions' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let p of selectedYear.periods">
+          <td>{{ periodLabel(p.year, p.month) }}</td>
+          <td>{{ (p.isLocked ? 'accounting.fiscal.period.locked' : 'accounting.fiscal.period.unlocked') | t }}</td>
+          <td>{{ (p.isVatDeclared ? 'accounting.fiscal.period.vatDeclared' : 'closing.vat.pending') | t }}</td>
+          <td>{{ (p.isBankReconciled ? 'accounting.fiscal.period.bankReconciled' : 'closing.bank.pending') | t }}</td>
+          <td *ngIf="canManage">
+            <button class="btn-secondary" type="button" *ngIf="!p.isLocked"
+                    (click)="closePeriod(p.id)" [disabled]="acting">
+              {{ 'closing.btn.closePeriod' | t }}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

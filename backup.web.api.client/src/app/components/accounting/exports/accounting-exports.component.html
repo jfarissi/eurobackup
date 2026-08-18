@@ -1,0 +1,58 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.exports" [abbrs]="['FEC']">
+        <h2>{{ 'exports.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'exports.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadPreview()" [disabled]="loading || !!downloading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-secondary" type="button" (click)="download('fec')"
+              [disabled]="loading || !!downloading || !selectedId">
+        <mat-icon>description</mat-icon> {{ 'exports.btn.fec' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="download('csv')"
+              [disabled]="loading || !!downloading || !selectedId">
+        <mat-icon>table_view</mat-icon> {{ 'exports.btn.csv' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'exports.field.year' | t }}</label>
+        <select [(ngModel)]="selectedId" name="selectedId" (ngModelChange)="loadPreview()">
+          <option [ngValue]="null">{{ 'exports.pickYear' | t }}</option>
+          <option *ngFor="let y of years" [ngValue]="y.id">
+            {{ y.name }} — {{ ('accounting.fiscal.status.' + y.status) | t }}
+          </option>
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <p class="hint">{{ 'exports.hint.bookedOnly' | t }}</p>
+  <p class="hint">{{ 'exports.hint.fec' | t }}</p>
+
+  <div class="cards" *ngIf="preview">
+    <div class="card">
+      <h3>{{ 'exports.card.period' | t }}</h3>
+      <p class="amount">{{ preview.from | date:'dd/MM/yyyy' }} – {{ preview.to | date:'dd/MM/yyyy' }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'exports.card.entries' | t }}</h3>
+      <p class="amount">{{ preview.entryCount }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'exports.card.lines' | t }}</h3>
+      <p class="amount">{{ preview.lineCount }}</p>
+    </div>
+  </div>
+</div>

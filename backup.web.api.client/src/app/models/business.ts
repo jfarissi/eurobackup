@@ -576,6 +576,8 @@ export interface ManualAccountingEntryRequest {
   description?: string;
   referenceType?: string;
   referenceId?: number;
+  /** Phase 3 : true = enregistre au brouillon (statut Draft). Ignoré en mise à jour (PUT). */
+  saveAsDraft?: boolean;
   lines: AccountingEntryLine[];
 }
 

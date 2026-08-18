@@ -1,0 +1,184 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.bankRec" [abbrs]="['OCR']">
+        <h2>{{ 'bankrec.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'bankrec.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadList(current?.id)" [disabled]="loading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-secondary" type="button" *ngIf="canValidate && isOpen"
+              (click)="autoMatch()" [disabled]="loading || acting || !current">
+        <mat-icon>auto_fix_high</mat-icon> {{ 'bankrec.btn.autoMatch' | t }}
+      </button>
+      <button class="btn-primary" type="button" *ngIf="canValidate && isOpen && allMatched"
+              (click)="complete()" [disabled]="loading || acting">
+        <mat-icon>check_circle</mat-icon> {{ 'bankrec.btn.complete' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form" *ngIf="canCreate">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'bankrec.field.account' | t }}</label>
+        <input type="text" [(ngModel)]="accountCode" name="accountCode" placeholder="512000" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'bankrec.field.file' | t }} <app-field-help helpKey="field.accounting.bankFile"></app-field-help></label>
+        <input type="file" accept=".csv,.txt,.ofx,.qfx,text/csv,application/x-ofx" (change)="onFileSelected($event)" [disabled]="acting" />
+      </div>
+    </div>
+    <p class="hint">{{ 'bankrec.hint.csv' | t }}</p>
+  </form>
+
+  <div class="layout">
+    <div class="panel">
+      <h3>{{ 'bankrec.list.title' | t }}</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'bankrec.col.file' | t }}</th>
+            <th>{{ 'bankrec.col.period' | t }}</th>
+            <th>{{ 'bankrec.col.matched' | t }}</th>
+            <th>{{ 'bankrec.col.status' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of items" (click)="open(r.id)" [class.selected-row]="current?.id === r.id">
+            <td>{{ r.fileName || r.accountCode }}</td>
+            <td>{{ r.fromDate | date:'dd/MM/yyyy' }} – {{ r.toDate | date:'dd/MM/yyyy' }}</td>
+            <td>{{ r.matchedCount }} / {{ r.lineCount }}</td>
+            <td>
+              <span class="status-badge" [class.balanced]="r.status === 'Balanced'">
+                {{ ('bankrec.status.' + r.status) | t }}
+              </span>
+            </td>
+          </tr>
+          <tr *ngIf="!loading && items.length === 0">
+            <td colspan="4" class="empty">{{ 'bankrec.list.empty' | t }}</td>
+          </tr>
+          <tr *ngIf="loading && !current">
+            <td colspan="4" class="empty">{{ 'common.loading' | t }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="detail" *ngIf="current">
+      <div class="cards">
+        <div class="card">
+          <h3>{{ 'bankrec.card.statement' | t }}</h3>
+          <p class="amount">{{ current.statementBalance | currency:'EUR' }}</p>
+        </div>
+        <div class="card">
+          <h3>{{ 'bankrec.card.book' | t }}</h3>
+          <p class="amount">{{ current.bookBalance | currency:'EUR' }}</p>
+        </div>
+        <div class="card" [class.due]="current.difference !== 0">
+          <h3>{{ 'bankrec.card.diff' | t }}</h3>
+          <p class="amount">{{ current.difference | currency:'EUR' }}</p>
+        </div>
+        <div class="card">
+          <h3>{{ 'bankrec.card.progress' | t }}</h3>
+          <p class="amount">{{ current.matchedCount }} / {{ current.lineCount }}</p>
+        </div>
+      </div>
+
+      <div class="status-row">
+        <span class="status-badge" [class.balanced]="current.status === 'Balanced'">
+          {{ ('bankrec.status.' + current.status) | t }}
+        </span>
+        <span>{{ current.accountCode }}</span>
+        <span *ngIf="current.completedAt">
+          {{ current.completedBy }} — {{ current.completedAt | date:'dd/MM/yyyy HH:mm' }}
+        </span>
+      </div>
+
+      <div class="split">
+        <div class="table-wrap">
+          <h3>{{ 'bankrec.lines.title' | t }}</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'accounting.col.date' | t }}</th>
+                <th>{{ 'bankrec.col.label' | t }}</th>
+                <th>{{ 'bankrec.col.reference' | t }}</th>
+                <th class="num">{{ 'accounting.col.debit' | t }}</th>
+                <th class="num">{{ 'accounting.col.credit' | t }}</th>
+                <th>{{ 'bankrec.col.entry' | t }}</th>
+                <th>{{ 'bankrec.col.method' | t }}</th>
+                <th *ngIf="canValidate && isOpen"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let l of current.lines"
+                  [class.selected-row]="selectedStatementLineId === l.id"
+                  [class.matched-row]="l.isMatched"
+                  (click)="selectStatementLine(l)">
+                <td>{{ l.operationDate | date:'dd/MM/yyyy' }}</td>
+                <td>{{ l.label }}</td>
+                <td>{{ l.reference }}</td>
+                <td class="num">{{ l.debit ? (l.debit | currency:'EUR') : '' }}</td>
+                <td class="num">{{ l.credit ? (l.credit | currency:'EUR') : '' }}</td>
+                <td>{{ l.entryNumber }}</td>
+                <td>{{ methodLabel(l.matchMethod) }}</td>
+                <td *ngIf="canValidate && isOpen" class="row-actions">
+                  <button class="btn-link" type="button" *ngIf="l.isMatched"
+                          (click)="unmatch(l, $event)" [disabled]="acting">
+                    {{ 'bankrec.btn.unmatch' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="!current.lines.length">
+                <td colspan="8" class="empty">{{ 'bankrec.lines.empty' | t }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap" *ngIf="isOpen">
+          <h3>{{ 'bankrec.ledger.title' | t }}</h3>
+          <p class="hint">{{ 'bankrec.ledger.hint' | t }}</p>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>{{ 'accounting.col.date' | t }}</th>
+                <th>{{ 'bankrec.col.entry' | t }}</th>
+                <th>{{ 'accounting.col.description' | t }}</th>
+                <th class="num">{{ 'accounting.col.debit' | t }}</th>
+                <th class="num">{{ 'accounting.col.credit' | t }}</th>
+                <th *ngIf="canValidate"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of current.unmatchedLedger" [class.candidate]="canMatchLedger(c)">
+                <td>{{ c.entryDate | date:'dd/MM/yyyy' }}</td>
+                <td><strong>{{ c.entryNumber }}</strong></td>
+                <td>{{ c.description }}</td>
+                <td class="num">{{ c.debit ? (c.debit | currency:'EUR') : '' }}</td>
+                <td class="num">{{ c.credit ? (c.credit | currency:'EUR') : '' }}</td>
+                <td *ngIf="canValidate" class="row-actions">
+                  <button class="btn-primary" type="button"
+                          [disabled]="acting || !canMatchLedger(c)"
+                          (click)="matchLedger(c)">
+                    {{ 'bankrec.btn.match' | t }}
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="!current.unmatchedLedger.length">
+                <td colspan="6" class="empty">{{ 'bankrec.ledger.empty' | t }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

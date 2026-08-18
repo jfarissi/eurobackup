@@ -10,6 +10,9 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         // Lignes d'écritures (contrôles Phase 1 : compte utilisé, lettrage)
         IQueryable<AccountingEntryLine> SelectAllAccountingEntryLines();
 
+        // Phase 3 : mise à jour d'une ligne (lettrage comptable).
+        ValueTask<AccountingEntryLine> UpdateAccountingEntryLineAsync(AccountingEntryLine line);
+
         // Plan comptable (Phase 1)
         ValueTask<ChartOfAccount> InsertChartOfAccountAsync(ChartOfAccount account);
         IQueryable<ChartOfAccount> SelectAllChartOfAccounts();
@@ -44,5 +47,36 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<CompanyVatRateAccount?> SelectCompanyVatRateAccountByIdAsync(int id);
         ValueTask<CompanyVatRateAccount> UpdateCompanyVatRateAccountAsync(CompanyVatRateAccount mapping);
         ValueTask DeleteCompanyVatRateAccountAsync(CompanyVatRateAccount mapping);
+
+        // Déclarations TVA
+        ValueTask<VatDeclaration> InsertVatDeclarationAsync(VatDeclaration declaration);
+        IQueryable<VatDeclaration> SelectAllVatDeclarations();
+        ValueTask DeleteVatDeclarationAsync(VatDeclaration declaration);
+
+        // Rapprochements bancaires
+        ValueTask<BankReconciliation> InsertBankReconciliationAsync(BankReconciliation reconciliation);
+        IQueryable<BankReconciliation> SelectAllBankReconciliations();
+        ValueTask<BankReconciliation> UpdateBankReconciliationAsync(BankReconciliation reconciliation);
+
+        // Immobilisations & paie
+        ValueTask<FixedAsset> InsertFixedAssetAsync(FixedAsset asset);
+        IQueryable<FixedAsset> SelectAllFixedAssets();
+        ValueTask<FixedAsset> UpdateFixedAssetAsync(FixedAsset asset);
+
+        ValueTask<Employee> InsertEmployeeAsync(Employee employee);
+        IQueryable<Employee> SelectAllEmployees();
+        ValueTask<Employee> UpdateEmployeeAsync(Employee employee);
+
+        ValueTask<Payslip> InsertPayslipAsync(Payslip payslip);
+        IQueryable<Payslip> SelectAllPayslips();
+        ValueTask<Payslip> UpdatePayslipAsync(Payslip payslip);
+
+        ValueTask<AccountingFirm> InsertAccountingFirmAsync(AccountingFirm firm);
+        IQueryable<AccountingFirm> SelectAllAccountingFirms();
+        ValueTask<AccountingFirm> UpdateAccountingFirmAsync(AccountingFirm firm);
+
+        ValueTask<AccountingAnnotation> InsertAccountingAnnotationAsync(AccountingAnnotation annotation);
+        IQueryable<AccountingAnnotation> SelectAllAccountingAnnotations();
+        ValueTask<AccountingAnnotation> UpdateAccountingAnnotationAsync(AccountingAnnotation annotation);
     }
 }

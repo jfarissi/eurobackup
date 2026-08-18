@@ -1,7 +1,9 @@
 <div class="accounting-container">
   <div class="accounting-header">
     <div>
-      <h2>{{ 'accounting.journals.title' | t }}</h2>
+      <app-form-help helpKey="accounting.journals" [abbrs]="['OD','AN']">
+        <h2>{{ 'accounting.journals.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'accounting.journals.subtitle' | t }}</p>
     </div>
     <div class="actions">
@@ -50,7 +52,7 @@
     <form [formGroup]="form" (ngSubmit)="save()">
       <div class="form-row">
         <div class="form-group">
-          <label>{{ 'accounting.journals.field.code' | t }} *</label>
+          <label>{{ 'accounting.journals.field.code' | t }} * <app-field-help helpKey="field.accounting.journal"></app-field-help></label>
           <select formControlName="code">
             <option *ngFor="let c of journalCodes" [value]="c">
               {{ c }} — {{ ('accounting.journals.code.' + c) | t }}

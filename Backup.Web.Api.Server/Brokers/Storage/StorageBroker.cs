@@ -1287,6 +1287,160 @@ namespace Backup.Web.Api.Server.Brokers.Storage
                 entity.HasIndex(v => new { v.CompanyId, v.Rate }).IsUnique();
             });
 
+            modelBuilder.Entity<VatDeclaration>(entity =>
+            {
+                entity.ToTable("VatDeclarations");
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.CompanyId).HasMaxLength(36);
+                entity.Property(d => d.Status).IsRequired().HasMaxLength(32);
+                entity.Property(d => d.DeclaredBy).HasMaxLength(128);
+                entity.Property(d => d.TotalCollected).HasPrecision(18, 4);
+                entity.Property(d => d.TotalDeductible).HasPrecision(18, 4);
+                entity.Property(d => d.PreviousCredit).HasPrecision(18, 4);
+                entity.Property(d => d.NetToPay).HasPrecision(18, 4);
+                entity.HasIndex(d => new { d.CompanyId, d.Year, d.Month }).IsUnique();
+                entity.HasOne(d => d.FiscalPeriod).WithMany().HasForeignKey(d => d.FiscalPeriodId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<VatDeclarationLine>(entity =>
+            {
+                entity.ToTable("VatDeclarationLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Rate).HasPrecision(18, 4);
+                entity.Property(l => l.CollectedBase).HasPrecision(18, 4);
+                entity.Property(l => l.CollectedVat).HasPrecision(18, 4);
+                entity.Property(l => l.DeductibleBase).HasPrecision(18, 4);
+                entity.Property(l => l.DeductibleVat).HasPrecision(18, 4);
+                entity.HasOne(l => l.VatDeclaration).WithMany(d => d.Lines).HasForeignKey(l => l.VatDeclarationId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<BankReconciliation>(entity =>
+            {
+                entity.ToTable("BankReconciliations");
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.CompanyId).HasMaxLength(36);
+                entity.Property(r => r.AccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(r => r.FileName).HasMaxLength(256);
+                entity.Property(r => r.Status).IsRequired().HasMaxLength(32);
+                entity.Property(r => r.CompletedBy).HasMaxLength(128);
+                entity.Property(r => r.CreatedBy).HasMaxLength(128);
+                entity.Property(r => r.UpdatedBy).HasMaxLength(128);
+                entity.Property(r => r.StatementBalance).HasPrecision(18, 4);
+                entity.Property(r => r.BookBalance).HasPrecision(18, 4);
+                entity.HasIndex(r => new { r.CompanyId, r.StatementDate });
+            });
+
+            modelBuilder.Entity<BankStatementLine>(entity =>
+            {
+                entity.ToTable("BankStatementLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Label).IsRequired().HasMaxLength(512);
+                entity.Property(l => l.Reference).HasMaxLength(128);
+                entity.Property(l => l.MatchMethod).HasMaxLength(32);
+                entity.Property(l => l.Debit).HasPrecision(18, 4);
+                entity.Property(l => l.Credit).HasPrecision(18, 4);
+                entity.Property(l => l.RunningBalance).HasPrecision(18, 4);
+                entity.HasOne(l => l.BankReconciliation).WithMany(r => r.Lines).HasForeignKey(l => l.BankReconciliationId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(l => l.AccountingEntryLineId);
+            });
+
+            modelBuilder.Entity<FixedAsset>(entity =>
+            {
+                entity.ToTable("FixedAssets");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.Property(a => a.Code).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.Designation).IsRequired().HasMaxLength(256);
+                entity.Property(a => a.AssetAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.DepreciationAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.ExpenseAccountCode).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.Mode).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.OriginValue).HasPrecision(18, 4);
+                entity.Property(a => a.ResidualValue).HasPrecision(18, 4);
+                entity.Property(a => a.DecliningRate).HasPrecision(18, 8);
+                entity.Property(a => a.AccumulatedDepreciation).HasPrecision(18, 4);
+                entity.Property(a => a.DisposalPrice).HasPrecision(18, 4);
+                entity.HasIndex(a => new { a.CompanyId, a.Code }).IsUnique();
+            });
+
+            modelBuilder.Entity<DepreciationScheduleLine>(entity =>
+            {
+                entity.ToTable("DepreciationScheduleLines");
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Charge).HasPrecision(18, 4);
+                entity.Property(l => l.Accumulated).HasPrecision(18, 4);
+                entity.Property(l => l.NetBookValue).HasPrecision(18, 4);
+                entity.HasOne(l => l.FixedAsset).WithMany(a => a.Schedule).HasForeignKey(l => l.FixedAssetId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(l => new { l.FixedAssetId, l.Year, l.Month }).IsUnique();
+            });
+
+            modelBuilder.Entity<Employee>(entity =>
+            {
+                entity.ToTable("Employees");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.CompanyId).HasMaxLength(36);
+                entity.Property(e => e.LastName).IsRequired().HasMaxLength(128);
+                entity.Property(e => e.FirstName).IsRequired().HasMaxLength(128);
+                entity.Property(e => e.CnssNumber).HasMaxLength(32);
+                entity.Property(e => e.BaseSalary).HasPrecision(18, 4);
+                entity.Property(e => e.Overtime).HasPrecision(18, 4);
+                entity.Property(e => e.Bonuses).HasPrecision(18, 4);
+                entity.Property(e => e.BenefitsInKind).HasPrecision(18, 4);
+                entity.HasIndex(e => e.CompanyId);
+            });
+
+            modelBuilder.Entity<Payslip>(entity =>
+            {
+                entity.ToTable("Payslips");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.CompanyId).HasMaxLength(36);
+                entity.Property(p => p.BaseSalary).HasPrecision(18, 4);
+                entity.Property(p => p.Overtime).HasPrecision(18, 4);
+                entity.Property(p => p.Bonuses).HasPrecision(18, 4);
+                entity.Property(p => p.BenefitsInKind).HasPrecision(18, 4);
+                entity.Property(p => p.Gross).HasPrecision(18, 4);
+                entity.Property(p => p.CnssEmployee).HasPrecision(18, 4);
+                entity.Property(p => p.CnssEmployer).HasPrecision(18, 4);
+                entity.Property(p => p.AmoEmployee).HasPrecision(18, 4);
+                entity.Property(p => p.AmoEmployer).HasPrecision(18, 4);
+                entity.Property(p => p.Igr).HasPrecision(18, 4);
+                entity.Property(p => p.Net).HasPrecision(18, 4);
+                entity.HasOne(p => p.Employee).WithMany().HasForeignKey(p => p.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(p => new { p.CompanyId, p.EmployeeId, p.Year, p.Month }).IsUnique();
+            });
+
+            modelBuilder.Entity<AccountingFirm>(entity =>
+            {
+                entity.ToTable("AccountingFirms");
+                entity.HasKey(f => f.Id);
+                entity.Property(f => f.Name).IsRequired().HasMaxLength(256);
+                entity.Property(f => f.Ice).HasMaxLength(32);
+                entity.Property(f => f.TaxId).HasMaxLength(32);
+                entity.Property(f => f.FirmCompanyId).IsRequired().HasMaxLength(36);
+                entity.HasIndex(f => f.FirmCompanyId).IsUnique();
+            });
+
+            modelBuilder.Entity<AccountingFirmClient>(entity =>
+            {
+                entity.ToTable("AccountingFirmClients");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.ClientCompanyId).IsRequired().HasMaxLength(36);
+                entity.Property(c => c.MissionLevel).IsRequired().HasMaxLength(32);
+                entity.HasOne(c => c.Firm).WithMany(f => f.Clients).HasForeignKey(c => c.AccountingFirmId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(c => new { c.AccountingFirmId, c.ClientCompanyId }).IsUnique();
+            });
+
+            modelBuilder.Entity<AccountingAnnotation>(entity =>
+            {
+                entity.ToTable("AccountingAnnotations");
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CompanyId).HasMaxLength(36);
+                entity.Property(a => a.Type).IsRequired().HasMaxLength(32);
+                entity.Property(a => a.Message).IsRequired().HasMaxLength(2000);
+                entity.Property(a => a.Author).HasMaxLength(128);
+                entity.HasIndex(a => new { a.CompanyId, a.IsResolved });
+            });
+
             modelBuilder.Entity<DocumentAuditLog>(entity =>
             {
                 entity.ToTable("DocumentAuditLogs");

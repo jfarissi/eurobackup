@@ -10,11 +10,13 @@ import { AppI18nService } from '../../../services/app-i18n.service';
 import { TPipe } from '../../../pipes/t.pipe';
 import { TableSortState } from '../../../utils/table-sort';
 import { SortableThComponent } from '../../shared/sortable-th/sortable-th.component';
+import { FormHelpComponent } from '../../shared/form-help/form-help.component';
+import { FieldHelpComponent } from '../../shared/field-help/field-help.component';
 
 @Component({
   selector: 'app-chart-of-accounts',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, MaterialModule, TPipe, SortableThComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, MaterialModule, TPipe, SortableThComponent, FormHelpComponent, FieldHelpComponent],
   templateUrl: './chart-of-accounts.component.html',
   styleUrls: ['./chart-of-accounts.component.css']
 })

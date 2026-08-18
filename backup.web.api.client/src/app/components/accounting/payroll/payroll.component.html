@@ -1,0 +1,212 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.payroll" [abbrs]="['CNSS','AMO','IGR','EDI']">
+        <h2>{{ 'payroll.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'payroll.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="loadEmployees(); loadPayslips()" [disabled]="loading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openCreate()" *ngIf="canCreate">
+        <mat-icon>person_add</mat-icon> {{ 'payroll.btn.newEmployee' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <h3 class="section-title">{{ 'payroll.employees.title' | t }}</h3>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'payroll.col.name' | t }}</th>
+          <th>{{ 'payroll.col.cnss' | t }}</th>
+          <th>{{ 'payroll.col.base' | t }}</th>
+          <th>{{ 'payroll.col.hire' | t }}</th>
+          <th>{{ 'payroll.col.status' | t }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let e of employees">
+          <td><strong>{{ e.lastName }} {{ e.firstName }}</strong></td>
+          <td>{{ e.cnssNumber || '—' }}</td>
+          <td class="num">{{ e.baseSalary | number:'1.2-2' }}</td>
+          <td>{{ e.hireDate | date:'dd/MM/yyyy' }}</td>
+          <td>
+            <span class="status-badge" [class.active]="e.isActive" [class.inactive]="!e.isActive">
+              {{ (e.isActive ? 'payroll.status.active' : 'payroll.status.inactive') | t }}
+            </span>
+          </td>
+          <td>
+            <button class="btn-secondary" type="button" *ngIf="canCreate" (click)="openEdit(e)">
+              {{ 'common.edit' | t }}
+            </button>
+          </td>
+        </tr>
+        <tr *ngIf="employees.length === 0">
+          <td colspan="6" class="empty">{{ 'payroll.employees.empty' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <form class="filter-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'payroll.field.month' | t }}</label>
+        <select [(ngModel)]="month" name="month">
+          <option *ngFor="let m of months" [ngValue]="m">{{ ('vat.month.' + m) | t }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'payroll.field.year' | t }}</label>
+        <input type="number" [(ngModel)]="year" name="year" min="2000" max="2100" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-secondary" type="button" (click)="loadPayslips()" [disabled]="loading">
+          {{ 'common.filter' | t }}
+        </button>
+        <button class="btn-secondary" type="button" *ngIf="canCreate"
+                (click)="calculateAll()" [disabled]="acting">
+          <mat-icon>calculate</mat-icon> {{ 'payroll.btn.calculate' | t }}
+        </button>
+        <button class="btn-primary" type="button" *ngIf="canValidate"
+                (click)="postMonth()" [disabled]="acting">
+          <mat-icon>post_add</mat-icon> {{ 'payroll.btn.post' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="downloadCnss()" [disabled]="downloading">
+          <mat-icon>download</mat-icon> {{ 'payroll.btn.cnss' | t }}
+        </button>
+        <button class="btn-secondary" type="button" (click)="downloadCnss('xml')" [disabled]="downloading">
+          <mat-icon>code</mat-icon> {{ 'payroll.btn.cnssXml' | t }}
+        </button>
+      </div>
+    </div>
+  </form>
+  <p class="hint">{{ 'payroll.hint.rates' | t }}</p>
+
+  <div class="cards" *ngIf="period">
+    <div class="card">
+      <h3>{{ 'payroll.card.count' | t }}</h3>
+      <p class="amount">{{ period.payslipCount }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'payroll.card.gross' | t }}</h3>
+      <p class="amount">{{ period.totalGross | number:'1.2-2' }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'payroll.card.cnss' | t }}</h3>
+      <p class="amount">{{ period.totalCnss | number:'1.2-2' }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'payroll.card.net' | t }}</h3>
+      <p class="amount">{{ period.totalNet | number:'1.2-2' }}</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'payroll.col.name' | t }}</th>
+          <th>{{ 'payroll.col.gross' | t }}</th>
+          <th>{{ 'payroll.col.cnssEmp' | t }}</th>
+          <th>{{ 'payroll.col.amo' | t }}</th>
+          <th>{{ 'payroll.col.igr' | t }}</th>
+          <th>{{ 'payroll.col.net' | t }}</th>
+          <th>{{ 'payroll.col.posted' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of period?.payslips || []">
+          <td>{{ s.employeeName }}</td>
+          <td class="num">{{ s.gross | number:'1.2-2' }}</td>
+          <td class="num">{{ s.cnssEmployee | number:'1.2-2' }}</td>
+          <td class="num">{{ s.amoEmployee | number:'1.2-2' }}</td>
+          <td class="num">{{ s.igr | number:'1.2-2' }}</td>
+          <td class="num">{{ s.net | number:'1.2-2' }}</td>
+          <td>
+            <span class="status-badge" [class.active]="s.isPosted">
+              {{ (s.isPosted ? 'payroll.postedYes' : 'payroll.postedNo') | t }}
+            </span>
+          </td>
+        </tr>
+        <tr *ngIf="!loading && !(period?.payslips?.length)">
+          <td colspan="7" class="empty">{{ 'payroll.payslips.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="loading">
+          <td colspan="7" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal">
+  <div class="modal-content">
+    <h3>{{ (editingId ? 'payroll.modal.edit' : 'payroll.modal.create') | t }}</h3>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="form-row">
+        <div class="form-group grow">
+          <label>{{ 'payroll.field.lastName' | t }} *</label>
+          <input type="text" formControlName="lastName" />
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'payroll.field.firstName' | t }} *</label>
+          <input type="text" formControlName="firstName" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'payroll.field.cnss' | t }} <app-field-help helpKey="field.payroll.cnss"></app-field-help></label>
+          <input type="text" formControlName="cnssNumber" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'payroll.field.hire' | t }} *</label>
+          <input type="date" formControlName="hireDate" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'payroll.field.exit' | t }}</label>
+          <input type="date" formControlName="exitDate" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'payroll.field.base' | t }} *</label>
+          <input type="number" formControlName="baseSalary" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'payroll.field.overtime' | t }}</label>
+          <input type="number" formControlName="overtime" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'payroll.field.bonuses' | t }}</label>
+          <input type="number" formControlName="bonuses" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'payroll.field.benefits' | t }}</label>
+          <input type="number" formControlName="benefitsInKind" min="0" step="0.01" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="check">
+          <input type="checkbox" formControlName="isActive" />
+          {{ 'payroll.field.active' | t }}
+        </label>
+      </div>
+      <div class="error-box" *ngIf="modalError">{{ modalError }}</div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="closeModal()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="submit" [disabled]="saving || form.invalid">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

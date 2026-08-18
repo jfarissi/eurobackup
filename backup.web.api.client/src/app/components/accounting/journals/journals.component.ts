@@ -8,17 +8,19 @@ import { PermissionService } from '../../../services/permission.service';
 import { Permissions } from '../../../constants/permissions';
 import { AppI18nService } from '../../../services/app-i18n.service';
 import { TPipe } from '../../../pipes/t.pipe';
+import { FormHelpComponent } from '../../shared/form-help/form-help.component';
+import { FieldHelpComponent } from '../../shared/field-help/field-help.component';
 
 @Component({
   selector: 'app-journals',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MaterialModule, TPipe],
+  imports: [CommonModule, ReactiveFormsModule, MaterialModule, TPipe, FormHelpComponent, FieldHelpComponent],
   templateUrl: './journals.component.html',
   styleUrls: ['./journals.component.css']
 })
 export class JournalsComponent implements OnInit {
   readonly P = Permissions;
-  readonly journalCodes = ['ACH', 'VEN', 'BAN', 'CAIS', 'OD', 'AN'];
+  readonly journalCodes = ['ACH', 'VEN', 'BAN', 'CAIS', 'OD', 'AN', 'SAL'];
 
   journals: Journal[] = [];
   loading = false;

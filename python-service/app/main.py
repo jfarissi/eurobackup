@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from .extractor import extract_from_pdf, extract_metadata_from_pdf
 from .api.main import parse_pdf, parse_pdf_factory, parse_pdf_ollama, parse_pdf_classifier
+from .accounting_ocr import router as accounting_ocr_router
 
 print("\n\n" + "="*50)
 print("🚀 PYTHON SERVICE IMPORTING APP/MAIN - MODIFIED VERSION 2.1 🚀")
@@ -152,4 +153,5 @@ app.post("/parse")(parse_pdf)
 app.post("/parse/ollama")(parse_pdf_ollama)
 app.post("/parse/factory")(parse_pdf_factory)
 app.post("/parse/classifier")(parse_pdf_classifier)
+app.include_router(accounting_ocr_router)
 

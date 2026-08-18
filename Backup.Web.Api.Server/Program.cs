@@ -119,6 +119,7 @@ builder.Services.AddHostedService<Backup.Web.Api.Server.Services.SupplierQuotes.
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.ErpSync.IErpCatalogSyncService, Backup.Web.Api.Server.Services.ErpSync.ErpCatalogSyncService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.ErpSync.ErpProductSyncBackgroundService>();
 builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Archiving.DocumentArchiveBackgroundService>();
+builder.Services.AddHostedService<Backup.Web.Api.Server.Services.Accounting.DepreciationPostingBackgroundService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.IEmailDocumentService, Backup.Web.Api.Server.Services.Email.EmailDocumentService>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.ISmtpEmailSender, Backup.Web.Api.Server.Services.Email.SmtpEmailSender>();
 builder.Services.AddScoped<Backup.Web.Api.Server.Services.Email.IEmailDispatchService, Backup.Web.Api.Server.Services.Email.EmailDispatchService>();

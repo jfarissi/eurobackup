@@ -15,10 +15,25 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public DbSet<FiscalPeriod> FiscalPeriods { get; set; } = null!;
         public DbSet<CompanyAccountingSettings> CompanyAccountingSettings { get; set; } = null!;
         public DbSet<CompanyVatRateAccount> CompanyVatRateAccounts { get; set; } = null!;
+        public DbSet<VatDeclaration> VatDeclarations { get; set; } = null!;
+        public DbSet<BankReconciliation> BankReconciliations { get; set; } = null!;
+        public DbSet<FixedAsset> FixedAssets { get; set; } = null!;
+        public DbSet<Employee> Employees { get; set; } = null!;
+        public DbSet<Payslip> Payslips { get; set; } = null!;
+        public DbSet<AccountingFirm> AccountingFirms { get; set; } = null!;
+        public DbSet<AccountingAnnotation> AccountingAnnotations { get; set; } = null!;
 
         // Lignes d'écritures (contrôles Phase 1 : compte utilisé, lettrage)
         public IQueryable<AccountingEntryLine> SelectAllAccountingEntryLines() =>
             this.AccountingEntryLines.AsQueryable();
+
+        // Phase 3 : mise à jour d'une ligne (lettrage comptable).
+        public async ValueTask<AccountingEntryLine> UpdateAccountingEntryLineAsync(AccountingEntryLine line)
+        {
+            EntityEntry<AccountingEntryLine> entry = this.AccountingEntryLines.Update(line);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
 
         // Plan comptable (Phase 1)
         public async ValueTask<ChartOfAccount> InsertChartOfAccountAsync(ChartOfAccount account)
@@ -148,6 +163,127 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         {
             this.CompanyVatRateAccounts.Remove(mapping);
             await this.SaveChangesAsync();
+        }
+
+        // Déclarations TVA
+        public async ValueTask<VatDeclaration> InsertVatDeclarationAsync(VatDeclaration declaration)
+        {
+            EntityEntry<VatDeclaration> entry = await this.VatDeclarations.AddAsync(declaration);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<VatDeclaration> SelectAllVatDeclarations() =>
+            this.VatDeclarations.Include(d => d.Lines).AsQueryable();
+
+        public async ValueTask DeleteVatDeclarationAsync(VatDeclaration declaration)
+        {
+            this.VatDeclarations.Remove(declaration);
+            await this.SaveChangesAsync();
+        }
+
+        // Rapprochements bancaires
+        public async ValueTask<BankReconciliation> InsertBankReconciliationAsync(BankReconciliation reconciliation)
+        {
+            EntityEntry<BankReconciliation> entry = await this.BankReconciliations.AddAsync(reconciliation);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<BankReconciliation> SelectAllBankReconciliations() =>
+            this.BankReconciliations.Include(r => r.Lines).AsQueryable();
+
+        public async ValueTask<BankReconciliation> UpdateBankReconciliationAsync(BankReconciliation reconciliation)
+        {
+            EntityEntry<BankReconciliation> entry = this.BankReconciliations.Update(reconciliation);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        // Immobilisations
+        public async ValueTask<FixedAsset> InsertFixedAssetAsync(FixedAsset asset)
+        {
+            EntityEntry<FixedAsset> entry = await this.FixedAssets.AddAsync(asset);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<FixedAsset> SelectAllFixedAssets() =>
+            this.FixedAssets.Include(a => a.Schedule).AsQueryable();
+
+        public async ValueTask<FixedAsset> UpdateFixedAssetAsync(FixedAsset asset)
+        {
+            EntityEntry<FixedAsset> entry = this.FixedAssets.Update(asset);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        // Paie
+        public async ValueTask<Employee> InsertEmployeeAsync(Employee employee)
+        {
+            EntityEntry<Employee> entry = await this.Employees.AddAsync(employee);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<Employee> SelectAllEmployees() => this.Employees.AsQueryable();
+
+        public async ValueTask<Employee> UpdateEmployeeAsync(Employee employee)
+        {
+            EntityEntry<Employee> entry = this.Employees.Update(employee);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<Payslip> InsertPayslipAsync(Payslip payslip)
+        {
+            EntityEntry<Payslip> entry = await this.Payslips.AddAsync(payslip);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<Payslip> SelectAllPayslips() =>
+            this.Payslips.Include(p => p.Employee).AsQueryable();
+
+        public async ValueTask<Payslip> UpdatePayslipAsync(Payslip payslip)
+        {
+            EntityEntry<Payslip> entry = this.Payslips.Update(payslip);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<AccountingFirm> InsertAccountingFirmAsync(AccountingFirm firm)
+        {
+            EntityEntry<AccountingFirm> entry = await this.AccountingFirms.AddAsync(firm);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<AccountingFirm> SelectAllAccountingFirms() =>
+            this.AccountingFirms.Include(f => f.Clients).AsQueryable();
+
+        public async ValueTask<AccountingFirm> UpdateAccountingFirmAsync(AccountingFirm firm)
+        {
+            EntityEntry<AccountingFirm> entry = this.AccountingFirms.Update(firm);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public async ValueTask<AccountingAnnotation> InsertAccountingAnnotationAsync(AccountingAnnotation annotation)
+        {
+            EntityEntry<AccountingAnnotation> entry = await this.AccountingAnnotations.AddAsync(annotation);
+            await this.SaveChangesAsync();
+            return entry.Entity;
+        }
+
+        public IQueryable<AccountingAnnotation> SelectAllAccountingAnnotations() =>
+            this.AccountingAnnotations.AsQueryable();
+
+        public async ValueTask<AccountingAnnotation> UpdateAccountingAnnotationAsync(AccountingAnnotation annotation)
+        {
+            EntityEntry<AccountingAnnotation> entry = this.AccountingAnnotations.Update(annotation);
+            await this.SaveChangesAsync();
+            return entry.Entity;
         }
     }
 }

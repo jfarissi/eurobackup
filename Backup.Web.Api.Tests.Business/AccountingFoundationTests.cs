@@ -25,6 +25,7 @@ namespace Backup.Web.Api.Tests.Business
             public List<CompanyAccountingSettings> Settings = new();
             public List<FiscalYear> FiscalYears = new();
             public List<FiscalPeriod> FiscalPeriods = new();
+            public List<CompanyVatRateAccount> VatMaps = new();
 
             public Mock<IStorageBroker> Broker { get; }
 
@@ -38,6 +39,7 @@ namespace Backup.Web.Api.Tests.Business
                 this.Broker.Setup(s => s.SelectAllCompanyAccountingSettings()).Returns(() => this.Settings.AsQueryable());
                 this.Broker.Setup(s => s.SelectAllFiscalYears()).Returns(() => this.FiscalYears.AsQueryable());
                 this.Broker.Setup(s => s.SelectAllFiscalPeriods()).Returns(() => this.FiscalPeriods.AsQueryable());
+                this.Broker.Setup(s => s.SelectAllCompanyVatRateAccounts()).Returns(() => this.VatMaps.AsQueryable());
 
                 this.Broker.Setup(s => s.InsertJournalAsync(It.IsAny<Journal>()))
                     .ReturnsAsync((Journal j) => { this.Journals.Add(j); return j; });
@@ -45,6 +47,8 @@ namespace Backup.Web.Api.Tests.Business
                     .ReturnsAsync((ChartOfAccount a) => { this.Accounts.Add(a); return a; });
                 this.Broker.Setup(s => s.InsertCompanyAccountingSettingsAsync(It.IsAny<CompanyAccountingSettings>()))
                     .ReturnsAsync((CompanyAccountingSettings s) => { this.Settings.Add(s); return s; });
+                this.Broker.Setup(s => s.InsertCompanyVatRateAccountAsync(It.IsAny<CompanyVatRateAccount>()))
+                    .ReturnsAsync((CompanyVatRateAccount v) => { this.VatMaps.Add(v); return v; });
                 this.Broker.Setup(s => s.InsertFiscalYearAsync(It.IsAny<FiscalYear>()))
                     .ReturnsAsync((FiscalYear f) => { this.FiscalYears.Add(f); this.FiscalPeriods.AddRange(f.Periods); return f; });
                 this.Broker.Setup(s => s.UpdateFiscalPeriodAsync(It.IsAny<FiscalPeriod>()))
@@ -67,20 +71,32 @@ namespace Backup.Web.Api.Tests.Business
         };
 
         [Fact]
-        public async Task Seed_CreatesSixJournals_WithCounterpartAccounts()
+        public async Task Seed_CreatesSevenJournals_WithCounterpartAccounts()
         {
             var storage = new FakeAccountingStorage();
             storage.Companies.Add(NewCompany("c1"));
 
             await NewSeedService(storage).EnsureDefaultsAsync();
 
-            Assert.Equal(6, storage.Journals.Count);
+            Assert.Equal(7, storage.Journals.Count);
             Assert.Equal(
-                new[] { "ACH", "AN", "BAN", "CAIS", "OD", "VEN" },
+                new[] { "ACH", "AN", "BAN", "CAIS", "OD", "SAL", "VEN" },
                 storage.Journals.Select(j => j.Code).OrderBy(c => c).ToArray());
             Assert.Equal("512000", storage.Journals.Single(j => j.Code == "BAN").CounterpartAccountCode);
             Assert.Equal("530000", storage.Journals.Single(j => j.Code == "CAIS").CounterpartAccountCode);
             Assert.All(storage.Journals, j => Assert.Equal("c1", j.CompanyId));
+        }
+
+        [Fact]
+        public async Task Seed_AddsSalJournalWhenOthersAlreadyExist()
+        {
+            var storage = new FakeAccountingStorage();
+            storage.Companies.Add(NewCompany("c1"));
+            storage.Journals.Add(new Journal { Code = "OD", Label = "OD", CompanyId = "c1" });
+
+            await NewSeedService(storage).EnsureDefaultsAsync();
+
+            Assert.Contains(storage.Journals, j => j.Code == "SAL" && j.CompanyId == "c1");
         }
 
         [Fact]
@@ -104,6 +120,11 @@ namespace Backup.Web.Api.Tests.Business
             Assert.Equal("512000", settings.BankAccountCode);
             Assert.Equal("530000", settings.CashAccountCode);
             Assert.Equal("419000", settings.CustomerDepositAccountCode);
+
+            var vatMap = Assert.Single(storage.VatMaps);
+            Assert.Equal(21m, vatMap.Rate);
+            Assert.Equal("445710", vatMap.CollectedAccountCode);
+            Assert.Equal("445660", vatMap.DeductibleAccountCode);
         }
 
         [Fact]

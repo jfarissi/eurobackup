@@ -1,0 +1,110 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.vat" [abbrs]="['TVA','EDI','DGI','ICE']">
+        <h2>{{ 'vat.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'vat.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="load()" [disabled]="loading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" *ngIf="canValidate && !isDeclared"
+              (click)="declare()" [disabled]="loading || acting">
+        <mat-icon>check_circle</mat-icon> {{ 'vat.btn.declare' | t }}
+      </button>
+      <button class="btn-secondary" type="button" *ngIf="canValidate && isDeclared"
+              (click)="undeclare()" [disabled]="loading || acting">
+        <mat-icon>undo</mat-icon> {{ 'vat.btn.undeclare' | t }}
+      </button>
+      <button class="btn-secondary" type="button" (click)="downloadEdi()" [disabled]="loading || acting || !declaration">
+        <mat-icon>file_download</mat-icon> {{ 'vat.btn.edi' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form" (ngSubmit)="load()">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'vat.field.month' | t }} <app-field-help helpKey="field.accounting.vatMonth"></app-field-help></label>
+        <select [(ngModel)]="month" name="month">
+          <option *ngFor="let m of months" [ngValue]="m">{{ ('vat.month.' + m) | t }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'vat.field.year' | t }}</label>
+        <input type="number" [(ngModel)]="year" name="year" min="2000" max="2100" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
+      </div>
+    </div>
+  </form>
+
+  <p class="hint">{{ 'vat.hint.bookedOnly' | t }}</p>
+
+  <div class="status-row" *ngIf="declaration">
+    <span class="status-badge" [class.declared]="isDeclared">
+      {{ (isDeclared ? 'vat.status.Declared' : 'vat.status.Draft') | t }}
+    </span>
+    <span *ngIf="declaration.declaredAt">
+      {{ declaration.declaredBy }} — {{ declaration.declaredAt | date:'dd/MM/yyyy HH:mm' }}
+    </span>
+  </div>
+
+  <div class="alerts" *ngIf="declaration?.alerts?.length">
+    <div class="alert-box" *ngFor="let code of declaration!.alerts">{{ alertText(code) }}</div>
+  </div>
+
+  <div class="cards" *ngIf="declaration">
+    <div class="card">
+      <h3>{{ 'vat.card.collected' | t }}</h3>
+      <p class="amount">{{ declaration.totalCollected | currency:'EUR' }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'vat.card.deductible' | t }}</h3>
+      <p class="amount">{{ declaration.totalDeductible | currency:'EUR' }}</p>
+    </div>
+    <div class="card">
+      <h3>{{ 'vat.card.previousCredit' | t }}</h3>
+      <p class="amount">{{ declaration.previousCredit | currency:'EUR' }}</p>
+    </div>
+    <div class="card" [class.credit]="declaration.netToPay < 0" [class.due]="declaration.netToPay > 0">
+      <h3>{{ declaration.netToPay < 0 ? ('vat.card.credit' | t) : ('vat.card.net' | t) }}</h3>
+      <p class="amount">{{ declaration.netToPay | currency:'EUR' }}</p>
+    </div>
+  </div>
+
+  <div class="table-wrap" *ngIf="declaration">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'vat.col.rate' | t }}</th>
+          <th>{{ 'vat.col.collectedBase' | t }}</th>
+          <th>{{ 'vat.col.collectedVat' | t }}</th>
+          <th>{{ 'vat.col.deductibleBase' | t }}</th>
+          <th>{{ 'vat.col.deductibleVat' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of declaration.rates">
+          <td>{{ row.rate ? (row.rate + ' %') : ('vat.rate.unmapped' | t) }}</td>
+          <td class="num">{{ row.collectedBase | currency:'EUR' }}</td>
+          <td class="num">{{ row.collectedVat | currency:'EUR' }}</td>
+          <td class="num">{{ row.deductibleBase | currency:'EUR' }}</td>
+          <td class="num">{{ row.deductibleVat | currency:'EUR' }}</td>
+        </tr>
+        <tr *ngIf="!loading && declaration.rates.length === 0">
+          <td colspan="5" class="empty">{{ 'vat.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="loading">
+          <td colspan="5" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

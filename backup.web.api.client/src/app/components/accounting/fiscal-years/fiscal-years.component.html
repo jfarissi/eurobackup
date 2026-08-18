@@ -1,7 +1,9 @@
 <div class="accounting-container">
   <div class="accounting-header">
     <div>
-      <h2>{{ 'accounting.fiscal.title' | t }}</h2>
+      <app-form-help helpKey="accounting.fiscalYears">
+        <h2>{{ 'accounting.fiscal.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'accounting.fiscal.subtitle' | t }}</p>
     </div>
     <div class="actions">
@@ -52,7 +54,7 @@
     </div>
 
     <div class="periods-panel" *ngIf="selected">
-      <h3>{{ 'accounting.fiscal.periods.title' | t:{ name: selected.name } }}</h3>
+      <h3>{{ 'accounting.fiscal.periods.title' | t:{ name: selected.name } }} <app-field-help helpKey="field.accounting.period"></app-field-help></h3>
       <div class="periods-grid">
         <div class="period-card" *ngFor="let p of selected.periods" [class.locked]="p.isLocked">
           <div class="period-head">

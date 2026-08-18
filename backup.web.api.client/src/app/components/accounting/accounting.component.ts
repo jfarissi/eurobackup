@@ -4,19 +4,20 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MaterialModule } from '../../material.module';
 import { BusinessService } from '../../services/business.service';
-import { AccountingEntry, AccountingEntryLine, UnifiedPayment } from '../../models/business';
+import { AccountingEntry, AccountingEntryLine, ManualAccountingEntryRequest, UnifiedPayment } from '../../models/business';
 import { PermissionService } from '../../services/permission.service';
 import { Permissions } from '../../constants/permissions';
 import { AppI18nService } from '../../services/app-i18n.service';
 import { TPipe } from '../../pipes/t.pipe';
 import { FormHelpComponent } from '../shared/form-help/form-help.component';
+import { FieldHelpComponent } from '../shared/field-help/field-help.component';
 import { TableSortState } from '../../utils/table-sort';
 import { SortableThComponent } from '../shared/sortable-th/sortable-th.component';
 
 @Component({
   selector: 'app-accounting',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MaterialModule, TPipe, FormHelpComponent, SortableThComponent],
+  imports: [CommonModule, FormsModule, RouterModule, MaterialModule, TPipe, FormHelpComponent, FieldHelpComponent, SortableThComponent],
   templateUrl: './accounting.component.html',
   styleUrls: ['./accounting.component.css']
 })
@@ -66,11 +67,13 @@ export class AccountingComponent implements OnInit {
   paymentTo = '';
 
   showManualModal = false;
+  editingEntry: AccountingEntry | null = null;
   manualDate = '';
   manualJournalType = 'Manual';
   manualDescription = '';
   manualReferenceType = 'Manual';
   manualReferenceId = 0;
+  manualSaveAsDraft = false;
   manualLines: AccountingEntryLine[] = [];
 
   constructor(
@@ -172,17 +175,46 @@ export class AccountingComponent implements OnInit {
   }
 
   openManualModal(): void {
+    this.editingEntry = null;
     this.manualDate = new Date().toISOString().slice(0, 10);
     this.manualJournalType = 'Manual';
     this.manualDescription = '';
     this.manualReferenceType = 'Manual';
     this.manualReferenceId = 0;
+    this.manualSaveAsDraft = false;
     this.manualLines = [
       this.emptyLine(1),
       this.emptyLine(2)
     ];
     this.actionError = '';
     this.showManualModal = true;
+  }
+
+  /** Phase 3 : réutilise la modale de saisie pour modifier un brouillon (PUT). */
+  openEditModal(entry: AccountingEntry): void {
+    if (entry.status !== 'Draft' || !this.perm.has(Permissions.AccountingCreate)) return;
+    const open = (full: AccountingEntry) => {
+      const e = this.normalize(full);
+      this.editingEntry = e;
+      this.manualDate = (e.entryDate || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+      this.manualJournalType = e.journalType || 'Manual';
+      this.manualDescription = e.description || '';
+      this.manualReferenceType = e.referenceType || 'Manual';
+      this.manualReferenceId = e.referenceId || 0;
+      this.manualSaveAsDraft = false;
+      this.manualLines = (e.lines || []).map(l => ({ ...l }));
+      if (this.manualLines.length < 2) {
+        this.manualLines = [this.emptyLine(1), this.emptyLine(2)];
+      }
+      this.actionError = '';
+      this.actionMessage = '';
+      this.showManualModal = true;
+    };
+    if (entry.lines && entry.lines.length > 0) {
+      open(entry);
+    } else if (entry.id) {
+      this.businessService.getAccountingEntry(entry.id).subscribe({ next: open });
+    }
   }
 
   addManualLine(): void {
@@ -236,26 +268,113 @@ export class AccountingComponent implements OnInit {
 
     this.saving = true;
     this.actionError = '';
-    this.businessService.createAccountingEntry({
+    const body: ManualAccountingEntryRequest = {
       entryDate: this.manualDate || undefined,
       journalType: this.manualJournalType,
       description: this.manualDescription,
       referenceType: this.manualReferenceType,
       referenceId: this.manualReferenceId || 0,
+      saveAsDraft: !this.editingEntry && this.manualSaveAsDraft,
       lines
-    }).subscribe({
-      next: (created) => {
+    };
+    const editing = this.editingEntry;
+    const request = editing?.id
+      ? this.businessService.updateAccountingEntry(editing.id, body)
+      : this.businessService.createAccountingEntry(body);
+    request.subscribe({
+      next: (saved) => {
         this.saving = false;
         this.showManualModal = false;
-        this.actionMessage = this.i18n.t('accounting.entryCreated', { number: created.entryNumber });
+        this.actionMessage = editing
+          ? this.i18n.t('accounting.entryUpdated', { number: saved.entryNumber })
+          : this.manualSaveAsDraft
+            ? this.i18n.t('accounting.draftSaved')
+            : this.i18n.t('accounting.entryCreated', { number: saved.entryNumber });
+        this.editingEntry = null;
         this.loadEntries();
-        this.selectEntry(this.normalize(created));
+        this.selectEntry(this.normalize(saved));
       },
       error: (err) => {
         this.saving = false;
-        this.actionError = typeof err?.error === 'string' ? err.error : (err?.error?.error || this.i18n.t('accounting.saveError'));
+        this.actionError = this.errorText(err) || this.i18n.t('accounting.saveError');
       }
     });
+  }
+
+  /** Phase 3 : suppression d'un brouillon (confirmation préalable). */
+  deleteEntry(entry: AccountingEntry): void {
+    if (entry.status !== 'Draft' || !this.perm.has(Permissions.AccountingCreate) || !entry.id) return;
+    if (!confirm(this.i18n.t('accounting.confirmDeleteDraft', { number: entry.entryNumber }))) return;
+    this.actionError = '';
+    this.actionMessage = '';
+    this.businessService.deleteAccountingEntry(entry.id).subscribe({
+      next: () => {
+        if (this.selected?.id === entry.id) this.selected = null;
+        this.actionMessage = this.i18n.t('accounting.draftDeleted', { number: entry.entryNumber });
+        this.loadEntries();
+      },
+      error: (err) => {
+        this.actionError = this.errorText(err) || this.i18n.t('accounting.actionError');
+      }
+    });
+  }
+
+  /** Phase 3 : comptabilise un brouillon (Draft → Posted, permission Accounting.Validate côté API). */
+  postEntry(entry: AccountingEntry): void {
+    if (entry.status !== 'Draft' || !this.perm.has(Permissions.AccountingValidate) || !entry.id) return;
+    this.actionError = '';
+    this.actionMessage = '';
+    this.businessService.postAccountingEntry(entry.id).subscribe({
+      next: (posted) => {
+        this.actionMessage = this.i18n.t('accounting.entryPosted', { number: posted.entryNumber });
+        this.loadEntries();
+      },
+      error: (err) => {
+        this.actionError = this.errorText(err) || this.i18n.t('accounting.actionError');
+      }
+    });
+  }
+
+  /** Phase 3 : valide une écriture comptabilisée (Posted → Validated, immuable). */
+  validateEntry(entry: AccountingEntry): void {
+    if (entry.status !== 'Posted' || !this.perm.has(Permissions.AccountingValidate) || !entry.id) return;
+    if (!confirm(this.i18n.t('accounting.confirmValidate', { number: entry.entryNumber }))) return;
+    this.actionError = '';
+    this.actionMessage = '';
+    this.businessService.validateAccountingEntry(entry.id).subscribe({
+      next: (validated) => {
+        this.actionMessage = this.i18n.t('accounting.entryValidated', { number: validated.entryNumber });
+        this.loadEntries();
+      },
+      error: (err) => {
+        this.actionError = this.errorText(err) || this.i18n.t('accounting.actionError');
+      }
+    });
+  }
+
+  /** Phase 3 : extourne une écriture (crée l'écriture inverse, originale → Reversed). */
+  reverseEntry(entry: AccountingEntry): void {
+    if (entry.status !== 'Posted' || !this.perm.has(Permissions.AccountingValidate) || !entry.id) return;
+    if (!confirm(this.i18n.t('accounting.confirmReverse', { number: entry.entryNumber }))) return;
+    this.actionError = '';
+    this.actionMessage = '';
+    this.businessService.reverseAccountingEntry(entry.id).subscribe({
+      next: (reversal) => {
+        this.actionMessage = this.i18n.t('accounting.entryReversed', { number: reversal.entryNumber });
+        this.loadEntries();
+      },
+      error: (err) => {
+        this.actionError = this.errorText(err) || this.i18n.t('accounting.actionError');
+      }
+    });
+  }
+
+  /** Libellé i18n du statut d'écriture (Draft/Posted/Validated/Reversed). */
+  statusLabel(status: string | undefined): string {
+    if (!status) return '';
+    const key = `accounting.status.${status}`;
+    const label = this.i18n.t(key);
+    return label === key ? status : label;
   }
 
   entryDebit(entry: AccountingEntry): number {
@@ -314,5 +433,13 @@ export class AccountingComponent implements OnInit {
         lineNumber: l.lineNumber || i + 1
       }))
     };
+  }
+
+  /** Le contrôleur renvoie BadRequest("message") : err.error est alors une chaîne. */
+  private errorText(err: unknown): string {
+    const e = err as { error?: unknown };
+    if (typeof e?.error === 'string') return e.error;
+    const obj = e?.error as { error?: string; message?: string } | undefined;
+    return obj?.error || obj?.message || '';
   }
 }

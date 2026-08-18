@@ -146,6 +146,7 @@ namespace Backup.Web.Api.Server.Services.Accounting
             A("419000", "Avances et acomptes reçus sur commandes", 4, "Passif", true, true, false),
             A("421000", "Personnel - Rémunérations dues", 4, "Passif", true, true, false),
             A("431000", "Sécurité sociale", 4, "Passif", false, true, false),
+            A("442000", "Etat - Impôts et taxes à payer", 4, "Passif", false, true, false),
             A("444000", "Etat - Impôt sur les sociétés", 4, "Passif", false, true, false),
             A("445500", "TVA à décaisser", 4, "Passif", false, true, false),
             A("445660", "TVA déductible", 4, "Actif", false, true, false),

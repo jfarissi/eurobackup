@@ -15,6 +15,7 @@ namespace Backup.Web.Api.Server.Services.Ocr
     public interface IOcrTextExtractionService
     {
         Task<string> ExtractTextFromScannedPdfAsync(string absoluteFilePath, string language, int dpi = 300, CancellationToken ct = default);
+        Task<string> ExtractTextFromImageAsync(byte[] imageBytes, string language, int dpi = 300, CancellationToken ct = default);
     }
 
     public class OcrTextExtractionService : IOcrTextExtractionService
@@ -130,6 +131,43 @@ namespace Backup.Web.Api.Server.Services.Ocr
             }
 
             return Task.FromResult(sb.ToString());
+        }
+
+        public Task<string> ExtractTextFromImageAsync(byte[] imageBytes, string language, int dpi = 300, CancellationToken ct = default)
+        {
+            if (imageBytes == null || imageBytes.Length == 0) return Task.FromResult(string.Empty);
+            dpi = this.configuration.GetValue<int?>("Ocr:Dpi") ?? dpi;
+            var tessdataDir = ResolveTessdataDir();
+            try { Environment.SetEnvironmentVariable("TESSDATA_PREFIX", tessdataDir); } catch { }
+            var langsToTry = BuildLanguages(language);
+            if (!Directory.Exists(tessdataDir) || !langsToTry.Any(l => File.Exists(Path.Combine(tessdataDir, l + ".traineddata"))))
+                return Task.FromResult(string.Empty);
+
+            using var pix = CreatePixFromImageBytesWithEnhancement(imageBytes);
+            var text = ProcessPixWithLanguages(pix, tessdataDir, dpi, langsToTry);
+            return Task.FromResult(text ?? string.Empty);
+        }
+
+        private string ResolveTessdataDir()
+        {
+            var configuredPath = this.configuration.GetValue<string>("Ocr:TessdataPath") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(configuredPath))
+                return Path.Combine(AppContext.BaseDirectory, "tessdata");
+            var last = Path.GetFileName(configuredPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            return string.Equals(last, "tessdata", StringComparison.OrdinalIgnoreCase)
+                ? configuredPath
+                : Path.Combine(configuredPath, "tessdata");
+        }
+
+        private static List<string> BuildLanguages(string language)
+        {
+            var langCode = string.IsNullOrWhiteSpace(language) ? "fra" : language;
+            var langsToTry = new List<string> { langCode };
+            foreach (var token in langCode.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                langsToTry.Add(token);
+            foreach (var fallback in new[] { "fra", "eng", "ara", "nld" })
+                langsToTry.Add(fallback);
+            return langsToTry.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         private static string ProcessPixWithLanguages(Pix pix, string tessdataDir, int dpi, List<string> langsToTry)

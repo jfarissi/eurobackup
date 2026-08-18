@@ -49,6 +49,11 @@ def create_parser(
             # V2: classifier sans regex strictes pour guider le choix du parser.
             classified_supplier, supplier_conf, supplier_scores = classify_supplier(temp_parser.text_lower)
             doc_type, doc_conf, doc_scores = classify_doc_type(temp_parser.text_lower)
+            if doc_type == "bank_statement" and doc_conf >= 0.4:
+                log_debug(
+                    f"Factory skip supplier parsers: bank_statement conf={doc_conf} scores={doc_scores}"
+                )
+                return temp_parser
             if mode == "classifier_strict":
                 supplier = classified_supplier
                 log_debug(

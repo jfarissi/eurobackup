@@ -1,0 +1,159 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.reports">
+        <h2>{{ 'reports.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'reports.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="refresh()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <div class="tabs">
+    <button type="button" [class.active]="tab === 'balance'" (click)="setTab('balance')">
+      {{ 'reports.tab.balance' | t }}
+    </button>
+    <button type="button" [class.active]="tab === 'ledger'" (click)="setTab('ledger')">
+      {{ 'reports.tab.ledger' | t }}
+    </button>
+  </div>
+
+  <form class="filter-form" (ngSubmit)="refresh()">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'reports.field.from' | t }}</label>
+        <input type="date" [(ngModel)]="from" name="from" />
+      </div>
+      <div class="form-group">
+        <label>{{ 'reports.field.to' | t }}</label>
+        <input type="date" [(ngModel)]="to" name="to" />
+      </div>
+      <div class="form-group grow" *ngIf="tab === 'balance'">
+        <label>{{ 'common.search' | t }}</label>
+        <input type="text" [(ngModel)]="search" name="search"
+               [placeholder]="'accounting.plan.searchPlaceholder' | t" />
+      </div>
+      <div class="form-group grow" *ngIf="tab === 'ledger'">
+        <label>{{ 'accounting.col.account' | t }}</label>
+        <select [(ngModel)]="selectedAccount" name="selectedAccount" (ngModelChange)="loadLedger()">
+          <option value="">{{ 'reports.pickAccount' | t }}</option>
+          <option *ngFor="let a of accounts" [value]="a.accountNumber">{{ a.accountNumber }} — {{ a.label }}</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="submit" [disabled]="loading">{{ 'common.filter' | t }}</button>
+      </div>
+    </div>
+  </form>
+
+  <p class="hint">{{ 'reports.hint.bookedOnly' | t }}</p>
+
+  <div class="table-wrap" *ngIf="tab === 'balance'">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th rowspan="2">{{ 'accounting.plan.col.number' | t }}</th>
+          <th rowspan="2">{{ 'accounting.plan.col.label' | t }}</th>
+          <th colspan="2">{{ 'reports.col.opening' | t }}</th>
+          <th colspan="2">{{ 'reports.col.period' | t }}</th>
+          <th colspan="2">{{ 'reports.col.closing' | t }}</th>
+        </tr>
+        <tr>
+          <th>{{ 'accounting.col.debit' | t }}</th>
+          <th>{{ 'accounting.col.credit' | t }}</th>
+          <th>{{ 'accounting.col.debit' | t }}</th>
+          <th>{{ 'accounting.col.credit' | t }}</th>
+          <th>{{ 'accounting.col.debit' | t }}</th>
+          <th>{{ 'accounting.col.credit' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of filteredBalanceRows" class="clickable" (click)="openLedger(row.accountCode)">
+          <td class="col-mono"><strong>{{ row.accountCode }}</strong></td>
+          <td>{{ row.accountLabel }}</td>
+          <td class="num">{{ row.openingDebit ? (row.openingDebit | currency:'EUR') : '' }}</td>
+          <td class="num">{{ row.openingCredit ? (row.openingCredit | currency:'EUR') : '' }}</td>
+          <td class="num">{{ row.periodDebit ? (row.periodDebit | currency:'EUR') : '' }}</td>
+          <td class="num">{{ row.periodCredit ? (row.periodCredit | currency:'EUR') : '' }}</td>
+          <td class="num">{{ row.closingDebit ? (row.closingDebit | currency:'EUR') : '' }}</td>
+          <td class="num">{{ row.closingCredit ? (row.closingCredit | currency:'EUR') : '' }}</td>
+        </tr>
+        <tr *ngIf="!loading && filteredBalanceRows.length === 0">
+          <td colspan="8" class="empty">{{ 'reports.balance.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="loading">
+          <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+      <tfoot *ngIf="balance && filteredBalanceRows.length">
+        <tr>
+          <td colspan="2"><strong>{{ 'reports.col.total' | t }}</strong></td>
+          <td class="num"><strong>{{ balance.totalOpeningDebit | currency:'EUR' }}</strong></td>
+          <td class="num"><strong>{{ balance.totalOpeningCredit | currency:'EUR' }}</strong></td>
+          <td class="num"><strong>{{ balance.totalPeriodDebit | currency:'EUR' }}</strong></td>
+          <td class="num"><strong>{{ balance.totalPeriodCredit | currency:'EUR' }}</strong></td>
+          <td class="num"><strong>{{ balance.totalClosingDebit | currency:'EUR' }}</strong></td>
+          <td class="num"><strong>{{ balance.totalClosingCredit | currency:'EUR' }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="hint" *ngIf="balance?.rows?.length">{{ 'reports.balance.clickHint' | t }}</p>
+  </div>
+
+  <div *ngIf="tab === 'ledger'">
+    <p class="hint" *ngIf="!selectedAccount">{{ 'reports.ledger.hint' | t }}</p>
+    <div class="table-wrap" *ngIf="selectedAccount">
+      <h3 *ngIf="ledger">{{ ledger.accountCode }} — {{ ledger.accountLabel || ('accounting.col.account' | t) }}</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'accounting.col.date' | t }}</th>
+            <th>{{ 'lettrage.col.piece' | t }}</th>
+            <th>{{ 'accounting.col.journalType' | t }}</th>
+            <th>{{ 'common.description' | t }}</th>
+            <th>{{ 'accounting.col.debit' | t }}</th>
+            <th>{{ 'accounting.col.credit' | t }}</th>
+            <th>{{ 'lettrage.col.balance' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="ledger" class="opening-row">
+            <td colspan="4"><strong>{{ 'reports.col.opening' | t }}</strong></td>
+            <td class="num">{{ ledger.openingDebit ? (ledger.openingDebit | currency:'EUR') : '' }}</td>
+            <td class="num">{{ ledger.openingCredit ? (ledger.openingCredit | currency:'EUR') : '' }}</td>
+            <td class="num"><strong>{{ ledger.openingBalance | currency:'EUR' }}</strong></td>
+          </tr>
+          <tr *ngFor="let m of ledger?.movements || []">
+            <td>{{ m.entryDate | date:'dd/MM/yyyy' }}</td>
+            <td class="col-mono"><strong>{{ m.entryNumber }}</strong></td>
+            <td>{{ m.journalType }}</td>
+            <td>{{ m.description }}</td>
+            <td class="num">{{ m.debit ? (m.debit | currency:'EUR') : '' }}</td>
+            <td class="num">{{ m.credit ? (m.credit | currency:'EUR') : '' }}</td>
+            <td class="num">{{ m.runningBalance | currency:'EUR' }}</td>
+          </tr>
+          <tr *ngIf="!loading && ledger && ledger.movements.length === 0">
+            <td colspan="7" class="empty">{{ 'reports.ledger.empty' | t }}</td>
+          </tr>
+          <tr *ngIf="loading">
+            <td colspan="7" class="empty">{{ 'common.loading' | t }}</td>
+          </tr>
+        </tbody>
+        <tfoot *ngIf="ledger">
+          <tr>
+            <td colspan="4"><strong>{{ 'reports.col.closing' | t }}</strong></td>
+            <td class="num"><strong>{{ ledger.closingDebit ? (ledger.closingDebit | currency:'EUR') : '' }}</strong></td>
+            <td class="num"><strong>{{ ledger.closingCredit ? (ledger.closingCredit | currency:'EUR') : '' }}</strong></td>
+            <td class="num"><strong>{{ ledger.closingBalance | currency:'EUR' }}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>

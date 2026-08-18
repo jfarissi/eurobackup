@@ -562,6 +562,19 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         public async ValueTask<AccountingEntry?> SelectAccountingEntryByIdAsync(int id) =>
             await this.AccountingEntries.Include(e => e.Lines).FirstOrDefaultAsync(e => e.Id == id);
 
+        public async ValueTask<AccountingEntry> UpdateAccountingEntryAsync(AccountingEntry entry)
+        {
+            EntityEntry<AccountingEntry> updated = this.AccountingEntries.Update(entry);
+            await this.SaveChangesAsync();
+            return updated.Entity;
+        }
+
+        public async ValueTask DeleteAccountingEntryAsync(AccountingEntry entry)
+        {
+            this.AccountingEntries.Remove(entry);
+            await this.SaveChangesAsync();
+        }
+
         // Sales Returns (BRC vente)
         public async ValueTask<SalesReturn> InsertSalesReturnAsync(SalesReturn salesReturn)
         {

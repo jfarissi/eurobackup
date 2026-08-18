@@ -117,8 +117,10 @@ namespace Backup.Web.Api.Server.Models.Security
         // Comptabilité
         public const string AccountingRead   = "Accounting.Read";
         public const string AccountingCreate = "Accounting.Create";
+        public const string AccountingValidate        = "Accounting.Validate";
         public const string AccountingManagePlan        = "Accounting.ManagePlan";
         public const string AccountingManageFiscalYears = "Accounting.ManageFiscalYears";
+        public const string AccountingCabinet           = "Accounting.Cabinet";
 
         // Numérotation (admin)
         public const string NumberingManage  = "Numbering.Manage";
@@ -169,7 +171,7 @@ namespace Backup.Web.Api.Server.Models.Security
             SupplierCreditNoteRead, SupplierCreditNoteCreate, SupplierCreditNoteUpdate,
             StockRead, StockUpdate,
             CashRead, CashManage,
-            AccountingRead, AccountingCreate, AccountingManagePlan, AccountingManageFiscalYears,
+            AccountingRead, AccountingCreate, AccountingValidate, AccountingManagePlan, AccountingManageFiscalYears, AccountingCabinet,
             NumberingManage,
             HelpManage,
             DocumentRead, DocumentUpload, DocumentLink,

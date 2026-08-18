@@ -1,7 +1,7 @@
 <div class="accounting-container">
   <div class="accounting-header">
     <div>
-      <app-form-help helpKey="accounting.tabs" [abbrs]="['HT','TVA','TTC']">
+      <app-form-help helpKey="accounting.tabs" [abbrs]="['HT','TVA','TTC','PCG','FEC']">
         <h2>{{ 'accounting.title' | t }}</h2>
       </app-form-help>
       <p class="subtitle">{{ 'accounting.subtitle' | t }}</p>
@@ -70,6 +70,7 @@
                 <th appSortable [state]="entrySort" key="debit" defaultDir="desc">{{ 'accounting.col.debit' | t }}</th>
                 <th appSortable [state]="entrySort" key="credit" defaultDir="desc">{{ 'accounting.col.credit' | t }}</th>
                 <th appSortable [state]="entrySort" key="status">{{ 'common.status' | t }}</th>
+                <th>{{ 'common.actions' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -83,13 +84,39 @@
                 <td>{{ entry.description }}</td>
                 <td>{{ entryDebit(entry) | currency:'EUR' }}</td>
                 <td>{{ entryCredit(entry) | currency:'EUR' }}</td>
-                <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ entry.status }}</span></td>
+                <td><span class="status-badge" [ngClass]="(entry.status || '').toLowerCase()">{{ statusLabel(entry.status) }}</span></td>
+                <td class="row-actions" (click)="$event.stopPropagation()">
+                  <ng-container *ngIf="entry.status === 'Draft'">
+                    <button class="icon-action" type="button" *ngIf="perm.has(P.AccountingCreate)"
+                            (click)="openEditModal(entry)" [title]="'common.edit' | t">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button class="icon-action delete" type="button" *ngIf="perm.has(P.AccountingCreate)"
+                            (click)="deleteEntry(entry)" [title]="'common.delete' | t">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                    <button class="icon-action" type="button" *ngIf="perm.has(P.AccountingValidate)"
+                            (click)="postEntry(entry)" [title]="'accounting.btn.post' | t">
+                      <mat-icon>playlist_add_check</mat-icon>
+                    </button>
+                  </ng-container>
+                  <ng-container *ngIf="entry.status === 'Posted'">
+                    <button class="icon-action" type="button" *ngIf="perm.has(P.AccountingValidate)"
+                            (click)="validateEntry(entry)" [title]="'accounting.btn.validate' | t">
+                      <mat-icon>verified</mat-icon>
+                    </button>
+                    <button class="icon-action" type="button" *ngIf="perm.has(P.AccountingValidate)"
+                            (click)="reverseEntry(entry)" [title]="'accounting.btn.reverse' | t">
+                      <mat-icon>undo</mat-icon>
+                    </button>
+                  </ng-container>
+                </td>
               </tr>
               <tr *ngIf="!loading && sortedEntries.length === 0">
-                <td colspan="8" class="empty">{{ 'accounting.empty' | t }}</td>
+                <td colspan="9" class="empty">{{ 'accounting.empty' | t }}</td>
               </tr>
               <tr *ngIf="loading">
-                <td colspan="8" class="empty">{{ 'common.loading' | t }}</td>
+                <td colspan="9" class="empty">{{ 'common.loading' | t }}</td>
               </tr>
             </tbody>
           </table>
@@ -101,7 +128,7 @@
             <span>{{ 'accounting.col.date' | t }}: <strong>{{ selected.entryDate | date:'dd/MM/yyyy HH:mm' }}</strong></span>
             <span>{{ 'accounting.col.journalType' | t }}: <strong>{{ selected.journalType }}</strong></span>
             <span>{{ 'accounting.col.reference' | t }}: <strong>{{ selected.referenceType }} #{{ selected.referenceId }}</strong></span>
-            <span>{{ 'common.status' | t }}: <span class="status-badge" [ngClass]="(selected.status || '').toLowerCase()">{{ selected.status }}</span></span>
+            <span>{{ 'common.status' | t }}: <span class="status-badge" [ngClass]="(selected.status || '').toLowerCase()">{{ statusLabel(selected.status) }}</span></span>
             <span *ngIf="selected.createdBy">{{ 'accounting.col.author' | t }}: <strong>{{ selected.createdBy }}</strong></span>
           </div>
           <p class="detail-notes" *ngIf="selected.description">{{ selected.description }}</p>
@@ -226,7 +253,7 @@
 <div class="modal-overlay" *ngIf="showManualModal">
   <div class="modal-content wide">
     <app-form-help helpKey="accounting.newEntry">
-      <h3>{{ 'accounting.modal.newEntry' | t }}</h3>
+      <h3>{{ (editingEntry ? 'accounting.modal.editEntry' : 'accounting.modal.newEntry') | t:{ number: editingEntry?.entryNumber } }}</h3>
     </app-form-help>
     <p class="subtitle">{{ 'accounting.modal.hint' | t }}</p>
 
@@ -237,7 +264,7 @@
       </div>
       <div class="form-group">
         <label>{{ 'accounting.col.journalType' | t }}</label>
-        <select [(ngModel)]="manualJournalType" name="manualJournalType">
+        <select [(ngModel)]="manualJournalType" name="manualJournalType" [disabled]="!!editingEntry">
           <option *ngFor="let j of journalTypes" [value]="j">{{ j }}</option>
         </select>
       </div>
@@ -250,20 +277,27 @@
     <div class="form-row">
       <div class="form-group">
         <label>{{ 'accounting.col.referenceType' | t }}</label>
-        <select [(ngModel)]="manualReferenceType" name="manualReferenceType">
+        <select [(ngModel)]="manualReferenceType" name="manualReferenceType" [disabled]="!!editingEntry">
           <option *ngFor="let r of referenceTypes" [value]="r">{{ r }}</option>
         </select>
       </div>
       <div class="form-group">
         <label>{{ 'accounting.col.referenceId' | t }}</label>
-        <input type="number" [(ngModel)]="manualReferenceId" name="manualReferenceId" min="0" />
+        <input type="number" [(ngModel)]="manualReferenceId" name="manualReferenceId" min="0" [disabled]="!!editingEntry" />
       </div>
+    </div>
+
+    <div class="form-row" *ngIf="!editingEntry">
+      <label class="checkbox-inline">
+        <input type="checkbox" [(ngModel)]="manualSaveAsDraft" name="manualSaveAsDraft" />
+        {{ 'accounting.saveAsDraft' | t }}
+      </label>
     </div>
 
     <table class="data-table nested">
       <thead>
         <tr>
-          <th>{{ 'accounting.col.account' | t }}</th>
+          <th>{{ 'accounting.col.account' | t }} <app-field-help helpKey="field.accounting.account"></app-field-help></th>
           <th>{{ 'accounting.col.label' | t }}</th>
           <th>{{ 'accounting.col.debit' | t }}</th>
           <th>{{ 'accounting.col.credit' | t }}</th>
@@ -306,7 +340,7 @@
     <div class="modal-actions">
       <button class="btn-secondary" type="button" (click)="showManualModal = false" [disabled]="saving">{{ 'common.cancel' | t }}</button>
       <button class="btn-primary" type="button" (click)="saveManualEntry()" [disabled]="saving || !isManualBalanced">
-        {{ saving ? ('common.saving' | t) : ('accounting.btn.post' | t) }}
+        {{ saving ? ('common.saving' | t) : (editingEntry || manualSaveAsDraft ? ('common.save' | t) : ('accounting.btn.post' | t)) }}
       </button>
     </div>
   </div>

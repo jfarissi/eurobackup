@@ -1088,6 +1088,273 @@ namespace Backup.Web.Api.Server.Migrations
                     b.ToTable("DocumentRelations");
                 });
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingAnnotation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccountingEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Author")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<bool>("IsResolved")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "IsResolved");
+
+                    b.ToTable("AccountingAnnotations", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingFirm", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("FirmCompanyId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<string>("Ice")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("TaxId")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmCompanyId")
+                        .IsUnique();
+
+                    b.ToTable("AccountingFirms", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingFirmClient", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountingFirmId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClientCompanyId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("MissionLevel")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountingFirmId", "ClientCompanyId")
+                        .IsUnique();
+
+                    b.ToTable("AccountingFirmClients", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.BankReconciliation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<decimal>("BookBalance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CompletedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime>("FromDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("StatementBalance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("StatementDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("ToDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "StatementDate");
+
+                    b.ToTable("BankReconciliations", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.BankStatementLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccountingEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("AccountingEntryLineId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BankReconciliationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("IsMatched")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("varchar(512)");
+
+                    b.Property<string>("MatchMethod")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime>("OperationDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<decimal?>("RunningBalance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountingEntryLineId");
+
+                    b.HasIndex("BankReconciliationId");
+
+                    b.ToTable("BankStatementLines", (string)null);
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.ChartOfAccount", b =>
                 {
                     b.Property<int>("Id")
@@ -1291,6 +1558,124 @@ namespace Backup.Web.Api.Server.Migrations
                     b.ToTable("CompanyVatRateAccounts", (string)null);
                 });
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.DepreciationScheduleLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccountingEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Accumulated")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Charge")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("FixedAssetId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsPosted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("NetBookValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FixedAssetId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("DepreciationScheduleLines", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.Employee", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BenefitsInKind")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Bonuses")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CnssNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("ExitDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime>("HireDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<decimal>("Overtime")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("Employees", (string)null);
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.FiscalPeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -1392,6 +1777,105 @@ namespace Backup.Web.Api.Server.Migrations
                     b.ToTable("FiscalYears", (string)null);
                 });
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.FixedAsset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AccumulatedDepreciation")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("AcquisitionDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("AssetAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<decimal?>("DecliningRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<string>("DepreciationAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime?>("DisposalDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal?>("DisposalPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("DurationMonths")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExpenseAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<decimal>("OriginValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ResidualValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("ServiceDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("FixedAssets", (string)null);
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.Journal", b =>
                 {
                     b.Property<int>("Id")
@@ -1438,6 +1922,215 @@ namespace Backup.Web.Api.Server.Migrations
                         .IsUnique();
 
                     b.ToTable("Journals", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.Payslip", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccountingEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("AmoEmployee")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("AmoEmployer")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BenefitsInKind")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Bonuses")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CnssEmployee")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CnssEmployer")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Igr")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("IsExportedCnss")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsPosted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Overtime")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("CompanyId", "EmployeeId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("Payslips", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclaration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(36)
+                        .HasColumnType("varchar(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime?>("DeclaredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeclaredBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int?>("FiscalPeriodId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("NetToPay")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PreviousCredit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<decimal>("TotalCollected")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalDeductible")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FiscalPeriodId");
+
+                    b.HasIndex("CompanyId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("VatDeclarations", (string)null);
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclarationLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("CollectedBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CollectedVat")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DeductibleBase")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DeductibleVat")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("VatDeclarationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VatDeclarationId");
+
+                    b.ToTable("VatDeclarationLines", (string)null);
                 });
 
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.AccountingEntry", b =>
@@ -6526,6 +7219,28 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingFirmClient", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingFirm", "Firm")
+                        .WithMany("Clients")
+                        .HasForeignKey("AccountingFirmId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Firm");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.BankStatementLine", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.BankReconciliation", "BankReconciliation")
+                        .WithMany("Lines")
+                        .HasForeignKey("BankReconciliationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BankReconciliation");
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.ChartOfAccount", b =>
                 {
                     b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.ChartOfAccount", "Parent")
@@ -6534,6 +7249,17 @@ namespace Backup.Web.Api.Server.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.DepreciationScheduleLine", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.FixedAsset", "FixedAsset")
+                        .WithMany("Schedule")
+                        .HasForeignKey("FixedAssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FixedAsset");
                 });
 
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.FiscalPeriod", b =>
@@ -6545,6 +7271,38 @@ namespace Backup.Web.Api.Server.Migrations
                         .IsRequired();
 
                     b.Navigation("FiscalYear");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.Payslip", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclaration", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.FiscalPeriod", "FiscalPeriod")
+                        .WithMany()
+                        .HasForeignKey("FiscalPeriodId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("FiscalPeriod");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclarationLine", b =>
+                {
+                    b.HasOne("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclaration", "VatDeclaration")
+                        .WithMany("Lines")
+                        .HasForeignKey("VatDeclarationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("VatDeclaration");
                 });
 
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.AccountingEntry", b =>
@@ -7232,9 +7990,29 @@ namespace Backup.Web.Api.Server.Migrations
                     b.Navigation("Hotspots");
                 });
 
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.AccountingFirm", b =>
+                {
+                    b.Navigation("Clients");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.BankReconciliation", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.FiscalYear", b =>
                 {
                     b.Navigation("Periods");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.FixedAsset", b =>
+                {
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.Accounting.VatDeclaration", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Backup.Web.Api.Server.Models.Entities.AccountingEntry", b =>

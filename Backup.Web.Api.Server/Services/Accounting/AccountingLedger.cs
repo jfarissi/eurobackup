@@ -38,9 +38,13 @@ namespace Backup.Web.Api.Server.Services.Accounting
 
         public static bool HasPostedEntry(IStorageBroker storage, string referenceType, int referenceId, string? companyId)
         {
+            // Phase 3 : "Validated" compte aussi comme postée (sinon valider une écriture
+            // permettrait un double poste). "Reversed" reste exclu volontairement :
+            // une extourne doit pouvoir être suivie d'une re-comptabilisation corrigée.
             return storage.SelectAllAccountingEntries()
                 .ForCompany(companyId)
-                .Any(e => e.ReferenceType == referenceType && e.ReferenceId == referenceId && e.Status == "Posted");
+                .Any(e => e.ReferenceType == referenceType && e.ReferenceId == referenceId
+                    && (e.Status == "Posted" || e.Status == "Validated"));
         }
 
         public static async Task<(AccountingEntry? Entry, string? Error)> PostSalesInvoiceAsync(

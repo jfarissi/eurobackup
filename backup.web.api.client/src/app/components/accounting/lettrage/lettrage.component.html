@@ -1,0 +1,135 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.lettrage" [abbrs]="['TVA']">
+        <h2>{{ 'lettrage.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'lettrage.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="refresh()" [disabled]="loading || groupsLoading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="runAutomatic()" *ngIf="canValidate" [disabled]="acting">
+        <mat-icon>auto_fix_high</mat-icon> {{ 'lettrage.btn.automatic' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <div class="auto-summary" *ngIf="autoSummaries.length">
+    <div *ngFor="let s of autoSummaries">
+      {{ 'lettrage.auto.summary' | t:{ account: s.accountCode, count: s.groupsCreated } }}<span *ngIf="s.codes.length"> — {{ s.codes.join(', ') }}</span>
+    </div>
+  </div>
+
+  <div class="filter-form">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>{{ 'lettrage.field.account' | t }} <app-field-help helpKey="field.accounting.lettrageAccount"></app-field-help></label>
+        <select [(ngModel)]="selectedAccount" (ngModelChange)="onAccountChange()">
+          <option value="">{{ 'lettrage.pickAccount' | t }}</option>
+          <option *ngFor="let a of accounts" [value]="a.accountNumber">{{ a.accountNumber }} — {{ a.label }}</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>{{ 'lettrage.unlettered.title' | t }}</h3>
+    <p class="hint" *ngIf="!selectedAccount">{{ 'lettrage.unlettered.hint' | t }}</p>
+    <ng-container *ngIf="selectedAccount">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-check">
+              <input type="checkbox" [checked]="allSelected" (change)="toggleAll($event)" [disabled]="!unlettered.length" />
+            </th>
+            <th>{{ 'accounting.col.date' | t }}</th>
+            <th>{{ 'lettrage.col.piece' | t }}</th>
+            <th>{{ 'accounting.col.description' | t }}</th>
+            <th>{{ 'accounting.col.debit' | t }}</th>
+            <th>{{ 'accounting.col.credit' | t }}</th>
+            <th>{{ 'lettrage.col.balance' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let l of unlettered" [class.selected-row]="isSelected(l)">
+            <td class="col-check">
+              <input type="checkbox" [checked]="isSelected(l)" (change)="toggle(l, $event)" />
+            </td>
+            <td>{{ l.entryDate | date:'dd/MM/yyyy' }}</td>
+            <td><strong>{{ l.entryNumber }}</strong></td>
+            <td>{{ l.description }}</td>
+            <td>{{ l.debit | currency:'EUR' }}</td>
+            <td>{{ l.credit | currency:'EUR' }}</td>
+            <td>{{ l.runningBalance | currency:'EUR' }}</td>
+          </tr>
+          <tr *ngIf="!loading && unlettered.length === 0">
+            <td colspan="7" class="empty">{{ 'lettrage.unlettered.empty' | t }}</td>
+          </tr>
+          <tr *ngIf="loading">
+            <td colspan="7" class="empty">{{ 'common.loading' | t }}</td>
+          </tr>
+        </tbody>
+        <tfoot *ngIf="selectedIds.size > 0">
+          <tr>
+            <td colspan="4"><strong>{{ 'lettrage.selection' | t }} ({{ selectedIds.size }})</strong></td>
+            <td><strong>{{ selectedDebit | currency:'EUR' }}</strong></td>
+            <td><strong>{{ selectedCredit | currency:'EUR' }}</strong></td>
+            <td>
+              <span class="delta-badge" [class.ok]="selectionBalanced">
+                {{ 'lettrage.selection.delta' | t }} : {{ selectionDelta | currency:'EUR' }}
+              </span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="panel-actions">
+        <span class="selection-state" *ngIf="selectedIds.size >= 2 && selectionBalanced">{{ 'lettrage.selection.balanced' | t }}</span>
+        <button class="btn-primary" type="button" *ngIf="canValidate"
+                (click)="letterSelection()" [disabled]="!canLetterSelection">
+          <mat-icon>link</mat-icon> {{ 'lettrage.btn.letter' | t }}
+        </button>
+      </div>
+    </ng-container>
+  </div>
+
+  <div class="panel">
+    <h3>{{ 'lettrage.groups.title' | t }}</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>{{ 'lettrage.col.code' | t }}</th>
+          <th>{{ 'accounting.col.date' | t }}</th>
+          <th>{{ 'accounting.col.account' | t }}</th>
+          <th>{{ 'lettrage.col.lineCount' | t }}</th>
+          <th>{{ 'lettrage.col.total' | t }}</th>
+          <th *ngIf="canValidate">{{ 'common.actions' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let g of groups">
+          <td><strong>{{ g.code }}</strong></td>
+          <td>{{ g.date | date:'dd/MM/yyyy' }}</td>
+          <td>{{ g.accountCode }}</td>
+          <td>{{ g.lineCount }}</td>
+          <td>{{ g.totalDebit | currency:'EUR' }}</td>
+          <td class="row-actions" *ngIf="canValidate">
+            <button class="icon-action delete" type="button" (click)="deletter(g)" [title]="'lettrage.btn.deletter' | t">
+              <mat-icon>link_off</mat-icon>
+            </button>
+          </td>
+        </tr>
+        <tr *ngIf="!groupsLoading && groups.length === 0">
+          <td [attr.colspan]="canValidate ? 6 : 5" class="empty">{{ 'lettrage.groups.empty' | t }}</td>
+        </tr>
+        <tr *ngIf="groupsLoading">
+          <td [attr.colspan]="canValidate ? 6 : 5" class="empty">{{ 'common.loading' | t }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

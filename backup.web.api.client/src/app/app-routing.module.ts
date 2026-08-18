@@ -80,6 +80,66 @@ const routes: Routes = [
     loadComponent: () =>
       import('./components/accounting/fiscal-years/fiscal-years.component').then(m => m.FiscalYearsComponent)
   },
+  {
+    path: 'accounting/lettrage',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/lettrage/lettrage.component').then(m => m.LettrageComponent)
+  },
+  {
+    path: 'accounting/reports',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/reports/accounting-reports.component').then(m => m.AccountingReportsComponent)
+  },
+  {
+    path: 'accounting/vat',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/vat/vat-declaration.component').then(m => m.VatDeclarationComponent)
+  },
+  {
+    path: 'accounting/closing',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/closing/fiscal-closing.component').then(m => m.FiscalClosingComponent)
+  },
+  {
+    path: 'accounting/bank-reconciliation',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/bank-reconciliation/bank-reconciliation.component').then(m => m.BankReconciliationComponent)
+  },
+  {
+    path: 'accounting/exports',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/exports/accounting-exports.component').then(m => m.AccountingExportsComponent)
+  },
+  {
+    path: 'accounting/fixed-assets',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/fixed-assets/fixed-assets.component').then(m => m.FixedAssetsComponent)
+  },
+  {
+    path: 'accounting/payroll',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/payroll/payroll.component').then(m => m.PayrollComponent)
+  },
+  {
+    path: 'accounting/ocr',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/ocr/accounting-ocr.component').then(m => m.AccountingOcrComponent)
+  },
+  {
+    path: 'accounting/cabinet',
+    canActivate: [authGuard, permissionGuard(Permissions.AccountingRead)],
+    loadComponent: () =>
+      import('./components/accounting/cabinet/cabinet-portal.component').then(m => m.CabinetPortalComponent)
+  },
   { path: 'numbering', component: NumberingSettingsComponent, canActivate: [authGuard, permissionGuard(Permissions.NumberingManage)] },
   { path: 'stock', component: StockComponent, canActivate: [authGuard, permissionGuard(Permissions.StockRead)] },
   { path: 'erp-products', component: ErpProductsComponent, canActivate: [authGuard, permissionGuard(Permissions.ProductRead)] },

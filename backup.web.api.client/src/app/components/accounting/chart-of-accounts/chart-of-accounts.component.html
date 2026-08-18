@@ -1,7 +1,9 @@
 <div class="accounting-container">
   <div class="accounting-header">
     <div>
-      <h2>{{ 'accounting.plan.title' | t }}</h2>
+      <app-form-help helpKey="accounting.chart" [abbrs]="['PCG','PCM']">
+        <h2>{{ 'accounting.plan.title' | t }}</h2>
+      </app-form-help>
       <p class="subtitle">{{ 'accounting.plan.subtitle' | t }}</p>
     </div>
     <div class="actions">
@@ -92,7 +94,7 @@
     <form [formGroup]="form" (ngSubmit)="save()">
       <div class="form-row">
         <div class="form-group">
-          <label>{{ 'accounting.plan.field.number' | t }} *</label>
+          <label>{{ 'accounting.plan.field.number' | t }} * <app-field-help helpKey="field.accounting.account"></app-field-help></label>
           <input type="text" formControlName="accountNumber" />
         </div>
         <div class="form-group grow">

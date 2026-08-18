@@ -124,6 +124,8 @@ namespace Backup.Web.Api.Server.Brokers.Storage
         ValueTask<AccountingEntry> InsertAccountingEntryAsync(AccountingEntry entry);
         IQueryable<AccountingEntry> SelectAllAccountingEntries();
         ValueTask<AccountingEntry?> SelectAccountingEntryByIdAsync(int id);
+        ValueTask<AccountingEntry> UpdateAccountingEntryAsync(AccountingEntry entry);
+        ValueTask DeleteAccountingEntryAsync(AccountingEntry entry);
 
         // Document audit (P3)
         ValueTask<DocumentAuditLog> InsertDocumentAuditLogAsync(DocumentAuditLog log);

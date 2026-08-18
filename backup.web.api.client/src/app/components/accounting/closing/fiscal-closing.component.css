@@ -1,0 +1,164 @@
+.accounting-container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.accounting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: #64748b;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actions .btn-primary,
+.actions .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-form {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.form-group.grow {
+  flex: 1;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.form-group select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: white;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.card .amount {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.card .amount.next {
+  font-size: 1rem;
+}
+
+.card.profit {
+  background: #ecfdf5;
+}
+
+.card.loss {
+  background: #fef2f2;
+}
+
+.hint {
+  color: #64748b;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.panel {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.panel h3 {
+  margin: 0 0 12px;
+}
+
+.checks {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.checks li {
+  margin-bottom: 6px;
+}
+
+.checks .blocking {
+  color: #991b1b;
+}
+
+.checks .warning {
+  color: #9a3412;
+}
+
+.success-box,
+.error-box {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.success-box {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.error-box {
+  background: #fef2f2;
+  color: #991b1b;
+}

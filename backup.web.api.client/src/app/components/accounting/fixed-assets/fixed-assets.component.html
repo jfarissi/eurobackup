@@ -1,0 +1,201 @@
+<div class="accounting-container">
+  <div class="accounting-header">
+    <div>
+      <app-form-help helpKey="accounting.fixedAssets">
+        <h2>{{ 'immo.title' | t }}</h2>
+      </app-form-help>
+      <p class="subtitle">{{ 'immo.subtitle' | t }}</p>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" type="button" (click)="load()" [disabled]="loading || acting">
+        <mat-icon>refresh</mat-icon> {{ 'common.refresh' | t }}
+      </button>
+      <button class="btn-primary" type="button" (click)="openCreate()" *ngIf="canCreate">
+        <mat-icon>add</mat-icon> {{ 'immo.btn.new' | t }}
+      </button>
+    </div>
+  </div>
+
+  <div class="success-box" *ngIf="actionMessage">{{ actionMessage }}</div>
+  <div class="error-box" *ngIf="actionError">{{ actionError }}</div>
+
+  <form class="filter-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>{{ 'immo.field.month' | t }}</label>
+        <select [(ngModel)]="month" name="month">
+          <option *ngFor="let m of months" [ngValue]="m">{{ ('vat.month.' + m) | t }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ 'immo.field.year' | t }}</label>
+        <input type="number" [(ngModel)]="year" name="year" min="2000" max="2100" />
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="button" *ngIf="canValidate"
+                (click)="postMonth()" [disabled]="acting">
+          <mat-icon>post_add</mat-icon> {{ 'immo.btn.postMonth' | t }}
+        </button>
+      </div>
+    </div>
+  </form>
+  <p class="hint">{{ 'immo.hint.post' | t }}</p>
+
+  <div class="years-layout">
+    <div class="years-list">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'immo.col.code' | t }}</th>
+              <th>{{ 'immo.col.designation' | t }}</th>
+              <th>{{ 'immo.col.origin' | t }}</th>
+              <th>{{ 'immo.col.nbv' | t }}</th>
+              <th>{{ 'immo.col.mode' | t }}</th>
+              <th>{{ 'immo.col.status' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let asset of assets"
+                [class.selected-row]="selected?.id === asset.id"
+                (click)="select(asset.id)">
+              <td><strong>{{ asset.code }}</strong></td>
+              <td>{{ asset.designation }}</td>
+              <td class="num">{{ asset.originValue | number:'1.2-2' }}</td>
+              <td class="num">{{ asset.netBookValue | number:'1.2-2' }}</td>
+              <td>{{ ('immo.mode.' + asset.mode) | t }}</td>
+              <td>
+                <span class="status-badge" [class.active]="asset.isActive" [class.inactive]="!asset.isActive">
+                  {{ (asset.isActive ? 'immo.status.active' : 'immo.status.inactive') | t }}
+                </span>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && assets.length === 0">
+              <td colspan="6" class="empty">{{ 'immo.empty' | t }}</td>
+            </tr>
+            <tr *ngIf="loading">
+              <td colspan="6" class="empty">{{ 'common.loading' | t }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="periods-panel" *ngIf="selected">
+      <div class="panel-head">
+        <h3>{{ selected.code }} — {{ selected.designation }}</h3>
+        <div class="actions">
+          <button class="btn-secondary" type="button" *ngIf="canCreate" (click)="openEdit(selected)">
+            <mat-icon>edit</mat-icon> {{ 'common.edit' | t }}
+          </button>
+          <button class="btn-secondary" type="button" *ngIf="canCreate" (click)="recalculate(selected)">
+            <mat-icon>calculate</mat-icon> {{ 'immo.btn.recalculate' | t }}
+          </button>
+          <button class="btn-secondary" type="button" *ngIf="canValidate && selected.isActive"
+                  (click)="deactivate(selected)">
+            <mat-icon>block</mat-icon> {{ 'immo.btn.deactivate' | t }}
+          </button>
+        </div>
+      </div>
+      <p class="hint">
+        {{ selected.durationMonths }} {{ 'immo.months' | t }} —
+        {{ selected.assetAccountCode }} / {{ selected.depreciationAccountCode }} / {{ selected.expenseAccountCode }}
+      </p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ 'immo.col.period' | t }}</th>
+              <th>{{ 'immo.col.charge' | t }}</th>
+              <th>{{ 'immo.col.accumulated' | t }}</th>
+              <th>{{ 'immo.col.nbv' | t }}</th>
+              <th>{{ 'immo.col.posted' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let line of selected.schedule">
+              <td>{{ line.month | number:'2.0-0' }}/{{ line.year }}</td>
+              <td class="num">{{ line.charge | number:'1.2-2' }}</td>
+              <td class="num">{{ line.accumulated | number:'1.2-2' }}</td>
+              <td class="num">{{ line.netBookValue | number:'1.2-2' }}</td>
+              <td>
+                <span class="status-badge" [class.active]="line.isPosted">
+                  {{ (line.isPosted ? 'immo.postedYes' : 'immo.postedNo') | t }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal">
+  <div class="modal-content">
+    <h3>{{ (editingId ? 'immo.modal.edit' : 'immo.modal.create') | t }}</h3>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'immo.field.code' | t }}</label>
+          <input type="text" formControlName="code" />
+        </div>
+        <div class="form-group grow">
+          <label>{{ 'immo.field.designation' | t }} *</label>
+          <input type="text" formControlName="designation" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'immo.field.acquisition' | t }} *</label>
+          <input type="date" formControlName="acquisitionDate" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.service' | t }} *</label>
+          <input type="date" formControlName="serviceDate" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.duration' | t }} *</label>
+          <input type="number" formControlName="durationMonths" min="1" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.mode' | t }} *</label>
+          <select formControlName="mode">
+            <option *ngFor="let m of modes" [value]="m">{{ ('immo.mode.' + m) | t }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'immo.field.origin' | t }} *</label>
+          <input type="number" formControlName="originValue" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.residual' | t }}</label>
+          <input type="number" formControlName="residualValue" min="0" step="0.01" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ 'immo.field.assetAccount' | t }}</label>
+          <input type="text" formControlName="assetAccountCode" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.depAccount' | t }}</label>
+          <input type="text" formControlName="depreciationAccountCode" />
+        </div>
+        <div class="form-group">
+          <label>{{ 'immo.field.expenseAccount' | t }}</label>
+          <input type="text" formControlName="expenseAccountCode" />
+        </div>
+      </div>
+      <div class="error-box" *ngIf="modalError">{{ modalError }}</div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" (click)="closeModal()" [disabled]="saving">{{ 'common.cancel' | t }}</button>
+        <button class="btn-primary" type="submit" [disabled]="saving || form.invalid">
+          {{ saving ? ('common.saving' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
